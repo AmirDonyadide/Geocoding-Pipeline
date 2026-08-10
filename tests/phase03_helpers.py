@@ -50,15 +50,26 @@ def _write_manifest(
     loader_schema_version: str,
     unicode_version: str | None = None,
 ) -> None:
+    artifact_file_name = {
+        "country_assignments_json_v1": "fictional_assignments.json",
+        "country_names_json_v1": "fictional_names.json",
+        "unicode_scripts_txt_v1": "FictionalScripts.txt",
+    }[loader_schema_version]
     payload: dict[str, object] = {
         "reference_id": reference_id,
         "authority_role": authority_role,
         "source": "fictional:test-only",
         "vintage": "fictional-v1",
+        "retrieved_at_utc": "2026-01-01T00:00:00Z",
+        "artifact_file_name": artifact_file_name,
         "artifact_sha256": artifact_sha256,
+        "artifact_size_bytes": (path.parent / artifact_file_name).stat().st_size,
         "loader_schema_version": loader_schema_version,
+        "license_name": "Fictional test license",
+        "license_identifier": "LicenseRef-Fictional-Test",
         "license_note": "fictional test fixture; no production authority",
         "redistribution_policy": "VENDORED",
+        "validation_status": "PASS",
     }
     if unicode_version is not None:
         payload["unicode_version"] = unicode_version
@@ -132,6 +143,7 @@ def engine(
     config: Phase03Config | None = None,
     with_country: bool = True,
     with_scripts: bool = True,
+    execution_scope: str = "DEVELOPMENT",
 ) -> Phase03Engine:
     return Phase03Engine(
         config or Phase03Config(),
@@ -141,4 +153,5 @@ def engine(
         else None,
         script_reference=fictional_script_reference(tmp_path) if with_scripts else None,
         implementation_fingerprint=bytes.fromhex("33" * 32),
+        execution_scope=execution_scope,
     )

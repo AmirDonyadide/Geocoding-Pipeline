@@ -20,7 +20,10 @@ def test_bundled_rule_registry_is_canonical_deterministic_and_closed() -> None:
     first = load_rule_registry()
     second = load_rule_registry()
     assert first.fingerprint == second.fingerprint
-    assert first.registry_version == "phase03_rule_registry_v1"
+    assert first.fingerprint == (
+        "d1448859f8436dbe466cab81aee926ab6851b294f5ec664491840bac84627fd5"
+    )
+    assert first.registry_version == "phase03_rule_registry_v2"
     assert len(first.rules) == 12
     assert [rule.rule_id for rule in first.ordered_rules()] == [
         rule.rule_id for rule in first.rules
@@ -33,7 +36,7 @@ def test_bundled_rule_registry_is_canonical_deterministic_and_closed() -> None:
 def test_rule_registry_rejects_undocumented_matcher(tmp_path: Path) -> None:
     value = json.loads(
         Path(
-            "src/safe_geocoding_pipeline/phase03/resources/rule_registry_v1.json"
+            "src/safe_geocoding_pipeline/phase03/resources/rule_registry_v2.json"
         ).read_text()
     )
     value["rules"][0]["matching_condition"]["matcher"] = "ARBITRARY_PYTHON"
@@ -48,7 +51,7 @@ def test_rule_registry_rejects_untyped_or_extra_matcher_parameters(
 ) -> None:
     value = json.loads(
         Path(
-            "src/safe_geocoding_pipeline/phase03/resources/rule_registry_v1.json"
+            "src/safe_geocoding_pipeline/phase03/resources/rule_registry_v2.json"
         ).read_text()
     )
     value["rules"][5]["matching_condition"]["parameters"][
@@ -87,10 +90,16 @@ def test_reference_manifest_and_missing_production_reference_fail_closed() -> No
                 "authority_role": "NAME_MAPPING",
                 "source": None,
                 "vintage": "v1",
+                "retrieved_at_utc": "2026-01-01T00:00:00Z",
+                "artifact_file_name": "fictional.json",
                 "artifact_sha256": "00" * 32,
+                "artifact_size_bytes": 1,
                 "loader_schema_version": "fictional_v1",
+                "license_name": "Fictional",
+                "license_identifier": "LicenseRef-Fictional",
                 "license_note": "fictional",
                 "redistribution_policy": "VENDORED",
+                "validation_status": "PASS",
             }
         )
     with pytest.raises(ReferenceNotReadyError, match="COUNTRY_REFERENCE_NOT_READY"):
@@ -105,10 +114,16 @@ def test_reference_manifest_rejects_noncanonical_uppercase_hash() -> None:
                 "authority_role": "NAME_MAPPING",
                 "source": "fictional:test",
                 "vintage": "v1",
+                "retrieved_at_utc": "2026-01-01T00:00:00Z",
+                "artifact_file_name": "fictional.json",
                 "artifact_sha256": "AB" * 32,
+                "artifact_size_bytes": 1,
                 "loader_schema_version": "fictional_v1",
+                "license_name": "Fictional",
+                "license_identifier": "LicenseRef-Fictional",
                 "license_note": "fictional",
                 "redistribution_policy": "VENDORED",
+                "validation_status": "PASS",
             }
         )
 

@@ -249,6 +249,7 @@ Each registry entry contains exactly:
 |---|---|
 | `rule_id` | Stable uppercase identifier. |
 | `rule_version` | Positive integer or immutable version string. |
+| `execution_disposition` | Closed scientific execution role: `AUTHORITATIVE_SELECTABLE`, `AUTHORITATIVE_CANDIDATE_ONLY`, `AUTHORITATIVE_DIAGNOSTIC_ONLY`, or `DEVELOPMENT_SHADOW_ONLY`. |
 | `component` | Approved component enum or diagnostic-only. |
 | `representation` | `NON_NATIVE`, `NATIVE`, `SHARED`, or `ANY`. |
 | `eligible_source_fields` | Ordered explicit field-name list. |
@@ -265,7 +266,7 @@ Each registry entry contains exactly:
 | `reference_ids` | Ordered reference identifiers used, possibly empty. |
 | `required_tests` | Golden positive, negative, boundary, Unicode, and false-positive test IDs. |
 
-The registry is canonical UTF-8 JSON conforming to `phase03_rule_registry_schema_v1`; arbitrary executable expressions and prose-only conditions are prohibited. `preconditions` use a closed expression tree with `ALL`, `ANY`, `NOT`, `EQ`, `IN`, `SEMANTIC_STATE_IS`, `EVALUATION_STATUS_IS`, and `CANDIDATE_COUNT` operators. `matching_condition` names a registered matcher plus typed parameters. `extraction_condition` names a registered extractor plus typed parameters. Matcher and extractor identifiers are part of `parser_version`; adding or changing one changes that version. Canonical registry serialization uses sorted object keys, preserves array order, encodes UTF-8 without ASCII escaping, and uses no insignificant whitespace before SHA-256 fingerprinting.
+The current registry is canonical UTF-8 JSON conforming to `phase03_rule_registry_schema_v2`; arbitrary executable expressions and prose-only conditions are prohibited. `preconditions` use a closed expression tree with `ALL`, `ANY`, `NOT`, `EQ`, `IN`, `SEMANTIC_STATE_IS`, `EVALUATION_STATUS_IS`, and `CANDIDATE_COUNT` operators. `matching_condition` names a registered matcher plus typed parameters. `extraction_condition` names a registered extractor plus typed parameters. Matcher and extractor identifiers are part of `parser_version`; adding or changing one changes that version. Canonical registry serialization uses sorted object keys, preserves array order, encodes UTF-8 without ASCII escaping, and uses no insignificant whitespace before SHA-256 fingerprinting. Disposition participates in the canonical registry fingerprint and, together with explicit execution scope, in the effective parser/configuration fingerprint and manifests.
 
 ### Deterministic execution
 
@@ -278,6 +279,8 @@ The registry is canonical UTF-8 JSON conforming to `phase03_rule_registry_schema
 7. A tie between different values is ambiguity unless a rule explicitly defines it as conflict.
 8. LOW candidates never populate selected scalar components in v1.
 
+Execution scope is an explicit closed value: `DEVELOPMENT`, `LOCKED_EVALUATION`, or `AUTHORITATIVE`. `DEVELOPMENT_SHADOW_ONLY` rules execute only in `DEVELOPMENT`. Their candidates are isolated from authoritative selection, completeness, parse-status, diagnostic, and conflict calculations. They may write protected evidence-sidecar rows, but cannot populate core components or affect geocoding readiness. They are skipped entirely in `LOCKED_EVALUATION` and `AUTHORITATIVE` scope.
+
 Confidence is a declared property of the rule path. It is not a numeric model score.
 
 ### Initial rule scope
@@ -289,7 +292,7 @@ Phase 3 v1 deliberately favors low recall. Initial selectable rules may include 
 - exact agreement of free-form evidence with a structured component;
 - explicit marker rules listed below.
 
-Concepts such as a "plausible street-bearing segment" are not implementation rules. Street/house extraction remains candidate-only in the development pilot until exact rules and false-positive tests are frozen.
+Concepts such as a "plausible street-bearing segment" are not implementation rules. The v1 house edge rule is measurement-only under `DEVELOPMENT_SHADOW_ONLY`; street extraction remains unsupported.
 
 ## Marker rule bundles
 
@@ -399,7 +402,7 @@ A safe non-placeholder structured postcode is selectable at rule-assigned HIGH c
 
 Address lines are classified independently; they are not concatenated before rule execution. Phase 3 does not assume that any line position is a street.
 
-No selectable Phase 3 v1 rule may depend on an undefined concept such as "plausible street-bearing content." The development registry may emit LOW, unselected pilot candidates for bounded leading/trailing number tokens, alphanumeric tokens, ranges, and slash/hyphen forms. Those rules must define exact token grammars and false-positive exclusions for postcode, floor, unit, date, and decimal roles before they can be promoted.
+No selectable Phase 3 v1 rule may depend on an undefined concept such as "plausible street-bearing content." `HOUSE_NUMBER_EDGE_CANDIDATE_V1` retains its exact current grammar but has disposition `DEVELOPMENT_SHADOW_ONLY`. On the future development subset only, it may emit LOW protected evidence candidates for bounded leading/trailing number tokens, alphanumeric tokens, ranges, and slash/hyphen forms. It never populates `house_number_clean` or `street_clean`, changes completeness or parse status, creates core conflicts solely from its candidate, or affects readiness. It is prohibited from locked-evaluation and authoritative execution.
 
 Until such promotion is pre-registered and passes locked evaluation:
 
@@ -407,6 +410,8 @@ Until such promotion is pre-registered and passes locked evaluation:
 - no residual line becomes `street_clean` by position alone;
 - ambiguity is retained in the evidence sidecar;
 - low recall and null street/house fields are valid outcomes.
+
+Fill rate can never justify promotion. Development review must separately measure ordinary edge integers, alphanumeric edge tokens, numeric ranges, slash forms, hyphen forms, calendar-like false positives, postcode-like false positives, unit/floor collisions, and country/script cohorts where enough examples exist. Any selectable successor must have a new rule ID/version; V1 is never mutated into a selectable rule.
 
 If a future selectable rule removes an extracted house-number span from a street candidate, both source spans and the exact rule IDs must be retained. The normalized street and house values must each be reproducible from their raw spans.
 
@@ -902,9 +907,9 @@ Use a minimum target of 50 where a primary stratum contains at least 50 rows, in
 3. **Development manual review:** review approximately 800 protected development rows and measure component precision, missed information, overreach, conflict behavior, and evidence-sidecar performance.
 4. **Freeze:** finalize parser version, rule registry, placeholder policy, country/Unicode references, normalization, schemas, evidence inclusion rules, metrics, and implementation/configuration fingerprints.
 5. **Pre-register thresholds:** choose and record quantitative acceptance thresholds using development evidence only. Thresholds are fixed before the locked evaluation is opened.
-6. **Locked evaluation:** run the frozen implementation on the 4,000 evaluation rows and manually review approximately 400 protected rows.
+6. **Locked evaluation:** run the frozen authoritative implementation on the 4,000 evaluation rows and manually review approximately 400 protected rows. Development-shadow rules do not execute and evaluation identities remain sealed until this step.
 7. **PASS or REVISE:** compare locked results with pre-registered thresholds. Do not tune against the locked results.
-8. **Revision consequence:** any rule/policy/reference/schema change after locked evaluation creates a new parser/configuration version and a newly selected, sealed locked evaluation sample/version. The old evaluation cannot certify the revised rules.
+8. **Revision consequence:** any methodological defect requiring a rule/policy/reference/schema change after locked evaluation yields `FAIL/REVISE`, a new parser/rule/configuration version, and a newly selected and sealed locked-evaluation sample/version. The same locked sample is never used to tune and certify a revision.
 
 Evidence-sidecar benchmarking is mandatory during development and locked evaluation. No full run is approved until storage, compression, memory, throughput, privacy metadata, and join ergonomics are reviewed.
 
@@ -913,6 +918,26 @@ Evidence-sidecar benchmarking is mandatory during development and locked evaluat
 Approximately 1,200 pilot rows are manually reviewed: about 800 development and 400 locked evaluation. At least 25% are independently double-reviewed, with separate reviewer labels and adjudication reason codes.
 
 Reviewers see protected Phase 2 inputs, Phase 3 selected components, compact provenance, sidecar candidates/spans, conflicts, parse/completeness, and safety status under a hashed review ID. Labels cover component correctness, organization/building/unit role, conflict detection, parser overreach, missed extractable information, unsafe handling, and overall structuring acceptability.
+
+`manual_review_reason_codes_v1` is closed, multi-valued, and stored in canonical registry order with duplicates removed. Unknown codes fail validation. Its exact codes are: `CORRECT_AS_IS`, `SOURCE_AMBIGUOUS`, `INSUFFICIENT_SOURCE_EVIDENCE`, `WRONG_COMPONENT_ROLE`, `WRONG_VALUE`, `WRONG_SPAN_BOUNDARY`, `FALSE_POSITIVE_EXTRACTION`, `MISSED_EXTRACTABLE_COMPONENT`, `WRONG_NORMALIZATION`, `WRONG_PROVENANCE`, `WRONG_CONFLICT_DETECTION`, `MISSED_CONFLICT`, `UNSUPPORTED_FORMAT`, `UNSAFE_INPUT_HANDLING`, and `OTHER_ADJUDICATION_REQUIRED`. Free text is never the primary reason. `OTHER_ADJUDICATION_REQUIRED` requires a separate protected adjudication note, which is excluded from portable artifacts.
+
+| Reason code | Definition |
+|---|---|
+| `CORRECT_AS_IS` | The parser/result is correct for the available source evidence. |
+| `SOURCE_AMBIGUOUS` | The source itself supports multiple reasonable interpretations. |
+| `INSUFFICIENT_SOURCE_EVIDENCE` | The reviewer cannot establish the component from the supplied source. |
+| `WRONG_COMPONENT_ROLE` | Extracted text belongs to another role, for example unit versus house number. |
+| `WRONG_VALUE` | The component role is appropriate but the selected value is wrong. |
+| `WRONG_SPAN_BOUNDARY` | The correct source region was targeted but span boundaries are incorrect. |
+| `FALSE_POSITIVE_EXTRACTION` | The parser created structure not supported by the source. |
+| `MISSED_EXTRACTABLE_COMPONENT` | A component was clearly extractable under the review standard but was not identified. |
+| `WRONG_NORMALIZATION` | The underlying component is correct but the derived normalization changed it incorrectly. |
+| `WRONG_PROVENANCE` | The value is correct but its recorded source/rule provenance is wrong. |
+| `WRONG_CONFLICT_DETECTION` | The parser reported a conflict that is not supported. |
+| `MISSED_CONFLICT` | A genuine conflict was present but not reported. |
+| `UNSUPPORTED_FORMAT` | The source contains a legitimate pattern intentionally outside parser v1 coverage. |
+| `UNSAFE_INPUT_HANDLING` | Operational safety/oversized handling was incorrect. |
+| `OTHER_ADJUDICATION_REQUIRED` | No existing closed reason fits; a protected adjudication note is mandatory and use should be rare. |
 
 Pre-registered metrics include selected-component precision, extractable-information recall, false-structure/overreach rate, conflict precision/recall, unresolved rate, missed-information rate, evidence-sidecar coverage, and results by country/script/completeness strata. Reviewer agreement uses percent agreement plus an approved chance-adjusted measure. Fill rate alone is never an acceptance metric.
 
@@ -927,14 +952,15 @@ Review labels and aggregate metrics may be stored separately from raw text. Revi
 Proposed initial identifiers, subject to the pre-pilot freeze, are:
 
 - `parser_version = conservative_address_parser_v1`;
-- `rule_registry_version = phase03_rule_registry_v1`;
+- `rule_registry_version = phase03_rule_registry_v2`;
 - `cleaning_rules_version = derived_text_nfc_ws_v1_ucd16.0.0`;
 - `placeholder_policy_version = placeholder_policy_v1`;
-- `country_reference_version = pending_pinned_reference_manifest`;
-- `unicode_reference_version = unicode_16.0.0_pending_scripts_digest`;
+- `country_reference_version = country_reference_v1_iso_normative_unsd_m49_operational_20260810`;
+- `unicode_reference_version = unicode_ucd_16_0_0_scripts_20240430`;
 - `diagnostic_vocabulary_version = diagnostic_vocabulary_v1`;
 - `component_schema_version = phase03_component_core_v1`;
 - evidence schema version `phase03_component_evidence_v1`;
+- manual-review reason vocabulary `manual_review_reason_codes_v1`;
 - `phase03_version = phase03_v1`.
 
 `pending_*` identifiers are design placeholders and cannot appear in a pilot or production run. Exact reference IDs and digests must replace them before pilot execution.
@@ -944,17 +970,15 @@ Proposed initial identifiers, subject to the pre-pilot freeze, are:
 The following still require explicit approval or pre-pilot evidence:
 
 1. authorization to implement Phase 3;
-2. exact ISO/UN reference files, digests, loader schemas, and license/redistribution handling;
-3. exact Unicode 16.0.0 Script-property file identities and hashes;
-4. the complete version-controlled rule registry and its golden/false-positive tests;
-5. which development-only street/house candidate rules, if any, become selectable;
-6. final operational size/candidate limits after synthetic benchmarking;
-7. exact sparse-sidecar inclusion rules after pilot storage/query evidence;
-8. final batch, row-group, compression, and memory settings;
-9. whether a pinned libpostal model is evaluated only as a development-pilot secondary candidate generator;
-10. the pre-registered quantitative evaluation thresholds, chosen after development but before locked evaluation;
-11. separate authorization to select/read the real-data pilot;
-12. separate authorization for any eventual full 206-shard Phase 3 run.
+2. institutional/legal authorization for the pinned UNSD-derived operational mapping and any future redistribution;
+3. which future versioned street/house candidate rules, if any, are promoted after protected development evidence;
+4. final operational size/candidate limits after the real development benchmark;
+5. real-pilot confirmation of the frozen `evidence_sidecar_policy_v1` storage/query behavior;
+6. final batch, row-group, compression, and memory settings;
+7. whether a pinned libpostal model is evaluated only as a development-pilot secondary candidate generator;
+8. the pre-registered quantitative evaluation thresholds, chosen after development but before locked evaluation;
+9. separate authorization to select/read the real-data pilot;
+10. separate authorization for any eventual full 206-shard Phase 3 run.
 
 ## Completion and STOP gate
 

@@ -1,0 +1,21 @@
+{
+  "artifact_file_name": "Scripts.txt",
+  "artifact_sha256": "9e88f0a677df47311106340be8ede2ecdacd9c1c931831218d2be6d5508e0039",
+  "artifact_size_bytes": 189588,
+  "authority_role": "UNICODE_SCRIPT_PROPERTY",
+  "license_identifier": "Unicode-3.0",
+  "license_artifact_file_name": "LICENSE.txt",
+  "license_artifact_sha256": "e7a93b009565cfce55919a381437ac4db883e9da2126fa28b91d12732bc53d96",
+  "license_artifact_size_bytes": 1995,
+  "license_name": "Unicode License v3",
+  "license_note": "Vendoring and redistribution are permitted when the Unicode copyright and permission notice accompanies the data or associated documentation.",
+  "license_source": "https://www.unicode.org/license.txt",
+  "loader_schema_version": "unicode_scripts_txt_v1",
+  "redistribution_policy": "VENDORED",
+  "reference_id": "unicode_ucd_16_0_0_scripts_20240430",
+  "retrieved_at_utc": "2026-08-10T20:33:36Z",
+  "source": "https://www.unicode.org/Public/16.0.0/ucd/Scripts.txt",
+  "unicode_version": "16.0.0",
+  "validation_status": "PASS",
+  "vintage": "Unicode Character Database 16.0.0; Scripts.txt dated 2024-04-30T21:48:40Z"
+}

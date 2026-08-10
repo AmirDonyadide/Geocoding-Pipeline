@@ -15,6 +15,7 @@ from .constants import (
     CONFLICT_FLAGS,
     DIAGNOSTIC_FLAGS,
     EVIDENCE_KINDS,
+    EXECUTION_SCOPES,
     POSTCODE_FLAGS,
     REPRESENTATIONS,
 )
@@ -441,6 +442,7 @@ class Phase03Engine:
         country_reference: CountryReference | None = None,
         script_reference: ScriptReference | None = None,
         implementation_fingerprint: bytes,
+        execution_scope: str,
     ) -> None:
         config.validate()
         enforce_runtime_contract(
@@ -448,19 +450,25 @@ class Phase03Engine:
         )
         if len(implementation_fingerprint) != 32:
             raise ValueError("implementation fingerprint must be 32 bytes")
+        if config.rule_registry_version != registry.registry_version:
+            raise Phase03Error("RULE_REGISTRY_VERSION_MISMATCH")
+        if execution_scope not in EXECUTION_SCOPES:
+            raise ValueError("execution scope is not registered")
         self.config = config
         self.registry = registry
         self.country_reference = country_reference
         self.script_reference = script_reference
         self.implementation_fingerprint = implementation_fingerprint
+        self.execution_scope = execution_scope
         self.configuration_fingerprint = bytes.fromhex(
             fingerprint(
                 {
-                    "version": "phase03_effective_configuration_v1",
+                    "version": "phase03_effective_configuration_v2",
                     "base_configuration_fingerprint": (
                         config.configuration_fingerprint().hex()
                     ),
                     "rule_registry_fingerprint": registry.fingerprint,
+                    "execution_scope": execution_scope,
                     "country_assignment_reference": (
                         {
                             "reference_id": country_reference.assignment_manifest.reference_id,
@@ -542,7 +550,8 @@ class Phase03Engine:
             if evaluated
             else "NOT_EVALUATED_OVERSIZED"
         )
-        candidates: list[Candidate] = []
+        authoritative_candidates: list[Candidate] = []
+        shadow_candidates: list[Candidate] = []
         diagnostics: set[str] = set()
         conflicts: set[str] = set()
         historical_spans: list[tuple[str, int, int, str]] = []
@@ -561,10 +570,20 @@ class Phase03Engine:
         if skipped:
             diagnostics.add("OVERSIZED_INPUT")
 
-        candidate_limit_reached = False
+        authoritative_limit_reached = False
+        shadow_limit_reached = False
         for rule in self.registry.ordered_rules():
-            if candidate_limit_reached:
-                break
+            if rule.development_shadow_only and self.execution_scope != "DEVELOPMENT":
+                continue
+            if rule.development_shadow_only and shadow_limit_reached:
+                continue
+            if not rule.development_shadow_only and authoritative_limit_reached:
+                continue
+            target_candidates = (
+                shadow_candidates
+                if rule.development_shadow_only
+                else authoritative_candidates
+            )
             for field in rule.eligible_source_fields:
                 value = raw[field]
                 if not safe[field] or byte_lengths[field] > min(
@@ -575,7 +594,7 @@ class Phase03Engine:
                 context = {
                     "semantic_state": states[field],
                     "evaluation_status": evaluation,
-                    "candidate_count": len(candidates),
+                    "candidate_count": len(target_candidates),
                 }
                 if not _precondition_matches(rule.preconditions, context):
                     continue
@@ -622,25 +641,28 @@ class Phase03Engine:
                         source_fields=(field,),
                         conflict_behavior=rule.conflict_behavior,
                     )
-                    candidates.append(candidate)
+                    target_candidates.append(candidate)
                     if rule.component == "COUNTRY" and match.reference_kind:
                         country_kinds[(field, candidate.value)] = match.reference_kind
-                    if not self._within_candidate_limits(candidates):
-                        candidates.pop()
-                        diagnostics.add("CANDIDATE_LIMIT_EXCEEDED")
-                        candidate_limit_reached = True
+                    if not self._within_candidate_limits(target_candidates):
+                        target_candidates.pop()
+                        if rule.development_shadow_only:
+                            shadow_limit_reached = True
+                        else:
+                            diagnostics.add("CANDIDATE_LIMIT_EXCEEDED")
+                            authoritative_limit_reached = True
                         break
 
         explicit_role_spans = {
             (span.source_field, span.start_character, span.end_character_exclusive)
-            for candidate in candidates
+            for candidate in authoritative_candidates
             if candidate.component in {"UNIT", "FLOOR", "PO_BOX"}
             and candidate.confidence == "HIGH"
             for span in candidate.spans
         }
-        candidates = [
+        authoritative_candidates = [
             candidate
-            for candidate in candidates
+            for candidate in authoritative_candidates
             if not (
                 candidate.component == "HOUSE_NUMBER"
                 and any(
@@ -654,19 +676,24 @@ class Phase03Engine:
                 )
             )
         ]
-        conflicts.update(_registered_overlap_conflicts(candidates))
+        conflicts.update(_registered_overlap_conflicts(authoritative_candidates))
         self._apply_country_collision(
-            raw, states, candidates, country_kinds, diagnostics, conflicts
+            raw,
+            states,
+            authoritative_candidates,
+            country_kinds,
+            diagnostics,
+            conflicts,
         )
         structured_country_values = {
             candidate.value
-            for candidate in candidates
+            for candidate in authoritative_candidates
             if candidate.component == "COUNTRY"
             and candidate.source_fields == ("country_iso_code",)
         }
         freeform_country_values = {
             candidate.value
-            for candidate in candidates
+            for candidate in authoritative_candidates
             if candidate.component == "COUNTRY"
             and candidate.source_fields != ("country_iso_code",)
         }
@@ -677,8 +704,13 @@ class Phase03Engine:
             and freeform_country_values - structured_country_values
         ):
             conflicts.add("COUNTRY_SOURCE_CONFLICT")
-        candidates = sorted(candidates, key=_candidate_sort_key)
-        selected, conflicts, ambiguous = select_candidates(candidates, conflicts)
+        authoritative_candidates = sorted(
+            authoritative_candidates, key=_candidate_sort_key
+        )
+        shadow_candidates = sorted(shadow_candidates, key=_candidate_sort_key)
+        selected, conflicts, ambiguous = select_candidates(
+            authoritative_candidates, conflicts
+        )
         conflicted_components = {
             component
             for flag in conflicts
@@ -687,9 +719,14 @@ class Phase03Engine:
         selected = [
             item for item in selected if item.component not in conflicted_components
         ]
-        if any(candidate.component == "PO_BOX" for candidate in candidates):
+        if any(
+            candidate.component == "PO_BOX" for candidate in authoritative_candidates
+        ):
             diagnostics.update({"PO_BOX_EVIDENCE", "PROBABLE_NON_PHYSICAL"})
-        if any(candidate.component == "ORGANIZATION" for candidate in candidates):
+        if any(
+            candidate.component == "ORGANIZATION"
+            for candidate in authoritative_candidates
+        ):
             diagnostics.add("PROBABLE_ORGANIZATION_TEXT")
         if historical_spans:
             diagnostics.add("HISTORICAL_EVIDENCE")
@@ -707,7 +744,7 @@ class Phase03Engine:
         }
         candidate_fields = {
             span.source_field
-            for candidate in candidates
+            for candidate in authoritative_candidates
             if (candidate.component, candidate.representation, candidate.value)
             in selected_keys_for_assignment
             for span in candidate.spans
@@ -727,7 +764,11 @@ class Phase03Engine:
         )
         completeness = _completeness(selected_values)
         country_method, country_confidence = self._country_result(
-            selected, candidates, country_kinds, conflicts, diagnostics
+            selected,
+            authoritative_candidates,
+            country_kinds,
+            conflicts,
+            diagnostics,
         )
         native_relationships = [
             {
@@ -757,7 +798,8 @@ class Phase03Engine:
         is_po_box = any(item.component == "PO_BOX" for item in selected)
         is_historical = bool(historical_spans)
         has_organization = any(
-            candidate.component == "ORGANIZATION" for candidate in candidates
+            candidate.component == "ORGANIZATION"
+            for candidate in authoritative_candidates
         )
         possible_company_only = has_organization and not any(
             selected_values[name]
@@ -834,11 +876,14 @@ class Phase03Engine:
             "configuration_fingerprint": self.configuration_fingerprint,
             "implementation_fingerprint": self.implementation_fingerprint,
         }
+        evidence_candidates = sorted(
+            [*authoritative_candidates, *shadow_candidates], key=_candidate_sort_key
+        )
         evidence = self._evidence_rows(
             row,
             raw,
             states,
-            candidates,
+            evidence_candidates,
             selected,
             conflicts,
             diagnostics,
@@ -846,7 +891,9 @@ class Phase03Engine:
             unassigned_fields,
         )
         return TransformResult(
-            core_row=core, evidence_rows=evidence, candidates=tuple(candidates)
+            core_row=core,
+            evidence_rows=evidence,
+            candidates=tuple(evidence_candidates),
         )
 
     def _validate_input(self, row: Mapping[str, Any]) -> None:

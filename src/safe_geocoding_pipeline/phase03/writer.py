@@ -196,6 +196,13 @@ def _phase03_metadata(
     required = {
         **row_values,
         "evidence_schema_version": config.evidence_schema_version,
+        "evidence_sidecar_policy_version": config.evidence_sidecar_policy_version,
+        "manual_review_reason_codes_version": (
+            config.manual_review_reason_codes_version
+        ),
+        "manual_review_label_schema_version": (
+            config.manual_review_label_schema_version
+        ),
         "python_runtime_version": ".".join(map(str, config.expected_python_version)),
         "unicode_runtime_version": config.expected_unicode_version,
         "configuration_fingerprint": configuration_values.pop(),

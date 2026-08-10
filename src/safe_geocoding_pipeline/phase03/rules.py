@@ -8,13 +8,20 @@ from pathlib import Path
 from typing import Any
 
 from ..phase02.fingerprints import canonical_json_bytes
-from .constants import ADDRESS_FIELDS, COMPONENTS, CONFIDENCES, ELIGIBLE_FIELDS
+from .constants import (
+    ADDRESS_FIELDS,
+    COMPONENTS,
+    CONFIDENCES,
+    ELIGIBLE_FIELDS,
+    RULE_EXECUTION_DISPOSITIONS,
+)
 from .errors import Phase03Error
 
 RULE_KEYS = frozenset(
     {
         "rule_id",
         "rule_version",
+        "execution_disposition",
         "component",
         "representation",
         "eligible_source_fields",
@@ -87,6 +94,7 @@ BEHAVIOR_VALUES = frozenset({"NORMALIZED_EXTRACTED_TEXT", "REFERENCE_ALPHA2", "N
 class RuleSpec:
     rule_id: str
     rule_version: int | str
+    execution_disposition: str
     component: str
     representation: str
     eligible_source_fields: tuple[str, ...]
@@ -113,7 +121,11 @@ class RuleSpec:
 
     @property
     def selectable(self) -> bool:
-        return str(self.candidate_behavior["mode"]).startswith("SELECTABLE")
+        return self.execution_disposition == "AUTHORITATIVE_SELECTABLE"
+
+    @property
+    def development_shadow_only(self) -> bool:
+        return self.execution_disposition == "DEVELOPMENT_SHADOW_ONLY"
 
 
 @dataclass(frozen=True, slots=True)
@@ -271,6 +283,7 @@ def _as_rule(value: object) -> RuleSpec:
     matcher = value["matching_condition"]
     extractor = value["extraction_condition"]
     behavior = value["candidate_behavior"]
+    disposition = value["execution_disposition"]
     if (
         not isinstance(matcher, dict)
         or set(matcher) != {"matcher", "parameters"}
@@ -298,6 +311,23 @@ def _as_rule(value: object) -> RuleSpec:
         or behavior.get("value") not in BEHAVIOR_VALUES
     ):
         raise Phase03Error("RULE_REGISTRY_INVALID", "invalid candidate behavior")
+    if disposition not in RULE_EXECUTION_DISPOSITIONS:
+        raise Phase03Error("RULE_REGISTRY_INVALID", "invalid execution disposition")
+    allowed_dispositions = {
+        "SELECTABLE": {"AUTHORITATIVE_SELECTABLE"},
+        "SELECTABLE_WITH_PLACEHOLDER_COLLISION_GUARD": {
+            "AUTHORITATIVE_SELECTABLE"
+        },
+        "CANDIDATE_ONLY": {
+            "AUTHORITATIVE_CANDIDATE_ONLY",
+            "DEVELOPMENT_SHADOW_ONLY",
+        },
+        "DIAGNOSTIC_ONLY": {"AUTHORITATIVE_DIAGNOSTIC_ONLY"},
+    }
+    if disposition not in allowed_dispositions[str(behavior["mode"])]:
+        raise Phase03Error(
+            "RULE_REGISTRY_INVALID", "candidate behavior and disposition disagree"
+        )
     fields = value["eligible_source_fields"]
     if (
         not isinstance(fields, list)
@@ -378,6 +408,7 @@ def _as_rule(value: object) -> RuleSpec:
     return RuleSpec(
         rule_id=rule_id,
         rule_version=value["rule_version"],
+        execution_disposition=str(disposition),
         component=component,
         representation=representation,
         eligible_source_fields=tuple(fields),
@@ -402,7 +433,7 @@ def load_rule_registry(path: Path | None = None) -> RuleRegistry:
             path.read_bytes()
             if path is not None
             else files(__package__)
-            .joinpath("resources/rule_registry_v1.json")
+            .joinpath("resources/rule_registry_v2.json")
             .read_bytes()
         )
         value = json.loads(data.decode("utf-8", errors="strict"))
@@ -418,9 +449,9 @@ def load_rule_registry(path: Path | None = None) -> RuleRegistry:
         raise Phase03Error(
             "RULE_REGISTRY_INVALID", "registry root differs from approved schema"
         )
-    if value["schema_version"] != "phase03_rule_registry_schema_v1":
+    if value["schema_version"] != "phase03_rule_registry_schema_v2":
         raise Phase03Error("RULE_REGISTRY_INVALID", "unsupported registry schema")
-    if value["registry_version"] != "phase03_rule_registry_v1":
+    if value["registry_version"] != "phase03_rule_registry_v2":
         raise Phase03Error("RULE_REGISTRY_INVALID", "unexpected registry version")
     if not isinstance(value["rules"], list):
         raise Phase03Error("RULE_REGISTRY_INVALID", "rules must be a list")

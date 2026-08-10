@@ -10,8 +10,11 @@ from .constants import (
     COMPONENT_SCHEMA_VERSION,
     DIAGNOSTIC_VOCABULARY_VERSION,
     EVIDENCE_SCHEMA_VERSION,
+    EVIDENCE_SIDECAR_POLICY_VERSION,
     EXPECTED_PYTHON_VERSION,
     EXPECTED_UNICODE_VERSION,
+    MANUAL_REVIEW_LABEL_SCHEMA_VERSION,
+    MANUAL_REVIEW_REASON_CODES_VERSION,
     PARSER_VERSION,
     PHASE03_VERSION,
     PLACEHOLDER_POLICY_VERSION,
@@ -39,11 +42,16 @@ class Phase03Config:
     rule_registry_version: str = RULE_REGISTRY_VERSION
     cleaning_rules_version: str = CLEANING_RULES_VERSION
     placeholder_policy_version: str = PLACEHOLDER_POLICY_VERSION
-    country_reference_version: str = "pending_pinned_reference_manifest"
-    unicode_reference_version: str = "unicode_16.0.0_pending_scripts_digest"
+    country_reference_version: str = (
+        "country_reference_v1_iso_normative_unsd_m49_operational_20260810"
+    )
+    unicode_reference_version: str = "unicode_ucd_16_0_0_scripts_20240430"
     diagnostic_vocabulary_version: str = DIAGNOSTIC_VOCABULARY_VERSION
     component_schema_version: str = COMPONENT_SCHEMA_VERSION
     evidence_schema_version: str = EVIDENCE_SCHEMA_VERSION
+    evidence_sidecar_policy_version: str = EVIDENCE_SIDECAR_POLICY_VERSION
+    manual_review_label_schema_version: str = MANUAL_REVIEW_LABEL_SCHEMA_VERSION
+    manual_review_reason_codes_version: str = MANUAL_REVIEW_REASON_CODES_VERSION
     phase03_version: str = PHASE03_VERSION
 
     def validate(self) -> None:

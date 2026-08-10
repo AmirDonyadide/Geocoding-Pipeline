@@ -1,10 +1,11 @@
 {
-  "schema_version": "phase03_rule_registry_schema_v1",
-  "registry_version": "phase03_rule_registry_v1",
+  "schema_version": "phase03_rule_registry_schema_v2",
+  "registry_version": "phase03_rule_registry_v2",
   "rules": [
     {
       "rule_id": "POSTCODE_STRUCTURED_DIRECT_V1",
       "rule_version": 1,
+      "execution_disposition": "AUTHORITATIVE_SELECTABLE",
       "component": "POSTCODE",
       "representation": "SHARED",
       "eligible_source_fields": ["postcode"],
@@ -24,6 +25,7 @@
     {
       "rule_id": "LOCALITY_STRUCTURED_DIRECT_V1",
       "rule_version": 1,
+      "execution_disposition": "AUTHORITATIVE_SELECTABLE",
       "component": "LOCALITY",
       "representation": "SHARED",
       "eligible_source_fields": ["city"],
@@ -43,6 +45,7 @@
     {
       "rule_id": "REGION_STRUCTURED_DIRECT_V1",
       "rule_version": 1,
+      "execution_disposition": "AUTHORITATIVE_SELECTABLE",
       "component": "REGION",
       "representation": "SHARED",
       "eligible_source_fields": ["region_in_country"],
@@ -62,6 +65,7 @@
     {
       "rule_id": "COUNTRY_STRUCTURED_REFERENCE_V1",
       "rule_version": 1,
+      "execution_disposition": "AUTHORITATIVE_SELECTABLE",
       "component": "COUNTRY",
       "representation": "SHARED",
       "eligible_source_fields": ["country_iso_code"],
@@ -81,6 +85,7 @@
     {
       "rule_id": "COUNTRY_FREEFORM_REFERENCE_V1",
       "rule_version": 1,
+      "execution_disposition": "AUTHORITATIVE_CANDIDATE_ONLY",
       "component": "COUNTRY",
       "representation": "ANY",
       "eligible_source_fields": ["street_address_line_1", "street_address_line_2", "street_address_line_3", "street_address_line_4", "street_address_line_1_native", "street_address_line_2_native", "street_address_line_3_native", "street_address_line_4_native"],
@@ -100,6 +105,7 @@
     {
       "rule_id": "PO_BOX_MARKER_EN_V1",
       "rule_version": 1,
+      "execution_disposition": "AUTHORITATIVE_SELECTABLE",
       "component": "PO_BOX",
       "representation": "ANY",
       "eligible_source_fields": ["street_address_line_1", "street_address_line_2", "street_address_line_3", "street_address_line_4", "street_address_line_1_native", "street_address_line_2_native", "street_address_line_3_native", "street_address_line_4_native"],
@@ -119,6 +125,7 @@
     {
       "rule_id": "UNIT_MARKER_EN_V1",
       "rule_version": 1,
+      "execution_disposition": "AUTHORITATIVE_SELECTABLE",
       "component": "UNIT",
       "representation": "ANY",
       "eligible_source_fields": ["street_address_line_1", "street_address_line_2", "street_address_line_3", "street_address_line_4", "street_address_line_1_native", "street_address_line_2_native", "street_address_line_3_native", "street_address_line_4_native"],
@@ -138,6 +145,7 @@
     {
       "rule_id": "FLOOR_MARKER_EN_V1",
       "rule_version": 1,
+      "execution_disposition": "AUTHORITATIVE_SELECTABLE",
       "component": "FLOOR",
       "representation": "ANY",
       "eligible_source_fields": ["street_address_line_1", "street_address_line_2", "street_address_line_3", "street_address_line_4", "street_address_line_1_native", "street_address_line_2_native", "street_address_line_3_native", "street_address_line_4_native"],
@@ -157,6 +165,7 @@
     {
       "rule_id": "BUILDING_MARKER_EN_V1",
       "rule_version": 1,
+      "execution_disposition": "AUTHORITATIVE_SELECTABLE",
       "component": "BUILDING",
       "representation": "ANY",
       "eligible_source_fields": ["street_address_line_1", "street_address_line_2", "street_address_line_3", "street_address_line_4", "street_address_line_1_native", "street_address_line_2_native", "street_address_line_3_native", "street_address_line_4_native"],
@@ -176,6 +185,7 @@
     {
       "rule_id": "ORGANIZATION_LEGAL_FORM_EN_V1",
       "rule_version": 1,
+      "execution_disposition": "AUTHORITATIVE_CANDIDATE_ONLY",
       "component": "ORGANIZATION",
       "representation": "ANY",
       "eligible_source_fields": ["street_address_line_1", "street_address_line_2", "street_address_line_3", "street_address_line_4", "street_address_line_1_native", "street_address_line_2_native", "street_address_line_3_native", "street_address_line_4_native"],
@@ -195,6 +205,7 @@
     {
       "rule_id": "HISTORICAL_MARKER_EN_V1",
       "rule_version": 1,
+      "execution_disposition": "AUTHORITATIVE_DIAGNOSTIC_ONLY",
       "component": "DIAGNOSTIC_ONLY",
       "representation": "ANY",
       "eligible_source_fields": ["street_address_line_1", "street_address_line_2", "street_address_line_3", "street_address_line_4", "street_address_line_1_native", "street_address_line_2_native", "street_address_line_3_native", "street_address_line_4_native"],
@@ -214,6 +225,7 @@
     {
       "rule_id": "HOUSE_NUMBER_EDGE_CANDIDATE_V1",
       "rule_version": 1,
+      "execution_disposition": "DEVELOPMENT_SHADOW_ONLY",
       "component": "HOUSE_NUMBER",
       "representation": "ANY",
       "eligible_source_fields": ["street_address_line_1", "street_address_line_2", "street_address_line_3", "street_address_line_4", "street_address_line_1_native", "street_address_line_2_native", "street_address_line_3_native", "street_address_line_4_native"],

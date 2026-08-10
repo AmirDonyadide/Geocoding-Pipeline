@@ -2,14 +2,25 @@ from __future__ import annotations
 
 PHASE03_VERSION = "phase03_v1"
 PARSER_VERSION = "conservative_address_parser_v1"
-RULE_REGISTRY_VERSION = "phase03_rule_registry_v1"
+RULE_REGISTRY_VERSION = "phase03_rule_registry_v2"
 CLEANING_RULES_VERSION = "derived_text_nfc_ws_v1_ucd16.0.0"
 PLACEHOLDER_POLICY_VERSION = "placeholder_policy_v1"
 DIAGNOSTIC_VOCABULARY_VERSION = "diagnostic_vocabulary_v1"
 COMPONENT_SCHEMA_VERSION = "phase03_component_core_v1"
 EVIDENCE_SCHEMA_VERSION = "phase03_component_evidence_v1"
+EVIDENCE_SIDECAR_POLICY_VERSION = "evidence_sidecar_policy_v1"
+MANUAL_REVIEW_REASON_CODES_VERSION = "manual_review_reason_codes_v1"
+MANUAL_REVIEW_LABEL_SCHEMA_VERSION = "phase03_manual_review_labels_v1"
 EXPECTED_PYTHON_VERSION = (3, 14, 3)
 EXPECTED_UNICODE_VERSION = "16.0.0"
+
+RULE_EXECUTION_DISPOSITIONS = (
+    "AUTHORITATIVE_SELECTABLE",
+    "AUTHORITATIVE_CANDIDATE_ONLY",
+    "AUTHORITATIVE_DIAGNOSTIC_ONLY",
+    "DEVELOPMENT_SHADOW_ONLY",
+)
+EXECUTION_SCOPES = ("DEVELOPMENT", "LOCKED_EVALUATION", "AUTHORITATIVE")
 
 ADDRESS_FIELDS = (
     "street_address_line_1",

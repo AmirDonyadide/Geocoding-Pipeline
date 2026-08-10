@@ -94,21 +94,35 @@ Inspect the portable manual-review label schema:
 python3 -m safe_geocoding_pipeline.phase03.cli manual-review-schema
 ```
 
-Production country and Unicode Script references are not bundled. Their
-artifacts, hashes, schemas, vintages, licenses, and redistribution treatment
-must be reviewed and pinned before a real pilot. The validation-only interfaces
-are:
+The official Unicode 16.0.0 Script artifact, manifest, and Unicode License v3
+notice are bundled. The pinned UNSD M49 operational artifact remains in ignored
+controlled storage because its institutional/redistribution terms require
+clarification. Validate both pinned production references without reading Phase
+2 rows:
 
 ```bash
+python3 -m safe_geocoding_pipeline.phase03.cli validate-production-references \
+  --country-artifact /controlled/path/un_m49_country_area_codes_v1.json
+
 python3 -m safe_geocoding_pipeline.phase03.cli validate-country-reference \
-  --assignment-manifest /controlled/path/iso-manifest.json \
-  --assignment-artifact /controlled/path/iso-assignments.json \
-  --name-manifest /controlled/path/un-manifest.json \
-  --name-artifact /controlled/path/un-names.json
+  --manifest /controlled/path/un-m49-manifest.json \
+  --artifact /controlled/path/un_m49_country_area_codes_v1.json
 
 python3 -m safe_geocoding_pipeline.phase03.cli validate-script-reference \
-  --manifest /controlled/path/unicode-scripts-manifest.json \
-  --artifact /controlled/path/Scripts.txt
+  --manifest src/safe_geocoding_pipeline/phase03/resources/references/unicode_ucd_16_0_0/manifest.json \
+  --artifact src/safe_geocoding_pipeline/phase03/resources/references/unicode_ucd_16_0_0/Scripts.txt
+```
+
+The fictional-only performance harness requires an explicit scenario, row
+count, controlled country artifact, and generated-output directory. It never
+discovers Phase 2 data:
+
+```bash
+python3 -m safe_geocoding_pipeline.phase03.benchmark \
+  --scenario STRUCTURED_HEAVY \
+  --rows 30000 \
+  --country-artifact /controlled/path/un_m49_country_area_codes_v1.json \
+  --output-directory reports/generated/phase03/synthetic-benchmark
 ```
 
 The library sampler accepts already profiled `PilotCandidate` metadata and
@@ -117,7 +131,10 @@ seal containing only counts and identity digests. It is not invoked by the CLI,
 so ordinary framework commands cannot accidentally create a real pilot.
 
 The frozen declarative registry is packaged from
-`src/safe_geocoding_pipeline/phase03/resources/rule_registry_v1.json`. Phase 3
+`src/safe_geocoding_pipeline/phase03/resources/rule_registry_v2.json`. Its
+execution disposition is part of the registry/configuration identity;
+development-shadow rules never run in locked-evaluation or authoritative
+scope. Phase 3
 framework validation uses fictional fixtures only:
 
 ```bash
@@ -126,6 +143,7 @@ python3 -m ruff check .
 python3 -m mypy src tests
 ```
 
-The future manual-review artifact uses the 20-column schema returned by
-`manual-review-schema`; it stores a hashed review identity and labels, not raw
-addresses, provider IDs, cities, or postcodes.
+The future manual-review artifact uses the 21-column schema returned by
+`manual-review-schema`; it binds the closed `manual_review_reason_codes_v1`
+vocabulary and stores a hashed review identity and labels, not raw addresses,
+provider IDs, cities, or postcodes.

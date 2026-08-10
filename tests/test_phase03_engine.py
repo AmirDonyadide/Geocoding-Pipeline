@@ -11,6 +11,7 @@ from safe_geocoding_pipeline.phase03.engine import (
     select_candidates,
 )
 from safe_geocoding_pipeline.phase03.models import Candidate, RawSpan
+from safe_geocoding_pipeline.phase03.rules import load_rule_registry
 
 from phase03_helpers import engine, fictional_script_reference, phase02_row
 
@@ -228,6 +229,125 @@ def test_house_candidate_excludes_years_and_postcode_like_numbers(
     )
 
 
+@pytest.mark.parametrize(
+    ("rule_id", "component"),
+    [
+        ("PO_BOX_MARKER_EN_V1", "PO_BOX"),
+        ("UNIT_MARKER_EN_V1", "UNIT"),
+        ("FLOOR_MARKER_EN_V1", "FLOOR"),
+        ("BUILDING_MARKER_EN_V1", "BUILDING"),
+        ("ORGANIZATION_LEGAL_FORM_EN_V1", "ORGANIZATION"),
+    ],
+)
+def test_every_registered_english_marker_has_a_positive_case(
+    tmp_path: Path, rule_id: str, component: str
+) -> None:
+    registry = load_rule_registry()
+    rule = next(item for item in registry.rules if item.rule_id == rule_id)
+    key = "forms" if rule_id == "ORGANIZATION_LEGAL_FORM_EN_V1" else "markers"
+    for phrase in rule.matching_condition["parameters"][key]:
+        marker = " ".join(phrase)
+        if rule_id == "ORGANIZATION_LEGAL_FORM_EN_V1":
+            value = f"Fictional Research {marker}"
+        elif rule_id == "BUILDING_MARKER_EN_V1":
+            value = f"{marker} North Wing"
+        else:
+            value = f"{marker} 7B"
+        result = engine(tmp_path).transform(phase02_row(street_address_line_1=value))
+        assert any(candidate.component == component for candidate in result.candidates)
+
+
+def test_every_registered_historical_phrase_has_a_positive_case(
+    tmp_path: Path,
+) -> None:
+    registry = load_rule_registry()
+    rule = next(
+        item for item in registry.rules if item.rule_id == "HISTORICAL_MARKER_EN_V1"
+    )
+    for phrase in rule.matching_condition["parameters"]["phrases"]:
+        result = engine(tmp_path).transform(
+            phase02_row(street_address_line_1=f"Notice: {' '.join(phrase)}")
+        )
+        assert result.core_row["is_historical"] is True
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "postofficebox 7",
+        "apartmental 7",
+        "floorplan 7",
+        "North Building",
+        "GmbH",
+        "formerly located here",
+    ],
+)
+def test_english_marker_bundle_token_boundaries_reject_near_matches(
+    tmp_path: Path, value: str
+) -> None:
+    result = engine(tmp_path).transform(phase02_row(street_address_line_1=value))
+    assert not any(
+        candidate.rule_id
+        in {
+            "PO_BOX_MARKER_EN_V1",
+            "UNIT_MARKER_EN_V1",
+            "FLOOR_MARKER_EN_V1",
+            "BUILDING_MARKER_EN_V1",
+            "ORGANIZATION_LEGAL_FORM_EN_V1",
+        }
+        for candidate in result.candidates
+    )
+    assert result.core_row["is_historical"] is False
+
+
+def test_english_marker_bundle_is_ascii_case_insensitive(tmp_path: Path) -> None:
+    result = engine(tmp_path).transform(
+        phase02_row(
+            street_address_line_1="SUITE 7B",
+            street_address_line_2="FORMER ADDRESS",
+        )
+    )
+    assert result.core_row["unit_clean"] == "7B"
+    assert result.core_row["is_historical"] is True
+
+
+@pytest.mark.parametrize(
+    ("value", "component"),
+    [
+        ("PO Box " + "A" * 33, "PO_BOX"),
+        ("Unit " + "A" * 33, "UNIT"),
+        ("Floor " + "A" * 33, "FLOOR"),
+        ("4th Floor", "FLOOR"),
+    ],
+)
+def test_marker_identifier_and_ordinal_boundaries_reject(
+    tmp_path: Path, value: str, component: str
+) -> None:
+    result = engine(tmp_path).transform(phase02_row(street_address_line_1=value))
+    assert not any(candidate.component == component for candidate in result.candidates)
+
+
+def test_building_name_boundary_is_four_tokens_and_64_codepoints(
+    tmp_path: Path,
+) -> None:
+    parser = engine(tmp_path)
+    bounded = parser.transform(
+        phase02_row(street_address_line_1="Building One Two Three Four Five")
+    )
+    assert bounded.core_row["building_clean"] == "One Two Three Four"
+    too_long = parser.transform(
+        phase02_row(street_address_line_1="Building " + "A" * 65)
+    )
+    assert too_long.core_row["building_clean"] is None
+
+
+def test_historical_unlisted_language_is_not_in_english_v1(tmp_path: Path) -> None:
+    result = engine(tmp_path).transform(
+        phase02_row(street_address_line_1="ancienne adresse")
+    )
+    assert result.core_row["is_historical"] is False
+
+
 def test_raw_source_spans_survive_whitespace_nfc_and_multiline(tmp_path: Path) -> None:
     raw = "  Apt.\tCafe\u0301\n"
     result = engine(tmp_path).transform(phase02_row(street_address_line_1=raw))
@@ -379,6 +499,7 @@ def test_operational_safety_boundaries_are_inclusive_and_combined_limit_is_exact
     [
         ("POSTCODE", "POSTCODE_MULTIPLE_CANDIDATES"),
         ("LOCALITY", "LOCALITY_MULTIPLE_CANDIDATES"),
+        ("REGION", "REGION_MULTIPLE_CANDIDATES"),
         ("COUNTRY", "COUNTRY_MULTIPLE_CANDIDATES"),
     ],
 )
@@ -416,12 +537,18 @@ def test_deterministic_selection_retains_component_conflicts(
     assert ambiguous
 
 
-def test_explicit_unit_role_suppresses_same_span_house_candidate(
+def test_explicit_unit_role_retains_shadow_house_evidence_without_core_conflict(
     tmp_path: Path,
 ) -> None:
     result = engine(tmp_path).transform(phase02_row(street_address_line_1="Unit 7B"))
     assert result.core_row["unit_clean"] == "7B"
     assert result.core_row["house_number_clean"] is None
-    assert not any(
-        candidate.component == "HOUSE_NUMBER" for candidate in result.candidates
+    assert any(
+        candidate.component == "HOUSE_NUMBER"
+        and candidate.rule_id == "HOUSE_NUMBER_EDGE_CANDIDATE_V1"
+        and not candidate.selectable
+        for candidate in result.candidates
     )
+    assert "UNIT_HOUSE_NUMBER_ROLE_CONFLICT" not in result.core_row[
+        "address_conflict_flags"
+    ]

@@ -21,12 +21,20 @@ safe-geocoding-phase03 = "safe_geocoding_pipeline.phase03.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-"safe_geocoding_pipeline.phase03" = ["resources/*.json"]
+"safe_geocoding_pipeline.phase03" = [
+    "resources/*.json",
+    "resources/references/*.json",
+    "resources/references/*/*.json",
+    "resources/references/*/*.txt",
+]
 
 [tool.pytest.ini_options]
 addopts = "-ra"
 testpaths = ["tests"]
-markers = ["slow: generated large-field tests"]
+markers = [
+    "slow: generated large-field tests",
+    "production_reference: requires controlled production reference data",
+]
 
 [tool.mypy]
 python_version = "3.11"

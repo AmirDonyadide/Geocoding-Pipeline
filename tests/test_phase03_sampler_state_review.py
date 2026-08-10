@@ -6,6 +6,7 @@ import json
 import pytest
 
 from safe_geocoding_pipeline.phase03.models import PilotCandidate
+from safe_geocoding_pipeline.phase03.constants import EVIDENCE_SIDECAR_POLICY_VERSION
 from safe_geocoding_pipeline.phase03.cli import main as phase03_main
 from safe_geocoding_pipeline.phase03.review import (
     hashed_review_id,
@@ -112,6 +113,44 @@ def test_pilot_sampler_rejects_duplicate_ids_and_unfillable_caps() -> None:
             ),
             input_phase02_manifest_identity="fictional",
         )
+
+
+def test_full_size_synthetic_sampler_keeps_locked_identities_out_of_summary() -> None:
+    population = [
+        PilotCandidate(
+            stable_source_row_id_v1=index.to_bytes(32, "big"),
+            strata={
+                "country_cohort": f"country_{index % 50}",
+                "script_category": f"script_{index % 12}",
+                "postcode_type": f"postcode_{index % 8}",
+                "structured_completeness": f"complete_{index % 6}",
+            },
+            targeted_safety_case=index < 25,
+        )
+        for index in range(25_000)
+    ]
+    config = PilotSamplingConfig()
+    first = select_and_seal_pilot(
+        population,
+        config=config,
+        input_phase02_manifest_identity="fictional-phase02-manifest",
+        selection_timestamp="2026-01-01T00:00:00Z",
+    )
+    second = select_and_seal_pilot(
+        reversed(population),
+        config=config,
+        input_phase02_manifest_identity="fictional-phase02-manifest",
+        selection_timestamp="2026-01-01T00:00:00Z",
+    )
+    assert first == second
+    assert len(first.development_ids) == 8_000
+    assert len(first.locked_evaluation_ids) == 4_000
+    assert set(first.development_ids).isdisjoint(first.locked_evaluation_ids)
+    summary = first.portable_summary()
+    assert summary["development_count"] == 8_000
+    assert summary["locked_evaluation_count"] == 4_000
+    assert "development_ids" not in summary
+    assert "locked_evaluation_ids" not in summary
     with pytest.raises(ValueError, match="quotas/caps cannot"):
         select_and_seal_pilot(
             population,
@@ -191,8 +230,17 @@ def test_evidence_sidecar_is_sparse_for_direct_structured_propagation(
         phase02_row(street_address_line_1="Apt 7B", city="Exampleville")
     )
     assert len(direct.evidence_rows) == 0
-    assert len(marker.evidence_rows) == 1
-    assert marker.evidence_rows[0]["component"] == "UNIT"
+    assert len(marker.evidence_rows) == 2
+    assert {item["component"] for item in marker.evidence_rows} == {
+        "UNIT",
+        "HOUSE_NUMBER",
+    }
+    assert next(
+        item
+        for item in marker.evidence_rows
+        if item["component"] == "HOUSE_NUMBER"
+    )["selected"] is False
+    assert EVIDENCE_SIDECAR_POLICY_VERSION == "evidence_sidecar_policy_v1"
 
 
 def test_phase03_cli_is_validation_only_and_privacy_safe(
@@ -202,6 +250,10 @@ def test_phase03_cli_is_validation_only_and_privacy_safe(
     payload = json.loads(capsys.readouterr().out)
     assert payload["status"] == "FRAMEWORK_ONLY"
     assert payload["pilot_ready"] is False
-    assert payload["production_country_reference"] == "BLOCKED_PENDING_APPROVAL"
-    assert payload["production_script_reference"] == "BLOCKED_PENDING_APPROVAL"
+    assert payload["production_country_reference"] == (
+        "country_reference_v1_iso_normative_unsd_m49_operational_20260810"
+    )
+    assert payload["production_script_reference"] == (
+        "unicode_ucd_16_0_0_scripts_20240430"
+    )
     assert "transform" not in payload
