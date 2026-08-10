@@ -1,0 +1,77 @@
+# Project overview
+
+## Purpose
+
+This repository supports a SAFE research-data construction project linking firm locations to fine-grained environmental and remote-sensing measures. The target is a defensible physical point for a building, plant, branch, store, facility, or comparable business location—not merely any coordinate returned by a geocoder.
+
+City, region, and country centroids are unsuitable for the main analysis because they cannot represent building-level exposure to biodiversity, pollution, climate, land cover, satellite-derived measures, or neighborhood conditions.
+
+The scientific output is therefore:
+
+- a selected coordinate;
+- evidence describing what was matched;
+- an explicit quality and acceptance decision;
+- enough lineage and version metadata to reproduce that decision.
+
+`docs/PROJECT_BRIEF.md` remains the long-form historical and methodological reference. This file is the concise current overview, while `docs/DECISIONS.md` records decision status.
+
+## Analytical outcome
+
+`usable_for_analysis` is the final Boolean decision: whether a coordinate is sufficiently precise, geographically consistent, and trustworthy for the intended point-level research.
+
+Diagnostic quality tiers remain separate:
+
+| Tier | Diagnostic meaning | Point-analysis treatment |
+|---|---|---|
+| A | Address layer, exact match, no major geographic contradiction | Expected `usable_for_analysis = True` |
+| B | Address layer, interpolated match, no major contradiction | Acceptance remains open pending pilot evidence |
+| C | Street, venue, locality, localadmin, or otherwise too coarse | `False` |
+| D | Region, country, fallback, or major contradiction | `False` |
+| U | Unmatched, unresolved, permanently failed, or unparseable | `False` |
+
+Confidence is supporting evidence, not a standalone acceptance rule. A successful HTTP request or a returned first feature is not automatically a successful scientific geocode.
+
+## Current source scope
+
+The authoritative current source dataset is 206 CSV files totaling approximately 3.29 GB. No additional source collection is currently known to be required.
+
+The compressed/on-disk size understates possible parsed memory use: quoted multiline records and multi-million-character fields have been observed. Processing should therefore remain CSV-aware, reproducible, and bounded-memory where useful, without introducing distributed technology solely on scale grounds.
+
+## Architecture
+
+The intended data flow is:
+
+```text
+immutable source CSVs
+  -> verified file manifest and parser contract
+  -> validated staging data with row lineage
+  -> conservative canonical address components and input flags
+  -> versioned address keys and unique-address table
+  -> controlled SAFE query plan and pilot
+  -> checkpointed geocoding of unique addresses
+  -> deterministic candidate selection and quality classification
+  -> geographic validation
+  -> left join back to every source row
+  -> versioned audit package and final research dataset
+```
+
+SAFE/Pelias `/v1/search/structured` is the preferred primary endpoint. Requests normally use reliable structured components and `size=1`. The production service must be accessed with protected runtime authentication and only 2–4 concurrent requests in total.
+
+## Development and production environments
+
+The MacBook is the primary environment for design, implementation, unit tests, synthetic fixtures, and small approved representative tests. The complete source collection must not be repeatedly loaded into memory merely because it is locally available.
+
+Goethe-NHR is available for final/full processing where beneficial. Cluster work must use SLURM for substantial computation. Home is for backed-up code and small files; personal `/work` is for large data and outputs but is not backed up. `/scratch` is retired, `/work/footprint/public` is read-only unless explicit permission is given, and the shared Conda base must not be modified.
+
+## Safety and reproducibility principles
+
+- Raw data is immutable; all transformations create explicit derived fields.
+- Preserve every original row and enough source metadata to trace it.
+- Treat IDs and postcodes as strings until proven otherwise; do not assume `id` is globally unique.
+- Preserve Unicode plus native and non-native variants independently.
+- Parse logical CSV records, not physical lines, and report malformed or oversized inputs explicitly.
+- Clean conservatively: deterministic normalization is allowed; uncertain correction or inference must be flagged.
+- Deduplicate stable geographic addresses before geocoding, while retaining a mapping to every original row.
+- Record queries, responses, selection reasons, errors, quality decisions, versions, and counts.
+- Use bounded retries, checkpoints, and restartable processing; never hide failures.
+- Work one phase at a time and stop at every review gate.
