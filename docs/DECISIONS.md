@@ -82,11 +82,35 @@ These are empirical properties of the exact current snapshot, not permanent prov
 - Temporary output is validated before same-filesystem atomic promotion. A run is not approved without complete dataset-level reconciliation and a final success marker.
 - The ordinary and extreme real-shard smoke conversions must be separately authorized, executed, benchmarked, and reviewed before the complete 206-file Phase 2 conversion can be authorized.
 
+### Phase 3 approved design decisions
+
+- Phase 3 is a deterministic derived-component phase only. It consumes only the immutable successful Phase 2 run `phase02_20260810T173851Z_1349152b` and must not modify it, create `address_key`, deduplicate addresses, determine geocoding readiness or `usable_for_analysis`, call SAFE/Pelias, or begin Phase 4.
+- Phase 3 retains exactly one core component row per Phase 2 source row. Detailed competing candidates and raw-span evidence belong in a separate sparse controlled evidence sidecar keyed by `stable_source_row_id_v1`; the sidecar does not need one row for every source observation.
+- The core table contains selected scalar components, compact selected-component provenance/rule identifiers, native alternatives, parse/completeness outcomes, conflicts/diagnostics, evaluation coverage, and version/fingerprint fields. Evidence-storage size, write/read cost, and join ergonomics must be benchmarked during the pilot before a full Phase 3 run.
+- Placeholder interpretation is based on the exact raw value before normalization. Exact `""`, `"."`, and `"-"` are semantic missing in address/geographic fields. Exact `"Na"`, `"Nan"`, and `"Null"` are `AMBIGUOUS_PLACEHOLDER_LIKE` by default: they are neither automatically missing nor automatically meaningful and cannot populate a selected component without independent compatible evidence.
+- Exact uppercase assigned ISO alpha-2 `NA` may be accepted as Namibia. Exact raw `Na` must not be case-normalized to Namibia by itself. It may resolve to `NA` only through separately supported compatible evidence; otherwise `country_clean` remains null and the placeholder/reference collision is recorded. The same collision rule applies to any placeholder-like literal that also matches a field-specific code or name after transformation.
+- Python runtime `unicodedata.unidata_version` is authoritative for NFC behavior. The intended initial project interpreter currently resolves through `python3` to Python 3.14.3 with Unicode data 16.0.0, so the proposed initial cleaning identifier is `derived_text_nfc_ws_v1_ucd16.0.0`. Startup must assert the approved Python/Unicode versions and fail closed on mismatch; metadata records both.
+- Any external Unicode Script-property files must come from the same Unicode release used for NFC, have recorded SHA-256 values and licensing metadata, and be pinned before the pilot. Phase 3 must not use undocumented script heuristics or silently upgrade Unicode data.
+- `diagnostic_evaluation_status` describes how fully a row was safe to evaluate. Its exact vocabulary is `FULLY_EVALUATED`, `PARTIALLY_SKIPPED_OVERSIZED`, and `NOT_EVALUATED_OVERSIZED`. Oversized input is also recorded as a diagnostic, while safe structured fields and safe lines remain eligible for parsing.
+- `address_parse_status` is separate from safety coverage and uses only `PARSED`, `PARTIAL`, `AMBIGUOUS`, `CONFLICT`, `UNPARSEABLE`, and `INSUFFICIENT`. Completeness describes actually selected components, including on partially evaluated rows.
+- Extraction and selection behavior is defined only through a versioned rule registry. Every rule declares its eligible source fields, exact preconditions and matching/extraction condition, comparison normalization, candidate behavior, fixed confidence, selection priority, conflict behavior, maximum input size, and tests. Confidence is assigned by rules, never by an undocumented score.
+- Evidence spans use zero-based Unicode code-point offsets `[start_character, end_character_exclusive)` into one exact Phase 2 raw string before NFC, whitespace collapse, control replacement, or trimming. Rules retain raw token spans and normalize extracted substrings only after locating them. A candidate assembled from multiple pieces carries multiple raw spans.
+- Country validation and name mapping use an explicit reference abstraction. Normative ISO validation and UN-maintained name mapping remain distinct. Reference files, schemas, vintages, SHA-256 values, and license/redistribution notes must be pinned before the pilot; controlled reference data may remain outside Git when redistribution is inappropriate.
+- Phase 3 integrity uses exact binary canonical serialization, not JSON or Python representations. Independent read-back must reproduce core and evidence semantic digests, and a dataset digest binds the ordered shard paths, row counts, and raw 32-byte per-shard digests.
+- The approximately 12,000-row pilot is split into a rule-development subset and a locked evaluation subset. Rules may change only during development. Before locked evaluation, parser/rule/policy/reference/normalization versions and evaluation metrics are frozen and quantitative thresholds are pre-registered. Any revision after locked evaluation requires a new parser version and new locked evaluation sample/version.
+- Manual review remains in a protected environment. Raw confidential addresses are not copied into Git, portable reports, public issue trackers, or external AI/services without explicit institutional permission. Review datasets use hashed review identifiers; labels and aggregate metrics may be stored separately from raw text.
+- Phase 3 implementation, pilot execution, and the full 206-shard Phase 3 run remain separately authorized actions. This design approval does not authorize any of them.
+
 ## Open decisions
 
 - Whether, and under what evidence/rules, an address-layer interpolated result is `usable_for_analysis`.
-- Exact placeholder/null semantics, including treatment of `.`, `-`, `Na`, `Nan`, `Null`, and source-specific status values.
-- International canonical-address rules and deterministic extraction of structured geography from free-form lines.
+- Exact contents and reviewed test coverage of the Phase 3 rule registry, including which candidate-only development rules are promoted to selectable rules after the development pilot.
+- Exact controlled ISO/UN country-reference files, vintages, SHA-256 values, loading schemas, and confirmed license/redistribution handling.
+- Exact Unicode 16.0.0 `Scripts.txt`/related file identities and hashes if Script-property diagnostics remain in Phase 3 v1.
+- Evidence-sidecar inclusion rules and operational settings after the required pilot benchmark of storage size, compression, write/read throughput, memory, and join ergonomics.
+- Quantitative Phase 3 parser/manual-review acceptance thresholds. These must be pre-registered after the development subset and before the locked evaluation subset is opened.
+- Whether a pinned libpostal build/model should be evaluated only as a secondary candidate generator during the development pilot.
+- International canonical-address rules that are not yet expressible as exact registry entries remain unresolved and must not be invented during implementation.
 - Native-script versus transliterated primary/rescue query rules.
 - Exact versioned address-key serialization and fields included in it.
 - Final input eligibility/completeness thresholds and controlled rescue-query ladder.
@@ -94,10 +118,6 @@ These are empirical properties of the exact current snapshot, not permanent prov
 - Manual ground-truth protocol and evidence needed for interpolation policy.
 - Candidate comparison, component-agreement thresholds, and manual-review thresholds.
 - Any external geographic boundary/reference dataset, including source, license, vintage, and coverage.
-- Exact compatible PyArrow and DuckDB version pins, Parquet physical/data-page version, and checksum-verification API.
-- Smoke-benchmark acceptance limits and any resulting change to the provisional Phase 2 batch, row-group, compression, memory, spill, free-space, or runtime settings.
-- Exact Phase 2 run-ID/configuration-fingerprint formats, small run-state SQLite details, temporary-output quarantine/retention policy, and artifact permission/access controls.
-- Authorization to implement Phase 2, execute the two-shard real-data smoke conversion, and later execute the complete 206-file conversion remain separate outstanding approvals.
 - Production unique-address count, API-call count, timing, SAFE RDC coordination, and production-run approval.
 - Historical-address and location-type interpretation rules where source evidence permits them.
 
