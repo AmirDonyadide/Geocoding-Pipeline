@@ -1,24 +1,10 @@
 from __future__ import annotations
 
+from ..raw_csv import SOURCE_COLUMNS
+
 INVENTORY_VERSION = "phase01_v1"
 
-EXPECTED_COLUMNS = (
-    "id",
-    "street_address_line_1",
-    "street_address_line_2",
-    "street_address_line_3",
-    "street_address_line_4",
-    "street_address_line_1_native",
-    "street_address_line_2_native",
-    "street_address_line_3_native",
-    "street_address_line_4_native",
-    "postcode",
-    "city",
-    "region_in_country",
-    "country_iso_code",
-    "batch_priority",
-    "location_information",
-)
+EXPECTED_COLUMNS = SOURCE_COLUMNS
 
 NATIVE_PAIRS = (
     ("street_address_line_1", "street_address_line_1_native"),
@@ -66,4 +52,3 @@ ANOMALY_COLUMNS = (
     "message_code",
     "counts_complete",
 )
-

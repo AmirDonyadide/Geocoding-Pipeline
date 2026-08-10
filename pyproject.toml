@@ -4,16 +4,17 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "safe-geocoding-pipeline"
-version = "0.1.0"
+version = "0.2.0"
 description = "Reproducible inventory and geocoding pipeline for SAFE research data"
 requires-python = ">=3.11"
-dependencies = []
+dependencies = ["duckdb==1.5.5", "pyarrow==25.0.0"]
 
 [project.optional-dependencies]
-dev = ["mypy>=1.10", "pytest>=8", "ruff>=0.9"]
+dev = ["mypy==1.20.2", "pytest==8.4.2", "ruff==0.15.14"]
 
 [project.scripts]
 safe-geocoding-phase01 = "safe_geocoding_pipeline.phase01.cli:main"
+safe-geocoding-phase02 = "safe_geocoding_pipeline.phase02.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -21,10 +22,15 @@ where = ["src"]
 [tool.pytest.ini_options]
 addopts = "-ra"
 testpaths = ["tests"]
+markers = ["slow: generated large-field tests"]
 
 [tool.mypy]
 python_version = "3.11"
 strict = true
+
+[[tool.mypy.overrides]]
+module = ["pyarrow", "pyarrow.*"]
+ignore_missing_imports = true
 
 [tool.ruff]
 target-version = "py311"

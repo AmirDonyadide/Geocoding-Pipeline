@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from ..raw_csv import strict_csv_reader
 from .config import InventoryConfig
 from .constants import ANOMALY_COLUMNS, EXPECTED_COLUMNS
 from .models import (
@@ -250,15 +251,7 @@ def scan_csv_file(
             parse_started = time.perf_counter()
             try:
                 with source.path.open("r", encoding=encoding, errors="strict", newline="") as stream:
-                    reader = csv.reader(
-                        stream,
-                        delimiter=",",
-                        quotechar='"',
-                        doublequote=True,
-                        escapechar=None,
-                        skipinitialspace=False,
-                        strict=True,
-                    )
+                    reader = strict_csv_reader(stream)
                     result.encoding_status = "UTF8_VALID"
                     try:
                         header = next(reader)
