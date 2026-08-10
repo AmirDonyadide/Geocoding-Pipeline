@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import hashlib
+import json
 import os
 from pathlib import Path
 from typing import Any
@@ -356,6 +357,29 @@ def test_duckdb_exact_reconciliation(tmp_path: Path) -> None:
     )
     assert result.status == "PASS"
     assert result.total_rows == result.distinct_ids == result.distinct_stable_ids == 4
+    assert result.empty_ids == 0
+    assert result.to_dict()["empty_ids"] == 0
+
+
+def test_duckdb_reconciliation_persists_empty_id_count(tmp_path: Path) -> None:
+    source_dir = tmp_path / "source"
+    source_dir.mkdir()
+    output, entry, _, _ = _convert(source_dir, [_raw_row(""), _raw_row("2")])
+    data = tmp_path / "data"
+    data.mkdir()
+    final = data / Path(entry.file_name).with_suffix(".parquet")
+    final.write_bytes(output.read_bytes())
+
+    result = reconcile_completed_parquet(
+        data_dir=data,
+        entries=[entry],
+        memory_limit="512MB",
+        spill_dir=tmp_path / "spill",
+    )
+
+    assert result.status == "PASS"
+    assert result.empty_ids == 1
+    assert result.to_dict()["empty_ids"] == 1
 
 
 def test_state_transitions_interruption_and_failure_history(tmp_path: Path) -> None:
@@ -413,6 +437,15 @@ def test_runner_atomic_promotion_scope_marker_and_resume(
     assert (outcome.staging_run_dir / "_work/phase02_state.sqlite3").stat().st_mode & 0o777 == 0o600
     assert (outcome.staging_run_dir / "_SCOPE_SUCCESS.json").is_file()
     assert not (outcome.staging_run_dir / "_SUCCESS.json").exists()
+    marker = json.loads((outcome.staging_run_dir / "_SCOPE_SUCCESS.json").read_text())
+    run_metadata = json.loads((outcome.report_run_dir / "phase02_run.json").read_text())
+    reconciliation_report = json.loads(
+        (outcome.report_run_dir / "phase02_reconciliation.json").read_text()
+    )
+    assert marker["git_commit"] == run_metadata["git_commit"]
+    assert marker["source_bytes"] == outcome.metrics["source_bytes"]
+    assert marker["staging_bytes"] == outcome.metrics["parquet_bytes"]
+    assert reconciliation_report["empty_ids"] == 0
     assert not any((outcome.staging_run_dir / ".in_progress").iterdir())
     for report in outcome.report_run_dir.iterdir():
         if report.is_file():

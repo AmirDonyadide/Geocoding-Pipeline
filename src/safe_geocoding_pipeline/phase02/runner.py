@@ -590,8 +590,11 @@ def run_phase02(config: Phase02Config) -> Phase02Outcome:
             "scope_gate": scope_gate,
             "phase02_completion_gate": phase02_completion_gate,
             "dataset_manifest_sha256": manifest_sha256,
+            "git_commit": _git_commit(),
             "files": len(entries),
             "rows": reconciliation.total_rows,
+            "source_bytes": source_bytes,
+            "staging_bytes": parquet_bytes,
             "completed_at_utc": _iso_utc(completed_at),
         }
         marker_name = "_SUCCESS.json" if config.run_scope == "FULL_CONVERSION" else "_SCOPE_SUCCESS.json"

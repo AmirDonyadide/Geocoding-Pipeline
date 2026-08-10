@@ -42,6 +42,7 @@ def reconcile_completed_parquet(
                        count(DISTINCT id) AS distinct_ids,
                        count(DISTINCT stable_source_row_id_v1) AS distinct_stable_ids,
                        count(*) FILTER (WHERE id IS NULL) AS null_ids,
+                       count(*) FILTER (WHERE id = '') AS empty_ids,
                        count(*) - count(DISTINCT stable_source_row_id_v1) AS duplicate_stable_ids,
                        ({raw_null_expression}) AS raw_null_count
                 FROM read_parquet(?)
@@ -49,13 +50,20 @@ def reconcile_completed_parquet(
             row = connection.execute(query, [[str(path.resolve()) for path in observed_paths]]).fetchone()
             if row is None:
                 raise RuntimeError("DuckDB reconciliation returned no result")
-            total_rows, distinct_ids, distinct_stable_ids, null_ids, duplicate_stable, raw_nulls = (
-                int(value) for value in row
-            )
+            (
+                total_rows,
+                distinct_ids,
+                distinct_stable_ids,
+                null_ids,
+                empty_ids,
+                duplicate_stable,
+                raw_nulls,
+            ) = (int(value) for value in row)
         finally:
             connection.close()
     else:
-        total_rows = distinct_ids = distinct_stable_ids = null_ids = duplicate_stable = raw_nulls = 0
+        total_rows = distinct_ids = distinct_stable_ids = null_ids = empty_ids = 0
+        duplicate_stable = raw_nulls = 0
 
     expected_rows = sum(entry.logical_record_count for entry in entries)
     status = "PASS"
@@ -80,6 +88,7 @@ def reconcile_completed_parquet(
         distinct_ids=distinct_ids,
         distinct_stable_ids=distinct_stable_ids,
         null_ids=null_ids,
+        empty_ids=empty_ids,
         duplicate_stable_ids=duplicate_stable,
         raw_null_count=raw_nulls,
         schema_count=len(schema_fingerprints),

@@ -87,6 +87,7 @@ class ReconciliationResult:
     distinct_ids: int
     distinct_stable_ids: int
     null_ids: int
+    empty_ids: int
     duplicate_stable_ids: int
     raw_null_count: int
     schema_count: int

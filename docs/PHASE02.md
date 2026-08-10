@@ -267,8 +267,8 @@ The committed production reconciliation records null raw IDs but does not carry
 a separate empty-string-ID field in `phase02_reconciliation.json`. The required
 post-run Parquet-only DuckDB audit therefore checked `id = ''` explicitly and
 found zero rows. This is a generated-report completeness issue, not an
-unverified data condition; a future implementation revision should persist the
-empty-ID count directly in the reconciliation artifact.
+unverified data condition. A subsequent Phase 2 maintenance change persists the
+empty-ID count for future runs; the successful run's artifact remains unchanged.
 
 The generated `_SUCCESS.json` is a compact gate marker containing the run ID,
 scope/gate status, dataset-manifest SHA-256, file count, row count, and
@@ -277,8 +277,9 @@ recorded in `phase02_run.json`, while implementation/configuration identities
 and all per-file hashes are recorded in `dataset_manifest.json`; they are not
 duplicated in the marker. This differs from the fuller descriptive marker field
 list in `docs/PHASE02_DESIGN.md` but does not weaken the verified manifest hash
-link. A future implementation revision should include the Git commit and byte
-totals directly in `_SUCCESS.json`.
+link. A subsequent Phase 2 maintenance change includes the Git commit and byte
+totals in success markers for future runs; this successful marker remains
+unchanged.
 
 ## Failures, warnings, and gate decision
 
