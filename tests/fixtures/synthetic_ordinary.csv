@@ -1,0 +1,4 @@
+id,street_address_line_1,street_address_line_2,street_address_line_3,street_address_line_4,street_address_line_1_native,street_address_line_2_native,street_address_line_3_native,street_address_line_4_native,postcode,city,region_in_country,country_iso_code,batch_priority,location_information
+001,"10 Example Road, Building A",Suite 2,,,10 Example Road,,,,01234,Exampleville,Example Region,DE,high,no_geocoding_information
+002,"Quoted ""House""",Floor 3,,,例道十号,,,,AB1 2CD,Sample City,,GB,normal,previous_geocoding_failure
+003,Third Street,,,,Third Street,,,,12345,Test Town,,US,low,region_interpolated

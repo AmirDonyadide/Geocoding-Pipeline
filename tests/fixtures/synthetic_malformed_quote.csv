@@ -1,0 +1,2 @@
+id,street_address_line_1,street_address_line_2,street_address_line_3,street_address_line_4,street_address_line_1_native,street_address_line_2_native,street_address_line_3_native,street_address_line_4_native,postcode,city,region_in_country,country_iso_code,batch_priority,location_information
+bad,"unterminated address,,,,,,,,,,,,,
