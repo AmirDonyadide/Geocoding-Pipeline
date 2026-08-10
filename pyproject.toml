@@ -15,9 +15,13 @@ dev = ["mypy==1.20.2", "pytest==8.4.2", "ruff==0.15.14"]
 [project.scripts]
 safe-geocoding-phase01 = "safe_geocoding_pipeline.phase01.cli:main"
 safe-geocoding-phase02 = "safe_geocoding_pipeline.phase02.cli:main"
+safe-geocoding-phase03 = "safe_geocoding_pipeline.phase03.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+"safe_geocoding_pipeline.phase03" = ["resources/*.json"]
 
 [tool.pytest.ini_options]
 addopts = "-ra"

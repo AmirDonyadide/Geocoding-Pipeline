@@ -72,3 +72,60 @@ Git. A smoke-scope PASS creates `_SCOPE_SUCCESS.json`, never the full-run
 `FULL_CONVERSION` additionally requires the CLI operator acknowledgement
 `--authorize-full-conversion`. That guard never substitutes for explicit user
 authorization, which must be obtained separately before running all 206 files.
+
+## Phase 3 framework interface
+
+Phase 3 framework implementation is limited to deterministic component logic,
+fictional validation, schemas, controlled-reference interfaces, atomic-output
+infrastructure, and a deterministic pilot sampler. It has no command that reads
+or transforms Phase 2 rows. A real pilot and full Phase 3 processing require
+separate authorization.
+
+Validate the bundled rule registry and display privacy-safe framework metadata:
+
+```bash
+python3 -m safe_geocoding_pipeline.phase03.cli validate-rule-registry
+python3 -m safe_geocoding_pipeline.phase03.cli framework-info
+```
+
+Inspect the portable manual-review label schema:
+
+```bash
+python3 -m safe_geocoding_pipeline.phase03.cli manual-review-schema
+```
+
+Production country and Unicode Script references are not bundled. Their
+artifacts, hashes, schemas, vintages, licenses, and redistribution treatment
+must be reviewed and pinned before a real pilot. The validation-only interfaces
+are:
+
+```bash
+python3 -m safe_geocoding_pipeline.phase03.cli validate-country-reference \
+  --assignment-manifest /controlled/path/iso-manifest.json \
+  --assignment-artifact /controlled/path/iso-assignments.json \
+  --name-manifest /controlled/path/un-manifest.json \
+  --name-artifact /controlled/path/un-names.json
+
+python3 -m safe_geocoding_pipeline.phase03.cli validate-script-reference \
+  --manifest /controlled/path/unicode-scripts-manifest.json \
+  --artifact /controlled/path/Scripts.txt
+```
+
+The library sampler accepts already profiled `PilotCandidate` metadata and
+returns separate development and locked-evaluation identities plus a portable
+seal containing only counts and identity digests. It is not invoked by the CLI,
+so ordinary framework commands cannot accidentally create a real pilot.
+
+The frozen declarative registry is packaged from
+`src/safe_geocoding_pipeline/phase03/resources/rule_registry_v1.json`. Phase 3
+framework validation uses fictional fixtures only:
+
+```bash
+python3 -m pytest tests/test_phase03_*.py
+python3 -m ruff check .
+python3 -m mypy src tests
+```
+
+The future manual-review artifact uses the 20-column schema returned by
+`manual-review-schema`; it stores a hashed review identity and labels, not raw
+addresses, provider IDs, cities, or postcodes.

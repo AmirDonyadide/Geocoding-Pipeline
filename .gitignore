@@ -42,6 +42,7 @@ output/
 outputs/
 artifacts/
 staging/
+derived/
 staging_parquet/
 cleaned_addresses/
 unique_addresses/
