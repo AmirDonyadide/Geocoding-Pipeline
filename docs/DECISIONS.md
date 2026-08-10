@@ -42,40 +42,73 @@ This register distinguishes approved project rules from questions that require e
 - Phase 1 uses one full logical CSV parsing pass plus a separate simple sequential raw-byte SHA-256 pass. The raw hashing pass is intentionally separate for correctness and testability; it is not a second CSV parsing pass.
 - Before a full run, all 206 source files must be fully hydrated locally, adequate local free space must be confirmed, and active source modification must be prevented. Pausing OneDrive synchronization is recommended when practical. Pre/post size and modification metadata plus exact hashes detect changed files; changed files are incomplete.
 - A fatal parsing, encoding, or source-change failure marks the affected file incomplete, preserves diagnostics, continues with other files where safe, and causes the overall Phase 1 gate to fail. The parser does not attempt unsafe resynchronization after malformed quoting.
-- The MacBook is the default environment for the full Phase 1 inventory. This supersedes the earlier assumption that the final inventory automatically requires Goethe-NHR, but it does not approve the full run yet.
-- Before approval of the complete 206-file run, Phase 1 must pass synthetic/unit tests, small integration tests, one ordinary real-shard smoke test, one known anomalous real-shard smoke test, and a benchmark reporting runtime, peak memory, temporary SQLite size, parsing throughput, and anomaly handling.
-- Runtime and full-run resource requirements remain unknown until the real-shard benchmark. No 30-minute-to-2-hour estimate is locked.
+- The MacBook was the approved environment for the full Phase 1 inventory, superseding the earlier assumption that final inventory automatically required Goethe-NHR. The full run was later separately authorized and completed.
+- Synthetic/unit tests, small integration tests, one ordinary real-shard smoke test, one known anomalous real-shard smoke test, and a resource benchmark were mandatory prerequisites to the full Phase 1 run and were completed before full-run authorization.
+- No speculative Phase 1 runtime estimate was locked before benchmarking. The completed full-run runtime and resource measurements are recorded in `docs/PHASE01.md`.
 - Approved generated outputs are `phase01_run.json`, `phase01_file_manifest.csv`, `phase01_schema_report.csv`, `phase01_field_profile.csv`, `phase01_value_profile.csv`, `phase01_anomalies.csv.gz`, `phase01_duplicate_ids.csv.gz`, and `phase01_summary.md` under `reports/generated/phase01/<run_id>/`. Generated outputs remain outside Git and contain no confidential raw row/address content.
-- After successful review, a sanitized Phase 1 summary becomes `docs/PHASE01.md`.
+- The successfully reviewed sanitized Phase 1 summary is `docs/PHASE01.md`.
 - DuckDB may be used only as an optional independent cross-check. It does not replace the authoritative parser.
+
+### Phase 1 resolved for the current source snapshot
+
+The following findings are resolved for the exact source snapshot identified by Phase 1 input-manifest SHA-256 `94254dadab515194a4d292f7095107f94c58508d83d7bf70d63608dc8002bba8`:
+
+- Phase 1 was authorized, completed, reviewed, and passed for the full current collection.
+- The collection contains 206 direct-child CSV files totaling exactly 3,285,318,564 source bytes.
+- Every file contains exactly 100,000 logical data records, for exactly 20,600,000 records overall.
+- All 206 files satisfy the same strict UTF-8-without-BOM, comma-delimited, headered, double-quote CSV contract with the approved 15 columns in the approved order.
+- Parser errors, wrong-column records, schema deviations, incomplete files, and source-change failures are all zero.
+- `id` is non-empty and globally unique across all 20,600,000 records under exact UTF-8/BINARY comparison.
+- There are no within-file or cross-file duplicate IDs and no exact duplicate source files under the approved size-plus-SHA-256 method.
+
+These are empirical properties of the exact current snapshot, not permanent provider guarantees. A future or changed source snapshot must reverify file identity, parser/schema contract, counts, ID uniqueness, and duplicate-file status before it is staged.
+
+### Phase 2 approved design decisions
+
+- Phase 2 is controlled, lossless staging only. It does not normalize missing markers, clean or parse addresses, infer geography, create canonical or typed analytical values, deduplicate addresses, determine geocoding eligibility, create an `address_key`, or call SAFE/Pelias.
+- Python's approved strict Phase 1 `csv.reader` contract remains the authoritative source parser. PyArrow is the primary Arrow/Parquet writer and reader. DuckDB may validate completed Parquet only and must not parse source CSV during Phase 2.
+- All 15 source columns are non-null Arrow `string` columns in their original order. This includes `id`, `postcode`, and `batch_priority`; none is numerically or semantically converted.
+- Empty string remains a non-null zero-length string. Literal `.`, `-`, `Na`, `Nan`, and `Null` values remain exact literal strings and are not converted to null.
+- Row provenance columns are `source_file: string`, `source_logical_record_number: uint64`, `stable_source_row_id_v1: fixed_size_binary[32]`, `source_file_sha256: fixed_size_binary[32]`, `source_schema_version: string`, `parser_version: string`, and `staging_version: string`, all non-null.
+- `stable_source_row_id_v1` is SHA-256 over a fixed versioned domain separator, the raw 32-byte source-file SHA-256, and the one-based logical record number encoded as unsigned 64-bit big-endian. It excludes provider ID, filename, parser version, and staging version.
+- `raw_semantic_digest_v1` covers only the original 15 raw columns in logical row order. It uses a versioned domain, exact ordered column names, row ordinals, explicit null/non-null tags, unsigned 64-bit length-prefixed UTF-8 values, and a total-row-count footer. Provenance is validated independently.
+- Phase 2 preserves a one-source-CSV-to-one-controlled-Parquet layout under an immutable run-specific staging path. It creates no automatic `CURRENT` pointer and never writes to or overwrites the historical `parquet_files` directory.
+- Provisional smoke-test settings are ZSTD level 3, 25,000-row normal write batches, and 25,000-row normal row groups. These are operational, benchmark-driven settings rather than scientific requirements.
+- A configurable 1 MiB UTF-8 extreme-row isolation threshold is approved for memory management only. It is unrelated to the Phase 1 1,024-character content-warning threshold and never authorizes rejection, truncation, or modification.
+- Selective dictionary encoding and suppression of statistics for sensitive raw columns are required. Tests must confirm that prohibited raw sensitive values are absent from Parquet metadata.
+- Parquet page checksums are enabled and explicitly verified during temporary-file read-back. A technically feasible corruption test must prove checksum-invalid output is rejected.
+- Conversion is all-or-nothing per file. A file is promoted only after source identity, strict parsing, exact schema and counts, semantic equality, provenance, stable IDs, known extreme records, page checksums, and output hash all validate. There is no row salvage, permissive parsing, or alternate parser.
+- Global reconciliation expects, but does not fabricate, 206 Parquet files, 20,600,000 rows, 20,600,000 distinct raw IDs, 20,600,000 distinct stable source-row IDs, zero raw-column nulls, and zero failed files.
+- Temporary output is validated before same-filesystem atomic promotion. A run is not approved without complete dataset-level reconciliation and a final success marker.
+- The ordinary and extreme real-shard smoke conversions must be separately authorized, executed, benchmarked, and reviewed before the complete 206-file Phase 2 conversion can be authorized.
 
 ## Open decisions
 
 - Whether, and under what evidence/rules, an address-layer interpolated result is `usable_for_analysis`.
-- Whether `id` is globally unique across all 206 files.
-- Whether the sampled 15-column UTF-8/comma/header/double-quote contract holds across all 206 files.
-- Whether all shards contain 100,000 logical records and what the complete logical row count is.
-- Complete malformed-record, multiline-record, oversized-field, missing-marker, and schema variation across the source collection.
 - Exact placeholder/null semantics, including treatment of `.`, `-`, `Na`, `Nan`, `Null`, and source-specific status values.
 - International canonical-address rules and deterministic extraction of structured geography from free-form lines.
 - Native-script versus transliterated primary/rescue query rules.
 - Exact versioned address-key serialization and fields included in it.
-- Stable source-row ID implementation and collision/integrity checks.
 - Final input eligibility/completeness thresholds and controlled rescue-query ladder.
 - Pilot 2 necessity, sampling design, and size.
 - Manual ground-truth protocol and evidence needed for interpolation policy.
 - Candidate comparison, component-agreement thresholds, and manual-review thresholds.
 - Any external geographic boundary/reference dataset, including source, license, vintage, and coverage.
-- Final staging technology/layout, execution location, resource sizing, and output partitioning.
+- Exact compatible PyArrow and DuckDB version pins, Parquet physical/data-page version, and checksum-verification API.
+- Smoke-benchmark acceptance limits and any resulting change to the provisional Phase 2 batch, row-group, compression, memory, spill, free-space, or runtime settings.
+- Exact Phase 2 run-ID/configuration-fingerprint formats, small run-state SQLite details, temporary-output quarantine/retention policy, and artifact permission/access controls.
+- Authorization to implement Phase 2, execute the two-shard real-data smoke conversion, and later execute the complete 206-file conversion remain separate outstanding approvals.
 - Production unique-address count, API-call count, timing, SAFE RDC coordination, and production-run approval.
 - Historical-address and location-type interpretation rules where source evidence permits them.
-- Exact SQLite transaction batch size, durability/performance pragmas, temporary database location, free-space threshold, and post-review retention/deletion procedure.
-- Exact method for confirming that every OneDrive file is fully hydrated before the approved full run.
-- The exact ordinary and anomalous real shards used for smoke tests and the benchmark acceptance criteria.
-- Whether hash-equal duplicate-file candidates require byte-for-byte confirmation in addition to equal size and SHA-256.
-- Cardinality safeguards for the approved raw low-risk categorical profiles if an ostensibly low-cardinality field contains unexpected high-cardinality content.
-- Exact handling of any file that fails the expected UTF-8/CSV contract; no alternative contract is accepted without review.
-- Approval to execute the complete 206-file Phase 1 inventory remains outstanding.
+
+### Must be reverified for a future source snapshot
+
+- Direct-child source-file count and total source bytes.
+- Exact raw-byte file identities and duplicate-file status.
+- Strict encoding, CSV dialect, header, schema, and column-order contract.
+- Per-file and total logical record counts, including malformed, multiline, and extreme-record diagnostics.
+- Non-empty, within-file unique, and dataset-wide unique `id` properties.
+- Compatibility of the approved Arrow `string` schema with future field and batch sizes. A capacity problem requires a stop and reviewed schema version; it does not permit a silent switch to `large_string`.
 
 ## Superseded / corrected assumptions
 
