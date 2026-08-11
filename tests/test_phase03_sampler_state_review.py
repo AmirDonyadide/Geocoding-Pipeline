@@ -249,9 +249,10 @@ def test_phase03_cli_is_validation_only_and_privacy_safe(
     assert phase03_main(["framework-info"]) == 0
     payload = json.loads(capsys.readouterr().out)
     assert payload["status"] == "FRAMEWORK_ONLY"
-    assert payload["pilot_ready"] is False
+    assert payload["pilot_ready"] is True
+    assert payload["real_pilot_authorized"] is False
     assert payload["production_country_reference"] == (
-        "country_reference_v1_iso_normative_unsd_m49_operational_20260810"
+        "country_reference_v2_iso_normative_cldr_46_1_operational"
     )
     assert payload["production_script_reference"] == (
         "unicode_ucd_16_0_0_scripts_20240430"

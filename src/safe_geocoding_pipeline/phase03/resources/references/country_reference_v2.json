@@ -1,0 +1,29 @@
+{
+  "country_reference_id": "country_reference_v2_iso_normative_cldr_46_1_operational",
+  "normative_authority": {
+    "access_licensing_note": "ISO 3166 and its Maintenance Agency define the normative code system. No licensed ISO machine-readable collection is vendored or reconstructed.",
+    "organization": "International Organization for Standardization (ISO), ISO 3166 Maintenance Agency",
+    "role": "normative_code_system",
+    "source": "https://www.iso.org/iso-3166-country-codes.html",
+    "standard": "ISO 3166",
+    "version": "current code system as maintained by ISO 3166/MA"
+  },
+  "operational_reference": {
+    "artifact_sha256": "6d38c9431a97dff511da8048381de42b27c5eef7b9a94409400f16f3d332325a",
+    "artifact_size_bytes": 23477,
+    "dataset": "Common Locale Data Repository (CLDR)",
+    "license_identifier": "Unicode-3.0",
+    "manifest": "cldr_46_1/manifest.json",
+    "manifest_sha256": "ea7dd0e316bf50bcd3bd98fe4de07ac807e2f1fcad98488cc25c7b5cf4c3cfd6",
+    "organization": "Unicode Consortium",
+    "reference_id": "country_reference_v2_iso_normative_cldr_46_1_operational",
+    "release": "46.1",
+    "role": "operational_machine_readable_mapping",
+    "row_count": 249,
+    "schema_version": "cldr_country_reference_json_v1",
+    "selectable_territory_policy_version": "cldr_country_selectability_v1",
+    "source": "https://www.unicode.org/Public/cldr/46.1/cldr-common-46.1.zip",
+    "validation_status": "PASS"
+  },
+  "schema_version": "country_reference_manifest_v2"
+}

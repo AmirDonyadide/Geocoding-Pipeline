@@ -43,7 +43,7 @@ class Phase03Config:
     cleaning_rules_version: str = CLEANING_RULES_VERSION
     placeholder_policy_version: str = PLACEHOLDER_POLICY_VERSION
     country_reference_version: str = (
-        "country_reference_v1_iso_normative_unsd_m49_operational_20260810"
+        "country_reference_v2_iso_normative_cldr_46_1_operational"
     )
     unicode_reference_version: str = "unicode_ucd_16_0_0_scripts_20240430"
     diagnostic_vocabulary_version: str = DIAGNOSTIC_VOCABULARY_VERSION

@@ -2,24 +2,26 @@
 
 ## Gate decision
 
-**PILOT_BLOCKED**
+**PILOT_READY**
 
 This assessment used only fictional synthetic rows. It did not read Phase 2
 address columns, select real pilot identities, expose evaluation identities,
 create `address_key`, geocode, or begin Phase 4.
 
-The only unresolved readiness blocker is institutional/legal confirmation for
-the controlled UNSD-derived operational country artifact. That legal gate is
-unchanged. Country rules remain technically validated but blocked with their
-production reference.
+The former country-reference blocker is removed by replacing UNSD M49 in the
+active configuration with the official, versioned, Unicode-3.0-licensed CLDR
+46.1 mapping. ISO 3166 remains the normative code-system authority; CLDR is the
+operational machine-readable implementation reference. Both country rules are
+now ready for the development pilot.
 
 The two former methodology blockers are resolved. The versioned registry now
 runs `HOUSE_NUMBER_EDGE_CANDIDATE_V1` only as protected development shadow
 measurement, and `manual_review_reason_codes_v1` is closed and enforced. All
-ten non-country rules are ready for their approved development dispositions.
-No real pilot selection or execution is authorized by this assessment; after
-the institutional blocker is resolved, explicit user authorization is still
-required before any real Phase 2 row or pilot identity is read.
+12 rules, including both country rules and the intentionally shadow-only house
+rule, are ready for their approved development dispositions.
+No real pilot selection or execution is authorized by this assessment.
+Separate explicit user authorization is still required before any real Phase 2
+row or pilot identity is read.
 
 ## Readiness-maintenance outcome
 
@@ -32,6 +34,12 @@ required before any real Phase 2 row or pilot identity is read.
 - `manual_review_reason_codes_v1` is closed, versioned, multi-valued,
   deduplicated, and stored in canonical vocabulary order. Unknown codes fail.
   `OTHER_ADJUDICATION_REQUIRED` requires a separate protected note.
+- Country reference
+  `country_reference_v2_iso_normative_cldr_46_1_operational` is bound into the
+  base configuration fingerprint
+  `e5d8821750f6454fa9e9d4d12c9181412438eda6e0f74a191a5a9fdbc4f00002`.
+  The production-reference DEVELOPMENT effective fingerprint is
+  `92c80594f547716359318924522a1a2ef76dbd1b96b397ec070674e0437a48cc`.
 - Development review may change/version rules. Locked evaluation may not be
   used for tuning; a methodological defect found there yields `FAIL/REVISE`, a
   new rule/parser version, and a new locked sample/version.
@@ -42,11 +50,13 @@ required before any real Phase 2 row or pilot identity is read.
   technically validated (`2253` ranges; exact hash/size/version checks pass).
 - ISO 3166: documented only as normative authority; no paid ISO collection was
   obtained or reproduced.
-- UNSD M49 operational mapping: official source snapshot and four-field
-  canonical extraction pinned in ignored controlled storage; 248 unique rows,
-  exact identity and schema checks pass.
-- UN institutional/redistribution rights: unresolved; controlled candidate
-  storage is not approval for pilot use or replication-package redistribution.
+- CLDR 46.1 operational mapping: three minimum official source files, Unicode
+  License v3 notice, deterministic four-string-field canonical extraction, and
+  all hashes are vendored and validated; 249 selectable rows pass exact
+  identity, schema, uniqueness, exclusion, and repeated-extraction checks.
+- UNSD M49: superseded and absent from active startup, lookups, fingerprints,
+  and readiness gates. Its prior legal question remains unresolved but is not
+  relevant to an implementation that does not use the artifact.
 
 See `docs/PHASE03_REFERENCE_READINESS.md` for exact identities and licensing
 analysis.
@@ -183,11 +193,9 @@ artifacts whenever the code is used.
 
 ## Exact next gate
 
-Before real pilot selection can occur:
-
-1. obtain written institutional/legal confirmation for the UNSD operational
-   artifact or approve a different lawful official operational source;
-2. after documenting that resolution, obtain separate explicit user
-   authorization to select/read the real pilot.
+The technical/methodological/privacy pilot-readiness gate now passes. Before
+real pilot selection can occur, obtain separate explicit user authorization to
+select/read the real pilot. That authorization boundary is not a technical
+readiness defect.
 
 Phase 3 remains incomplete and `docs/PHASE03.md` must not be created.

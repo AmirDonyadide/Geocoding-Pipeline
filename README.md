@@ -88,25 +88,26 @@ python3 -m safe_geocoding_pipeline.phase03.cli validate-rule-registry
 python3 -m safe_geocoding_pipeline.phase03.cli framework-info
 ```
 
+`pilot_ready=true` reports the completed technical/methodology/privacy gate;
+`real_pilot_authorized=false` preserves the separate authorization boundary.
+The command cannot select or read a pilot.
+
 Inspect the portable manual-review label schema:
 
 ```bash
 python3 -m safe_geocoding_pipeline.phase03.cli manual-review-schema
 ```
 
-The official Unicode 16.0.0 Script artifact, manifest, and Unicode License v3
-notice are bundled. The pinned UNSD M49 operational artifact remains in ignored
-controlled storage because its institutional/redistribution terms require
-clarification. Validate both pinned production references without reading Phase
-2 rows:
+The official Unicode 16.0.0 Script artifact and the minimum official CLDR 46.1
+country-reference inputs are bundled with their Unicode License v3 notices.
+ISO 3166 remains the normative code-system authority; CLDR is the operational
+machine-readable mapping. UNSD M49 is not an active runtime dependency.
+Validate the pinned production references without reading Phase 2 rows:
 
 ```bash
-python3 -m safe_geocoding_pipeline.phase03.cli validate-production-references \
-  --country-artifact /controlled/path/un_m49_country_area_codes_v1.json
+python3 -m safe_geocoding_pipeline.phase03.cli validate-production-references
 
-python3 -m safe_geocoding_pipeline.phase03.cli validate-country-reference \
-  --manifest /controlled/path/un-m49-manifest.json \
-  --artifact /controlled/path/un_m49_country_area_codes_v1.json
+python3 -m safe_geocoding_pipeline.phase03.cli validate-country-reference
 
 python3 -m safe_geocoding_pipeline.phase03.cli validate-script-reference \
   --manifest src/safe_geocoding_pipeline/phase03/resources/references/unicode_ucd_16_0_0/manifest.json \
@@ -114,14 +115,13 @@ python3 -m safe_geocoding_pipeline.phase03.cli validate-script-reference \
 ```
 
 The fictional-only performance harness requires an explicit scenario, row
-count, controlled country artifact, and generated-output directory. It never
-discovers Phase 2 data:
+count, and generated-output directory. It loads only bundled references and
+never discovers Phase 2 data:
 
 ```bash
 python3 -m safe_geocoding_pipeline.phase03.benchmark \
   --scenario STRUCTURED_HEAVY \
   --rows 30000 \
-  --country-artifact /controlled/path/un_m49_country_area_codes_v1.json \
   --output-directory reports/generated/phase03/synthetic-benchmark
 ```
 

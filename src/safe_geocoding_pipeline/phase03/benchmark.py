@@ -126,12 +126,10 @@ def run_scenario(
     *,
     scenario: str,
     row_count: int,
-    country_artifact: Path,
     output_directory: Path,
 ) -> dict[str, Any]:
     config = Phase03Config()
     country, scripts = load_production_references(
-        country_artifact,
         expected_country_reference_id=config.country_reference_version,
         expected_unicode_reference_id=config.unicode_reference_version,
     )
@@ -230,7 +228,6 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--scenario", choices=SCENARIOS, required=True)
     parser.add_argument("--rows", type=int, required=True)
-    parser.add_argument("--country-artifact", type=Path, required=True)
     parser.add_argument("--output-directory", type=Path, required=True)
     parser.add_argument("--metrics-path", type=Path)
     return parser
@@ -243,7 +240,6 @@ def main(argv: Sequence[str] | None = None) -> int:
     metrics = run_scenario(
         scenario=args.scenario,
         row_count=args.rows,
-        country_artifact=args.country_artifact,
         output_directory=args.output_directory,
     )
     if args.metrics_path is not None:

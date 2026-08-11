@@ -2,125 +2,137 @@
 
 ## Status
 
-The production references are technically pinned and validated. Pilot use is
-still blocked because institutional use of the controlled UNSD-derived
-operational artifact has not been cleared under the applicable UN website
-terms. This document contains no country table, address, provider ID, or pilot
-identity.
+The active Phase 3 production references are pinned, vendored, reproducible,
+and technically validated. The country-reference model is now:
+
+- normative code system: ISO 3166 / ISO 3166 Maintenance Agency;
+- operational machine-readable mapping: Unicode CLDR 46.1.
+
+UNSD M49 is superseded for Phase 3 v1. Its unresolved institutional-use
+question has not been reinterpreted or resolved; the artifact simply does not
+participate in startup, country lookup, reference/configuration fingerprints,
+or the pilot gate. No real Phase 2 row or pilot identity was read during this
+reference change.
 
 ## Unicode Script property
 
-The production Script-property reference is the official versioned Unicode
-Character Database 16.0.0 `Scripts.txt`:
+The production Script-property reference remains official Unicode 16.0.0
+`Scripts.txt`:
 
 - reference ID: `unicode_ucd_16_0_0_scripts_20240430`;
 - source: <https://www.unicode.org/Public/16.0.0/ucd/Scripts.txt>;
-- artifact: `Scripts.txt`;
 - bytes: `189588`;
 - SHA-256: `9e88f0a677df47311106340be8ede2ecdacd9c1c931831218d2be6d5508e0039`;
-- Unicode version: `16.0.0`;
-- parsed ranges: `2253` across `170` Script values;
-- Common ranges: `608`; Inherited ranges: `35`;
+- parsed ranges: `2253`;
 - loader: `unicode_scripts_txt_v1`;
 - technical validation: `PASS`.
 
-The complete file is vendored with `LICENSE.txt`. Unicode identifies data files
-under `/Public/` as Unicode Data Files licensed under the OSI-approved Unicode
-License v3, SPDX `Unicode-3.0`. The license permits use, copying, modification,
-publication, and redistribution provided the copyright and permission notice
-accompanies the data or associated documentation. Vendoring is therefore the
-reproducible choice. See the official [Unicode terms][unicode-terms],
-[licensing policy][unicode-policy], and [license text][unicode-license].
-
-The loader verifies filename, byte size, SHA-256, role, loader schema, and
-Unicode version, decodes strict UTF-8, validates every range after deterministic
-code-point sorting, and rejects overlaps. `Common`, `Inherited`, and unmapped
-`Unknown` code points are excluded from distinctive-script sets. The required
-runtime remains Python 3.14.3 with `unicodedata.unidata_version == "16.0.0"`.
+The required runtime remains Python 3.14.3 with
+`unicodedata.unidata_version == "16.0.0"`. CLDR 46 belongs to the release
+family updated for Unicode 16.0; CLDR 46.1 is a maintenance release and does
+not change the project's Unicode/runtime contract.
 
 ## Country authority model
 
-### Normative authority
+ISO 3166 and its Maintenance Agency remain the normative code-system
+authority. No commercial ISO Country Codes Collection was purchased, scraped,
+copied, or reconstructed. CLDR is an operational implementation reference; it
+is not described as the normative ISO authority. Country matches retain exact
+rule provenance and the bound CLDR reference identity rather than claiming
+`ISO_DATABASE_EXACT`. See the official [ISO 3166 overview][iso-3166].
 
-ISO 3166 and the ISO 3166 Maintenance Agency define and maintain the claimed
-country-code system. ISO states that the Maintenance Agency keeps the assigned
-country-code set current and that ISO country codes may be used free of charge.
-This project does not claim that UNSD is the normative ISO authority. See the
-official [ISO 3166 overview][iso-3166].
+## Pinned CLDR 46.1 release
 
-ISO's downloadable ready-to-use Country Codes Collection is a subscription
-product supplied in XML, CSV, and XLS formats. ISO's licence terms restrict
-posting, publishing, resale, and redistribution of codes/collections and may
-require additional rights for digital integration. The project has not
-purchased, scraped, copied, or reconstructed that commercial collection. See
-the official [ISO licence agreement][iso-license].
+The official versioned release artifact is:
 
-### Operational mapping
+- release: Unicode CLDR `46.1`, dated 2024-12-18;
+- source: <https://www.unicode.org/Public/cldr/46.1/cldr-common-46.1.zip>;
+- retrieved: `2026-08-10T21:27:22Z`;
+- release bytes: `34308024`;
+- release SHA-256:
+  `c3828c9280c6b3bb921bc96baf53be2174b5416d72e740ec3915c1ff91a50a80`;
+- release SHA-512:
+  `6f5bece848d8187da35cc4c4022bea6a673e40a6032864b09ef24744f35bbf5e89e32e9852bbfd91d7466332db87c8f4f514ff70221729275701b7d95bac2925`.
 
-The official UNSD M49 English overview table is the operational machine-readable
-source because it supplies the four required fields: country or area name, M49
-code, ISO alpha-2, and ISO alpha-3. The source is an HTML data table with a
-client-side semicolon-separated CSV export, not a durable static CSV endpoint.
-The pinned runtime artifact is therefore a deterministic canonical extraction
-of only those four fields from the exact official HTML snapshot.
+The release README documents a versioned `hashes/SHASUM512.txt` location, but
+that resource was unavailable at retrieval. The recorded SHA-256 and SHA-512
+were therefore calculated from the exact official HTTPS artifact; no upstream
+hash is claimed.
 
-- reference ID: `unsd_m49_country_area_codes_20260810T203327Z`;
-- organization: United Nations Statistics Division;
-- dataset: Standard country or area codes for statistical use (M49), English
-  overview table;
-- source: <https://unstats.un.org/unsd/methodology/m49/overview/>;
-- retrieved: `2026-08-10T20:33:27Z`;
-- controlled artifact: `un_m49_country_area_codes_v1.json`;
-- bytes: `23218`;
-- SHA-256: `c6bb72998f4cbdd174a941115556b1370d464471fb08ba36ec80f59f7e9581bb`;
-- schema: `un_m49_country_area_json_v1`;
-- rows: `248`;
-- duplicate rows, names, M49, alpha-2, and alpha-3 codes: `0` each;
-- missing alpha-2 and alpha-3 codes: `0` each;
-- technical validation: `PASS`.
+Only the minimum output-affecting files are vendored:
 
-The exact official HTML snapshot is `1721568` bytes with SHA-256
-`748f6ff7380c8a50ea9448f068b79e3a1ee31be63207249e8cc89bf1eb969d11`.
-Both it and the canonical extraction remain in ignored controlled project
-storage. Only manifests and hashes are committed.
+| CLDR archive path | Local file | Bytes | SHA-256 | Purpose |
+|---|---|---:|---|---|
+| `common/supplemental/supplementalData.xml` | `supplementalData.xml` | 396715 | `277105238ecaab5b0e476f3bc7d25a26358227c5c77d02b0921d311c3f940dbf` | alpha-3 and numeric mappings |
+| `common/main/en.xml` | `en.xml` | 431277 | `5ac57cec48ab8d9a87cbd920444024ccdcc914ae6ffa4353f6e17bc0a9f8d6e7` | canonical English territory name with no `alt` |
+| `common/validity/region.xml` | `region.xml` | 1905 | `e751e0eedd46b52c38f3cdb72b0fab61ac8b48e052e8b28ba74b6ac26c4c8cb1` | explicit CLDR region-status categories |
 
-The general [United Nations website terms][un-terms] permit personal,
-non-commercial download/copy but do not grant resale, redistribution, or the
-creation of compilations/derivative works. They do not clearly authorize this
-institutional canonical extraction or a future replication-package
-redistribution. Therefore:
+## License and redistribution
 
-- private Git vendoring: not approved;
-- controlled local project storage: technically implemented, but production use
-  requires institutional/legal confirmation;
-- future replication package: not approved without explicit permission or a
-  separately applicable licence.
+The exact release `LICENSE` is bundled unchanged (2036 bytes; SHA-256
+`4e6e762822c88cf41c072b93568f3e1a6784b5b013e82bf42a61bb7a018d9239`).
+It identifies Unicode License v3, SPDX `Unicode-3.0`. The official Unicode
+terms and licensing policy place Unicode data files under this permissive
+license unless a specific exception applies; none applies to these CLDR files.
+See the official [Unicode terms][unicode-terms], [licensing policy][unicode-policy],
+and [license FAQ][unicode-license-faq].
 
-The selected production policy is **Option C: remain blocked pending
-institutional/legal clarification**. If SAFE confirms lawful institutional use,
-the intended technical policy becomes Option B: ISO remains the documented
-normative authority and the exact official UNSD snapshot remains the operational
-mapping.
+The license permits internal academic use, extraction/transformation, private
+repository storage, publication, and redistribution, including a future
+reproducibility package, provided the copyright and permission notice
+accompanies copies or associated documentation. The vendored `LICENSE` must
+therefore remain with the source and derived reference artifacts.
 
-## Manifest structure and fail-closed behavior
+## Canonical extraction and selectable policy
 
-`country_reference_v1.json` separates `normative_authority` from
-`operational_reference`; it contains no ISO table. The atomic operational and
-Unicode manifests record reference ID, authority role, source, vintage,
-retrieval time, artifact filename, SHA-256, byte size, loader schema, license
-identity/note, redistribution policy, and validation status. The country
-manifest additionally records organization, dataset, schema, row count, source
-snapshot identity, and validation counts.
+`cldr_country_reference_extractor_v1` parses the three pinned XML files and
+writes canonical UTF-8 JSON twice identically. The schema is four strings:
 
-Production validation fails closed on missing controlled data, filename/size/hash
-mismatch, wrong role, wrong loader schema, wrong Unicode version, malformed
-rows/ranges, duplicate mappings/ranges, or authority/operational-manifest
-inconsistency. A changed snapshot requires a new reference ID and changes the
-effective configuration fingerprint; it is never silently refreshed.
+1. `territory_code`;
+2. `alpha3_code`;
+3. `numeric_code`;
+4. `english_name`.
+
+The numeric code remains a three-character string. Only CLDR `regular`
+territories with all four required values and one canonical English name
+without `alt` are candidates. ISO user-assigned alpha-2 ranges (`AA`, `QM-QZ`,
+`XA-XZ`, `ZZ`) and numeric range `900-999` are excluded. This removes `XK`,
+which CLDR marks `regular` but maps through user-assigned code space.
+
+The canonical result contains `249` rows, is `23477` bytes, and has SHA-256
+`6d38c9431a97dff511da8048381de42b27c5eef7b9a94409400f16f3d332325a`.
+There are zero duplicate territory, alpha-3, numeric, or canonical-name values.
+
+Explicit non-selectable categories are:
+
+- CLDR statuses: 35 macroregions, 2 special, 12 deprecated, 13 reserved,
+  23 private-use, and 1 unknown identifier;
+- seven `regular` identifiers missing one or more required four-field values:
+  `AC`, `CP`, `CQ`, `DG`, `EA`, `IC`, `TA`;
+- one otherwise complete user-assigned mapping: `XK`.
+
+Short names, variants, historical aliases, macroregions, subdivisions, fuzzy
+names, spelling correction, and transliteration guessing are not loaded.
+
+## Identity and fail-closed behavior
+
+- country reference ID:
+  `country_reference_v2_iso_normative_cldr_46_1_operational`;
+- authority manifest: `country_reference_manifest_v2`;
+- bundle manifest: `cldr_country_reference_manifest_v1`;
+- canonical schema: `cldr_country_reference_json_v1`;
+- selectable policy: `cldr_country_selectability_v1`;
+- extractor configuration fingerprint:
+  `141368c1838f67a7eb1544febb95c949554d36d86a6016b46e40fb2ab03f2383`.
+
+Startup validates every source hash/size, license identity, release/version,
+reference role, extractor fingerprint, exact repeated extraction, canonical
+artifact identity, schema, row count, uniqueness, exclusions, Unicode scripts,
+and configured reference IDs. A changed file, manifest, role, release, or
+canonical output fails closed. Runtime performs no network download and never
+uses `latest` or an unversioned CLDR URL.
 
 [iso-3166]: https://www.iso.org/iso-3166-country-codes.html
-[iso-license]: https://www.iso.org/terms-conditions-licence-agreement.html
-[un-terms]: https://www.un.org/en/about-us/terms-of-use
-[unicode-license]: https://www.unicode.org/license.txt
+[unicode-terms]: https://www.unicode.org/copyright.html
 [unicode-policy]: https://www.unicode.org/policies/licensing_policy.html
-[unicode-terms]: https://www.unicode.org/terms_of_use.html
+[unicode-license-faq]: https://unicode.org/faq/unicode_license.html

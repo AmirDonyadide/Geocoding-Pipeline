@@ -8,9 +8,10 @@ from pathlib import Path
 from .config import Phase03Config
 from .constants import RULE_EXECUTION_DISPOSITIONS
 from .references import (
-    CountryReference,
     ScriptReference,
     load_production_references,
+    production_reference_paths,
+    verify_cldr_reference_bundle,
 )
 from .review import manual_review_schema
 from .rules import load_rule_registry
@@ -27,13 +28,12 @@ def build_parser() -> argparse.ArgumentParser:
     registry = subparsers.add_parser("validate-rule-registry")
     registry.add_argument("--path", type=Path)
     country = subparsers.add_parser("validate-country-reference")
-    country.add_argument("--manifest", type=Path, required=True)
-    country.add_argument("--artifact", type=Path, required=True)
+    country.add_argument("--manifest", type=Path)
+    country.add_argument("--reference-directory", type=Path)
     scripts = subparsers.add_parser("validate-script-reference")
     scripts.add_argument("--manifest", type=Path, required=True)
     scripts.add_argument("--artifact", type=Path, required=True)
-    production = subparsers.add_parser("validate-production-references")
-    production.add_argument("--country-artifact", type=Path, required=True)
+    subparsers.add_parser("validate-production-references")
     subparsers.add_parser("manual-review-schema")
     return parser
 
@@ -47,7 +47,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         registry = load_rule_registry()
         payload = {
             "status": "FRAMEWORK_ONLY",
-            "pilot_ready": False,
+            "pilot_ready": True,
+            "real_pilot_authorized": False,
             "phase03_version": config.phase03_version,
             "rule_registry_version": registry.registry_version,
             "rule_registry_sha256": registry.fingerprint,
@@ -72,13 +73,16 @@ def main(argv: Sequence[str] | None = None) -> int:
             "rule_count": len(registry.rules),
         }
     elif args.command == "validate-country-reference":
-        country_reference = CountryReference.from_operational_artifact(
-            args.manifest, args.artifact
+        paths = production_reference_paths()
+        manifest_path = args.manifest or paths["country_manifest"]
+        reference_directory = (
+            args.reference_directory or paths["country_directory"]
         )
+        manifest = verify_cldr_reference_bundle(manifest_path, reference_directory)
         payload = {
             "status": "PASS",
-            "reference_version": country_reference.version,
-            "record_count": len(country_reference.records),
+            "reference_version": manifest.reference_id,
+            "record_count": manifest.row_count,
         }
     elif args.command == "validate-script-reference":
         script_reference = ScriptReference.from_artifact(args.manifest, args.artifact)
@@ -89,7 +93,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         }
     elif args.command == "validate-production-references":
         country_reference, script_reference = load_production_references(
-            args.country_artifact,
             expected_country_reference_id=config.country_reference_version,
             expected_unicode_reference_id=config.unicode_reference_version,
         )

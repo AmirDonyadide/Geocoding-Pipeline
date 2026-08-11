@@ -26,6 +26,8 @@ where = ["src"]
     "resources/references/*.json",
     "resources/references/*/*.json",
     "resources/references/*/*.txt",
+    "resources/references/*/*.xml",
+    "resources/references/*/LICENSE",
 ]
 
 [tool.pytest.ini_options]

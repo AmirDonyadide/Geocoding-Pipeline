@@ -1,0 +1,83 @@
+{
+  "artifact_file_name": "country_reference_cldr_46_1_v1.json",
+  "artifact_sha256": "6d38c9431a97dff511da8048381de42b27c5eef7b9a94409400f16f3d332325a",
+  "artifact_size_bytes": 23477,
+  "authority_role": "OPERATIONAL_COUNTRY_MAPPING",
+  "cldr_release": "46.1",
+  "extractor": {
+    "configuration_fingerprint": "141368c1838f67a7eb1544febb95c949554d36d86a6016b46e40fb2ab03f2383",
+    "version": "cldr_country_reference_extractor_v1"
+  },
+  "license_artifact": {
+    "archive_path": "LICENSE",
+    "artifact_file_name": "LICENSE",
+    "artifact_sha256": "4e6e762822c88cf41c072b93568f3e1a6784b5b013e82bf42a61bb7a018d9239",
+    "artifact_size_bytes": 2036,
+    "license_identifier": "Unicode-3.0"
+  },
+  "license_identifier": "Unicode-3.0",
+  "license_name": "Unicode License v3",
+  "license_note": "The exact bundled notice permits use, modification, publication, distribution, and sale when the copyright and permission notice accompanies copies or associated documentation.",
+  "loader_schema_version": "cldr_country_reference_json_v1",
+  "redistribution_policy": "VENDORED",
+  "reference_id": "country_reference_v2_iso_normative_cldr_46_1_operational",
+  "release_artifact": {
+    "artifact_file_name": "cldr-common-46.1.zip",
+    "artifact_sha256": "c3828c9280c6b3bb921bc96baf53be2174b5416d72e740ec3915c1ff91a50a80",
+    "artifact_sha512": "6f5bece848d8187da35cc4c4022bea6a673e40a6032864b09ef24744f35bbf5e89e32e9852bbfd91d7466332db87c8f4f514ff70221729275701b7d95bac2925",
+    "artifact_size_bytes": 34308024,
+    "official_upstream_integrity": "No release checksum was available at the documented versioned hashes/SHASUM512.txt location when retrieved; SHA-256 and SHA-512 were calculated locally from the official HTTPS artifact.",
+    "source": "https://www.unicode.org/Public/cldr/46.1/cldr-common-46.1.zip"
+  },
+  "retrieved_at_utc": "2026-08-10T21:27:22Z",
+  "row_count": 249,
+  "schema_version": "cldr_country_reference_manifest_v1",
+  "source": "https://www.unicode.org/Public/cldr/46.1/cldr-common-46.1.zip",
+  "source_artifacts": [
+    {
+      "archive_path": "common/supplemental/supplementalData.xml",
+      "artifact_file_name": "supplementalData.xml",
+      "artifact_sha256": "277105238ecaab5b0e476f3bc7d25a26358227c5c77d02b0921d311c3f940dbf",
+      "artifact_size_bytes": 396715
+    },
+    {
+      "archive_path": "common/main/en.xml",
+      "artifact_file_name": "en.xml",
+      "artifact_sha256": "5ac57cec48ab8d9a87cbd920444024ccdcc914ae6ffa4353f6e17bc0a9f8d6e7",
+      "artifact_size_bytes": 431277
+    },
+    {
+      "archive_path": "common/validity/region.xml",
+      "artifact_file_name": "region.xml",
+      "artifact_sha256": "e751e0eedd46b52c38f3cdb72b0fab61ac8b48e052e8b28ba74b6ac26c4c8cb1",
+      "artifact_size_bytes": 1905
+    }
+  ],
+  "validation_results": {
+    "alpha3_duplicate_count": 0,
+    "canonical_name_duplicate_count": 0,
+    "excluded_identifiers": {
+      "cldr_status_deprecated": ["AN", "BU", "CS", "DD", "FX", "NT", "QU", "SU", "TP", "YD", "YU", "ZR"],
+      "cldr_status_macroregion": ["001", "002", "003", "005", "009", "011", "013", "014", "015", "017", "018", "019", "021", "029", "030", "034", "035", "039", "053", "054", "057", "061", "142", "143", "145", "150", "151", "154", "155", "202", "419", "EU", "EZ", "QO", "UN"],
+      "cldr_status_private_use": ["XC", "XD", "XE", "XF", "XG", "XH", "XI", "XJ", "XL", "XM", "XN", "XO", "XP", "XQ", "XR", "XS", "XT", "XU", "XV", "XW", "XX", "XY", "XZ"],
+      "cldr_status_reserved": ["AA", "QM", "QN", "QP", "QQ", "QR", "QS", "QT", "QV", "QW", "QX", "QY", "QZ"],
+      "cldr_status_special": ["XA", "XB"],
+      "cldr_status_unknown": ["ZZ"],
+      "iso_user_assigned": ["XK"],
+      "regular_missing_required_mapping": ["AC", "CP", "CQ", "DG", "EA", "IC", "TA"]
+    },
+    "numeric_duplicate_count": 0,
+    "selectable_row_count": 249,
+    "status_counts": {
+      "deprecated": 12,
+      "macroregion": 35,
+      "private_use": 23,
+      "regular": 257,
+      "reserved": 13,
+      "special": 2,
+      "unknown": 1
+    }
+  },
+  "validation_status": "PASS",
+  "vintage": "Unicode CLDR 46.1 release dated 2024-12-18"
+}

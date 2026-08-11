@@ -9,6 +9,16 @@ from pathlib import Path
 from typing import Any, Literal
 
 from .errors import Phase03Error, ReferenceNotReadyError
+from .reference_pinning import (
+    CLDR_COUNTRY_EXTRACTOR_VERSION,
+    CLDR_COUNTRY_REFERENCE_ID,
+    CLDR_COUNTRY_SCHEMA_VERSION,
+    CLDR_RELEASE,
+    CLDR_SELECTABLE_POLICY_VERSION,
+    cldr_extractor_configuration_fingerprint,
+    extract_cldr_country_reference,
+    load_canonical_cldr_value,
+)
 
 AuthorityRole = Literal[
     "NORMATIVE_CODE_VALIDATION",
@@ -19,7 +29,8 @@ AuthorityRole = Literal[
 RedistributionPolicy = Literal["VENDORED", "CONTROLLED_LOCAL_ONLY", "EXTERNAL_APPROVED"]
 
 UNICODE_REFERENCE_DIRECTORY = "unicode_ucd_16_0_0"
-COUNTRY_REFERENCE_DIRECTORY = "un_m49_20260810"
+COUNTRY_REFERENCE_DIRECTORY = "cldr_46_1"
+COUNTRY_AUTHORITY_MANIFEST = "country_reference_v2.json"
 
 
 @dataclass(frozen=True, slots=True)
@@ -223,7 +234,7 @@ class CountryRecord:
     alpha2: str
     alpha3: str
     names: tuple[str, ...]
-    m49_code: str | None = None
+    numeric_code: str | None = None
 
 
 class CountryReference:
@@ -356,50 +367,67 @@ class CountryReference:
         )
 
     @classmethod
-    def from_operational_artifact(
+    def from_cldr_artifact(
         cls, manifest_path: Path, artifact_path: Path
     ) -> "CountryReference":
         manifest = load_manifest(manifest_path)
         if manifest.authority_role != "OPERATIONAL_COUNTRY_MAPPING":
             raise Phase03Error("COUNTRY_REFERENCE_ROLE_MISMATCH")
-        if manifest.loader_schema_version != "un_m49_country_area_json_v1":
+        if manifest.loader_schema_version != CLDR_COUNTRY_SCHEMA_VERSION:
             raise Phase03Error("COUNTRY_REFERENCE_SCHEMA_UNSUPPORTED")
         data = verify_artifact(manifest, artifact_path)
-        try:
-            value = json.loads(data.decode("utf-8", errors="strict"))
-        except (UnicodeError, json.JSONDecodeError) as error:
-            raise Phase03Error(
-                "COUNTRY_REFERENCE_PARSE_FAILURE", type(error).__name__
-            ) from error
-        if not isinstance(value, list) or len(value) != manifest.row_count:
+        value = load_canonical_cldr_value(data)
+        if set(value) != {
+            "country_reference_version",
+            "extractor_configuration_fingerprint",
+            "extractor_version",
+            "records",
+            "schema_version",
+            "selectable_territory_policy_version",
+        }:
+            raise Phase03Error("COUNTRY_REFERENCE_PARSE_FAILURE")
+        if (
+            value["country_reference_version"] != manifest.reference_id
+            or value["extractor_configuration_fingerprint"]
+            != cldr_extractor_configuration_fingerprint()
+            or value["extractor_version"] != CLDR_COUNTRY_EXTRACTOR_VERSION
+            or value["schema_version"] != CLDR_COUNTRY_SCHEMA_VERSION
+            or value["selectable_territory_policy_version"]
+            != CLDR_SELECTABLE_POLICY_VERSION
+        ):
+            raise Phase03Error("COUNTRY_REFERENCE_VERSION_MISMATCH")
+        records_value = value["records"]
+        if not isinstance(records_value, list) or len(records_value) != manifest.row_count:
             raise Phase03Error(
                 "COUNTRY_REFERENCE_PARSE_FAILURE", "row count differs from manifest"
             )
         records: list[CountryRecord] = []
         rows_seen: set[tuple[str, str, str, str]] = set()
         names_seen: set[str] = set()
-        m49_seen: set[str] = set()
-        for item in value:
+        numeric_seen: set[str] = set()
+        for item in records_value:
             if not isinstance(item, dict) or set(item) != {
-                "country_or_area_name",
-                "m49_code",
-                "iso_alpha2",
-                "iso_alpha3",
+                "territory_code",
+                "alpha3_code",
+                "numeric_code",
+                "english_name",
             }:
                 raise Phase03Error(
                     "COUNTRY_REFERENCE_PARSE_FAILURE", "invalid operational row"
                 )
-            name = item["country_or_area_name"]
-            m49 = item["m49_code"]
-            alpha2 = item["iso_alpha2"]
-            alpha3 = item["iso_alpha3"]
+            name = item["english_name"]
+            numeric = item["numeric_code"]
+            alpha2 = item["territory_code"]
+            alpha3 = item["alpha3_code"]
             if not all(isinstance(part, str) and part for part in item.values()):
                 raise Phase03Error(
                     "COUNTRY_REFERENCE_PARSE_FAILURE", "missing operational value"
                 )
-            if not (len(m49) == 3 and m49.isascii() and m49.isdigit()):
+            if not (
+                len(numeric) == 3 and numeric.isascii() and numeric.isdigit()
+            ):
                 raise Phase03Error(
-                    "COUNTRY_REFERENCE_PARSE_FAILURE", "invalid M49 code"
+                    "COUNTRY_REFERENCE_PARSE_FAILURE", "invalid numeric code"
                 )
             if not (len(alpha2) == 2 and alpha2.isascii() and alpha2.isupper()):
                 raise Phase03Error(
@@ -409,15 +437,15 @@ class CountryReference:
                 raise Phase03Error(
                     "COUNTRY_REFERENCE_PARSE_FAILURE", "invalid alpha-3 syntax"
                 )
-            row = (name, m49, alpha2, alpha3)
-            if row in rows_seen or name in names_seen or m49 in m49_seen:
+            row = (name, numeric, alpha2, alpha3)
+            if row in rows_seen or name in names_seen or numeric in numeric_seen:
                 raise Phase03Error(
                     "COUNTRY_REFERENCE_PARSE_FAILURE", "duplicate operational mapping"
                 )
             rows_seen.add(row)
             names_seen.add(name)
-            m49_seen.add(m49)
-            records.append(CountryRecord(alpha2, alpha3, (name,), m49))
+            numeric_seen.add(numeric)
+            records.append(CountryRecord(alpha2, alpha3, (name,), numeric))
         return cls(
             assignment_manifest=manifest,
             name_manifest=manifest,
@@ -527,6 +555,7 @@ def production_reference_paths() -> dict[str, Path]:
     resource_root = files("safe_geocoding_pipeline.phase03").joinpath(
         "resources", "references"
     )
+    country_root = resource_root.joinpath(COUNTRY_REFERENCE_DIRECTORY)
     return {
         "unicode_manifest": Path(
             str(resource_root.joinpath(UNICODE_REFERENCE_DIRECTORY, "manifest.json"))
@@ -538,27 +567,181 @@ def production_reference_paths() -> dict[str, Path]:
             str(resource_root.joinpath(UNICODE_REFERENCE_DIRECTORY, "LICENSE.txt"))
         ),
         "country_manifest": Path(
-            str(resource_root.joinpath(COUNTRY_REFERENCE_DIRECTORY, "manifest.json"))
+            str(country_root.joinpath("manifest.json"))
         ),
+        "country_artifact": Path(
+            str(country_root.joinpath("country_reference_cldr_46_1_v1.json"))
+        ),
+        "country_supplemental_data": Path(
+            str(country_root.joinpath("supplementalData.xml"))
+        ),
+        "country_english_names": Path(str(country_root.joinpath("en.xml"))),
+        "country_region_validity": Path(str(country_root.joinpath("region.xml"))),
+        "country_license": Path(str(country_root.joinpath("LICENSE"))),
+        "country_directory": Path(str(country_root)),
         "country_authority_manifest": Path(
-            str(resource_root.joinpath("country_reference_v1.json"))
+            str(resource_root.joinpath(COUNTRY_AUTHORITY_MANIFEST))
         ),
     }
+
+
+def _read_json_object(path: Path, error_code: str) -> dict[str, Any]:
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as error:
+        raise Phase03Error(error_code, type(error).__name__) from error
+    if not isinstance(value, dict):
+        raise Phase03Error(error_code)
+    return value
+
+
+def _read_reference_bytes(path: Path, error_code: str) -> bytes:
+    try:
+        return path.read_bytes()
+    except OSError as error:
+        raise Phase03Error(error_code, type(error).__name__) from error
+
+
+def verify_cldr_reference_bundle(
+    manifest_path: Path, reference_directory: Path
+) -> ReferenceManifest:
+    manifest = load_manifest(manifest_path)
+    value = _read_json_object(manifest_path, "CLDR_MANIFEST_INVALID")
+    if (
+        manifest.reference_id != CLDR_COUNTRY_REFERENCE_ID
+        or manifest.authority_role != "OPERATIONAL_COUNTRY_MAPPING"
+        or manifest.loader_schema_version != CLDR_COUNTRY_SCHEMA_VERSION
+        or manifest.license_identifier != "Unicode-3.0"
+        or manifest.redistribution_policy != "VENDORED"
+        or manifest.row_count != 249
+        or value.get("schema_version") != "cldr_country_reference_manifest_v1"
+        or value.get("cldr_release") != CLDR_RELEASE
+    ):
+        raise Phase03Error("CLDR_MANIFEST_INVALID")
+
+    release = value.get("release_artifact")
+    if not isinstance(release, dict) or release != {
+        "artifact_file_name": "cldr-common-46.1.zip",
+        "artifact_sha256": "c3828c9280c6b3bb921bc96baf53be2174b5416d72e740ec3915c1ff91a50a80",
+        "artifact_sha512": "6f5bece848d8187da35cc4c4022bea6a673e40a6032864b09ef24744f35bbf5e89e32e9852bbfd91d7466332db87c8f4f514ff70221729275701b7d95bac2925",
+        "artifact_size_bytes": 34_308_024,
+        "official_upstream_integrity": "No release checksum was available at the documented versioned hashes/SHASUM512.txt location when retrieved; SHA-256 and SHA-512 were calculated locally from the official HTTPS artifact.",
+        "source": "https://www.unicode.org/Public/cldr/46.1/cldr-common-46.1.zip",
+    }:
+        raise Phase03Error("CLDR_RELEASE_IDENTITY_INVALID")
+
+    expected_sources = {
+        "supplementalData.xml": (
+            "common/supplemental/supplementalData.xml",
+            "277105238ecaab5b0e476f3bc7d25a26358227c5c77d02b0921d311c3f940dbf",
+            396_715,
+        ),
+        "en.xml": (
+            "common/main/en.xml",
+            "5ac57cec48ab8d9a87cbd920444024ccdcc914ae6ffa4353f6e17bc0a9f8d6e7",
+            431_277,
+        ),
+        "region.xml": (
+            "common/validity/region.xml",
+            "e751e0eedd46b52c38f3cdb72b0fab61ac8b48e052e8b28ba74b6ac26c4c8cb1",
+            1_905,
+        ),
+    }
+    source_artifacts = value.get("source_artifacts")
+    if not isinstance(source_artifacts, list) or len(source_artifacts) != 3:
+        raise Phase03Error("CLDR_SOURCE_IDENTITY_INVALID")
+    source_data: dict[str, bytes] = {}
+    for item in source_artifacts:
+        if not isinstance(item, dict):
+            raise Phase03Error("CLDR_SOURCE_IDENTITY_INVALID")
+        local_name = item.get("artifact_file_name")
+        if not isinstance(local_name, str) or local_name not in expected_sources:
+            raise Phase03Error("CLDR_SOURCE_IDENTITY_INVALID")
+        archive_path, expected_hash, expected_size = expected_sources.pop(local_name)
+        if item != {
+            "archive_path": archive_path,
+            "artifact_file_name": local_name,
+            "artifact_sha256": expected_hash,
+            "artifact_size_bytes": expected_size,
+        }:
+            raise Phase03Error("CLDR_SOURCE_IDENTITY_INVALID")
+        data = _read_reference_bytes(
+            reference_directory / local_name, "CLDR_SOURCE_ARTIFACT_READ_FAILURE"
+        )
+        if hashlib.sha256(data).hexdigest() != expected_hash or len(data) != expected_size:
+            raise Phase03Error("CLDR_SOURCE_ARTIFACT_MISMATCH", local_name)
+        source_data[local_name] = data
+    if expected_sources:
+        raise Phase03Error("CLDR_SOURCE_IDENTITY_INVALID")
+
+    license_value = value.get("license_artifact")
+    if not isinstance(license_value, dict) or license_value != {
+        "archive_path": "LICENSE",
+        "artifact_file_name": "LICENSE",
+        "artifact_sha256": "4e6e762822c88cf41c072b93568f3e1a6784b5b013e82bf42a61bb7a018d9239",
+        "artifact_size_bytes": 2_036,
+        "license_identifier": "Unicode-3.0",
+    }:
+        raise Phase03Error("CLDR_LICENSE_IDENTITY_INVALID")
+    license_data = _read_reference_bytes(
+        reference_directory / "LICENSE", "CLDR_LICENSE_READ_FAILURE"
+    )
+    if (
+        hashlib.sha256(license_data).hexdigest()
+        != license_value["artifact_sha256"]
+        or len(license_data) != license_value["artifact_size_bytes"]
+        or b"SPDX-License-Identifier: Unicode-3.0" not in license_data
+    ):
+        raise Phase03Error("CLDR_LICENSE_IDENTITY_INVALID")
+
+    extractor = value.get("extractor")
+    if not isinstance(extractor, dict) or extractor != {
+        "configuration_fingerprint": cldr_extractor_configuration_fingerprint(),
+        "version": CLDR_COUNTRY_EXTRACTOR_VERSION,
+    }:
+        raise Phase03Error("CLDR_EXTRACTOR_IDENTITY_INVALID")
+    first = extract_cldr_country_reference(
+        supplemental_data_xml=source_data["supplementalData.xml"],
+        english_territories_xml=source_data["en.xml"],
+        region_validity_xml=source_data["region.xml"],
+    )
+    second = extract_cldr_country_reference(
+        supplemental_data_xml=source_data["supplementalData.xml"],
+        english_territories_xml=source_data["en.xml"],
+        region_validity_xml=source_data["region.xml"],
+    )
+    if first != second:
+        raise Phase03Error("CLDR_EXTRACTION_NONDETERMINISTIC")
+    if first.row_count != manifest.row_count:
+        raise Phase03Error("CLDR_EXTRACTION_ROW_COUNT_MISMATCH")
+    canonical = verify_artifact(manifest, reference_directory / manifest.artifact_file_name)
+    if first.canonical_artifact != canonical:
+        raise Phase03Error("CLDR_CANONICAL_REPRODUCTION_MISMATCH")
+    expected_validation = {
+        "alpha3_duplicate_count": 0,
+        "canonical_name_duplicate_count": 0,
+        "numeric_duplicate_count": 0,
+        "selectable_row_count": first.row_count,
+        "status_counts": first.status_counts,
+        "excluded_identifiers": {
+            key: list(identifiers)
+            for key, identifiers in first.excluded_identifiers.items()
+        },
+    }
+    if value.get("validation_results") != expected_validation:
+        raise Phase03Error("CLDR_VALIDATION_RESULTS_MISMATCH")
+    return manifest
 
 
 def validate_country_authority_manifest(
     path: Path,
     operational_manifest: ReferenceManifest,
     *,
+    operational_manifest_path: Path | None = None,
     expected_country_reference_id: str | None = None,
 ) -> dict[str, Any]:
-    try:
-        value = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, json.JSONDecodeError) as error:
-        raise Phase03Error(
-            "COUNTRY_AUTHORITY_MANIFEST_READ_FAILURE", type(error).__name__
-        ) from error
-    if not isinstance(value, dict) or set(value) != {
+    value = _read_json_object(path, "COUNTRY_AUTHORITY_MANIFEST_READ_FAILURE")
+    if set(value) != {
         "country_reference_id",
         "normative_authority",
         "operational_reference",
@@ -568,7 +751,7 @@ def validate_country_authority_manifest(
     normative = value["normative_authority"]
     operational = value["operational_reference"]
     if (
-        value["schema_version"] != "country_reference_manifest_v1"
+        value["schema_version"] != "country_reference_manifest_v2"
         or not isinstance(normative, dict)
         or not isinstance(operational, dict)
         or normative.get("organization")
@@ -579,7 +762,11 @@ def validate_country_authority_manifest(
             expected_country_reference_id is not None
             and value["country_reference_id"] != expected_country_reference_id
         )
-        or operational.get("organization") != "United Nations Statistics Division"
+        or normative.get("role") != "normative_code_system"
+        or operational.get("organization") != "Unicode Consortium"
+        or operational.get("dataset") != "Common Locale Data Repository (CLDR)"
+        or operational.get("release") != CLDR_RELEASE
+        or operational.get("role") != "operational_machine_readable_mapping"
         or operational.get("reference_id") != operational_manifest.reference_id
         or operational.get("source") != operational_manifest.source
         or operational.get("artifact_sha256") != operational_manifest.artifact_sha256
@@ -588,27 +775,40 @@ def validate_country_authority_manifest(
         or operational.get("row_count") != operational_manifest.row_count
         or operational.get("schema_version")
         != operational_manifest.loader_schema_version
+        or operational.get("license_identifier") != "Unicode-3.0"
+        or operational.get("selectable_territory_policy_version")
+        != CLDR_SELECTABLE_POLICY_VERSION
         or operational.get("validation_status") != "PASS"
     ):
         raise Phase03Error("COUNTRY_AUTHORITY_MANIFEST_INVALID")
+    if operational_manifest_path is not None:
+        expected_manifest_hash = operational.get("manifest_sha256")
+        if (
+            not isinstance(expected_manifest_hash, str)
+            or hashlib.sha256(operational_manifest_path.read_bytes()).hexdigest()
+            != expected_manifest_hash
+        ):
+            raise Phase03Error("COUNTRY_AUTHORITY_MANIFEST_INVALID")
     return value
 
 
 def load_production_references(
-    country_artifact: Path,
     *,
     expected_country_reference_id: str,
     expected_unicode_reference_id: str,
 ) -> tuple[CountryReference, ScriptReference]:
     paths = production_reference_paths()
-    country_manifest = load_manifest(paths["country_manifest"])
+    country_manifest = verify_cldr_reference_bundle(
+        paths["country_manifest"], paths["country_directory"]
+    )
     validate_country_authority_manifest(
         paths["country_authority_manifest"],
         country_manifest,
+        operational_manifest_path=paths["country_manifest"],
         expected_country_reference_id=expected_country_reference_id,
     )
-    country = CountryReference.from_operational_artifact(
-        paths["country_manifest"], country_artifact
+    country = CountryReference.from_cldr_artifact(
+        paths["country_manifest"], paths["country_artifact"]
     )
     scripts = ScriptReference.from_artifact(
         paths["unicode_manifest"], paths["unicode_artifact"]

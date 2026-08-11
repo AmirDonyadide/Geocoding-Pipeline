@@ -53,7 +53,7 @@ def test_semantic_digest_golden_vectors(tmp_path: Path) -> None:
     evidence = evidence_digest(
         result.evidence_rows, "phase03_component_evidence_v1"
     ).hex()
-    assert core == "d3d6564b7de680fade6197795bf125269b419b8b21bd1e189903dedceaf02b35"
+    assert core == "a3f1ff5fbf66009d7c67fb71038486847d85868db281a67f8ab1aa590ce5fdca"
     assert (
         evidence == "f5ce6d2f9379fd36b9a11bcc80bc6afd3dec888fae1f605d3821dcc11214e590"
     )
@@ -71,7 +71,7 @@ def test_semantic_digest_golden_vectors(tmp_path: Path) -> None:
         ],
     ).hex()
     assert (
-        combined == "e908c6941cf52363259ea262bf8689942c53f642fdcdf41e10b9bbfa8e90e124"
+        combined == "4e6b0c2ee4c88737a880ac66ab22a92991258fd87fcc189f88d9ace727b9e0b8"
     )
 
 
@@ -84,7 +84,7 @@ def test_effective_configuration_fingerprint_binds_reference_artifacts(
         tmp_path / "without", with_country=False, with_scripts=False
     )
     assert with_references.configuration_fingerprint.hex() == (
-        "4e883215d1051f7374d197ec62786c4178d1423014b31bf75cceabe62372eb5e"
+        "503d20cbc3191c11a0f54ce555c1513a2f96c36db087fa6e381579da808b068b"
     )
     assert (
         with_references.configuration_fingerprint

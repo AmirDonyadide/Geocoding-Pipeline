@@ -462,7 +462,7 @@ Country processing uses explicit reference manifests rather than reconstructed c
 Every reference entry contains:
 
 - `reference_id`;
-- `authority_role`: `NORMATIVE_CODE_VALIDATION` or `NAME_MAPPING`;
+- an explicit normative or operational authority role;
 - source organization and URL;
 - retrieval timestamp and stated vintage;
 - media type and exact source SHA-256;
@@ -471,13 +471,19 @@ Every reference entry contains:
 - redistribution policy;
 - controlled local relative path or external controlled-artifact identity.
 
-Normative ISO validation and UN country/name mapping remain separate:
+Normative ISO authority and operational CLDR mapping remain separate:
 
-- ISO 3166 Maintenance Agency material is authoritative for assigned alpha-2/alpha-3 validation.
-- UN M49/UN terminology material may provide exact maintained country/name mappings.
-- UN material does not silently replace ISO as the authority for assigned ISO codes.
+- ISO 3166 and its Maintenance Agency define the normative code system.
+- Pinned Unicode CLDR 46.1 supplies the reproducible machine-readable alpha-2,
+  alpha-3, numeric-code, and canonical English-name mapping.
+- CLDR does not silently replace ISO as the normative authority.
 
-Authoritative source descriptions are the ISO 3166 Maintenance Agency/Online Browsing Platform (`https://www.iso.org/iso-3166-country-codes.html`, `https://www.iso.org/obp/`) and UN M49 (`https://unstats.un.org/unsd/methodology/m49/`). Unicode Script data, if retained, comes from the matching Unicode 16.0.0 UCD (`https://www.unicode.org/Public/16.0.0/ucd/Scripts.txt`) under the recorded Unicode terms/license.
+The active sources are the official ISO 3166 overview
+(`https://www.iso.org/iso-3166-country-codes.html`), the versioned CLDR 46.1
+release (`https://www.unicode.org/Public/cldr/46.1/`), and the matching Unicode
+16.0.0 UCD Scripts file
+(`https://www.unicode.org/Public/16.0.0/ucd/Scripts.txt`). UNSD M49 is a
+superseded historical candidate and is not an active Phase 3 v1 dependency.
 
 If ISO redistribution terms prevent vendoring, the controlled data remains outside Git. Git contains only the manifest schema, source description, expected digest, and loader contract. Exact files and digests must be pinned before the pilot. No codes are recreated from memory.
 
@@ -955,7 +961,7 @@ Proposed initial identifiers, subject to the pre-pilot freeze, are:
 - `rule_registry_version = phase03_rule_registry_v2`;
 - `cleaning_rules_version = derived_text_nfc_ws_v1_ucd16.0.0`;
 - `placeholder_policy_version = placeholder_policy_v1`;
-- `country_reference_version = country_reference_v1_iso_normative_unsd_m49_operational_20260810`;
+- `country_reference_version = country_reference_v2_iso_normative_cldr_46_1_operational`;
 - `unicode_reference_version = unicode_ucd_16_0_0_scripts_20240430`;
 - `diagnostic_vocabulary_version = diagnostic_vocabulary_v1`;
 - `component_schema_version = phase03_component_core_v1`;
@@ -967,18 +973,16 @@ Proposed initial identifiers, subject to the pre-pilot freeze, are:
 
 ## Remaining decisions before implementation or pilot
 
-The following still require explicit approval or pre-pilot evidence:
+The following still require explicit approval or pilot evidence:
 
-1. authorization to implement Phase 3;
-2. institutional/legal authorization for the pinned UNSD-derived operational mapping and any future redistribution;
-3. which future versioned street/house candidate rules, if any, are promoted after protected development evidence;
-4. final operational size/candidate limits after the real development benchmark;
-5. real-pilot confirmation of the frozen `evidence_sidecar_policy_v1` storage/query behavior;
-6. final batch, row-group, compression, and memory settings;
-7. whether a pinned libpostal model is evaluated only as a development-pilot secondary candidate generator;
-8. the pre-registered quantitative evaluation thresholds, chosen after development but before locked evaluation;
-9. separate authorization to select/read the real-data pilot;
-10. separate authorization for any eventual full 206-shard Phase 3 run.
+1. which future versioned street/house candidate rules, if any, are promoted after protected development evidence;
+2. final operational size/candidate limits after the real development benchmark;
+3. real-pilot confirmation of the frozen `evidence_sidecar_policy_v1` storage/query behavior;
+4. final batch, row-group, compression, and memory settings;
+5. whether a pinned libpostal model is evaluated only as a development-pilot secondary candidate generator;
+6. the pre-registered quantitative evaluation thresholds, chosen after development but before locked evaluation;
+7. separate authorization to select/read the real-data pilot;
+8. separate authorization for any eventual full 206-shard Phase 3 run.
 
 ## Completion and STOP gate
 
