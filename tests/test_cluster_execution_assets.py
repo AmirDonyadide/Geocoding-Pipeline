@@ -10,6 +10,15 @@ SYNC = REPOSITORY / "scripts" / "sync_to_goethe_nhr.sh"
 BOOTSTRAP = REPOSITORY / "cluster" / "goethe_nhr" / "bootstrap_env.sh"
 PREFLIGHT = REPOSITORY / "cluster" / "goethe_nhr" / "phase03_preflight.sh"
 SBATCH = REPOSITORY / "cluster" / "goethe_nhr" / "phase03_development_pilot.sbatch"
+PHASE02_RUN = (
+    "staging/controlled/phase02_v1/runs/"
+    "phase02_20260810T173851Z_1349152b"
+)
+PHASE01_ANOMALY = (
+    "reports/generated/phase01/phase01_20260810T151626Z_7df9bc8f/"
+    "phase01_anomalies.csv.gz"
+)
+SYNC_BASELINE = "648080ff93eb82566368286303b6fd3069d6a2f7"
 
 
 def _fake_rsync(path: Path, *, modern: bool, label: str) -> Path:
@@ -78,6 +87,22 @@ def _run_sync_dry_run(
     return result, log.read_bytes()
 
 
+def _rsync_calls(arguments: bytes) -> list[list[str]]:
+    return [
+        [item.decode("utf-8") for item in line.split(b"\0") if item]
+        for line in arguments.splitlines()
+        if line
+    ]
+
+
+def _planned_sources(arguments: bytes) -> list[str]:
+    sources: list[str] = []
+    for call in _rsync_calls(arguments):
+        assert call[-1].startswith("donyadidegan@goethe.hhlr-gu.de:")
+        sources.extend(item for item in call[:-1] if not item.startswith("-"))
+    return sources
+
+
 def test_cluster_shell_assets_are_syntactically_valid() -> None:
     for path in (SYNC, BOOTSTRAP, PREFLIGHT, SBATCH):
         subprocess.run(["bash", "-n", str(path)], check=True)
@@ -89,16 +114,143 @@ def test_sync_is_allowlisted_non_destructive_and_excludes_paused_state() -> None
     assert "--delete" not in "\n".join(
         line for line in content.splitlines() if not line.lstrip().startswith("#")
     )
-    assert ".git .gitattributes .gitignore AGENTS.md README.md" in content
+    assert "git ls-files -z" in content
+    assert ".git/refs/heads" in content
     assert "phase02_20260810T173851Z_1349152b" in content
     assert "phase01_20260810T151626Z_7df9bc8f" in content
     assert "phase01_anomalies.csv.gz" in content
-    assert "candidate_state.sqlite3" not in "\n".join(
-        line for line in content.splitlines() if not line.lstrip().startswith("#")
-    )
     assert "derived/controlled/phase03" not in content
     assert ".venv" not in " ".join(
         line.strip() for line in content.splitlines() if line.strip().startswith("rsync ")
+    )
+
+
+def test_sync_dry_run_plan_is_minimal_complete_and_reconstructable(
+    tmp_path: Path,
+) -> None:
+    modern = _fake_rsync(tmp_path / "modern" / "rsync", modern=True, label="3.4.1")
+    result, arguments = _run_sync_dry_run(tmp_path, selected_rsync=modern)
+    calls = _rsync_calls(arguments)
+    sources = _planned_sources(arguments)
+    current_commit = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=REPOSITORY,
+        text=True,
+        capture_output=True,
+        check=True,
+    ).stdout.strip()
+
+    assert len(calls) == 4
+    assert f"git commit={current_commit}" in result.stdout
+    assert "Phase 2 Parquet shards=206" in result.stdout
+    required_exclusions = {
+        "--exclude=.DS_Store",
+        "--exclude=__pycache__/",
+        "--exclude=*.pyc",
+        "--exclude=*.pyo",
+        "--exclude=*.egg-info/",
+        "--exclude=.pytest_cache/",
+        "--exclude=.mypy_cache/",
+        "--exclude=.ruff_cache/",
+        "--exclude=.agents/",
+        "--exclude=.git/refs/codex/",
+        "--exclude=logs/",
+        "--exclude=.venv/",
+        "--exclude=.venv-goethe-nhr/",
+        "--exclude=.in_progress/",
+        "--exclude=_work/",
+        "--exclude=candidate_state.sqlite3",
+        "--exclude=phase02_state.sqlite3",
+        "--exclude=*duckdb_spill*/",
+        "--exclude=.env",
+        "--exclude=.env.*",
+        "--exclude=*.pem",
+        "--exclude=*.key",
+    }
+    for call in calls:
+        assert required_exclusions.issubset(call)
+
+    expected_tracked = subprocess.run(
+        ["git", "ls-files"],
+        cwd=REPOSITORY,
+        text=True,
+        capture_output=True,
+        check=True,
+    ).stdout.splitlines()
+    assert set(expected_tracked).issubset(sources)
+    for required_project_path in (
+        "AGENTS.md",
+        "README.md",
+        "pyproject.toml",
+        "scripts/sync_to_goethe_nhr.sh",
+        "src/safe_geocoding_pipeline/execution_policy.py",
+        "docs/EXECUTION_POLICY.md",
+        "cluster/goethe_nhr/phase03_development_pilot.sbatch",
+    ):
+        assert required_project_path in sources
+
+    for required_git_path in (
+        ".git/HEAD",
+        ".git/config",
+        ".git/index",
+        ".git/objects",
+        ".git/refs/heads",
+    ):
+        assert required_git_path in sources
+    assert not any(source.startswith(".git/refs/codex") for source in sources)
+
+    phase02_sources = [source for source in sources if source.startswith(PHASE02_RUN)]
+    parquet_sources = [source for source in phase02_sources if source.endswith(".parquet")]
+    assert len(parquet_sources) == 206
+    assert len(set(parquet_sources)) == 206
+    assert f"{PHASE02_RUN}/dataset_manifest.json" in phase02_sources
+    assert f"{PHASE02_RUN}/_SUCCESS.json" in phase02_sources
+    assert len(phase02_sources) == 208
+    assert PHASE01_ANOMALY in sources
+    assert [source for source in sources if source.startswith("reports/generated/phase01/")] == [
+        PHASE01_ANOMALY
+    ]
+
+    prohibited_fragments = (
+        ".DS_Store",
+        "__pycache__",
+        ".pyc",
+        ".pyo",
+        ".egg-info",
+        ".pytest_cache",
+        ".mypy_cache",
+        ".ruff_cache",
+        ".agents",
+        ".git/refs/codex",
+        "logs/",
+        ".venv/",
+        ".venv-goethe-nhr/",
+        "/.in_progress/",
+        "/_work/",
+        "phase02_state.sqlite3",
+        "candidate_state.sqlite3",
+        "duckdb",
+        "phase03_pilot_20260811T082940Z_025fb0ba",
+        "csv_files/",
+        "parquet_files/",
+    )
+    for source in sources:
+        assert not any(fragment in source for fragment in prohibited_fragments), source
+
+    subprocess.run(
+        ["git", "cat-file", "-e", f"{SYNC_BASELINE}^{{commit}}"],
+        cwd=REPOSITORY,
+        check=True,
+    )
+    subprocess.run(
+        ["git", "merge-base", "--is-ancestor", SYNC_BASELINE, "HEAD"],
+        cwd=REPOSITORY,
+        check=True,
+    )
+    subprocess.run(
+        ["git", "fsck", "--no-dangling", "--no-progress"],
+        cwd=REPOSITORY,
+        check=True,
     )
 
 
@@ -109,7 +261,8 @@ def test_sync_uses_protect_args_with_modern_rsync(tmp_path: Path) -> None:
     assert "rsync version=rsync 3.4.1 protocol version 31" in result.stdout
     assert "dry-run=true" in result.stdout
     assert "rsync protect-args=true" in result.stdout
-    assert arguments.count(b"--protect-args\0") == 3
+    assert arguments.count(b"--protect-args\0") == 4
+    planned_sources = "\0".join(_planned_sources(arguments)).encode("utf-8")
     for forbidden in (
         b"csv_files",
         b"candidate_state.sqlite3",
@@ -119,7 +272,7 @@ def test_sync_uses_protect_args_with_modern_rsync(tmp_path: Path) -> None:
         b"parquet_files",
         b"--delete",
     ):
-        assert forbidden not in arguments
+        assert forbidden not in planned_sources
 
 
 def test_sync_omits_protect_args_with_old_rsync(tmp_path: Path) -> None:
@@ -130,7 +283,7 @@ def test_sync_omits_protect_args_with_old_rsync(tmp_path: Path) -> None:
     assert "dry-run=true" in result.stdout
     assert "rsync protect-args=false" in result.stdout
     assert b"--protect-args\0" not in arguments
-    assert arguments.count(b"--dry-run\0") == 3
+    assert arguments.count(b"--dry-run\0") == 4
 
 
 def test_sync_prefers_homebrew_rsync_over_path_rsync(tmp_path: Path) -> None:
@@ -148,7 +301,7 @@ def test_sync_prefers_homebrew_rsync_over_path_rsync(tmp_path: Path) -> None:
     )
     assert f"rsync executable={homebrew}" in result.stdout
     assert "rsync version=rsync homebrew protocol version 31" in result.stdout
-    assert arguments.count(b"--protect-args\0") == 3
+    assert arguments.count(b"--protect-args\0") == 4
 
 
 def test_preflight_requires_cluster_runtime_snapshot_and_node_local_space() -> None:
