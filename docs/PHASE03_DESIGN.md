@@ -1007,4 +1007,8 @@ Incomplete, ambiguous, conflicting, unparseable, insufficient, or partially eval
 
 ## STOP
 
-This document finalizes the corrected Phase 3 design only. Phase 3 implementation, pilot execution, full processing, Phase 4, deduplication, `address_key`, and geocoding are not authorized.
+This document finalizes the corrected Phase 3 parser design. The frozen,
+synthetically validated pilot-runner contract is separately documented in
+`PHASE03_PILOT_RUNNER_DESIGN.md`. Real pilot execution remains separately
+authorized; full processing, Phase 4, deduplication,
+`address_key`, and geocoding are not authorized.

@@ -75,11 +75,12 @@ authorization, which must be obtained separately before running all 206 files.
 
 ## Phase 3 framework interface
 
-Phase 3 framework implementation is limited to deterministic component logic,
-fictional validation, schemas, controlled-reference interfaces, atomic-output
-infrastructure, and a deterministic pilot sampler. It has no command that reads
-or transforms Phase 2 rows. A real pilot and full Phase 3 processing require
-separate authorization.
+Phase 3 includes deterministic component logic, fictional validation, schemas,
+controlled-reference interfaces, atomic-output infrastructure, and a bounded
+synthetic-tested pilot runner. The production sampling classifier contract is
+frozen as `phase03_sampling_contract_v1`; its implementation is ready for
+review. A real pilot and full Phase 3 processing still require separate
+authorization.
 
 Validate the bundled rule registry and display privacy-safe framework metadata:
 
@@ -125,10 +126,49 @@ python3 -m safe_geocoding_pipeline.phase03.benchmark \
   --output-directory reports/generated/phase03/synthetic-benchmark
 ```
 
-The library sampler accepts already profiled `PilotCandidate` metadata and
-returns separate development and locked-evaluation identities plus a portable
-seal containing only counts and identity digests. It is not invoked by the CLI,
-so ordinary framework commands cannot accidentally create a real pilot.
+Inspect the future production plan without opening the supplied path:
+
+```bash
+python3 -m safe_geocoding_pipeline.phase03.cli pilot-plan \
+  --input-path /explicit/phase02/run \
+  --output-path /explicit/controlled/pilot/run \
+  --git-commit "$(git rev-parse HEAD)"
+```
+
+The plan reports the frozen 16-column contract and explicit passes with
+`data_read=false`. The out-of-core sampler stores only
+32-byte identities, deterministic scores and categorical memberships in an
+owner-only SQLite database. Controlled identity files and the portable seal are
+checksummed and atomic; the seal contains counts/digests, never identity lists.
+
+The remaining production stages are deliberately separate commands:
+`pilot-profile`, `pilot-select`, `pilot-validate-identity-set`,
+`pilot-materialize-development`, `development-transform`,
+`development-review-sample`, and `pilot-validate`. Each requires explicit
+manifest/input/output arguments. None performs implicit discovery or advances
+to the next stage. Do not run them on real Phase 2 data without the separately
+recorded authorization for that exact operation.
+
+The separately authorized development join requires explicit paths and never
+discovers production data:
+
+```bash
+python3 -m safe_geocoding_pipeline.phase03.cli pilot-materialize-development \
+  --phase02-manifest /explicit/phase02/dataset_manifest.json \
+  --input-path /explicit/shard.parquet \
+  --development-identities /controlled/development.identities.bin \
+  --locked-identities /controlled/locked_evaluation.identities.bin \
+  --output-path /controlled/development_payload.parquet
+```
+
+Do not run that command against real data without explicit authorization. A
+synthetic-only bounded-state benchmark is available through:
+
+```bash
+python3 -m safe_geocoding_pipeline.phase03.pilot_benchmark \
+  --rows 100000 \
+  --output-directory reports/generated/phase03/pilot-runner-benchmark
+```
 
 The frozen declarative registry is packaged from
 `src/safe_geocoding_pipeline/phase03/resources/rule_registry_v2.json`. Its

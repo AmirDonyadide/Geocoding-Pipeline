@@ -193,9 +193,13 @@ artifacts whenever the code is used.
 
 ## Exact next gate
 
-The technical/methodological/privacy pilot-readiness gate now passes. Before
-real pilot selection can occur, obtain separate explicit user authorization to
-select/read the real pilot. That authorization boundary is not a technical
-readiness defect.
+The parser/reference/rule technical gate passes. The previously missing
+production sampling layer is now frozen as `phase03_sampling_contract_v1`,
+implemented, and synthetically validated as documented in
+`PHASE03_PILOT_RUNNER_DESIGN.md`. Its status is
+`PILOT_RUNNER_IMPLEMENTATION_READY_FOR_REVIEW`.
+
+This readiness result is not authority to read Phase 2 rows. A new explicit
+authorization is still required to select or process the real pilot.
 
 Phase 3 remains incomplete and `docs/PHASE03.md` must not be created.

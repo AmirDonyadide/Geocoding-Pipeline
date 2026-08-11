@@ -62,10 +62,21 @@ class PilotCandidate:
     stable_source_row_id_v1: bytes
     strata: dict[str, str]
     targeted_safety_case: bool = False
+    safety_source_file: str | None = None
+    safety_logical_record_number: int | None = None
 
     def __post_init__(self) -> None:
         if len(self.stable_source_row_id_v1) != 32:
             raise ValueError("pilot stable ID must be 32 bytes")
+        has_location = (
+            self.safety_source_file is not None
+            and self.safety_logical_record_number is not None
+            and self.safety_logical_record_number >= 1
+        )
+        if (self.safety_source_file is None) != (
+            self.safety_logical_record_number is None
+        ) or (has_location and not self.targeted_safety_case):
+            raise ValueError("invalid targeted safety source location")
 
 
 @dataclass(frozen=True, slots=True)

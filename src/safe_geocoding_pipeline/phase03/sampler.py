@@ -86,10 +86,21 @@ def select_and_seal_pilot(
         for item in candidates
         if item.targeted_safety_case
     }
+    if len(selected) > config.total_count:
+        raise ValueError("pilot quotas/caps cannot include all targeted safety cases")
+    # Frozen sampling contract: all rows in an exact primary group classified
+    # as RARE are mandatory, subject only to overall feasibility.
+    for item in candidates:
+        if item.strata.get("country_cohort") == "RARE":
+            selected[item.stable_source_row_id_v1] = item
+    if len(selected) > config.total_count:
+        raise ValueError("pilot quotas/caps cannot include every rare primary group")
     primary_counts: dict[str, int] = {}
     for item in selected.values():
         primary = item.strata.get(config.primary_stratum, "")
         primary_counts[primary] = primary_counts.get(primary, 0) + 1
+    if any(count > config.maximum_primary_stratum for count in primary_counts.values()):
+        raise ValueError("mandatory pilot cases violate primary cap")
 
     def eligible(item: PilotCandidate) -> bool:
         primary = item.strata.get(config.primary_stratum, "")

@@ -110,6 +110,11 @@ These are empirical properties of the exact current snapshot, not permanent prov
 - Development review may lead to new rule versions. Locked evaluation may not be used for tuning. A locked-evaluation defect requiring methodological change yields `FAIL/REVISE`, a new parser/rule version, and a new locked-evaluation sample/version.
 - Phase 3 framework/synthetic implementation is complete at baseline commit `64895b7`. Real pilot selection/execution and the full 206-shard Phase 3 run remain separately authorized actions.
 - Phase 3 reference-readiness and readiness-maintenance work was committed at clean baseline `6c95fa2136a6f2bf92e51f30f41ae972c0a32a5b` before the CLDR replacement. The CLDR change does not authorize reading or selecting the real pilot.
+- `phase03_sampling_contract_v1` is frozen. Selection uses exactly two selected-column passes: country-only profiling, then the approved 16-column classification pass; full rows are read only for the separate DEVELOPMENT join.
+- Exact country groups are case-sensitive pinned-CLDR matches, semantic-missing/ambiguous buckets, or a domain-separated digest for unusual content. Cohorts are `RARE` below 50, `MEDIUM` at 50–499, and `LARGE` at 500 or more. All rare-group rows are mandatory; secondary minima are 50; exact primary groups are capped at 500.
+- Sampling-only structured completeness is HIGH for 3–4 content fields, MEDIUM for 2, LOW for 1, and NONE for 0; ambiguous presence is independent. The exact postcode precedence, content-only address-line counts, separate native/non-native script categories, and native-relationship precedence are frozen in `docs/PHASE03_PILOT_RUNNER_DESIGN.md`.
+- Production Pass 2 uses owner-only exact SQLite state and requires at least 25 GiB free local disk. The state, identity sets, and seal are bound to their versioned schemas, Phase 2 manifest, sampling contract, references, registry, Git/configuration identity, and deterministic seed/ranking rules.
+- The DEVELOPMENT manual-review sample is exactly 800 unique rows: 400 broad-representation rows plus overlapping targeted minima and deterministic fill. Exactly 200 are designated for independent double review. Unavailable targets include all available rows and emit `TARGET_NOT_FULLY_AVAILABLE` diagnostics.
 
 ## Open decisions
 
