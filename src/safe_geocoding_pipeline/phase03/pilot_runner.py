@@ -19,6 +19,7 @@ from typing import Any, cast
 import pyarrow as pa
 import pyarrow.parquet as pq
 
+from ..execution_policy import require_goethe_nhr_slurm
 from ..phase02.fingerprints import JsonValue, canonical_json_bytes, fingerprint
 from ..phase02.schema import base_staging_schema, exact_schema_matches
 from .constants import (
@@ -1158,7 +1159,10 @@ def materialize_development_payload(
     locked_ids: set[bytes],
     batch_rows: int = 25_000,
     expected_development_count: int = 8_000,
+    production: bool = False,
 ) -> int:
+    if production:
+        require_goethe_nhr_slurm("phase03.pilot-materialize-development")
     if development_ids & locked_ids:
         raise ValueError("development and locked identities overlap")
     if len(development_ids) != expected_development_count:

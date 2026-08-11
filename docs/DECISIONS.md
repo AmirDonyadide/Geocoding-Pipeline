@@ -21,10 +21,17 @@ This register distinguishes approved project rules from questions that require e
 - SAFE authentication is supplied through protected runtime configuration; credentials are never committed or logged.
 - Normal API concurrency is 2–4 requests total across the complete process, regardless of workers, shards, nodes, or jobs.
 - Production retries are bounded and use classified transient failures, exponential backoff, jitter, checkpoints, and persistent error status.
-- MacBook development/testing is primary. Goethe-NHR may be used for final/full processing where beneficial, with substantial work submitted through SLURM.
+- Heavy production processing is Goethe-NHR-only and runs through SLURM. The MacBook is limited to development, documentation, Git, unit/synthetic tests, small diagnostics, lightweight validation, and small controlled manual-review workflows. When production workload classification is uncertain, default to Goethe-NHR. The exact OR-based heavy definition and fail-closed markers are in `docs/EXECUTION_POLICY.md`.
 - `/scratch` is not used; `/work/footprint/public` and the shared Conda base are not modified.
 - The existing `parquet_files` products are invalid and cannot serve as staging data.
 - Work proceeds one reviewed phase at a time and stops after every phase.
+- Production-heavy commands reuse the common execution guard and require both `SAFE_EXECUTION_SITE=goethe-nhr` and a non-empty `SLURM_JOB_ID`; there is no ordinary local-production bypass. This controls runtime and SSD/I/O load, improves scheduler resource control, preserves reproducible host/runtime boundaries, strengthens auditability, and supports later full-data phases.
+
+### Phase 3 execution-site correction
+
+- Local run `phase03_pilot_20260811T082940Z_025fb0ba` is `ABORTED_LOCAL_EXECUTION_POLICY_VIOLATION`, not a scientific failure. It was stopped before DEVELOPMENT/LOCKED identity sets or a seal were finalized and before either payload or any Phase 3 transformation existed.
+- Its partial SQLite state is retained temporarily for audit, but is not resumed, deleted, or synchronized to Goethe-NHR. The production pilot restarts from scratch under a new cluster run ID; the frozen sampling methodology and scientific version remain unchanged.
+- Real production `pilot-profile`, `pilot-select`, production-snapshot validation, and `pilot-materialize-development` are cluster-only. The 8,000-row DEVELOPMENT transform remains in the same cluster pilot workflow for reproducibility even though it is individually lightweight.
 
 ### Phase 1 approved design decisions
 

@@ -15,6 +15,7 @@ from typing import Any
 import duckdb
 import pyarrow
 
+from ..execution_policy import require_goethe_nhr_slurm
 from ..phase01.parser import file_metadata, hash_file
 from .config import Phase02Config
 from .constants import (
@@ -310,6 +311,8 @@ def _revalidate_complete(
 
 
 def run_phase02(config: Phase02Config) -> Phase02Outcome:
+    if config.run_scope == "FULL_CONVERSION":
+        require_goethe_nhr_slurm("phase02.full-conversion")
     config.validate()
     phase01 = load_phase01_manifest(config.phase01_run_dir)
     entries = _select_entries(config, phase01.files)

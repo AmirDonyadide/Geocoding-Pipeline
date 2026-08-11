@@ -44,8 +44,10 @@
 
 ## Infrastructure
 
-- The MacBook is the primary development and testing environment. Use small, synthetic, or explicitly approved representative inputs.
-- Goethe-NHR may be used for final/full processing where beneficial. Run substantial work through SLURM, never on login nodes.
+- **HEAVY PRODUCTION PROCESSING = GOETHE-NHR ONLY.** Read and follow `docs/EXECUTION_POLICY.md`. If uncertain whether a production task is heavy, default to Goethe-NHR.
+- The MacBook is for code, documentation, Git, unit/synthetic tests, small diagnostics, lightweight validation, and small controlled manual-review workflows—not full-production scans or multi-GB processing.
+- Heavy includes any complete production Phase 2 scan, at least 1,000,000 production rows, a substantial fraction of 20.6M rows, at least 2 GiB working state, an expected local runtime of at least 10 minutes, or full-production joins, grouping, deduplication, address keys, Phase 3 transformation, geocoding, selection, validation, merge-back, or reconciliation.
+- Heavy work must run through SLURM on Goethe-NHR, never a login node. Production-heavy commands must invoke the shared fail-closed execution guard; do not add a local bypass.
 - Never use `/scratch`, modify `/work/footprint/public`, or modify the shared Conda base environment.
 - Keep important code and documentation in Git-backed storage; `/work` is not backed up.
 - Do not introduce distributed or big-data technology merely because of the superseded scale estimate.
@@ -53,4 +55,5 @@
 ## Prohibited without explicit approval
 
 - Do not run the full 206-file dataset, start production geocoding, send large API workloads, raise concurrency, launch multiple geocoding jobs, transfer the full data collection, or download external spatial datasets.
+- Never run an authorized heavy production task on the MacBook; scientific authorization does not waive the Goethe-NHR/SLURM requirement.
 - Do not choose an open scientific policy, infer uncertain geography, expose confidential data, commit real data, or move to the next project phase.

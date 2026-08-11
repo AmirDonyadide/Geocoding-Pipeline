@@ -59,9 +59,20 @@ SAFE/Pelias `/v1/search/structured` is the preferred primary endpoint. Requests 
 
 ## Development and production environments
 
-The MacBook is the primary environment for design, implementation, unit tests, synthetic fixtures, and small approved representative tests. The complete source collection must not be repeatedly loaded into memory merely because it is locally available.
+The MacBook is the development environment for design, implementation, Git,
+unit/synthetic tests, small diagnostics, lightweight validation, and small
+controlled manual-review work. Heavy production processing is Goethe-NHR only
+and must run through SLURM. This includes a complete production Phase 2 scan,
+at least one million production rows, multi-GB state, expected local execution
+of at least ten minutes, and full-data joins, grouping, deduplication,
+transformation, geocoding, selection, validation, or reconciliation. When
+uncertain, use Goethe-NHR. See `docs/EXECUTION_POLICY.md` for the permanent
+definition and fail-closed enforcement contract.
 
-Goethe-NHR is available for final/full processing where beneficial. Cluster work must use SLURM for substantial computation. Home is for backed-up code and small files; personal `/work` is for large data and outputs but is not backed up. `/scratch` is retired, `/work/footprint/public` is read-only unless explicit permission is given, and the shared Conda base must not be modified.
+On Goethe-NHR, home is for small files and personal `/work` is for high-volume
+project data and outputs but is not backed up. Heavy computation must not run on
+login nodes. `/scratch` is retired, `/work/footprint/public` is not modified,
+and the shared Conda base must not be modified.
 
 ## Safety and reproducibility principles
 

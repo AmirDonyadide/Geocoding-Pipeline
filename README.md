@@ -3,6 +3,18 @@
 The repository implements the reviewed project workflow documented under `docs/`.
 Work proceeds one phase at a time.
 
+## Execution-site policy
+
+**HEAVY PRODUCTION PROCESSING = GOETHE-NHR ONLY.** The MacBook is for code,
+documentation, Git, unit/synthetic tests, small diagnostics, lightweight
+validation, and small controlled manual-review work. Complete production Phase
+2 scans, at least one million production rows, multi-GB state, work expected to
+run at least ten minutes locally, and full-data joins/grouping/deduplication/
+transformation/geocoding/selection/validation/reconciliation must run through
+SLURM on Goethe-NHR. When uncertain, default to the cluster. The exact policy,
+guard markers, paused-run record, and cluster workflow are documented in
+`docs/EXECUTION_POLICY.md`.
+
 ## Phase 1 interface
 
 Phase 1 inventories immutable raw CSV files. It does not stage, clean,
@@ -148,6 +160,18 @@ The remaining production stages are deliberately separate commands:
 manifest/input/output arguments. None performs implicit discovery or advances
 to the next stage. Do not run them on real Phase 2 data without the separately
 recorded authorization for that exact operation.
+
+When these commands target the authoritative production snapshot,
+`pilot-profile`, `pilot-select`, complete-snapshot validation, and
+`pilot-materialize-development` fail before production input access unless both
+`SAFE_EXECUTION_SITE=goethe-nhr` and a non-empty `SLURM_JOB_ID` are present.
+There is no force-local flag. Use the reviewed workflow in
+`cluster/goethe_nhr/phase03_development_pilot.sbatch`; do not invoke individual
+production stages on the MacBook.
+
+The Phase 1 `FULL_INVENTORY` and Phase 2 `FULL_CONVERSION` scopes likewise use
+the shared cluster guard for future reruns; their historical completed runs are
+not modified.
 
 The separately authorized development join requires explicit paths and never
 discovers production data:

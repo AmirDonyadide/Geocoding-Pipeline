@@ -10,6 +10,7 @@ __pycache__/
 
 # Virtual environments
 .venv/
+.venv-goethe-nhr/
 *.egg-info/
 venv/
 env/

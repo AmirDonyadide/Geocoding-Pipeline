@@ -11,6 +11,7 @@ from typing import Any, cast
 
 import pyarrow.parquet as pq
 
+from ..execution_policy import require_goethe_nhr_slurm
 from ..phase02.fingerprints import canonical_json_bytes, fingerprint
 from ..phase02.schema import exact_schema_matches
 from .config import Phase03Config
@@ -68,6 +69,8 @@ def validate_explicit_phase02_inputs(
     *,
     production: bool,
 ) -> tuple[dict[str, Any], str]:
+    if production:
+        require_goethe_nhr_slurm("phase03.production-snapshot-validation")
     manifest = load_phase02_manifest(manifest_path)
     files = manifest["files"]
     expected = {Path(str(item["output_file"])).name: item for item in files}
@@ -119,6 +122,8 @@ def write_country_profile(
     country_reference: CountryReference,
     production: bool,
 ) -> dict[str, Any]:
+    if production:
+        require_goethe_nhr_slurm("phase03.pilot-profile")
     _, manifest_identity = validate_explicit_phase02_inputs(
         manifest_path, input_paths, production=production
     )
@@ -178,6 +183,8 @@ def select_production_pilot(
     reference_configuration_fingerprint: str,
     production: bool,
 ) -> dict[str, Any]:
+    if production:
+        require_goethe_nhr_slurm("phase03.pilot-select")
     contract = ProductionSamplingContract()
     contract.validate(production=production)
     if production:

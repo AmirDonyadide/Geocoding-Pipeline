@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from ..execution_policy import require_goethe_nhr_slurm
 from .config import InventoryConfig
 from .constants import INVENTORY_VERSION
 from .discovery import discover_source_files
@@ -218,6 +219,8 @@ def _verify_resumable_completed_file(
 
 
 def run_inventory(config: InventoryConfig) -> InventoryOutcome:
+    if config.run_scope == "FULL_INVENTORY":
+        require_goethe_nhr_slurm("phase01.full-inventory")
     config.validate()
     files = discover_source_files(config)
     _validate_scope(config, files)

@@ -296,6 +296,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             args.output_path,
             development_ids=set(development),
             locked_ids=set(locked),
+            production=True,
         )
         payload = {
             "status": "PASS",
