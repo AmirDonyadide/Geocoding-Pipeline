@@ -21,6 +21,8 @@ readonly REPORT_ROOT="${REPO_ROOT}/reports/generated/phase03"
 export SAFE_EXECUTION_SITE=goethe-nhr
 : "${SLURM_JOB_ID:?SLURM_JOB_ID is required}"
 : "${PHASE03_GIT_COMMIT:?submit with PHASE03_GIT_COMMIT set to the reviewed commit}"
+: "${GNU_TIME_BIN:?submit with GNU_TIME_BIN set to the installed GNU time executable}"
+[[ -x "${GNU_TIME_BIN}" ]] || { echo "GNU_TIME_BIN is not executable: ${GNU_TIME_BIN}" >&2; exit 1; }
 
 cd "${REPO_ROOT}"
 source "${REPO_ROOT}/.venv-goethe-nhr/bin/activate"
@@ -61,7 +63,7 @@ run_stage() {
   local started ended
   started="$(date +%s)"
   echo "stage_start=${name} utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  /usr/bin/time -v -o "${ATTEMPT_REPORT}/${name}.resources.txt" \
+  "${GNU_TIME_BIN}" -v -o "${ATTEMPT_REPORT}/${name}.resources.txt" \
     "$@" >"${ATTEMPT_REPORT}/${name}.json"
   chmod 0600 "${ATTEMPT_REPORT}/${name}.resources.txt" "${ATTEMPT_REPORT}/${name}.json"
   ended="$(date +%s)"
