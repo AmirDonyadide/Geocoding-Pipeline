@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 #SBATCH --job-name=safe-phase03-pilot
+#SBATCH --partition=general1
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=16G
-#SBATCH --time=12:00:00
+#SBATCH --time=24:00:00
+#SBATCH --tmp=50000
 #SBATCH --output=/work/footprint/donyadidegan/safe_geocoding_pipeline/logs/slurm/%x_%j.out
 #SBATCH --error=/work/footprint/donyadidegan/safe_geocoding_pipeline/logs/slurm/%x_%j.err
 
@@ -35,6 +37,10 @@ echo "execution_site=${SAFE_EXECUTION_SITE}"
 
 # The sourced preflight performs no row-column scan. It validates the complete
 # Phase 2 file/hash/schema snapshot and exports a safe node-local temp root.
+if [[ -d "/local/${SLURM_JOB_ID}" ]]; then
+  export TMPDIR="/local/${SLURM_JOB_ID}"
+fi
+
 source "${REPO_ROOT}/cluster/goethe_nhr/phase03_preflight.sh"
 
 timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
