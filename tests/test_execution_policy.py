@@ -15,6 +15,7 @@ from safe_geocoding_pipeline.phase01.runner import run_inventory
 from safe_geocoding_pipeline.phase02.config import Phase02Config
 from safe_geocoding_pipeline.phase02.runner import run_phase02
 from safe_geocoding_pipeline.phase03.pilot_orchestration import write_country_profile
+from safe_geocoding_pipeline.phase03.pilot_select_benchmark import main as benchmark_main
 from safe_geocoding_pipeline.phase03.pilot_orchestration import select_production_pilot
 from safe_geocoding_pipeline.phase03.pilot_orchestration import (
     validate_explicit_phase02_inputs,
@@ -121,6 +122,35 @@ def test_production_snapshot_validation_is_cluster_only(
     with pytest.raises(ExecutionPolicyError, match="HEAVY_PROCESS_CLUSTER_REQUIRED"):
         validate_explicit_phase02_inputs(
             tmp_path / "missing-manifest.json", [], production=True
+        )
+
+
+def test_pilot_select_benchmark_guard_precedes_input_access(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.delenv("SAFE_EXECUTION_SITE", raising=False)
+    monkeypatch.delenv("SLURM_JOB_ID", raising=False)
+    with pytest.raises(ExecutionPolicyError, match="HEAVY_PROCESS_CLUSTER_REQUIRED"):
+        benchmark_main(
+            [
+                "run",
+                "--engine",
+                "baseline-sqlite",
+                "--run-label",
+                "baseline",
+                "--phase02-manifest",
+                str(tmp_path / "missing.json"),
+                "--phase01-anomalies",
+                str(tmp_path / "missing-anomalies.csv.gz"),
+                "--profile",
+                str(tmp_path / "missing-profile.json"),
+                "--shard-count",
+                "1",
+                "--benchmark-mode",
+                "PERFORMANCE_STATE",
+                "--output-directory",
+                str(tmp_path / "benchmark"),
+            ]
         )
 
 

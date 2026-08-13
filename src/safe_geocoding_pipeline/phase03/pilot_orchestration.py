@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 import sqlite3
+import sys
 from collections import Counter
 from collections.abc import Iterator, Mapping, Sequence
 from pathlib import Path
@@ -22,8 +23,10 @@ from .pilot_runner import (
     Phase01SafetyLocationTracker,
     ProductionSamplingContract,
     ReviewCandidate,
+    SQLiteCandidateStoreSettings,
     SQLitePilotCandidateStore,
     classify_sampling_row_v1,
+    effective_sampling_fingerprint,
     population_country_counts,
     proposed_production_pilot_config,
     require_pilot_free_space,
@@ -31,6 +34,11 @@ from .pilot_runner import (
     write_review_artifacts,
     write_identity_set,
     write_pilot_seal,
+)
+from .pilot_selection_runtime import (
+    BoundedShardTask,
+    reduce_production_shards_bounded,
+    write_compact_selected_state,
 )
 from .references import CountryReference, ScriptReference
 from .rules import RuleRegistry
@@ -86,6 +94,8 @@ def validate_explicit_phase02_inputs(
         or reconciliation.get("status") != "PASS"
         or reconciliation.get("file_count") != 206
         or reconciliation.get("total_rows") != 20_600_000
+        or reconciliation.get("distinct_stable_ids") != 20_600_000
+        or reconciliation.get("duplicate_stable_ids") != 0
         or any(
             item.get("status") != "PASS"
             or item.get("staging_rows") != 100_000
@@ -182,14 +192,27 @@ def select_production_pilot(
     phase03_configuration_fingerprint: str,
     reference_configuration_fingerprint: str,
     production: bool,
+    selection_engine: str = "baseline-sqlite",
+    worker_count: int = 1,
+    sqlite_cache_size_mib: int = 8_192,
+    sqlite_mmap_size_mib: int = 0,
+    sqlite_insertion_batch_size: int = 10_000,
 ) -> dict[str, Any]:
     if production:
         require_goethe_nhr_slurm("phase03.pilot-select")
     contract = ProductionSamplingContract()
     contract.validate(production=production)
+    if selection_engine not in {
+        "baseline-sqlite",
+        "optimized-sqlite",
+        "bounded-parallel",
+    }:
+        raise ValueError("unsupported pilot selection engine")
+    if worker_count < 1:
+        raise ValueError("pilot selection worker count must be positive")
     if production:
-        require_pilot_free_space(output_directory, minimum_free_bytes=contract.minimum_free_bytes)
-    _, manifest_identity = validate_explicit_phase02_inputs(
+        require_pilot_free_space(state_path, minimum_free_bytes=contract.minimum_free_bytes)
+    manifest, manifest_identity = validate_explicit_phase02_inputs(
         manifest_path, input_paths, production=production
     )
     country_counts = load_country_profile(
@@ -210,53 +233,137 @@ def select_production_pilot(
             "phase03_configuration_fingerprint": phase03_configuration_fingerprint,
         }
     )
-    store = SQLitePilotCandidateStore(
-        state_path,
-        config=proposed_production_pilot_config(),
-        data_scope="PRODUCTION" if production else "SYNTHETIC_ONLY",
-        classification_contract=contract if production else None,
-        classification_contract_fingerprint=contract.fingerprint(),
-        production_binding_fingerprint=production_binding if production else None,
-    )
-    try:
-        pass2_rows = 0
-        for path in input_paths:
-            parquet = pq.ParquetFile(path, page_checksum_verification=True, pre_buffer=True)
-            shard_identity = _sha256(path)
+    pilot_config = proposed_production_pilot_config()
+    file_identities = {
+        Path(str(item["output_file"])).name: str(item["output_sha256"])
+        for item in manifest["files"]
+    }
+    pass2_rows = 0
+    retained_candidates: int | None = None
+    if selection_engine in {"baseline-sqlite", "optimized-sqlite"}:
+        sqlite_settings = (
+            SQLiteCandidateStoreSettings.baseline()
+            if selection_engine == "baseline-sqlite"
+            else SQLiteCandidateStoreSettings.optimized(
+                cache_size_mib=sqlite_cache_size_mib,
+                mmap_size_mib=sqlite_mmap_size_mib,
+                insertion_batch_size=sqlite_insertion_batch_size,
+            )
+        )
+        store = SQLitePilotCandidateStore(
+            state_path,
+            config=pilot_config,
+            settings=sqlite_settings,
+            data_scope="PRODUCTION" if production else "SYNTHETIC_ONLY",
+            classification_contract=contract if production else None,
+            classification_contract_fingerprint=contract.fingerprint(),
+            production_binding_fingerprint=production_binding if production else None,
+        )
+        try:
+            for path in input_paths:
+                parquet = pq.ParquetFile(
+                    path, page_checksum_verification=True, pre_buffer=True
+                )
+                shard_identity = file_identities[path.name]
 
-            def candidates() -> Iterator[Any]:
-                for batch in parquet.iter_batches(
-                    batch_size=25_000, columns=list(SAMPLING_COLUMNS), use_threads=False
-                ):
-                    for row in batch.to_pylist():
-                        targeted = safety.observe(
-                            str(row["source_file"]), int(row["source_logical_record_number"])
-                        )
-                        yield classify_sampling_row_v1(
-                            row,
-                            contract=contract,
-                            country_reference=country_reference,
-                            script_reference=script_reference,
-                            rule_registry=rule_registry,
-                            country_counts=country_counts,
-                            targeted_safety_case=targeted,
-                        )
+                def candidates() -> Iterator[Any]:
+                    for batch in parquet.iter_batches(
+                        batch_size=25_000,
+                        columns=list(SAMPLING_COLUMNS),
+                        use_threads=False,
+                    ):
+                        for row in batch.to_pylist():
+                            targeted = safety.observe(
+                                str(row["source_file"]),
+                                int(row["source_logical_record_number"]),
+                            )
+                            yield classify_sampling_row_v1(
+                                row,
+                                contract=contract,
+                                country_reference=country_reference,
+                                script_reference=script_reference,
+                                rule_registry=rule_registry,
+                                country_counts=country_counts,
+                                targeted_safety_case=targeted,
+                            )
 
-            shard_rows, _ = store.ingest_shard(path.name, shard_identity, candidates())
-            pass2_rows += shard_rows
-        if pass2_rows != sum(country_counts.values()) or (
-            production and pass2_rows != 20_600_000
+                shard_rows, _ = store.ingest_shard(
+                    path.name,
+                    shard_identity,
+                    candidates(),
+                    batch_size=sqlite_settings.insertion_batch_size,
+                )
+                pass2_rows += shard_rows
+                print(
+                    f"pilot_select_shard_complete={path.name} rows={shard_rows}",
+                    file=sys.stderr,
+                    flush=True,
+                )
+            if store.safety_locations() != set(safety.expected):
+                raise Phase03Error(
+                    "PHASE01_SAFETY_LOCATION_RECONCILIATION_FAILED"
+                )
+            store.validate_integrity()
+            selection = store.select(
+                input_phase02_manifest_identity=manifest_identity,
+                selection_timestamp=selection_timestamp,
+            )
+            sqlite_runtime_settings = store.sqlite_runtime_settings()
+        finally:
+            store.close()
+    else:
+        if not production:
+            raise ValueError("bounded production orchestration requires production=True")
+        reconciliation = cast(dict[str, Any], manifest["reconciliation"])
+        if (
+            reconciliation.get("distinct_stable_ids")
+            != reconciliation.get("total_rows")
+            or reconciliation.get("duplicate_stable_ids") != 0
         ):
-            raise Phase03Error("PILOT_PASS_ROW_COUNT_MISMATCH")
-        if store.safety_locations() != set(safety.expected):
+            raise Phase03Error("PHASE02_STABLE_ID_UNIQUENESS_NOT_PROVEN")
+        reduction = reduce_production_shards_bounded(
+            [
+                BoundedShardTask(path, file_identities[path.name])
+                for path in input_paths
+            ],
+            country_counts=country_counts,
+            safety_locations=frozenset(safety.expected),
+            contract=contract,
+            pilot_config=pilot_config,
+            worker_count=worker_count,
+        )
+        pass2_rows = reduction.reducer.snapshot.row_count
+        if reduction.reducer.snapshot.safety_locations != set(safety.expected):
             raise Phase03Error("PHASE01_SAFETY_LOCATION_RECONCILIATION_FAILED")
-        store.validate_integrity()
-        selection = store.select(
+        classification_fingerprint = fingerprint(
+            {
+                "sampling_contract_fingerprint": contract.fingerprint(),
+                "production_binding_fingerprint": production_binding,
+            }
+        )
+        bounded = reduction.reducer.select(
             input_phase02_manifest_identity=manifest_identity,
             selection_timestamp=selection_timestamp,
+            effective_sampling_fingerprint=effective_sampling_fingerprint(
+                classification_contract_fingerprint=classification_fingerprint,
+                config=pilot_config,
+            ),
         )
-    finally:
-        store.close()
+        selection = bounded.selection
+        retained_candidates = bounded.retained_candidate_count
+        write_compact_selected_state(
+            state_path,
+            bounded_selection=bounded,
+            checkpoints=reduction.checkpoints,
+            config=pilot_config,
+            classification_contract=contract,
+            production_binding_fingerprint=production_binding,
+        )
+        sqlite_runtime_settings = None
+    if pass2_rows != sum(country_counts.values()) or (
+        production and pass2_rows != 20_600_000
+    ):
+        raise Phase03Error("PILOT_PASS_ROW_COUNT_MISMATCH")
     output_directory.mkdir(parents=True, exist_ok=True, mode=0o700)
     output_directory.chmod(0o700)
     development_path = output_directory / "development.identities.bin"
@@ -291,6 +398,10 @@ def select_production_pilot(
         "locked_evaluation_count": len(selection.locked_evaluation_ids),
         "disjoint": set(selection.development_ids).isdisjoint(selection.locked_evaluation_ids),
         "pilot_seal": selection.seal.portable_dict(),
+        "selection_engine": selection_engine,
+        "worker_count": worker_count if selection_engine == "bounded-parallel" else 1,
+        "retained_candidate_count": retained_candidates,
+        "sqlite_runtime_settings": sqlite_runtime_settings,
     }
 
 

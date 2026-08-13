@@ -72,6 +72,15 @@ def build_parser() -> argparse.ArgumentParser:
     select.add_argument("--output-directory", type=Path, required=True)
     select.add_argument("--selection-timestamp", required=True)
     select.add_argument("--git-commit", required=True)
+    select.add_argument(
+        "--selection-engine",
+        choices=("baseline-sqlite", "optimized-sqlite", "bounded-parallel"),
+        default="baseline-sqlite",
+    )
+    select.add_argument("--worker-count", type=int, default=1)
+    select.add_argument("--sqlite-cache-size-mib", type=int, default=8_192)
+    select.add_argument("--sqlite-mmap-size-mib", type=int, default=0)
+    select.add_argument("--sqlite-insertion-batch-size", type=int, default=10_000)
     identity = subparsers.add_parser("pilot-validate-identity-set")
     identity.add_argument("--path", type=Path, required=True)
     materialize = subparsers.add_parser("pilot-materialize-development")
@@ -262,6 +271,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                 ).encode()
             ).hexdigest(),
             production=True,
+            selection_engine=args.selection_engine,
+            worker_count=args.worker_count,
+            sqlite_cache_size_mib=args.sqlite_cache_size_mib,
+            sqlite_mmap_size_mib=args.sqlite_mmap_size_mib,
+            sqlite_insertion_batch_size=args.sqlite_insertion_batch_size,
         )
     elif args.command == "pilot-validate-identity-set":
         metadata, identities = read_identity_set(args.path)

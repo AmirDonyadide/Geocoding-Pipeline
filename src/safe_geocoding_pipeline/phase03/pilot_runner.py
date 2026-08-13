@@ -14,7 +14,7 @@ from collections import Counter
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 import pyarrow as pa
 import pyarrow.parquet as pq
@@ -30,6 +30,7 @@ from .constants import (
 )
 from .errors import Phase03Error
 from .models import PilotCandidate, PilotSeal
+from .pilot_selection import PilotSelectionInfeasibleError, SelectionTrace
 from .references import CountryReference, ScriptReference
 from .review import hashed_review_id, manual_review_schema
 from .rules import RuleRegistry
@@ -49,6 +50,7 @@ IDENTITY_SET_VERSION = "phase03_identity_set_v1"
 REVIEW_SAMPLER_VERSION = "phase03_development_review_sampler_v1"
 PILOT_CANDIDATE_STATE_SCHEMA_VERSION = "phase03_pilot_candidate_state_v1"
 PILOT_MINIMUM_FREE_BYTES = 25 * 1024**3
+SQLITE_CANDIDATE_STORE_SETTINGS_VERSION = "phase03_sqlite_candidate_store_settings_v1"
 
 REVIEW_TOTAL_COUNT = 800
 REVIEW_BROAD_COUNT = 400
@@ -99,6 +101,22 @@ def identity_digest(domain: bytes, identities: Iterable[bytes]) -> str:
             raise ValueError("stable source row ID must be 32 bytes")
         digest.update(value)
     return digest.hexdigest()
+
+
+def effective_sampling_fingerprint(
+    *,
+    classification_contract_fingerprint: str,
+    config: PilotSamplingConfig,
+) -> str:
+    return fingerprint(
+        {
+            "classification_contract_fingerprint": (
+                classification_contract_fingerprint
+            ),
+            "pilot_sampling_config_fingerprint": config.fingerprint(),
+            "pilot_runner_version": PILOT_RUNNER_VERSION,
+        }
+    )
 
 
 def _fsync_parent(path: Path) -> None:
@@ -337,6 +355,79 @@ class Phase01SafetyLocationTracker:
         unexpected = set(self.seen) - set(self.expected)
         if missing or unexpected or any(count != 1 for count in self.seen.values()):
             raise ValueError("Phase 1 safety location reconciliation failed")
+
+
+@dataclass(frozen=True, slots=True)
+class SQLiteCandidateStoreSettings:
+    """Operational settings for reconstructable candidate working state only."""
+
+    backend_id: str
+    journal_mode: Literal["DELETE", "OFF"]
+    synchronous: Literal["FULL", "OFF"]
+    temp_store: Literal["FILE", "MEMORY"]
+    cache_size_kib: int | None
+    mmap_size_bytes: int
+    insertion_batch_size: int
+    settings_version: str = SQLITE_CANDIDATE_STORE_SETTINGS_VERSION
+
+    @classmethod
+    def baseline(cls) -> "SQLiteCandidateStoreSettings":
+        return cls("baseline-sqlite", "DELETE", "FULL", "FILE", None, 0, 1_000)
+
+    @classmethod
+    def optimized(
+        cls,
+        *,
+        cache_size_mib: int = 8_192,
+        mmap_size_mib: int = 0,
+        insertion_batch_size: int = 10_000,
+    ) -> "SQLiteCandidateStoreSettings":
+        return cls(
+            "optimized-sqlite",
+            "OFF",
+            "OFF",
+            "MEMORY",
+            cache_size_mib * 1_024,
+            mmap_size_mib * 1_024**2,
+            insertion_batch_size,
+        )
+
+    def validate(self) -> None:
+        if self.backend_id not in {"baseline-sqlite", "optimized-sqlite"}:
+            raise ValueError("unsupported SQLite candidate-store backend")
+        if self.settings_version != SQLITE_CANDIDATE_STORE_SETTINGS_VERSION:
+            raise ValueError("unsupported SQLite candidate-store settings version")
+        if self.cache_size_kib is not None and self.cache_size_kib < 1:
+            raise ValueError("SQLite cache size must be positive")
+        if self.mmap_size_bytes < 0 or self.insertion_batch_size < 1:
+            raise ValueError("invalid SQLite candidate-store size setting")
+        if self.backend_id == "baseline-sqlite" and (
+            self.journal_mode,
+            self.synchronous,
+            self.temp_store,
+        ) != ("DELETE", "FULL", "FILE"):
+            raise ValueError("baseline SQLite durability settings changed")
+        if self.backend_id == "optimized-sqlite" and (
+            self.journal_mode,
+            self.synchronous,
+            self.temp_store,
+        ) != ("OFF", "OFF", "MEMORY"):
+            raise ValueError("optimized SQLite disposable-state settings changed")
+
+    def portable_dict(self) -> dict[str, JsonValue]:
+        return {
+            "backend_id": self.backend_id,
+            "cache_size_kib": self.cache_size_kib,
+            "insertion_batch_size": self.insertion_batch_size,
+            "journal_mode": self.journal_mode,
+            "mmap_size_bytes": self.mmap_size_bytes,
+            "settings_version": self.settings_version,
+            "synchronous": self.synchronous,
+            "temp_store": self.temp_store,
+        }
+
+    def fingerprint(self) -> str:
+        return fingerprint(self.portable_dict())
 
 
 def classify_postcode_v1(raw: str) -> str:
@@ -641,14 +732,19 @@ class SQLitePilotCandidateStore:
         path: Path,
         *,
         config: PilotSamplingConfig,
+        settings: SQLiteCandidateStoreSettings | None = None,
         classification_contract_fingerprint: str = "SYNTHETIC_UNAPPROVED",
         data_scope: str = "SYNTHETIC_ONLY",
         classification_contract: ProductionSamplingContract | None = None,
         production_binding_fingerprint: str | None = None,
     ) -> None:
-        if data_scope not in {"SYNTHETIC_ONLY", "PRODUCTION"}:
+        if data_scope not in {
+            "SYNTHETIC_ONLY",
+            "PRODUCTION",
+            "PRODUCTION_BENCHMARK_SUBSET",
+        }:
             raise ValueError("unsupported pilot candidate-store data scope")
-        if data_scope == "PRODUCTION":
+        if data_scope in {"PRODUCTION", "PRODUCTION_BENCHMARK_SUBSET"}:
             if classification_contract is None:
                 raise Phase03Error("PILOT_PRODUCTION_CONTRACT_NOT_APPROVED")
             classification_contract.validate(production=True)
@@ -660,16 +756,27 @@ class SQLitePilotCandidateStore:
                     "production_binding_fingerprint": production_binding_fingerprint,
                 }
             )
+        self.settings = settings or SQLiteCandidateStoreSettings.baseline()
+        self.settings.validate()
         self.path = path
         path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
         path.parent.chmod(0o700)
+        if self.settings.backend_id == "optimized-sqlite" and path.exists():
+            raise ValueError(
+                "optimized SQLite candidate state is disposable and must be rebuilt"
+            )
         self.connection = sqlite3.connect(path)
         path.chmod(0o600)
+        self.connection.execute(f"PRAGMA journal_mode={self.settings.journal_mode}")
+        self.connection.execute(f"PRAGMA synchronous={self.settings.synchronous}")
+        self.connection.execute(f"PRAGMA temp_store={self.settings.temp_store}")
+        if self.settings.cache_size_kib is not None:
+            self.connection.execute(
+                f"PRAGMA cache_size=-{self.settings.cache_size_kib}"
+            )
+        self.connection.execute(f"PRAGMA mmap_size={self.settings.mmap_size_bytes}")
         self.connection.executescript(
             """
-            PRAGMA journal_mode=DELETE;
-            PRAGMA synchronous=FULL;
-            PRAGMA temp_store=FILE;
             CREATE TABLE IF NOT EXISTS candidate (
               stable_id BLOB PRIMARY KEY CHECK(length(stable_id)=32),
               primary_group TEXT NOT NULL,
@@ -706,14 +813,9 @@ class SQLitePilotCandidateStore:
             """
         )
         self.config = config
-        self.effective_sampling_fingerprint = fingerprint(
-            {
-                "classification_contract_fingerprint": (
-                    classification_contract_fingerprint
-                ),
-                "pilot_sampling_config_fingerprint": config.fingerprint(),
-                "pilot_runner_version": PILOT_RUNNER_VERSION,
-            }
+        self.effective_sampling_fingerprint = effective_sampling_fingerprint(
+            classification_contract_fingerprint=classification_contract_fingerprint,
+            config=config,
         )
         expected_metadata = {
             "candidate_state_schema_version": PILOT_CANDIDATE_STATE_SCHEMA_VERSION,
@@ -724,6 +826,10 @@ class SQLitePilotCandidateStore:
             ),
             "effective_sampling_fingerprint": self.effective_sampling_fingerprint,
             "data_scope": data_scope,
+            "sqlite_settings_fingerprint": self.settings.fingerprint(),
+            "sqlite_settings": canonical_json_bytes(
+                self.settings.portable_dict()
+            ).decode("utf-8"),
         }
         with self.connection:
             for key, value in expected_metadata.items():
@@ -742,12 +848,38 @@ class SQLitePilotCandidateStore:
     def close(self) -> None:
         self.connection.close()
 
+    def sqlite_runtime_settings(self) -> dict[str, int | str]:
+        journal_mode = str(
+            self.connection.execute("PRAGMA journal_mode").fetchone()[0]
+        ).upper()
+        synchronous = int(
+            self.connection.execute("PRAGMA synchronous").fetchone()[0]
+        )
+        temp_store = int(self.connection.execute("PRAGMA temp_store").fetchone()[0])
+        cache_size = int(self.connection.execute("PRAGMA cache_size").fetchone()[0])
+        mmap_size = int(self.connection.execute("PRAGMA mmap_size").fetchone()[0])
+        return {
+            "journal_mode": journal_mode,
+            "synchronous": synchronous,
+            "temp_store": temp_store,
+            "cache_size": cache_size,
+            "mmap_size": mmap_size,
+        }
+
     def validate_integrity(self) -> None:
         result = self.connection.execute("PRAGMA integrity_check").fetchone()
         if result != ("ok",):
             raise ValueError("pilot candidate-state SQLite integrity check failed")
 
-    def ingest(self, candidates: Iterable[PilotCandidate], *, batch_size: int = 1000) -> int:
+    def ingest(
+        self,
+        candidates: Iterable[PilotCandidate],
+        *,
+        batch_size: int | None = None,
+    ) -> int:
+        batch_size = batch_size or self.settings.insertion_batch_size
+        if batch_size < 1:
+            raise ValueError("candidate insertion batch size must be positive")
         quota_domain = self.config.seed_domain + b":quota"
         fill_domain = self.config.seed_domain + b":fill"
         split_domain = self.config.seed_domain + b":split"
@@ -814,7 +946,7 @@ class SQLitePilotCandidateStore:
         shard_identity: str,
         candidates: Iterable[PilotCandidate],
         *,
-        batch_size: int = 1_000,
+        batch_size: int | None = None,
     ) -> tuple[int, bool]:
         """Atomically ingest or resume one exact input shard.
 
@@ -823,6 +955,9 @@ class SQLitePilotCandidateStore:
         """
         if not shard_id or not shard_identity:
             raise ValueError("shard identity cannot be empty")
+        batch_size = batch_size or self.settings.insertion_batch_size
+        if batch_size < 1:
+            raise ValueError("candidate insertion batch size must be positive")
         observed = self.connection.execute(
             "SELECT shard_identity, row_count, status FROM checkpoint WHERE shard_id=?",
             (shard_id,),
@@ -911,10 +1046,15 @@ class SQLitePilotCandidateStore:
             return False
         if self._primary_counts[primary] >= self.config.maximum_primary_stratum:
             return False
-        with self.connection:
+        if self.settings.backend_id == "optimized-sqlite":
             cursor = self.connection.execute(
                 "INSERT OR IGNORE INTO selected VALUES (?,?)", (identity, primary)
             )
+        else:
+            with self.connection:
+                cursor = self.connection.execute(
+                    "INSERT OR IGNORE INTO selected VALUES (?,?)", (identity, primary)
+                )
         if cursor.rowcount == 1:
             self._selection_total += 1
             self._primary_counts[primary] += 1
@@ -922,39 +1062,155 @@ class SQLitePilotCandidateStore:
         return False
 
     def select(
-        self, *, input_phase02_manifest_identity: str, selection_timestamp: str
+        self,
+        *,
+        input_phase02_manifest_identity: str,
+        selection_timestamp: str,
+        trace: SelectionTrace | None = None,
     ) -> PilotSelection:
-        with self.connection:
+        if self.settings.backend_id == "optimized-sqlite":
             self.connection.execute("DELETE FROM selected")
+        else:
+            with self.connection:
+                self.connection.execute("DELETE FROM selected")
         self._selection_total = 0
         self._primary_counts.clear()
+        trace_selected_ids: set[bytes] | None = set() if trace is not None else None
         population_count = int(
             self.connection.execute("SELECT COUNT(*) FROM candidate").fetchone()[0]
         )
         if population_count < self.config.total_count:
             raise ValueError("pilot population is smaller than requested sample")
-        for identity, primary in self.connection.execute(
+        targeted_rows = self.connection.execute(
             "SELECT stable_id, primary_group FROM candidate WHERE targeted=1 "
             "ORDER BY stable_id"
-        ):
-            if not self._add(bytes(identity), str(primary)):
-                raise ValueError("targeted safety cases violate primary cap")
+        ).fetchall()
+        stage = (
+            trace.start_stage(
+                stage_type="TARGETED_SAFETY",
+                target=len(targeted_rows),
+                available=len(targeted_rows),
+                represented_before=0,
+            )
+            if trace is not None
+            else None
+        )
+        for identity, primary in targeted_rows:
+            raw_identity = bytes(identity)
+            primary_group = str(primary)
+            added = self._add(raw_identity, primary_group)
+            if added and trace_selected_ids is not None:
+                trace_selected_ids.add(raw_identity)
+            if stage is not None:
+                stage.observe(
+                    PilotCandidate(raw_identity, {self.config.primary_stratum: primary_group}),
+                    rank=raw_identity,
+                    primary_group=primary_group,
+                    outcome=(
+                        "SELECTED"
+                        if added
+                        else "PRIMARY_CAP_BLOCKED"
+                        if self._primary_counts[primary_group]
+                        >= self.config.maximum_primary_stratum
+                        else "TOTAL_COUNT_BLOCKED"
+                    ),
+                )
+            if not added:
+                if stage is not None and trace_selected_ids is not None:
+                    stage.finish(
+                        selected_ids=tuple(trace_selected_ids),
+                        primary_counts=self._primary_counts,
+                    )
+                raise PilotSelectionInfeasibleError(
+                    "targeted safety cases violate primary cap",
+                    reason_code="TARGETED_SAFETY_PRIMARY_CAP",
+                    dimension=self.config.primary_stratum,
+                    category=primary_group,
+                    primary_cap=self.config.maximum_primary_stratum,
+                )
+        if stage is not None and trace_selected_ids is not None:
+            stage.finish(
+                selected_ids=tuple(trace_selected_ids),
+                primary_counts=self._primary_counts,
+            )
         # Every row from every rare exact primary-country group is mandatory.
         # Country groups have fewer than 50 members by definition, so this is
         # compatible with the 500-row per-primary-group cap unless the overall
         # 12,000-row sample itself is infeasible.
-        for identity, primary in self.connection.execute(
+        rare_rows = self.connection.execute(
             "SELECT c.stable_id, c.primary_group FROM membership m "
             "JOIN candidate c USING(stable_id) "
             "WHERE m.dimension='country_cohort' AND m.category='RARE' "
             "ORDER BY c.primary_group, c.stable_id"
-        ):
-            if not self._add(bytes(identity), str(primary)):
+        ).fetchall()
+        represented_rare = int(
+            self.connection.execute(
+                "SELECT COUNT(*) FROM membership m JOIN selected s USING(stable_id) "
+                "WHERE m.dimension='country_cohort' AND m.category='RARE'"
+            ).fetchone()[0]
+        )
+        stage = (
+            trace.start_stage(
+                stage_type="RARE_MANDATORY",
+                dimension="country_cohort",
+                category="RARE",
+                target=len(rare_rows),
+                available=len(rare_rows),
+                represented_before=represented_rare,
+            )
+            if trace is not None
+            else None
+        )
+        for identity, primary in rare_rows:
+            raw_identity = bytes(identity)
+            primary_group = str(primary)
+            added = self._add(raw_identity, primary_group)
+            if added and trace_selected_ids is not None:
+                trace_selected_ids.add(raw_identity)
+            if stage is not None and added:
+                stage.observe(
+                    PilotCandidate(raw_identity, {self.config.primary_stratum: primary_group}),
+                    rank=raw_identity,
+                    primary_group=primary_group,
+                    outcome="SELECTED",
+                )
+            if not added:
                 already_selected = self.connection.execute(
                     "SELECT 1 FROM selected WHERE stable_id=?", (identity,)
                 ).fetchone()
                 if already_selected is None:
-                    raise ValueError("rare primary-group inclusion is infeasible")
+                    if stage is not None:
+                        stage.observe(
+                            PilotCandidate(
+                                raw_identity,
+                                {self.config.primary_stratum: primary_group},
+                            ),
+                            rank=raw_identity,
+                            primary_group=primary_group,
+                            outcome=(
+                                "PRIMARY_CAP_BLOCKED"
+                                if self._primary_counts[primary_group]
+                                >= self.config.maximum_primary_stratum
+                                else "TOTAL_COUNT_BLOCKED"
+                            ),
+                        )
+                    if stage is not None and trace_selected_ids is not None:
+                        stage.finish(
+                            selected_ids=tuple(trace_selected_ids),
+                            primary_counts=self._primary_counts,
+                        )
+                    raise PilotSelectionInfeasibleError(
+                        "rare primary-group inclusion is infeasible",
+                        reason_code="RARE_PRIMARY_CAP",
+                        dimension=self.config.primary_stratum,
+                        category=primary_group,
+                        primary_cap=self.config.maximum_primary_stratum,
+                    )
+        if stage is not None and trace_selected_ids is not None:
+            stage.finish(
+                selected_ids=tuple(trace_selected_ids),
+                primary_counts=self._primary_counts,
+            )
         groups = self.connection.execute(
             "SELECT dimension, category, COUNT(*) FROM membership "
             "WHERE dimension != ? GROUP BY dimension, category "
@@ -970,6 +1226,18 @@ class SQLitePilotCandidateStore:
                     (dimension, category),
                 ).fetchone()[0]
             )
+            stage = (
+                trace.start_stage(
+                    stage_type="SECONDARY_QUOTA",
+                    dimension=str(dimension),
+                    category=str(category),
+                    target=target,
+                    available=int(available),
+                    represented_before=represented,
+                )
+                if trace is not None
+                else None
+            )
             cursor = self.connection.execute(
                 "SELECT c.stable_id, c.primary_group FROM membership m "
                 "JOIN candidate c USING(stable_id) LEFT JOIN selected s USING(stable_id) "
@@ -977,29 +1245,117 @@ class SQLitePilotCandidateStore:
                 "ORDER BY c.quota_score, c.stable_id",
                 (dimension, category),
             )
+            candidates_considered = 0
+            cap_blocked_candidates = 0
             for identity, primary in cursor:
-                if self._add(bytes(identity), str(primary)):
+                raw_identity = bytes(identity)
+                primary_group = str(primary)
+                added = self._add(raw_identity, primary_group)
+                candidates_considered += 1
+                if (
+                    not added
+                    and self._primary_counts[primary_group]
+                    >= self.config.maximum_primary_stratum
+                ):
+                    cap_blocked_candidates += 1
+                if added and trace_selected_ids is not None:
+                    trace_selected_ids.add(raw_identity)
+                if stage is not None:
+                    stage.observe(
+                        PilotCandidate(
+                            raw_identity,
+                            {self.config.primary_stratum: primary_group},
+                        ),
+                        rank=_score(self.config.seed_domain + b":quota", raw_identity),
+                        primary_group=primary_group,
+                        outcome=(
+                            "SELECTED"
+                            if added
+                            else "PRIMARY_CAP_BLOCKED"
+                            if self._primary_counts[primary_group]
+                            >= self.config.maximum_primary_stratum
+                            else "TOTAL_COUNT_BLOCKED"
+                        ),
+                    )
+                if added:
                     represented += 1
                 if represented >= target:
                     break
+            if stage is not None and trace_selected_ids is not None:
+                stage.finish(
+                    selected_ids=tuple(trace_selected_ids),
+                    primary_counts=self._primary_counts,
+                )
             if represented < target:
-                raise ValueError("pilot quotas/caps cannot satisfy minimum stratum quota")
+                raise PilotSelectionInfeasibleError(
+                    "pilot quotas/caps cannot satisfy minimum stratum quota",
+                    reason_code="MINIMUM_STRATUM_QUOTA",
+                    dimension=str(dimension),
+                    category=str(category),
+                    target=target,
+                    represented=represented,
+                    available=int(available),
+                    candidates_considered=candidates_considered,
+                    cap_blocked_candidates=cap_blocked_candidates,
+                    primary_cap=self.config.maximum_primary_stratum,
+                )
         selected_count = int(
             self.connection.execute("SELECT COUNT(*) FROM selected").fetchone()[0]
         )
         if selected_count > self.config.total_count:
             raise ValueError("targeted/quota selection exceeds pilot total")
+        stage = (
+            trace.start_stage(
+                stage_type="DETERMINISTIC_FILL",
+                target=self.config.total_count,
+                available=population_count,
+                represented_before=selected_count,
+            )
+            if trace is not None
+            else None
+        )
         for identity, primary in self.connection.execute(
             "SELECT c.stable_id, c.primary_group FROM candidate c "
             "LEFT JOIN selected s USING(stable_id) WHERE s.stable_id IS NULL "
             "ORDER BY c.fill_score, c.stable_id"
         ):
-            if self._add(bytes(identity), str(primary)):
+            raw_identity = bytes(identity)
+            primary_group = str(primary)
+            added = self._add(raw_identity, primary_group)
+            if added and trace_selected_ids is not None:
+                trace_selected_ids.add(raw_identity)
+            if stage is not None:
+                stage.observe(
+                    PilotCandidate(raw_identity, {self.config.primary_stratum: primary_group}),
+                    rank=_score(self.config.seed_domain + b":fill", raw_identity),
+                    primary_group=primary_group,
+                    outcome=(
+                        "SELECTED"
+                        if added
+                        else "PRIMARY_CAP_BLOCKED"
+                        if self._primary_counts[primary_group]
+                        >= self.config.maximum_primary_stratum
+                        else "TOTAL_COUNT_BLOCKED"
+                    ),
+                )
+            if added:
                 selected_count += 1
             if selected_count == self.config.total_count:
                 break
+        if stage is not None and trace_selected_ids is not None:
+            stage.finish(
+                selected_ids=tuple(trace_selected_ids),
+                primary_counts=self._primary_counts,
+            )
         if selected_count != self.config.total_count:
-            raise ValueError("pilot quotas/caps cannot produce the requested sample")
+            raise PilotSelectionInfeasibleError(
+                "pilot quotas/caps cannot produce the requested sample",
+                reason_code="PILOT_TOTAL_UNREACHABLE_UNDER_PRIMARY_CAP",
+                target=self.config.total_count,
+                represented=selected_count,
+                available=population_count,
+                primary_cap=self.config.maximum_primary_stratum,
+            )
         ordered = [
             bytes(row[0])
             for row in self.connection.execute(
@@ -1024,6 +1380,10 @@ class SQLitePilotCandidateStore:
             development_count=len(development),
             locked_evaluation_count=len(locked),
         )
+        if self.settings.backend_id == "optimized-sqlite":
+            # The selected-set writes are one disposable-state transaction,
+            # instead of 12,000 individual durability commits.
+            self.connection.commit()
         return PilotSelection(development, locked, seal)
 
 
