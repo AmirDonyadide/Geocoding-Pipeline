@@ -329,11 +329,13 @@ def test_slurm_workflow_is_single_node_sequential_and_preserves_locked_firewall(
     content = SBATCH.read_text(encoding="utf-8")
     assert "#SBATCH --nodes=1" in content
     assert "#SBATCH --ntasks=1" in content
-    assert "#SBATCH --cpus-per-task=4" in content
-    assert "#SBATCH --mem=16G" in content
+    assert "#SBATCH --cpus-per-task=16" in content
+    assert "#SBATCH --mem=64G" in content
     assert "#SBATCH --time=24:00:00" in content
     assert "#SBATCH --partition=general1" in content
     assert "#SBATCH --account" not in content
+    assert "--selection-engine bounded-parallel" in content
+    assert "--worker-count 16" in content
     stages = (
         "pilot-plan",
         "pilot-profile",

@@ -3,8 +3,8 @@
 #SBATCH --partition=general1
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=4
-#SBATCH --mem=16G
+#SBATCH --cpus-per-task=16
+#SBATCH --mem=64G
 #SBATCH --time=24:00:00
 #SBATCH --tmp=50000
 #SBATCH --output=/work/footprint/donyadidegan/safe_geocoding_pipeline/logs/slurm/%x_%j.out
@@ -97,7 +97,9 @@ run_stage pilot_select safe-geocoding-phase03 pilot-select \
   --state-path "${STATE_PATH}" \
   --output-directory "${ATTEMPT_RUN}/selection" \
   --selection-timestamp "${timestamp}" \
-  --git-commit "${PHASE03_GIT_COMMIT}"
+  --git-commit "${PHASE03_GIT_COMMIT}" \
+  --selection-engine bounded-parallel \
+  --worker-count 16
 
 run_stage pilot_validate safe-geocoding-phase03 pilot-validate \
   --phase02-manifest "${PHASE02_MANIFEST}" "${INPUT_ARGS[@]}" \
