@@ -15,6 +15,7 @@ from .constants import (
     EXPECTED_UNICODE_VERSION,
     MANUAL_REVIEW_LABEL_SCHEMA_VERSION,
     MANUAL_REVIEW_REASON_CODES_VERSION,
+    PARSER_RULE_REGISTRY_VERSIONS,
     PARSER_VERSION,
     PHASE03_VERSION,
     PLACEHOLDER_POLICY_VERSION,
@@ -54,7 +55,24 @@ class Phase03Config:
     manual_review_reason_codes_version: str = MANUAL_REVIEW_REASON_CODES_VERSION
     phase03_version: str = PHASE03_VERSION
 
+    @classmethod
+    def for_parser_version(cls, parser_version: str) -> Phase03Config:
+        """Return the frozen configuration for one explicitly versioned parser."""
+        try:
+            registry_version = PARSER_RULE_REGISTRY_VERSIONS[parser_version]
+        except KeyError as error:
+            raise ValueError("unsupported Phase 3 parser version") from error
+        return cls(
+            parser_version=parser_version,
+            rule_registry_version=registry_version,
+        )
+
     def validate(self) -> None:
+        if (
+            PARSER_RULE_REGISTRY_VERSIONS.get(self.parser_version)
+            != self.rule_registry_version
+        ):
+            raise ValueError("parser and rule-registry versions are incompatible")
         for name in (
             "per_field_freeform_limit_bytes",
             "combined_freeform_limit_bytes",

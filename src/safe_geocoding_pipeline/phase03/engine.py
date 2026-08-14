@@ -4,7 +4,7 @@ import re
 import unicodedata
 from collections import defaultdict
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 from ..phase02.fingerprints import fingerprint
@@ -16,6 +16,7 @@ from .constants import (
     DIAGNOSTIC_FLAGS,
     EVIDENCE_KINDS,
     EXECUTION_SCOPES,
+    PARSER_VERSION_V2,
     POSTCODE_FLAGS,
     REPRESENTATIONS,
 )
@@ -23,6 +24,7 @@ from .errors import Phase03Error
 from .models import Candidate, RawSpan, SelectedComponent, TransformResult
 from .references import CountryReference, ScriptReference
 from .rules import RuleRegistry, RuleSpec
+from .street_resources import StreetDesignatorResource, load_street_designators
 from .text import (
     Token,
     classify_placeholder,
@@ -100,6 +102,39 @@ class _Match:
     reference_kind: str | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class _Segment:
+    start: int
+    end: int
+    tokens: tuple[Token, ...]
+
+
+def _segments(raw: str, tokens: Sequence[Token]) -> tuple[_Segment, ...]:
+    """Return comma/semicolon/newline-delimited, whitespace-trimmed raw spans."""
+    output: list[_Segment] = []
+    cursor = 0
+    for separator in re.finditer(r"[,;\r\n]+", raw):
+        output.extend(_segment_from_range(raw, tokens, cursor, separator.start()))
+        cursor = separator.end()
+    output.extend(_segment_from_range(raw, tokens, cursor, len(raw)))
+    return tuple(output)
+
+
+def _segment_from_range(
+    raw: str, tokens: Sequence[Token], start: int, end: int
+) -> list[_Segment]:
+    while start < end and raw[start].isspace():
+        start += 1
+    while end > start and raw[end - 1].isspace():
+        end -= 1
+    if start == end:
+        return []
+    selected = tuple(
+        token for token in tokens if token.start >= start and token.end <= end
+    )
+    return [_Segment(start, end, selected)] if selected else []
+
+
 def _precondition_matches(
     expression: dict[str, Any], context: Mapping[str, Any]
 ) -> bool:
@@ -157,16 +192,37 @@ def _marker_matches(raw: str, tokens: Sequence[Token], rule: RuleSpec) -> list[_
     if rule.matcher == "MARKER_WITH_IDENTIFIER":
         maximum = int(parameters["identifier_max_codepoints"])
         for start, end in _find_sequences(tokens, parameters["markers"]):
-            if end >= len(tokens) or not _identifier_token(tokens[end], maximum):
+            identifier_index = end
+            for prefix in sorted(
+                parameters.get("optional_identifier_prefixes", []),
+                key=len,
+                reverse=True,
+            ):
+                width = len(prefix)
+                if [
+                    token.comparison
+                    for token in tokens[identifier_index : identifier_index + width]
+                ] == list(prefix):
+                    identifier_index += width
+                    break
+            if identifier_index >= len(tokens) or not _identifier_token(
+                tokens[identifier_index], maximum
+            ):
                 continue
-            identifier = tokens[end]
+            identifier = tokens[identifier_index]
             whole = (tokens[start].start, identifier.end)
             value_span = (
                 (identifier.start, identifier.end)
                 if rule.extractor == "IDENTIFIER_ONLY_SPAN"
                 else whole
             )
-            results.append(_Match(value_span, (value_span,)))
+            evidence_span = (
+                whole
+                if rule.extractor == "IDENTIFIER_ONLY_SPAN"
+                and rule.rule_id.endswith("_V3")
+                else value_span
+            )
+            results.append(_Match(value_span, (evidence_span,)))
     elif rule.matcher == "SEGMENT_LEADING_MARKER_WITH_NAME":
         first_nonspace = len(raw) - len(raw.lstrip())
         for start, end in _find_sequences(tokens, parameters["markers"]):
@@ -189,6 +245,35 @@ def _marker_matches(raw: str, tokens: Sequence[Token], rule: RuleSpec) -> list[_
             if span[1] - span[0] <= int(parameters["name_max_codepoints"]):
                 results.append(_Match(span, (span,)))
     elif rule.matcher == "SEGMENT_ENDING_LEGAL_FORM":
+        if rule.rule_id.endswith("_V3"):
+            comparisons = [token.comparison for token in tokens]
+            for phrase in parameters["forms"]:
+                if (
+                    "," in phrase
+                    and len(phrase) < len(tokens)
+                    and comparisons[-len(phrase) :] == list(phrase)
+                    and any(token.kind == "WORD" for token in tokens[: -len(phrase)])
+                ):
+                    trimmed = _trimmed_span(raw)
+                    results.append(_Match(trimmed, (trimmed,)))
+            for segment in _segments(raw, tokens):
+                if _token_sequence_at_end(segment.tokens, parameters["forms"]):
+                    form_widths = {
+                        len(phrase)
+                        for phrase in parameters["forms"]
+                        if [token.comparison for token in segment.tokens][
+                            -len(phrase) :
+                        ]
+                        == list(phrase)
+                    }
+                    if form_widths and len(segment.tokens) > min(form_widths):
+                        results.append(
+                            _Match(
+                                (segment.start, segment.end),
+                                ((segment.start, segment.end),),
+                            )
+                        )
+            return sorted(set(results), key=lambda item: item.value_span)
         trimmed_start = len(raw) - len(raw.lstrip())
         trimmed_end = len(raw.rstrip())
         for start, end in _find_sequences(tokens, parameters["forms"]):
@@ -206,7 +291,437 @@ def _marker_matches(raw: str, tokens: Sequence[Token], rule: RuleSpec) -> list[_
             results.append(_Match(span, (span,)))
     elif rule.matcher == "BOUNDED_EDGE_HOUSE_NUMBER":
         results.extend(_house_edge_matches(tokens))
+    elif rule.matcher == "EXPLICIT_STREET_SEGMENT":
+        results.extend(_explicit_street_matches(raw, tokens, rule))
+    elif rule.matcher == "GENERIC_STREET_SEGMENT":
+        results.extend(_generic_street_matches(raw, tokens, rule))
+    elif rule.matcher == "EXPLICIT_FLOOR_FORM":
+        results.extend(_explicit_floor_matches(raw, tokens, rule))
+    elif rule.matcher == "EXPLICIT_BUILDING_SEGMENT":
+        results.extend(_explicit_building_matches(raw, tokens, rule))
     return results
+
+
+def _trimmed_span(raw: str) -> tuple[int, int]:
+    return len(raw) - len(raw.lstrip()), len(raw.rstrip())
+
+
+def _token_sequence_at_end(
+    tokens: Sequence[Token], phrases: Sequence[Sequence[str]]
+) -> bool:
+    comparisons = [token.comparison for token in tokens]
+    return any(
+        len(phrase) < len(tokens)
+        and comparisons[-len(phrase) :] == list(phrase)
+        for phrase in phrases
+    )
+
+
+def _token_sequence_at_start(
+    tokens: Sequence[Token], phrases: Sequence[Sequence[str]]
+) -> bool:
+    comparisons = [token.comparison for token in tokens]
+    return any(
+        len(phrase) < len(tokens)
+        and comparisons[: len(phrase)] == list(phrase)
+        for phrase in phrases
+    )
+
+
+def _street_designator_present(
+    tokens: Sequence[Token], resource: StreetDesignatorResource
+) -> bool:
+    if not tokens:
+        return False
+    comparisons = [token.comparison for token in tokens]
+    word_tokens = [token for token in tokens if token.kind == "WORD"]
+    for designator in resource.designators:
+        if designator.match_kind == "TOKEN_SEQUENCE":
+            phrase = list(designator.tokens)
+            if designator.position == "PREFIX":
+                matched = comparisons[: len(phrase)] == phrase
+                outside = tokens[len(phrase) :]
+            else:
+                matched = comparisons[-len(phrase) :] == phrase
+                outside = tokens[: -len(phrase)]
+            if matched and any(token.kind == "WORD" for token in outside):
+                return True
+        elif (
+            designator.match_kind == "WORD_SUFFIX"
+            and designator.position == "SUFFIX"
+            and word_tokens
+            and designator.value is not None
+        ):
+            final = word_tokens[-1]
+            comparison = final.comparison
+            suffix = designator.value
+            if comparison.endswith(suffix) and len(comparison) > len(suffix):
+                return True
+    return False
+
+
+def _street_designator_in_address_segment(
+    raw: str,
+    segment: _Segment,
+    resource: StreetDesignatorResource,
+    maximum_digits: int = 4,
+) -> bool:
+    if _street_designator_present(segment.tokens, resource):
+        return True
+    for leading in (True, False):
+        found = _house_span_at_edge(
+            raw,
+            segment.tokens,
+            leading=leading,
+            maximum_digits=maximum_digits,
+            allow_alphanumeric=True,
+            allow_range=True,
+            allow_slash=True,
+        )
+        if found is None:
+            continue
+        _, boundary = found
+        remainder = (
+            segment.tokens[boundary:]
+            if leading
+            else segment.tokens[:boundary]
+        )
+        if _street_designator_present(remainder, resource):
+            return True
+    return False
+
+
+def _bound_street_reference(rule: RuleSpec) -> StreetDesignatorResource:
+    parameters = rule.matching_condition["parameters"]
+    resource = load_street_designators()
+    if (
+        parameters["street_designator_reference_id"] != resource.resource_id
+        or parameters["street_designator_artifact_sha256"]
+        != resource.artifact_sha256
+    ):
+        raise Phase03Error("STREET_DESIGNATOR_REFERENCE_MISMATCH")
+    return resource
+
+
+def _bounded_numeric_token(value: str, maximum_digits: int) -> bool:
+    if not value or len(value) > maximum_digits or not value.isdecimal():
+        return False
+    if len(value) == 4 and 1900 <= int(value) <= 2099:
+        return False
+    return True
+
+
+def _bounded_house_word(value: str, maximum_digits: int) -> bool:
+    digit_count = next(
+        (index for index, character in enumerate(value) if not character.isdecimal()),
+        len(value),
+    )
+    if not (1 <= digit_count <= maximum_digits):
+        return False
+    numeric = value[:digit_count]
+    suffix = value[digit_count:]
+    if not _bounded_numeric_token(numeric, maximum_digits):
+        return False
+    return not suffix or (len(suffix) == 1 and suffix.isalpha())
+
+
+def _numeric_pair_is_house(
+    left: str, separator: str, right: str, maximum_digits: int
+) -> bool:
+    right_digit_count = next(
+        (index for index, character in enumerate(right) if not character.isdecimal()),
+        len(right),
+    )
+    if not (
+        _bounded_house_word(left, maximum_digits)
+        and _bounded_house_word(right, min(maximum_digits, 2))
+    ):
+        return False
+    # Zero-padded slash pairs are calendar-like (for example 12/05).
+    if separator == "/" and right_digit_count == 2 and right.startswith("0"):
+        return False
+    return True
+
+
+def _house_span_at_edge(
+    raw: str,
+    tokens: Sequence[Token],
+    *,
+    leading: bool,
+    maximum_digits: int,
+    allow_alphanumeric: bool,
+    allow_range: bool,
+    allow_slash: bool,
+) -> tuple[tuple[int, int], int] | None:
+    if not tokens:
+        return None
+    chunk = tokens[:3] if leading else tokens[-3:]
+    if len(chunk) == 3 and chunk[0].kind == "WORD" and chunk[2].kind == "WORD":
+        separator = chunk[1].raw
+        span = (chunk[0].start, chunk[2].end)
+        contiguous = re.fullmatch(r"[^\s]+", raw[span[0] : span[1]]) is not None
+        numeric_pair = separator in {"-", "–", "/"} and _numeric_pair_is_house(
+            chunk[0].raw, separator, chunk[2].raw, maximum_digits
+        )
+        letter_suffix = (
+            separator == "-"
+            and _bounded_numeric_token(chunk[0].raw, maximum_digits)
+            and len(chunk[2].raw) == 1
+            and chunk[2].raw.isalpha()
+        )
+        enabled = (
+            numeric_pair
+            and ((separator in {"-", "–"} and allow_range) or allow_slash)
+        ) or (letter_suffix and allow_alphanumeric)
+        if contiguous and enabled:
+            return span, (3 if leading else len(tokens) - 3)
+
+    pair = tokens[:2] if leading else tokens[-2:]
+    if (
+        len(pair) == 2
+        and allow_alphanumeric
+        and pair[0].kind == pair[1].kind == "WORD"
+        and _bounded_numeric_token(pair[0].raw, maximum_digits)
+        and len(pair[1].raw) == 1
+        and pair[1].raw.isalpha()
+        and raw[pair[0].end : pair[1].start]
+        and raw[pair[0].end : pair[1].start].isspace()
+    ):
+        return (pair[0].start, pair[1].end), (
+            2 if leading else len(tokens) - 2
+        )
+
+    token_index = 0 if leading else len(tokens) - 1
+    token = tokens[token_index]
+    if token.kind == "WORD" and (
+        _bounded_numeric_token(token.raw, maximum_digits)
+        or (allow_alphanumeric and _bounded_house_word(token.raw, maximum_digits))
+    ):
+        return (token.start, token.end), (1 if leading else len(tokens) - 1)
+    return None
+
+
+def _street_match_pairs(
+    raw: str,
+    segment: _Segment,
+    rule: RuleSpec,
+    *,
+    require_designator: bool,
+) -> list[tuple[tuple[int, int], tuple[int, int]]]:
+    parameters = rule.matching_condition["parameters"]
+    resource = _bound_street_reference(rule)
+    tokens = segment.tokens
+    if not tokens:
+        return []
+    results: list[tuple[tuple[int, int], tuple[int, int]]] = []
+    for leading in (True, False):
+        found = _house_span_at_edge(
+            raw,
+            tokens,
+            leading=leading,
+            maximum_digits=int(parameters["house_number_max_digits"]),
+            allow_alphanumeric=True,
+            allow_range=True,
+            allow_slash=True,
+        )
+        if found is None:
+            continue
+        house_span, boundary = found
+        street_tokens = tokens[boundary:] if leading else tokens[:boundary]
+        if not street_tokens:
+            continue
+        street_span = (street_tokens[0].start, street_tokens[-1].end)
+        between = (
+            raw[house_span[1] : street_span[0]]
+            if leading
+            else raw[street_span[1] : house_span[0]]
+        )
+        if not between or not between.isspace():
+            continue
+        if any(
+            token.kind == "WORD" and any(character.isdecimal() for character in token.raw)
+            for token in street_tokens
+        ):
+            continue
+        has_designator = _street_designator_present(street_tokens, resource)
+        if require_designator != has_designator:
+            continue
+        if not require_designator and not _generic_street_text_allowed(street_tokens, rule):
+            continue
+        results.append((house_span, street_span))
+    return sorted(set(results))
+
+
+def _generic_street_text_allowed(tokens: Sequence[Token], rule: RuleSpec) -> bool:
+    parameters = rule.matching_condition["parameters"]
+    words = [token for token in tokens if token.kind == "WORD"]
+    letter_count = sum(
+        1
+        for token in words
+        for character in token.raw
+        if unicodedata.category(character).startswith("L")
+    )
+    if letter_count < int(parameters["minimum_letter_codepoints"]):
+        return False
+    comparisons = {token.comparison for token in words}
+    if comparisons & set(parameters["reserved_role_tokens"]):
+        return False
+    if all(token.raw.isascii() for token in words):
+        return len(words) >= int(parameters["minimum_ascii_word_tokens"])
+    return bool(words)
+
+
+def _explicit_street_matches(
+    raw: str, tokens: Sequence[Token], rule: RuleSpec
+) -> list[_Match]:
+    matches: list[tuple[tuple[int, int] | None, tuple[int, int]]] = []
+    resource = _bound_street_reference(rule)
+    for segment in _segments(raw, tokens):
+        matches.extend(
+            _street_match_pairs(raw, segment, rule, require_designator=True)
+        )
+        if not any(
+            token.kind == "WORD" and any(character.isdecimal() for character in token.raw)
+            for token in segment.tokens
+        ) and _street_designator_present(segment.tokens, resource):
+            matches.append((None, (segment.start, segment.end)))
+
+    output: list[_Match] = []
+    for matched_house_span, street_span in sorted(
+        set(matches), key=lambda item: item[1]
+    ):
+        if rule.extractor == "MATCHED_HOUSE_NUMBER_SPAN":
+            if matched_house_span is not None:
+                output.append(_Match(matched_house_span, (matched_house_span,)))
+        elif rule.extractor == "MATCHED_STREET_SPAN":
+            output.append(_Match(street_span, (street_span,)))
+    return output
+
+
+def _generic_street_matches(
+    raw: str, tokens: Sequence[Token], rule: RuleSpec
+) -> list[_Match]:
+    output: list[_Match] = []
+    for segment in _segments(raw, tokens):
+        for house_span, street_span in _street_match_pairs(
+            raw, segment, rule, require_designator=False
+        ):
+            span = (
+                house_span
+                if rule.extractor == "MATCHED_HOUSE_NUMBER_SPAN"
+                else street_span
+            )
+            output.append(_Match(span, (span,)))
+    return sorted(set(output), key=lambda item: item.value_span)
+
+
+def _floor_identifier(value: str, maximum_digits: int) -> bool:
+    match = re.fullmatch(r"([0-9]+)(?:([A-Za-z])|(st|nd|rd|th))?", value)
+    return bool(match and 1 <= len(match.group(1)) <= maximum_digits)
+
+
+def _explicit_floor_matches(
+    raw: str, tokens: Sequence[Token], rule: RuleSpec
+) -> list[_Match]:
+    if not tokens:
+        return []
+    parameters = rule.matching_condition["parameters"]
+    maximum_digits = int(parameters["maximum_digits"])
+    output: list[_Match] = []
+    for segment in _segments(raw, tokens):
+        compact = raw[segment.start : segment.end]
+        compact_match = re.fullmatch(
+            rf"([0-9]{{1,{maximum_digits}}})(?:/[Ff]|[Ff])", compact
+        )
+        if compact_match:
+            value_span = (
+                segment.start + compact_match.start(1),
+                segment.start + compact_match.end(1),
+            )
+            output.append(_Match(value_span, ((segment.start, segment.end),)))
+            continue
+        segment_tokens = segment.tokens
+        for marker_start, marker_end in _find_sequences(
+            segment_tokens, parameters["prefix_markers"]
+        ):
+            if (
+                marker_start == 0
+                and marker_end + 1 == len(segment_tokens)
+                and _floor_identifier(segment_tokens[marker_end].raw, maximum_digits)
+            ):
+                identifier = segment_tokens[marker_end]
+                digit_match = re.match(r"[0-9]+", identifier.raw)
+                assert digit_match is not None
+                value_span = (
+                    identifier.start + digit_match.start(),
+                    identifier.start + digit_match.end(),
+                )
+                output.append(_Match(value_span, ((segment.start, segment.end),)))
+        for marker_start, marker_end in _find_sequences(
+            segment_tokens, parameters["suffix_markers"]
+        ):
+            if (
+                marker_start == 1
+                and marker_end == len(segment_tokens)
+                and len(segment_tokens) >= 2
+                and _floor_identifier(segment_tokens[0].raw, maximum_digits)
+                and re.fullmatch(
+                    r"[0-9]+(?:st|nd|rd|th)", segment_tokens[0].comparison
+                )
+            ):
+                identifier = segment_tokens[0]
+                digit_match = re.match(r"[0-9]+", identifier.raw)
+                assert digit_match is not None
+                value_span = (
+                    identifier.start + digit_match.start(),
+                    identifier.start + digit_match.end(),
+                )
+                output.append(_Match(value_span, ((segment.start, segment.end),)))
+    return sorted(set(output), key=lambda item: item.value_span)
+
+
+def _explicit_building_matches(
+    raw: str, tokens: Sequence[Token], rule: RuleSpec
+) -> list[_Match]:
+    parameters = rule.matching_condition["parameters"]
+    resource = _bound_street_reference(rule)
+    output: list[_Match] = []
+    for segment in _segments(raw, tokens):
+        if segment.end - segment.start > int(parameters["maximum_codepoints"]):
+            continue
+        word_tokens = [token for token in segment.tokens if token.kind == "WORD"]
+        if not 2 <= len(word_tokens) <= int(parameters["maximum_word_tokens"]):
+            continue
+        if _street_designator_in_address_segment(raw, segment, resource):
+            continue
+        if _token_sequence_at_end(segment.tokens, parameters["legal_forms"]):
+            continue
+        comparisons = [token.comparison for token in segment.tokens]
+        for phrase in parameters["markers"]:
+            width = len(phrase)
+            at_start = comparisons[:width] == list(phrase)
+            at_end = comparisons[-width:] == list(phrase)
+            if not (at_start or at_end):
+                continue
+            marker_indices = (
+                set(range(width))
+                if at_start
+                else set(range(len(segment.tokens) - width, len(segment.tokens)))
+            )
+            if any(
+                index not in marker_indices
+                and token.kind == "WORD"
+                and any(character.isalpha() for character in token.raw)
+                for index, token in enumerate(segment.tokens)
+            ):
+                output.append(
+                    _Match(
+                        (segment.start, segment.end),
+                        ((segment.start, segment.end),),
+                    )
+                )
+                break
+    return sorted(set(output), key=lambda item: item.value_span)
 
 
 def _house_token_is_bounded(value: str) -> bool:
@@ -296,6 +811,75 @@ def _registered_overlap_conflicts(candidates: Sequence[Candidate]) -> set[str]:
     return conflicts
 
 
+def _unresolved_component_overlap_conflicts(
+    candidates: Sequence[Candidate],
+) -> set[str]:
+    specifically_registered = {
+        frozenset(("UNIT", "HOUSE_NUMBER")),
+        frozenset(("BUILDING", "ORGANIZATION")),
+    }
+    for index, left in enumerate(candidates):
+        if not left.selectable or left.confidence == "LOW":
+            continue
+        for right in candidates[index + 1 :]:
+            pair = frozenset((left.component, right.component))
+            if (
+                left.component == right.component
+                or pair in specifically_registered
+                or not right.selectable
+                or right.confidence == "LOW"
+            ):
+                continue
+            if any(
+                _spans_overlap(left_span, right_span)
+                for left_span in left.spans
+                for right_span in right.spans
+            ):
+                return {"COMPONENT_SPAN_OVERLAP_CONFLICT"}
+    return set()
+
+
+def _spans_overlap(left: RawSpan, right: RawSpan) -> bool:
+    return (
+        left.source_field == right.source_field
+        and left.start_character < right.end_character_exclusive
+        and right.start_character < left.end_character_exclusive
+    )
+
+
+def _residual_material_spans(
+    raw: str, source_field: str, occupied: Sequence[RawSpan]
+) -> tuple[RawSpan, ...]:
+    intervals = sorted(
+        (
+            span.start_character,
+            span.end_character_exclusive,
+        )
+        for span in occupied
+        if span.source_field == source_field
+    )
+    merged: list[tuple[int, int]] = []
+    for start, end in intervals:
+        if merged and start <= merged[-1][1]:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], end))
+        else:
+            merged.append((start, end))
+    boundaries = [*merged, (len(raw), len(raw))]
+    output: list[RawSpan] = []
+    cursor = 0
+    for start, end in boundaries:
+        if cursor < start:
+            material = [
+                index
+                for index in range(cursor, start)
+                if unicodedata.category(raw[index])[0] in {"L", "M", "N"}
+            ]
+            if material:
+                output.append(RawSpan(source_field, material[0], material[-1] + 1))
+        cursor = max(cursor, end)
+    return tuple(output)
+
+
 def select_candidates(
     candidates: Sequence[Candidate], existing_conflicts: set[str] | None = None
 ) -> tuple[list[SelectedComponent], set[str], bool]:
@@ -353,6 +937,84 @@ def select_candidates(
             )
         )
     return selected, conflicts, ambiguous
+
+
+def _native_non_native_conflicts(
+    selected: Sequence[SelectedComponent],
+) -> set[str]:
+    house_numbers = {
+        item.representation: item.value
+        for item in selected
+        if item.component == "HOUSE_NUMBER"
+        and item.representation in {"NON_NATIVE", "NATIVE"}
+        and item.confidence in {"HIGH", "MEDIUM"}
+    }
+    if (
+        set(house_numbers) == {"NON_NATIVE", "NATIVE"}
+        and house_numbers["NON_NATIVE"] != house_numbers["NATIVE"]
+    ):
+        return {"NATIVE_NON_NATIVE_HOUSE_NUMBER_CONFLICT"}
+    return set()
+
+
+def _reconcile_exact_representation_agreement(
+    selected: Sequence[SelectedComponent],
+) -> list[SelectedComponent]:
+    """Collapse equal native/non-native scalars without confidence elevation."""
+    native_by_key = {
+        (item.component, item.value): item
+        for item in selected
+        if item.representation == "NATIVE"
+    }
+    output: list[SelectedComponent] = []
+    for item in selected:
+        key = (item.component, item.value)
+        if item.representation == "NATIVE" and any(
+            candidate.component == item.component
+            and candidate.representation == "NON_NATIVE"
+            and candidate.value == item.value
+            for candidate in selected
+        ):
+            continue
+        matching_native = (
+            native_by_key.get(key) if item.representation == "NON_NATIVE" else None
+        )
+        if matching_native is None:
+            output.append(item)
+            continue
+        output.append(
+            SelectedComponent(
+                component=item.component,
+                representation=item.representation,
+                value=item.value,
+                confidence=item.confidence,
+                source_fields=tuple(
+                    dict.fromkeys((*item.source_fields, *matching_native.source_fields))
+                ),
+                rule_ids=tuple(
+                    dict.fromkeys((*item.rule_ids, *matching_native.rule_ids))
+                ),
+            )
+        )
+    return output
+
+
+def _candidate_supports_selection(
+    candidate: Candidate, selected: Sequence[SelectedComponent]
+) -> bool:
+    return any(
+        item.component == candidate.component
+        and item.value == candidate.value
+        and (
+            item.representation == candidate.representation
+            or (
+                item.representation == "NON_NATIVE"
+                and candidate.representation == "NATIVE"
+                and all(field in item.source_fields for field in candidate.source_fields)
+            )
+        )
+        for item in selected
+    )
 
 
 def postcode_diagnostics(raw: str, state: str, normalized: str | None) -> list[str]:
@@ -454,6 +1116,19 @@ class Phase03Engine:
             raise Phase03Error("RULE_REGISTRY_VERSION_MISMATCH")
         if execution_scope not in EXECUTION_SCOPES:
             raise ValueError("execution scope is not registered")
+        if config.parser_version == PARSER_VERSION_V2:
+            street_resource = load_street_designators()
+            for rule in registry.rules:
+                parameters = rule.matching_condition["parameters"]
+                if "street_designator_reference_id" not in parameters:
+                    continue
+                if (
+                    parameters["street_designator_reference_id"]
+                    != street_resource.resource_id
+                    or parameters["street_designator_artifact_sha256"]
+                    != street_resource.artifact_sha256
+                ):
+                    raise Phase03Error("STREET_DESIGNATOR_REFERENCE_MISMATCH")
         self.config = config
         self.registry = registry
         self.country_reference = country_reference
@@ -653,30 +1328,44 @@ class Phase03Engine:
                             authoritative_limit_reached = True
                         break
 
-        explicit_role_spans = {
-            (span.source_field, span.start_character, span.end_character_exclusive)
+        explicit_role_spans = tuple(
+            span
             for candidate in authoritative_candidates
             if candidate.component in {"UNIT", "FLOOR", "PO_BOX"}
             and candidate.confidence == "HIGH"
             for span in candidate.spans
-        }
+        )
         authoritative_candidates = [
             candidate
             for candidate in authoritative_candidates
             if not (
                 candidate.component == "HOUSE_NUMBER"
                 and any(
-                    (
-                        span.source_field,
-                        span.start_character,
-                        span.end_character_exclusive,
-                    )
-                    in explicit_role_spans
+                    _spans_overlap(span, role_span)
                     for span in candidate.spans
+                    for role_span in explicit_role_spans
                 )
             )
         ]
+        if self.config.parser_version == PARSER_VERSION_V2:
+            structured_postcode = (
+                normalize_derived_text(raw["postcode"])
+                if states["postcode"] == "CONTENT"
+                else None
+            )
+            if structured_postcode is not None:
+                authoritative_candidates = [
+                    replace(candidate, selectable=False)
+                    if candidate.component == "HOUSE_NUMBER"
+                    and candidate.value == structured_postcode
+                    else candidate
+                    for candidate in authoritative_candidates
+                ]
         conflicts.update(_registered_overlap_conflicts(authoritative_candidates))
+        if self.config.parser_version == PARSER_VERSION_V2:
+            conflicts.update(
+                _unresolved_component_overlap_conflicts(authoritative_candidates)
+            )
         self._apply_country_collision(
             raw,
             states,
@@ -711,6 +1400,7 @@ class Phase03Engine:
         selected, conflicts, ambiguous = select_candidates(
             authoritative_candidates, conflicts
         )
+        conflicts.update(_native_non_native_conflicts(selected))
         conflicted_components = {
             component
             for flag in conflicts
@@ -719,6 +1409,8 @@ class Phase03Engine:
         selected = [
             item for item in selected if item.component not in conflicted_components
         ]
+        if self.config.parser_version == PARSER_VERSION_V2:
+            selected = _reconcile_exact_representation_agreement(selected)
         if any(
             candidate.component == "PO_BOX" for candidate in authoritative_candidates
         ):
@@ -739,23 +1431,31 @@ class Phase03Engine:
             if scalar is not None:
                 selected_values[scalar] = item.value
 
-        selected_keys_for_assignment = {
-            (item.component, item.representation, item.value) for item in selected
-        }
-        candidate_fields = {
-            span.source_field
+        selected_spans = tuple(
+            span
             for candidate in authoritative_candidates
-            if (candidate.component, candidate.representation, candidate.value)
-            in selected_keys_for_assignment
+            if _candidate_supports_selection(candidate, selected)
             for span in candidate.spans
-        }
-        unassigned_fields = [
-            field
-            for field in ADDRESS_FIELDS
-            if safe[field]
-            and states[field] == "CONTENT"
-            and field not in candidate_fields
-        ]
+        )
+        if self.config.parser_version == PARSER_VERSION_V2:
+            unassigned_spans = tuple(
+                span
+                for field in ADDRESS_FIELDS
+                if safe[field] and states[field] == "CONTENT"
+                for span in _residual_material_spans(raw[field], field, selected_spans)
+            )
+        else:
+            candidate_fields = {span.source_field for span in selected_spans}
+            unassigned_spans = tuple(
+                RawSpan(field, 0, len(raw[field]))
+                for field in ADDRESS_FIELDS
+                if safe[field]
+                and states[field] == "CONTENT"
+                and field not in candidate_fields
+            )
+        unassigned_fields = tuple(
+            dict.fromkeys(span.source_field for span in unassigned_spans)
+        )
         if unassigned_fields:
             diagnostics.add("UNASSIGNED_CONTENT_PRESENT")
 
@@ -888,7 +1588,7 @@ class Phase03Engine:
             conflicts,
             diagnostics,
             historical_spans,
-            unassigned_fields,
+            unassigned_spans,
         )
         return TransformResult(
             core_row=core,
@@ -1130,18 +1830,13 @@ class Phase03Engine:
         conflicts: set[str],
         diagnostics: set[str],
         historical_spans: Sequence[tuple[str, int, int, str]],
-        unassigned_fields: Sequence[str],
+        unassigned_spans: Sequence[RawSpan],
     ) -> list[dict[str, Any]]:
-        selected_keys = {
-            (item.component, item.representation, item.value) for item in selected
-        }
         groups: list[dict[str, Any]] = []
         for candidate in candidates:
-            is_selected = (
-                candidate.component,
-                candidate.representation,
-                candidate.value,
-            ) in selected_keys
+            is_selected = candidate.selectable and _candidate_supports_selection(
+                candidate, selected
+            )
             trivial = candidate.rule_id in {
                 "POSTCODE_STRUCTURED_DIRECT_V1",
                 "LOCALITY_STRUCTURED_DIRECT_V1",
@@ -1210,19 +1905,19 @@ class Phase03Engine:
                     "spans": (RawSpan(field, start, end),),
                 }
             )
-        for field in unassigned_fields:
+        for span in unassigned_spans:
             groups.append(
                 {
                     "kind": "UNASSIGNED_MATERIAL_CONTENT",
                     "component": None,
-                    "representation": representation_for_field(field),
+                    "representation": representation_for_field(span.source_field),
                     "candidate_value": None,
                     "selected": False,
                     "confidence": None,
                     "rule_id": None,
                     "conflict_flag": None,
                     "diagnostic_flag": "UNASSIGNED_CONTENT_PRESENT",
-                    "spans": (RawSpan(field, 0, len(raw[field])),),
+                    "spans": (span,),
                 }
             )
         groups.sort(

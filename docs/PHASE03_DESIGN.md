@@ -2,7 +2,17 @@
 
 ## Status and authority
 
-This corrected design is approved in principle but does **not** authorize Phase 3 implementation, the real-data pilot, a full-data transformation, Phase 4, address deduplication, `address_key` construction, geocoding, or SAFE/Pelias calls.
+This document retains the original Phase 3 v1 design and its boundaries. A
+subsequent protected DEVELOPMENT review demonstrated a material street-address
+recall defect in `conservative_address_parser_v1`. The approved, versioned
+DEVELOPMENT correction is `conservative_address_parser_v2` with
+`phase03_rule_registry_v3`; its exact rules and execution plan are recorded in
+`docs/PHASE03_PARSER_V2.md`. Registry v3 contains the explicit HIGH and generic
+Unicode MEDIUM street/house rules plus hash-bound `street_designators_v2`;
+historical v1 design text below remains the frozen baseline rather than a
+description of the v2 executable rules. This revision does not reopen pilot selection or
+authorize LOCKED_EVALUATION, a full-data transformation, Phase 4,
+`address_key`, deduplication, geocoding, or SAFE/Pelias calls.
 
 Phase 3 consumes only the immutable successful Phase 2 run:
 
@@ -955,7 +965,7 @@ Review labels and aggregate metrics may be stored separately from raw text. Revi
 
 ## Version identifiers
 
-Proposed initial identifiers, subject to the pre-pilot freeze, are:
+The preserved pilot baseline identifiers are:
 
 - `parser_version = conservative_address_parser_v1`;
 - `rule_registry_version = phase03_rule_registry_v2`;
@@ -969,13 +979,34 @@ Proposed initial identifiers, subject to the pre-pilot freeze, are:
 - manual-review reason vocabulary `manual_review_reason_codes_v1`;
 - `phase03_version = phase03_v1`.
 
+The approved DEVELOPMENT revision changes only:
+
+- `parser_version = conservative_address_parser_v2`;
+- `rule_registry_version = phase03_rule_registry_v3`;
+- the canonical registry, base-configuration, effective-configuration, and
+  future implementation fingerprints.
+
+For the final pre-DEVELOPMENT parser-v2 implementation, the canonical registry
+SHA-256 is
+`a2aadae857b7d4bf7262bd37e6dacf58aae220e00b402ca971c51cea320d6f55`,
+the v2 base configuration fingerprint is
+`75911fb4d202eff0af92bc805aa0cfe2844e25d72e0a2e322d5de61fd420274c`,
+and the production-reference DEVELOPMENT effective fingerprint is
+`1f3496947da779e3b31ae6d8925c5ec75ea9d7714904846d9fca9194bfd28c2b`.
+
+The component/evidence schemas, Phase 3 version, cleaning, placeholder,
+reference, diagnostic, safety, candidate-limit, sampling, and identity
+contracts do not change. Parser v2 is not permitted to process the sealed
+LOCKED_EVALUATION identities under the current authorization.
+
 `pending_*` identifiers are design placeholders and cannot appear in a pilot or production run. Exact reference IDs and digests must replace them before pilot execution.
 
 ## Remaining decisions before implementation or pilot
 
 The following still require explicit approval or pilot evidence:
 
-1. which future versioned street/house candidate rules, if any, are promoted after protected development evidence;
+1. whether protected parser-v2 DEVELOPMENT review supports freezing these new
+   selectable rules for a future, newly authorized evaluation version;
 2. final operational size/candidate limits after the real development benchmark;
 3. real-pilot confirmation of the frozen `evidence_sidecar_policy_v1` storage/query behavior;
 4. final batch, row-group, compression, and memory settings;

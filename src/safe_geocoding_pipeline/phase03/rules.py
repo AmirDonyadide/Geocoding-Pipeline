@@ -14,6 +14,9 @@ from .constants import (
     CONFIDENCES,
     ELIGIBLE_FIELDS,
     RULE_EXECUTION_DISPOSITIONS,
+    RULE_REGISTRY_VERSION,
+    RULE_REGISTRY_VERSION_V2,
+    RULE_REGISTRY_VERSION_V3,
 )
 from .errors import Phase03Error
 
@@ -39,6 +42,9 @@ RULE_KEYS = frozenset(
         "required_tests",
     }
 )
+RULE_DOCUMENTATION_KEYS = frozenset(
+    {"intended_positive_behavior", "principal_negative_boundaries"}
+)
 MATCHERS = frozenset(
     {
         "WHOLE_FIELD_CONTENT",
@@ -48,6 +54,10 @@ MATCHERS = frozenset(
         "SEGMENT_ENDING_LEGAL_FORM",
         "PHRASE_PRESENT",
         "BOUNDED_EDGE_HOUSE_NUMBER",
+        "EXPLICIT_STREET_SEGMENT",
+        "GENERIC_STREET_SEGMENT",
+        "EXPLICIT_FLOOR_FORM",
+        "EXPLICIT_BUILDING_SEGMENT",
     }
 )
 EXTRACTORS = frozenset(
@@ -59,6 +69,9 @@ EXTRACTORS = frozenset(
         "WHOLE_TRIMMED_SEGMENT_SPAN",
         "MATCHED_PHRASE_SPAN",
         "MATCHED_EDGE_TOKEN_SPAN",
+        "MATCHED_HOUSE_NUMBER_SPAN",
+        "MATCHED_STREET_SPAN",
+        "MATCHED_FLOOR_VALUE_SPAN",
     }
 )
 PRECONDITION_OPERATORS = frozenset(
@@ -110,6 +123,8 @@ class RuleSpec:
     maximum_input_utf8_bytes: int
     reference_ids: tuple[str, ...]
     required_tests: tuple[str, ...]
+    intended_positive_behavior: str
+    principal_negative_boundaries: tuple[str, ...]
 
     @property
     def matcher(self) -> str:
@@ -216,7 +231,11 @@ def _validate_matcher_parameters(matcher: str, parameters: object) -> None:
     expected_keys: dict[str, set[str]] = {
         "WHOLE_FIELD_CONTENT": set(),
         "COUNTRY_REFERENCE_EXACT": {"authority"},
-        "MARKER_WITH_IDENTIFIER": {"markers", "identifier_max_codepoints"},
+        "MARKER_WITH_IDENTIFIER": {
+            "markers",
+            "identifier_max_codepoints",
+            "optional_identifier_prefixes",
+        },
         "SEGMENT_LEADING_MARKER_WITH_NAME": {
             "markers",
             "name_max_tokens",
@@ -229,14 +248,50 @@ def _validate_matcher_parameters(matcher: str, parameters: object) -> None:
             "allow_range",
             "allow_slash_or_hyphen",
         },
+        "EXPLICIT_STREET_SEGMENT": {
+            "street_designator_reference_id",
+            "street_designator_artifact_sha256",
+            "house_number_max_digits",
+            "allow_alphanumeric",
+            "allow_range",
+            "allow_slash",
+        },
+        "GENERIC_STREET_SEGMENT": {
+            "street_designator_reference_id",
+            "street_designator_artifact_sha256",
+            "house_number_max_digits",
+            "minimum_letter_codepoints",
+            "minimum_ascii_word_tokens",
+            "reserved_role_tokens",
+        },
+        "EXPLICIT_FLOOR_FORM": {
+            "prefix_markers",
+            "suffix_markers",
+            "maximum_digits",
+        },
+        "EXPLICIT_BUILDING_SEGMENT": {
+            "markers",
+            "legal_forms",
+            "street_designator_reference_id",
+            "street_designator_artifact_sha256",
+            "maximum_word_tokens",
+            "maximum_codepoints",
+        },
     }
-    if set(parameters) != expected_keys[matcher]:
+    parameter_keys = set(parameters)
+    marker_v1_keys = {"markers", "identifier_max_codepoints"}
+    if parameter_keys != expected_keys[matcher] and not (
+        matcher == "MARKER_WITH_IDENTIFIER" and parameter_keys == marker_v1_keys
+    ):
         raise Phase03Error("RULE_REGISTRY_INVALID", "matcher parameter schema mismatch")
     if matcher == "COUNTRY_REFERENCE_EXACT":
         if parameters["authority"] != "CONTROLLED_REFERENCE":
             raise Phase03Error("RULE_REGISTRY_INVALID", "country authority invalid")
     elif matcher == "MARKER_WITH_IDENTIFIER":
         _validate_token_phrases(parameters["markers"], name="markers")
+        prefixes = parameters.get("optional_identifier_prefixes", [])
+        if prefixes != []:
+            _validate_token_phrases(prefixes, name="optional identifier prefixes")
         if type(parameters["identifier_max_codepoints"]) is not int or not (
             1 <= parameters["identifier_max_codepoints"] <= 32
         ):
@@ -259,6 +314,83 @@ def _validate_matcher_parameters(matcher: str, parameters: object) -> None:
         type(parameters[key]) is not bool for key in expected_keys[matcher]
     ):
         raise Phase03Error("RULE_REGISTRY_INVALID", "house matcher flags invalid")
+    elif matcher in {"EXPLICIT_STREET_SEGMENT", "GENERIC_STREET_SEGMENT"}:
+        if (
+            parameters["street_designator_reference_id"]
+            != "street_designators_v2"
+            or re.fullmatch(
+                r"[0-9a-f]{64}",
+                str(parameters["street_designator_artifact_sha256"]),
+            )
+            is None
+        ):
+            raise Phase03Error(
+                "RULE_REGISTRY_INVALID", "street designator identity invalid"
+            )
+        if type(parameters["house_number_max_digits"]) is not int or not (
+            1 <= parameters["house_number_max_digits"] <= 4
+        ):
+            raise Phase03Error("RULE_REGISTRY_INVALID", "house digit bound invalid")
+        if matcher == "EXPLICIT_STREET_SEGMENT":
+            if any(
+                type(parameters[key]) is not bool
+                for key in ("allow_alphanumeric", "allow_range", "allow_slash")
+            ):
+                raise Phase03Error(
+                    "RULE_REGISTRY_INVALID", "street matcher flags invalid"
+                )
+        else:
+            if type(parameters["minimum_letter_codepoints"]) is not int or not (
+                2 <= parameters["minimum_letter_codepoints"] <= 32
+            ):
+                raise Phase03Error(
+                    "RULE_REGISTRY_INVALID", "generic street letter bound invalid"
+                )
+            if type(parameters["minimum_ascii_word_tokens"]) is not int or not (
+                1 <= parameters["minimum_ascii_word_tokens"] <= 4
+            ):
+                raise Phase03Error(
+                    "RULE_REGISTRY_INVALID", "generic street token bound invalid"
+                )
+            tokens = parameters["reserved_role_tokens"]
+            if (
+                not isinstance(tokens, list)
+                or not tokens
+                or any(not isinstance(token, str) or not token for token in tokens)
+            ):
+                raise Phase03Error(
+                    "RULE_REGISTRY_INVALID", "generic street role tokens invalid"
+                )
+    elif matcher == "EXPLICIT_FLOOR_FORM":
+        _validate_token_phrases(parameters["prefix_markers"], name="floor prefixes")
+        _validate_token_phrases(parameters["suffix_markers"], name="floor suffixes")
+        if type(parameters["maximum_digits"]) is not int or not (
+            1 <= parameters["maximum_digits"] <= 3
+        ):
+            raise Phase03Error("RULE_REGISTRY_INVALID", "floor digit bound invalid")
+    elif matcher == "EXPLICIT_BUILDING_SEGMENT":
+        _validate_token_phrases(parameters["markers"], name="building markers")
+        _validate_token_phrases(parameters["legal_forms"], name="legal forms")
+        if (
+            parameters["street_designator_reference_id"]
+            != "street_designators_v2"
+            or re.fullmatch(
+                r"[0-9a-f]{64}",
+                str(parameters["street_designator_artifact_sha256"]),
+            )
+            is None
+        ):
+            raise Phase03Error(
+                "RULE_REGISTRY_INVALID", "building street reference invalid"
+            )
+        if type(parameters["maximum_word_tokens"]) is not int or not (
+            2 <= parameters["maximum_word_tokens"] <= 12
+        ):
+            raise Phase03Error("RULE_REGISTRY_INVALID", "building token bound invalid")
+        if type(parameters["maximum_codepoints"]) is not int or not (
+            2 <= parameters["maximum_codepoints"] <= 256
+        ):
+            raise Phase03Error("RULE_REGISTRY_INVALID", "building length bound invalid")
 
 
 def _validate_extractor_parameters(extractor: str, parameters: object) -> None:
@@ -266,8 +398,11 @@ def _validate_extractor_parameters(extractor: str, parameters: object) -> None:
         raise Phase03Error("RULE_REGISTRY_INVALID", "extractor parameters invalid")
 
 
-def _as_rule(value: object) -> RuleSpec:
-    if not isinstance(value, dict) or set(value) != RULE_KEYS:
+def _as_rule(value: object, *, require_documentation: bool) -> RuleSpec:
+    expected_keys = (
+        RULE_KEYS | RULE_DOCUMENTATION_KEYS if require_documentation else RULE_KEYS
+    )
+    if not isinstance(value, dict) or set(value) != expected_keys:
         raise Phase03Error(
             "RULE_REGISTRY_INVALID", "rule fields differ from the approved contract"
         )
@@ -405,6 +540,23 @@ def _as_rule(value: object) -> RuleSpec:
         raise Phase03Error(
             "RULE_REGISTRY_INVALID", "ANY representation is limited to address lines"
         )
+    intended_positive_behavior = value.get("intended_positive_behavior", "")
+    principal_negative_boundaries = value.get("principal_negative_boundaries", [])
+    if require_documentation and (
+        not isinstance(intended_positive_behavior, str)
+        or not intended_positive_behavior
+        or not isinstance(principal_negative_boundaries, list)
+        or not principal_negative_boundaries
+        or len(set(principal_negative_boundaries))
+        != len(principal_negative_boundaries)
+        or any(
+            not isinstance(boundary, str) or not boundary
+            for boundary in principal_negative_boundaries
+        )
+    ):
+        raise Phase03Error(
+            "RULE_REGISTRY_INVALID", "v3 rule behavior documentation is required"
+        )
     return RuleSpec(
         rule_id=rule_id,
         rule_version=value["rule_version"],
@@ -424,16 +576,26 @@ def _as_rule(value: object) -> RuleSpec:
         maximum_input_utf8_bytes=maximum,
         reference_ids=tuple(references),
         required_tests=tuple(tests),
+        intended_positive_behavior=str(intended_positive_behavior),
+        principal_negative_boundaries=tuple(principal_negative_boundaries),
     )
 
 
-def load_rule_registry(path: Path | None = None) -> RuleRegistry:
+def load_rule_registry(
+    path: Path | None = None, *, registry_version: str = RULE_REGISTRY_VERSION
+) -> RuleRegistry:
+    resource_names = {
+        RULE_REGISTRY_VERSION_V2: "rule_registry_v2.json",
+        RULE_REGISTRY_VERSION_V3: "rule_registry_v3.json",
+    }
+    if path is None and registry_version not in resource_names:
+        raise Phase03Error("RULE_REGISTRY_INVALID", "unsupported registry version")
     try:
         data = (
             path.read_bytes()
             if path is not None
             else files(__package__)
-            .joinpath("resources/rule_registry_v2.json")
+            .joinpath(f"resources/{resource_names[registry_version]}")
             .read_bytes()
         )
         value = json.loads(data.decode("utf-8", errors="strict"))
@@ -449,13 +611,30 @@ def load_rule_registry(path: Path | None = None) -> RuleRegistry:
         raise Phase03Error(
             "RULE_REGISTRY_INVALID", "registry root differs from approved schema"
         )
-    if value["schema_version"] != "phase03_rule_registry_schema_v2":
-        raise Phase03Error("RULE_REGISTRY_INVALID", "unsupported registry schema")
-    if value["registry_version"] != "phase03_rule_registry_v2":
+    expected_registry_version = (
+        registry_version if path is None else str(value["registry_version"])
+    )
+    if value["registry_version"] != expected_registry_version or value[
+        "registry_version"
+    ] not in resource_names:
         raise Phase03Error("RULE_REGISTRY_INVALID", "unexpected registry version")
+    expected_schema_version = {
+        RULE_REGISTRY_VERSION_V2: "phase03_rule_registry_schema_v2",
+        RULE_REGISTRY_VERSION_V3: "phase03_rule_registry_schema_v3",
+    }[str(value["registry_version"])]
+    if value["schema_version"] != expected_schema_version:
+        raise Phase03Error("RULE_REGISTRY_INVALID", "unsupported registry schema")
     if not isinstance(value["rules"], list):
         raise Phase03Error("RULE_REGISTRY_INVALID", "rules must be a list")
-    rules = tuple(_as_rule(item) for item in value["rules"])
+    rules = tuple(
+        _as_rule(
+            item,
+            require_documentation=(
+                value["registry_version"] == RULE_REGISTRY_VERSION_V3
+            ),
+        )
+        for item in value["rules"]
+    )
     identities = [rule.rule_id for rule in rules]
     priorities = [(rule.selection_priority, rule.rule_id) for rule in rules]
     if len(set(identities)) != len(identities):

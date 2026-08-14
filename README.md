@@ -207,6 +207,48 @@ python3 -m ruff check .
 python3 -m mypy src tests
 ```
 
+The protected DEVELOPMENT review rejected the conservative parser-v1
+iteration for material street-address recall loss. The versioned revision is
+`conservative_address_parser_v2` with the explicit
+`phase03_rule_registry_v3`; details and fingerprints are in
+`docs/PHASE03_PARSER_V2.md`. The v2 registry binds the versioned
+`street_designators_v2` precision resource and combines explicit HIGH with
+language-light Unicode MEDIUM street/house rules; it does not add fuzzy,
+gazetteer, transliteration, or external-service behavior. V1 remains the CLI default so the frozen sampler
+and historical outputs cannot change silently. A v2 transform must opt in:
+
+```bash
+python3 -m safe_geocoding_pipeline.phase03.cli development-transform \
+  --input-development-payload /controlled/existing-development.parquet \
+  --development-identities /controlled/development.identities.bin \
+  --output-directory /controlled/new-parser-v2-iteration/transformed \
+  --git-commit "$(git rev-parse HEAD)" \
+  --parser-version conservative_address_parser_v2
+
+python3 -m safe_geocoding_pipeline.phase03.cli development-compare-parsers \
+  --baseline-core /controlled/parser-v1/core/development.parquet \
+  --revised-core /controlled/parser-v2/core/development.parquet \
+  --output /controlled/parser-v2/parser_v1_v2_aggregate.json
+
+python3 -m safe_geocoding_pipeline.phase03.benchmark \
+  --scenario PARSER_RECALL_STRESS \
+  --rows 6000 \
+  --parser-version conservative_address_parser_v2 \
+  --output-directory /tmp/phase03-parser-v2-synthetic
+```
+
+The benchmark is fictional-only and reports performance, evidence expansion,
+and known-synthetic-truth component precision/recall without declaring a
+scientific acceptance threshold.
+
+Production data must not be run from the Mac. The prepared, not-submitted
+Goethe workflow is
+`cluster/goethe_nhr/phase03_development_parser_v2.sbatch`; it reuses only the
+fixed 8,000-row DEVELOPMENT payload, never reruns pilot selection, and accepts
+no LOCKED payload input. Submission must come from a clean detached integration
+worktree at the exact reviewed parser-v2 commit; advancing the production data
+checkout is neither assumed nor required.
+
 The immutable generated v1 manual-review template uses the 21-column schema
 returned by `manual-review-schema`. The DEVELOPMENT human-review workflow uses
 the separate component-specific portable-v2 label schema and resumable terminal

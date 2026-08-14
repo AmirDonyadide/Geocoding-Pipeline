@@ -122,11 +122,43 @@ These are empirical properties of the exact current snapshot, not permanent prov
 - Sampling-only structured completeness is HIGH for 3–4 content fields, MEDIUM for 2, LOW for 1, and NONE for 0; ambiguous presence is independent. The exact postcode precedence, content-only address-line counts, separate native/non-native script categories, and native-relationship precedence are frozen in `docs/PHASE03_PILOT_RUNNER_DESIGN.md`.
 - Production Pass 2 uses owner-only exact SQLite state and requires at least 25 GiB free local disk. The state, identity sets, and seal are bound to their versioned schemas, Phase 2 manifest, sampling contract, references, registry, Git/configuration identity, and deterministic seed/ranking rules.
 - The DEVELOPMENT manual-review sample is exactly 800 unique rows: 400 broad-representation rows plus overlapping targeted minima and deterministic fill. Exactly 200 are designated for independent double review. Unavailable targets include all available rows and emit `TARGET_NOT_FULLY_AVAILABLE` diagnostics.
+- The first completed DEVELOPMENT diagnostic reviews established a material
+  recall defect in `conservative_address_parser_v1`; they are preserved as
+  audit evidence for a rejected parser iteration, not treated as a completed
+  scientific review.
+- The approved DEVELOPMENT correction is
+  `conservative_address_parser_v2` paired only with
+  `phase03_rule_registry_v3`. The frozen v1/v2-registry pair remains the
+  package default so the already selected DEVELOPMENT and sealed
+  LOCKED_EVALUATION identity sets cannot change silently.
+- Parser v2 adds bounded, deterministic selectable rules for explicit
+  designator-bearing HIGH street/house segments and language-light Unicode
+  MEDIUM street/house segments, plus explicit unit, floor, building, and
+  legal-form organization roles. The project-owned `street_designators_v2`
+  resource is exact, versioned, scoped to seven documented language families,
+  and hash-bound into the registry/configuration identity. Parser v2 also makes
+  the existing native/non-native house-number conflict vocabulary executable
+  and computes residual material from unowned source spans. Exact rule scope,
+  precedence, false-positive boundaries, limitations, and fingerprints are in
+  `docs/PHASE03_PARSER_V2.md`.
+- Parser v2 changes no Phase 2 raw value, pilot identity, sampling contract,
+  component/evidence schema, cleaning rule, placeholder rule, country/Unicode
+  reference, safety limit, candidate limit, or Phase 4 decision. It is
+  authorized only for a new immutable rerun of the existing 8,000 DEVELOPMENT
+  payload; LOCKED_EVALUATION remains sealed and inaccessible.
+- Parser-v1 and parser-v2 DEVELOPMENT outputs must be compared on the identical
+  ordered identities using only privacy-safe aggregate diagnostics. No
+  scientific acceptance threshold is inferred automatically.
+- The DEVELOPMENT portable manual-review v2 schema intentionally has 28
+  columns, superseding the earlier 27-column draft because `assignment_role`
+  was added before any v2 artifact existed. Tests freeze its exact Arrow order,
+  nullability, allowed values, and identity-level independent-review semantics.
 
 ## Open decisions
 
 - Whether, and under what evidence/rules, an address-layer interpolated result is `usable_for_analysis`.
-- Which candidate-only development rules, if any, are promoted to selectable rules after protected development-pilot evidence.
+- Whether parser-v2 DEVELOPMENT review supports freezing its selectable rules
+  for a future, separately versioned and authorized evaluation.
 - Final Phase 3 operational settings after the required real development-pilot benchmark of storage size, compression, write/read throughput, memory, and join ergonomics. Synthetic evidence currently supports retaining the provisional limits/settings.
 - Quantitative Phase 3 parser/manual-review acceptance thresholds. These must be pre-registered after the development subset and before the locked evaluation subset is opened.
 - Whether a pinned libpostal build/model should be evaluated only as a secondary candidate generator during the development pilot.

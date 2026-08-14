@@ -7,7 +7,12 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from .config import Phase03Config
-from .constants import RULE_EXECUTION_DISPOSITIONS
+from .constants import (
+    PARSER_VERSION_V1,
+    PARSER_VERSION_V2,
+    RULE_EXECUTION_DISPOSITIONS,
+)
+from .development_comparison import compare_development_parser_outputs
 from .references import (
     ScriptReference,
     load_production_references,
@@ -94,6 +99,16 @@ def build_parser() -> argparse.ArgumentParser:
     transform.add_argument("--development-identities", type=Path, required=True)
     transform.add_argument("--output-directory", type=Path, required=True)
     transform.add_argument("--git-commit", required=True)
+    transform.add_argument(
+        "--parser-version",
+        choices=(PARSER_VERSION_V1, PARSER_VERSION_V2),
+        default=PARSER_VERSION_V1,
+    )
+    comparison = subparsers.add_parser("development-compare-parsers")
+    comparison.add_argument("--baseline-core", type=Path, required=True)
+    comparison.add_argument("--revised-core", type=Path, required=True)
+    comparison.add_argument("--output", type=Path, required=True)
+    comparison.add_argument("--expected-rows", type=int, default=8_000)
     review_sample = subparsers.add_parser("development-review-sample")
     review_sample.add_argument("--state-path", type=Path, required=True)
     review_sample.add_argument("--development-payload", type=Path, required=True)
@@ -319,6 +334,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             "locked_rows_materialized": 0,
         }
     elif args.command == "development-transform":
+        config = Phase03Config.for_parser_version(args.parser_version)
+        config.validate()
         development_metadata, development = read_identity_set(
             args.development_identities
         )
@@ -328,7 +345,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             expected_country_reference_id=config.country_reference_version,
             expected_unicode_reference_id=config.unicode_reference_version,
         )
-        registry = load_rule_registry()
+        registry = load_rule_registry(
+            registry_version=config.rule_registry_version
+        )
         implementation = hashlib.sha256(args.git_commit.encode()).digest()
         engine = Phase03Engine(
             config,
@@ -346,6 +365,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             metadata={
                 "pilot_partition": "DEVELOPMENT",
                 "git_commit": args.git_commit,
+                "parser_version": config.parser_version,
+                "rule_registry_version": config.rule_registry_version,
             },
             expected_development_ids=set(development),
         )
@@ -356,7 +377,17 @@ def main(argv: Sequence[str] | None = None) -> int:
             "core_semantic_digest": result.core_semantic_digest,
             "evidence_semantic_digest": result.evidence_semantic_digest,
             "page_checksums_verified": result.page_checksums_verified,
+            "parser_version": config.parser_version,
+            "rule_registry_version": config.rule_registry_version,
+            "configuration_fingerprint": engine.configuration_fingerprint.hex(),
         }
+    elif args.command == "development-compare-parsers":
+        payload = compare_development_parser_outputs(
+            args.baseline_core,
+            args.revised_core,
+            args.output,
+            expected_rows=args.expected_rows,
+        )
     elif args.command == "development-review-sample":
         metadata, development = read_identity_set(args.development_identities)
         if metadata["partition"] != "DEVELOPMENT" or len(development) != 8_000:

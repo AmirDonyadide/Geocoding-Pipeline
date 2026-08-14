@@ -22,6 +22,19 @@ no network or API calls.
 `phase03_manual_review_labels_v2` is a new schema. The existing
 `phase03_manual_review_labels_v1` schema and artifact remain unchanged.
 
+### Intentional 28-column governance amendment
+
+The earlier approved v2 draft contained 27 columns. The later binding reviewer-
+separation amendment added non-null `assignment_role`, making the implemented
+schema intentionally **28 columns**. This is not presented as part of the
+original 27-column draft. `is_independent_review` remains the frozen identity-
+level designation on both reviewer records; `assignment_role` distinguishes the
+primary record from the independent-second-reviewer record. The schema name
+remains `phase03_manual_review_labels_v2` because implementation and validation
+occurred only after that amendment was approved; no 27-column v2 artifact was
+created. Tests freeze all 28 names, their order, and the role/designation
+cross-field rules before any new scientific review workspace may be initialized.
+
 | # | Column | Arrow type | Nullable |
 |---:|---|---|---|
 | 1 | `hashed_review_id` | string | no |

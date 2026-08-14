@@ -232,6 +232,7 @@ def test_v2_schema_is_new_component_specific_and_v1_is_unchanged() -> None:
     assert v1.names[8] == "unit_floor_building_label"
     assert v1.names[10] == "postcode_locality_region_country_label"
     assert len(v2) == 28
+    assert v2.names[6] == "assignment_role"
     assert v2.names[7:17] == list(COMPONENT_LABEL_FIELDS)
     assert "unit_floor_building_label" not in v2.names
     assert "postcode_locality_region_country_label" not in v2.names

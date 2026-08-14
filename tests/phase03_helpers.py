@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from safe_geocoding_pipeline.phase03.config import Phase03Config
+from safe_geocoding_pipeline.phase03.constants import PARSER_VERSION
 from safe_geocoding_pipeline.phase03.engine import Phase03Engine
 from safe_geocoding_pipeline.phase03.references import CountryReference, ScriptReference
 from safe_geocoding_pipeline.phase03.rules import load_rule_registry
@@ -144,10 +145,14 @@ def engine(
     with_country: bool = True,
     with_scripts: bool = True,
     execution_scope: str = "DEVELOPMENT",
+    parser_version: str = PARSER_VERSION,
 ) -> Phase03Engine:
+    selected_config = config or Phase03Config.for_parser_version(parser_version)
+    if selected_config.parser_version != parser_version:
+        raise ValueError("test parser version/configuration mismatch")
     return Phase03Engine(
-        config or Phase03Config(),
-        load_rule_registry(),
+        selected_config,
+        load_rule_registry(registry_version=selected_config.rule_registry_version),
         country_reference=fictional_country_reference(tmp_path)
         if with_country
         else None,

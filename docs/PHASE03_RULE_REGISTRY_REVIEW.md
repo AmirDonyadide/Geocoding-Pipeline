@@ -1,5 +1,30 @@
 # Phase 3 executable rule-registry review
 
+## DEVELOPMENT parser-v2 amendment
+
+This file's original review below remains the historical review of the frozen
+12-rule `phase03_rule_registry_v2` used by
+`conservative_address_parser_v1`. Protected DEVELOPMENT evidence later rejected
+that parser for materially inadequate street-address recall.
+
+The approved DEVELOPMENT successor is the 16-rule
+`phase03_rule_registry_v3` (canonical SHA-256
+`a2aadae857b7d4bf7262bd37e6dacf58aae220e00b402ca971c51cea320d6f55`),
+paired only with `conservative_address_parser_v2`. It retains all v1 structured
+geography, country, PO-box, historical, placeholder, reference, safety, and
+shadow-house boundaries while adding bounded explicit and generic selectable
+street/house, unit, floor, building, and organization rules. The packaged
+`street_designators_v2` resource has 56 entries across seven explicitly scoped
+families and raw SHA-256
+`0bfbc60f843f8ecf8c3b84cc05e7f342a3da6f5f0f18f1961623566d15dc28cf`.
+Its exact rule-by-rule precedence, marker scope, false-positive boundaries,
+native-conflict behavior, tests, and Goethe execution boundary are authoritative
+in `docs/PHASE03_PARSER_V2.md`.
+
+Registry v3 is a DEVELOPMENT revision only. It does not change the frozen
+sampling contract or identity sets, and it is not authorized for the sealed
+LOCKED_EVALUATION subset.
+
 ## Registry identity
 
 The reviewed executable registry is

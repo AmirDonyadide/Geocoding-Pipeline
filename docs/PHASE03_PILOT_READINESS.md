@@ -4,6 +4,19 @@
 
 **PILOT_READY**
 
+This was the readiness decision for the preserved
+`conservative_address_parser_v1` pilot baseline before real DEVELOPMENT review.
+It is retained as historical gate evidence, not as scientific acceptance of
+parser v1. The later DEVELOPMENT recall revision is versioned separately as
+`conservative_address_parser_v2` / `phase03_rule_registry_v3` and is documented
+in `docs/PHASE03_PARSER_V2.md`. LOCKED_EVALUATION remains sealed and parser v2
+must complete protected DEVELOPMENT review before any new evaluation freeze.
+The v2 registry has 16 rules, canonical SHA-256
+`a2aadae857b7d4bf7262bd37e6dacf58aae220e00b402ca971c51cea320d6f55`,
+and a hash-bound 56-entry, seven-family `street_designators_v2` precision
+resource. This is DEVELOPMENT readiness, not locked-evaluation authorization or
+scientific acceptance.
+
 This assessment used only fictional synthetic rows. It did not read Phase 2
 address columns, select real pilot identities, expose evaluation identities,
 create `address_key`, geocode, or begin Phase 4.

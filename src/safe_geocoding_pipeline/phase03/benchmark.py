@@ -12,7 +12,7 @@ from typing import Any
 import pyarrow.parquet as pq
 
 from .config import Phase03Config
-from .constants import ELIGIBLE_FIELDS
+from .constants import ELIGIBLE_FIELDS, PARSER_RULE_REGISTRY_VERSIONS, PARSER_VERSION
 from .engine import Phase03Engine
 from .references import load_production_references
 from .rules import load_rule_registry
@@ -27,8 +27,33 @@ SCENARIOS = (
     "AMBIGUITY_CONFLICT_HEAVY",
     "UNICODE_NATIVE_HEAVY",
     "OVERSIZED_SAFETY",
+    "PARSER_RECALL_STRESS",
 )
-BENCHMARK_VERSION = "phase03_synthetic_benchmark_v1"
+BENCHMARK_VERSION = "phase03_synthetic_benchmark_v2"
+_RECALL_STRESS_FORMS = (
+    "12 Example Street, Flat 7",
+    "Rue Exemple 12A, 8/F",
+    "12–14 Example Avenue, Example Tower",
+    "12 Центральная улица",
+    "Via Roma 12-B, Example Research GmbH",
+    "12/3 Nieuwe straat, Suite No. 700",
+)
+_RECALL_STRESS_TRUTH = (
+    {"street_clean": "Example Street", "house_number_clean": "12", "unit_clean": "7"},
+    {"street_clean": "Rue Exemple", "house_number_clean": "12A", "floor_clean": "8"},
+    {"street_clean": "Example Avenue", "house_number_clean": "12–14", "building_clean": "Example Tower"},
+    {"street_clean": "Центральная улица", "house_number_clean": "12"},
+    {"street_clean": "Via Roma", "house_number_clean": "12-B", "organization_clean": "Example Research GmbH"},
+    {"street_clean": "Nieuwe straat", "house_number_clean": "12/3", "unit_clean": "700"},
+)
+_QUALITY_FIELDS = (
+    "street_clean",
+    "house_number_clean",
+    "unit_clean",
+    "floor_clean",
+    "building_clean",
+    "organization_clean",
+)
 
 
 def _stable_id(scenario: str, ordinal: int) -> bytes:
@@ -106,10 +131,17 @@ def synthetic_population(scenario: str, rows: int) -> Iterator[dict[str, Any]]:
                 city="Exampleville",
                 country_iso_code="JP",
             )
-        else:
+        elif scenario == "OVERSIZED_SAFETY":
             lengths = (65_535, 65_536, 65_537, 262_145, 1_048_576, 1_048_577)
             row.update(
                 street_address_line_1="X" * lengths[variant],
+                postcode="00123",
+                city="Exampleville",
+                country_iso_code="US",
+            )
+        else:
+            row.update(
+                street_address_line_1=_RECALL_STRESS_FORMS[variant],
                 postcode="00123",
                 city="Exampleville",
                 country_iso_code="US",
@@ -127,24 +159,31 @@ def run_scenario(
     scenario: str,
     row_count: int,
     output_directory: Path,
+    parser_version: str = PARSER_VERSION,
 ) -> dict[str, Any]:
-    config = Phase03Config()
+    config = Phase03Config.for_parser_version(parser_version)
     country, scripts = load_production_references(
         expected_country_reference_id=config.country_reference_version,
         expected_unicode_reference_id=config.unicode_reference_version,
     )
     engine = Phase03Engine(
         config,
-        load_rule_registry(),
+        load_rule_registry(registry_version=config.rule_registry_version),
         country_reference=country,
         script_reference=scripts,
-        implementation_fingerprint=hashlib.sha256(BENCHMARK_VERSION.encode()).digest(),
+        implementation_fingerprint=hashlib.sha256(
+            f"{BENCHMARK_VERSION}:{parser_version}".encode()
+        ).digest(),
         execution_scope="DEVELOPMENT",
     )
     core_rows: list[dict[str, Any]] = []
     evidence_rows: list[dict[str, Any]] = []
     candidate_count = 0
     input_utf8_bytes = 0
+    quality_counts = {
+        field: {"true_positive": 0, "false_positive": 0, "false_negative": 0}
+        for field in _QUALITY_FIELDS
+    }
     started = time.perf_counter()
     for row in synthetic_population(scenario, row_count):
         input_utf8_bytes += sum(len(row[field].encode()) for field in ELIGIBLE_FIELDS)
@@ -152,6 +191,21 @@ def run_scenario(
         core_rows.append(transformed.core_row)
         evidence_rows.extend(transformed.evidence_rows)
         candidate_count += len(transformed.candidates)
+        if scenario == "PARSER_RECALL_STRESS":
+            truth = _RECALL_STRESS_TRUTH[
+                int(row["source_logical_record_number"]) % 6
+            ]
+            for field in _QUALITY_FIELDS:
+                expected = truth.get(field)
+                observed = transformed.core_row[field]
+                if observed == expected and expected is not None:
+                    quality_counts[field]["true_positive"] += 1
+                elif observed is not None:
+                    quality_counts[field]["false_positive"] += 1
+                    if expected is not None:
+                        quality_counts[field]["false_negative"] += 1
+                elif expected is not None:
+                    quality_counts[field]["false_negative"] += 1
     transform_seconds = time.perf_counter() - started
 
     scenario_dir = output_directory / scenario.lower()
@@ -188,9 +242,11 @@ def run_scenario(
         evidence_path, page_checksum_verification=True
     ).metadata
     total_seconds = transform_seconds + write_validate_seconds + readback_seconds
-    return {
+    metrics: dict[str, Any] = {
         "benchmark_version": BENCHMARK_VERSION,
         "scenario": scenario,
+        "parser_version": config.parser_version,
+        "rule_registry_version": config.rule_registry_version,
         "synthetic_rows": row_count,
         "synthetic_input_utf8_bytes": input_utf8_bytes,
         "core_parquet_bytes": result.core_bytes,
@@ -220,6 +276,26 @@ def run_scenario(
         "page_checksum_validation": "PASS",
         "temporary_peak_bytes_upper_bound": result.core_bytes + result.evidence_bytes,
     }
+    if scenario == "PARSER_RECALL_STRESS":
+        metrics["synthetic_quality_no_acceptance_threshold"] = {
+            field: {
+                **counts,
+                "precision": (
+                    counts["true_positive"]
+                    / (counts["true_positive"] + counts["false_positive"])
+                    if counts["true_positive"] + counts["false_positive"]
+                    else None
+                ),
+                "recall": (
+                    counts["true_positive"]
+                    / (counts["true_positive"] + counts["false_negative"])
+                    if counts["true_positive"] + counts["false_negative"]
+                    else None
+                ),
+            }
+            for field, counts in quality_counts.items()
+        }
+    return metrics
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -229,6 +305,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--scenario", choices=SCENARIOS, required=True)
     parser.add_argument("--rows", type=int, required=True)
     parser.add_argument("--output-directory", type=Path, required=True)
+    parser.add_argument(
+        "--parser-version",
+        choices=tuple(PARSER_RULE_REGISTRY_VERSIONS),
+        default=PARSER_VERSION,
+    )
     parser.add_argument("--metrics-path", type=Path)
     return parser
 
@@ -241,6 +322,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         scenario=args.scenario,
         row_count=args.rows,
         output_directory=args.output_directory,
+        parser_version=args.parser_version,
     )
     if args.metrics_path is not None:
         args.metrics_path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
