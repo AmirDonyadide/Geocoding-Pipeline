@@ -207,6 +207,13 @@ outside every preserved failed-pilot/recovery directory. It sequentially:
    using the existing read-only sampling state;
 6. writes a privacy-safe success marker and atomically promotes outputs.
 
+The `review_sample_v2.json` keys `protected_context_path` and
+`portable_labels_path` contain logical POSIX references relative to the
+development-iteration root (`review/protected_review_context.parquet` and
+`review/portable_review_labels.parquet`). They never contain the transient
+absolute `.in_progress` path and remain valid when the complete attempt
+directory is promoted without rewriting either Parquet artifact.
+
 The sampling-state path is deliberately required rather than guessed. If the
 read-only state needed by the approved review sampler is unavailable, the job
 stops; it does not silently reuse or invent a review sample.

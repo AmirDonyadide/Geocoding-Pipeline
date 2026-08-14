@@ -632,6 +632,25 @@ def materialize_development_review(
         "targeted_added_count": len(selection.targeted_ids),
         "double_review_count": len(selection.independent_double_review_ids),
         "diagnostics": list(selection.diagnostics),
-        "protected_context_path": str(context),
-        "portable_labels_path": str(labels),
+        "protected_context_path": _review_artifact_reference(
+            output_directory, context
+        ),
+        "portable_labels_path": _review_artifact_reference(output_directory, labels),
     }
+
+
+def _review_artifact_reference(output_directory: Path, artifact_path: Path) -> str:
+    """Return a promotion-stable artifact reference relative to the review parent."""
+    try:
+        reference = artifact_path.relative_to(output_directory.parent)
+    except ValueError as error:
+        raise ValueError("review artifact is outside its output directory") from error
+    if (
+        reference.is_absolute()
+        or not reference.parts
+        or reference.parts[0] != output_directory.name
+        or ".in_progress" in reference.parts
+        or ".." in reference.parts
+    ):
+        raise ValueError("review artifact reference is not promotion-stable")
+    return reference.as_posix()

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -14,10 +15,13 @@ from safe_geocoding_pipeline.phase02.schema import base_staging_schema
 from safe_geocoding_pipeline.phase03.cli import build_parser
 from safe_geocoding_pipeline.phase03.errors import Phase03Error
 from safe_geocoding_pipeline.phase03.pilot_orchestration import (
+    _review_artifact_reference,
     validate_explicit_phase02_inputs,
     write_country_profile,
 )
 from safe_geocoding_pipeline.phase03.pilot_runner import require_pilot_free_space
+from safe_geocoding_pipeline.phase03.pilot_runner import write_review_artifacts
+from safe_geocoding_pipeline.phase03.review import manual_review_schema
 
 
 def _row(index: int, country: str) -> dict[str, object]:
@@ -119,3 +123,84 @@ def test_all_approved_pilot_cli_stages_are_explicitly_registered() -> None:
         "development-review-sample",
         "pilot-validate",
     }.issubset(subcommands)
+
+
+def test_review_report_references_survive_iteration_promotion_without_artifact_changes(
+    tmp_path: Path,
+) -> None:
+    identities = tuple(index.to_bytes(32, "big") for index in range(1, 5))
+    attempt_iteration = tmp_path / ".in_progress" / "fictional_iteration"
+    review_directory = attempt_iteration / "review"
+    context, labels = write_review_artifacts(
+        review_directory,
+        protected_rows=[
+            {
+                "stable_source_row_id_v1": identity,
+                "fictional_raw_context": f"Synthetic context {index}",
+            }
+            for index, identity in enumerate(identities, start=1)
+        ],
+        review_ids=identities,
+        independent_double_review_ids=identities[:2],
+        pilot_version="fictional-pilot-v1",
+    )
+    references = {
+        "protected_context_path": _review_artifact_reference(
+            review_directory, context
+        ),
+        "portable_labels_path": _review_artifact_reference(review_directory, labels),
+    }
+    assert references == {
+        "protected_context_path": "review/protected_review_context.parquet",
+        "portable_labels_path": "review/portable_review_labels.parquet",
+    }
+    assert all(not Path(value).is_absolute() for value in references.values())
+    assert all(".in_progress" not in Path(value).parts for value in references.values())
+
+    original_bytes = {path.name: path.read_bytes() for path in (context, labels)}
+    original_modes = {path.name: path.stat().st_mode & 0o777 for path in (context, labels)}
+    original_context = pq.ParquetFile(
+        context, page_checksum_verification=True
+    ).read(use_threads=False)
+    original_labels = pq.ParquetFile(
+        labels, page_checksum_verification=True
+    ).read(use_threads=False)
+    report_bytes = (
+        json.dumps(references, sort_keys=True, separators=(",", ":")) + "\n"
+    ).encode()
+    report_hash = hashlib.sha256(report_bytes).hexdigest()
+    attempt_report = tmp_path / "reports" / ".in_progress" / "fictional_iteration"
+    attempt_report.mkdir(parents=True)
+    report_path = attempt_report / "review_sample_v2.json"
+    report_path.write_bytes(report_bytes)
+
+    final_iteration = tmp_path / "fictional_iteration"
+    final_report = tmp_path / "reports" / "fictional_iteration"
+    final_iteration.parent.mkdir(parents=True, exist_ok=True)
+    os.replace(attempt_iteration, final_iteration)
+    os.replace(attempt_report, final_report)
+
+    promoted_context = final_iteration / references["protected_context_path"]
+    promoted_labels = final_iteration / references["portable_labels_path"]
+    assert promoted_context.read_bytes() == original_bytes[context.name]
+    assert promoted_labels.read_bytes() == original_bytes[labels.name]
+    assert promoted_context.stat().st_mode & 0o777 == original_modes[context.name]
+    assert promoted_labels.stat().st_mode & 0o777 == original_modes[labels.name]
+    promoted_context_table = pq.ParquetFile(
+        promoted_context, page_checksum_verification=True
+    ).read(use_threads=False)
+    promoted_labels_table = pq.ParquetFile(
+        promoted_labels, page_checksum_verification=True
+    ).read(use_threads=False)
+    assert promoted_context_table.equals(original_context)
+    assert promoted_labels_table.equals(original_labels)
+    assert promoted_labels_table.schema.remove_metadata() == (
+        manual_review_schema().remove_metadata()
+    )
+    assert promoted_context_table["stable_source_row_id_v1"].to_pylist() == list(
+        identities
+    )
+    assert sum(promoted_labels_table["is_independent_review"].to_pylist()) == 2
+    assert hashlib.sha256(
+        (final_report / "review_sample_v2.json").read_bytes()
+    ).hexdigest() == report_hash
