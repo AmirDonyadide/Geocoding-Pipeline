@@ -16,6 +16,7 @@ dev = ["mypy==1.20.2", "pytest==8.4.2", "ruff==0.15.14"]
 safe-geocoding-phase01 = "safe_geocoding_pipeline.phase01.cli:main"
 safe-geocoding-phase02 = "safe_geocoding_pipeline.phase02.cli:main"
 safe-geocoding-phase03 = "safe_geocoding_pipeline.phase03.cli:main"
+safe-geocoding-phase03-review = "safe_geocoding_pipeline.phase03.review_cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

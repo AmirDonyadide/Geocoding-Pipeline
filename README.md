@@ -207,7 +207,10 @@ python3 -m ruff check .
 python3 -m mypy src tests
 ```
 
-The future manual-review artifact uses the 21-column schema returned by
-`manual-review-schema`; it binds the closed `manual_review_reason_codes_v1`
-vocabulary and stores a hashed review identity and labels, not raw addresses,
-provider IDs, cities, or postcodes.
+The immutable generated v1 manual-review template uses the 21-column schema
+returned by `manual-review-schema`. The DEVELOPMENT human-review workflow uses
+the separate component-specific portable-v2 label schema and resumable terminal
+interface documented in `docs/PHASE03_REVIEW_INTERFACE.md`. Both bind the closed
+`manual_review_reason_codes_v1` vocabulary. Portable review outputs store hashed
+review identities and labels, never raw addresses, provider IDs, cities, or
+postcodes.
