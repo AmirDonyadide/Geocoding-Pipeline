@@ -94,6 +94,12 @@ frozen as `phase03_sampling_contract_v1`; its implementation is ready for
 review. A real pilot and full Phase 3 processing still require separate
 authorization.
 
+The DEVELOPMENT-only address-pattern profiler is documented in
+`docs/PHASE03_DEVELOPMENT_PATTERN_PROFILER.md`. It reads only the fixed 8,000-row
+DEVELOPMENT payload/core/evidence in a Goethe-NHR SLURM allocation and emits
+bounded aggregate structural patterns; it never emits raw values or identities,
+creates parser rules, or accesses LOCKED_EVALUATION.
+
 Validate the bundled rule registry and display privacy-safe framework metadata:
 
 ```bash

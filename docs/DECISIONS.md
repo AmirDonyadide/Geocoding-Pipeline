@@ -149,6 +149,13 @@ These are empirical properties of the exact current snapshot, not permanent prov
 - Parser-v1 and parser-v2 DEVELOPMENT outputs must be compared on the identical
   ordered identities using only privacy-safe aggregate diagnostics. No
   scientific acceptance threshold is inferred automatically.
+- Parser-v2 structural-gap profiling reuses only the fixed 8,000 DEVELOPMENT
+  payload/core/evidence and never accesses LOCKED_EVALUATION or changes parser
+  semantics. Portable outputs contain closed abstract token classes and
+  aggregates only: named patterns require at least five distinct rows and each
+  bounded distribution reports at most 100 names. These are disclosure
+  controls, not parser confidence or acceptance thresholds; profiler frequency
+  cannot authorize a parser-v3 rule.
 - The DEVELOPMENT portable manual-review v2 schema intentionally has 28
   columns, superseding the earlier 27-column draft because `assignment_role`
   was added before any v2 artifact existed. Tests freeze its exact Arrow order,

@@ -31,6 +31,11 @@ This is the approved conceptual workflow. It is not an implementation plan or ev
 - **Objective:** Create conservative, structured derived address components while preserving raw values.
 - **Inputs:** Validated staging records and approved cleaning/parsing rules.
 - **Outputs:** Clean street, house number, unit, building, postcode, locality, region, country, native variants, parse status, completeness class, and conflict flags.
+- **DEVELOPMENT diagnostics:** A versioned, aggregate-only address-pattern
+  profiler may examine the fixed DEVELOPMENT payload and parser evidence on
+  Goethe-NHR. Its closed morphology labels and suppressed/bounded counts are
+  rule-design evidence only; they do not modify parser output or authorize a
+  new rule, and LOCKED_EVALUATION is excluded.
 - **Major decisions:** International parsing rules, deterministic normalization, country mapping, handling of geography embedded in free-form lines, and separation of company/unit content.
 - **STOP gate:** Review country/address-family behavior, transformations, unresolved records, and evidence that raw values remain traceable and unchanged.
 
