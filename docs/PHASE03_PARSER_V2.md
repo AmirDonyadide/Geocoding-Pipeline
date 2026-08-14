@@ -146,8 +146,10 @@ evidence and is not a selectable-rule false-positive surface.
 
 Native and non-native address fields run the same rules independently. Exact or
 NFC-equal selected values are reconciled into the non-native scalar slot with
-both source fields and rule provenance; both protected evidence spans remain
-selected, while the duplicate native scalar is null. MEDIUM plus MEDIUM does
+both source fields and rule provenance. Both protected evidence spans remain in
+the sidecar and support residual accounting, but only the surviving non-native
+representation is marked selected; the folded native candidate is unselected
+and the duplicate native scalar is null. MEDIUM plus MEDIUM does
 **not** become HIGH: the canonical non-native candidate retains its original
 confidence and no hidden elevation was approved. Different HIGH/MEDIUM selected house values emit
 `NATIVE_NON_NATIVE_HOUSE_NUMBER_CONFLICT`; both house scalars remain null while

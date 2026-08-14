@@ -1017,6 +1017,18 @@ def _candidate_supports_selection(
     )
 
 
+def _candidate_is_exact_selected_evidence(
+    candidate: Candidate, selected: Sequence[SelectedComponent]
+) -> bool:
+    """Return whether this candidate is the surviving selected representation."""
+    return any(
+        item.component == candidate.component
+        and item.value == candidate.value
+        and item.representation == candidate.representation
+        for item in selected
+    )
+
+
 def postcode_diagnostics(raw: str, state: str, normalized: str | None) -> list[str]:
     flags: set[str] = set()
     if raw == "":
@@ -1834,7 +1846,7 @@ class Phase03Engine:
     ) -> list[dict[str, Any]]:
         groups: list[dict[str, Any]] = []
         for candidate in candidates:
-            is_selected = candidate.selectable and _candidate_supports_selection(
+            is_selected = candidate.selectable and _candidate_is_exact_selected_evidence(
                 candidate, selected
             )
             trivial = candidate.rule_id in {
