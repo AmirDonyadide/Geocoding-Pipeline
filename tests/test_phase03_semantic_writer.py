@@ -262,6 +262,27 @@ def test_validation_detects_identity_empty_selected_and_multiple_spans(
         validate_core_evidence_relationship([result.core_row], [orphan])
 
 
+def test_evidence_order_is_source_file_aware_when_record_numbers_restart(
+    tmp_path: Path,
+) -> None:
+    result = _result(tmp_path)
+
+    first = dict(result.evidence_rows[0])
+    first["source_file"] = "remaining_addresses_00001.csv"
+    first["source_logical_record_number"] = 96_812
+    first["stable_source_row_id_v1"] = bytes.fromhex("11" * 32)
+
+    second = dict(first)
+    second["source_file"] = "remaining_addresses_00002.csv"
+    second["source_logical_record_number"] = 204
+    second["stable_source_row_id_v1"] = bytes.fromhex("22" * 32)
+
+    validate_evidence_rows([first, second])
+
+    with pytest.raises(Phase03Error, match="EVIDENCE_ORDER_INVALID"):
+        validate_evidence_rows([second, first])
+
+
 def test_core_validation_proves_provider_identity_and_row_order(tmp_path: Path) -> None:
     first = _result(tmp_path).core_row
     second_input = phase02_row(

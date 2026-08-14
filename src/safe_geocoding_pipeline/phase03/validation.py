@@ -184,7 +184,7 @@ def validate_evidence_rows(
     *,
     raw_values_by_id: Mapping[bytes, Mapping[str, str]] | None = None,
 ) -> None:
-    previous: tuple[int, int, int] | None = None
+    previous: tuple[str, int, int, int] | None = None
     for row in rows:
         if tuple(row.keys()) != EVIDENCE_COLUMNS:
             raise Phase03Error("EVIDENCE_ROW_SCHEMA_MISMATCH")
@@ -217,6 +217,7 @@ def validate_evidence_rows(
         if row["source_field"] not in {*ADDRESS_FIELDS, *STRUCTURED_GEOGRAPHY_FIELDS}:
             raise Phase03Error("EVIDENCE_SOURCE_FIELD_INVALID")
         key = (
+            row["source_file"],
             row["source_logical_record_number"],
             row["evidence_id"],
             row["span_ordinal"],
