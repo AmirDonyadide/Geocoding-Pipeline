@@ -35,7 +35,12 @@ This is the approved conceptual workflow. It is not an implementation plan or ev
   profiler may examine the fixed DEVELOPMENT payload and parser evidence on
   Goethe-NHR. Its closed morphology labels and suppressed/bounded counts are
   rule-design evidence only; they do not modify parser output or authorize a
-  new rule, and LOCKED_EVALUATION is excluded.
+  new rule, and LOCKED_EVALUATION is excluded. A second-stage targeted
+  diagnostic may cross-tab only predeclared unresolved structural families
+  against existing selections, candidate/rule presence, conflicts,
+  corroborating components, representation, country, and script. It applies
+  the same five-row disclosure threshold and bounded labels; it remains
+  descriptive evidence and does not authorize Parser v3.
 - **Major decisions:** International parsing rules, deterministic normalization, country mapping, handling of geography embedded in free-form lines, and separation of company/unit content.
 - **STOP gate:** Review country/address-family behavior, transformations, unresolved records, and evidence that raw values remain traceable and unchanged.
 

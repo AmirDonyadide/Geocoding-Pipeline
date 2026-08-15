@@ -99,6 +99,9 @@ The DEVELOPMENT-only address-pattern profiler is documented in
 DEVELOPMENT payload/core/evidence in a Goethe-NHR SLURM allocation and emits
 bounded aggregate structural patterns; it never emits raw values or identities,
 creates parser rules, or accesses LOCKED_EVALUATION.
+The same document specifies the narrower targeted-opportunity command, whose
+predeclared pattern-family cross-tabs retain the same privacy and phase
+boundaries.
 
 Validate the bundled rule registry and display privacy-safe framework metadata:
 

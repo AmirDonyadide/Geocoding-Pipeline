@@ -117,6 +117,64 @@ The LOCKED path prohibition and controlled-tree containment boundary are
 unchanged. A replacement must use a fresh detached integration worktree at the
 exact reviewed correction commit and a new output identity.
 
+The replacement broad profile completed successfully in Goethe-NHR job
+`1749177` as
+`phase03_development_pattern_profile_20260815T160357Z_1749177_9cd8b43c`.
+It validated exactly 8,000 DEVELOPMENT rows, read zero LOCKED rows, emitted no
+raw values, and passed. Its principal aggregate findings were 6,903 rows with
+unassigned content and 2,308 rows whose unresolved street-line content had no
+street/house candidate. The profile reported 4,371 `UNPARSEABLE`, 2,344
+`PARTIAL`, 1,048 `PARSED`, 162 `CONFLICT`, 27 `AMBIGUOUS`, and 48
+`INSUFFICIENT` rows. These counts motivate narrower diagnostics; they do not
+approve Parser v3.
+
+## Targeted opportunity diagnostic
+
+`phase03_development_targeted_opportunity_profiler_v1` is a second-stage,
+diagnostic-only cross-tab over the same immutable DEVELOPMENT payload and
+parser-v2 core/evidence. It is limited to these predeclared structural
+families:
+
+- `WORDS HOUSELIKE_NUM`;
+- `HOUSELIKE_NUM WORDS`;
+- `WORDS HOUSELIKE_NUM WORDS`;
+- `HOUSELIKE_NUM COMMA WORDS`;
+- `WORDS COMMA HOUSELIKE_NUM`;
+- `SLASH_NUMBER WORDS`;
+- `WORDS SLASH_NUMBER`;
+- `HYPHEN_NUMBER WORDS`.
+
+For each family it reports thresholded counts for source line,
+native/non-native representation, numeric position, same/cross-line scope,
+adjacent-line structure, current component selections, candidate/rule
+presence, candidate multiplicity, conflicts, structured corroboration,
+native structural/script relationships, country group, script family, and a
+cautious diagnostic-support class. A category is named only at five or more
+distinct DEVELOPMENT rows, no distribution names more than 100 categories,
+and patterns remain bounded to 16 tokens. Counts from one to four are omitted
+or marked `SUPPRESSED`. The output contains no raw value, identity, path, or
+source span.
+
+The exact command is:
+
+```bash
+python -m safe_geocoding_pipeline.phase03.cli \
+  development-targeted-opportunity-profile \
+  --development-payload "${PHASE03_DEVELOPMENT_PAYLOAD}" \
+  --development-core "${PHASE03_DEVELOPMENT_CORE}" \
+  --development-evidence "${PHASE03_DEVELOPMENT_EVIDENCE}" \
+  --development-identities "${PHASE03_DEVELOPMENT_IDENTITIES}" \
+  --output-directory "${PHASE03_TARGETED_PROFILE_OUTPUT}"
+```
+
+The prepared Goethe-NHR wrapper is
+`cluster/goethe_nhr/phase03_development_targeted_opportunity_profile.sbatch`.
+It uses a clean detached worktree at the exact reviewed commit, invokes the
+shared production execution guard, rejects any path containing `locked`, and
+atomically promotes owner-only outputs under
+`reports/generated/phase03/development_targeted_opportunity_profiles/`.
+Parser v3 rule creation remains unauthorized.
+
 ## Scientific use
 
 The outputs may prioritize synthetic parser-v3 experiments and protected

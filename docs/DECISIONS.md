@@ -156,6 +156,11 @@ These are empirical properties of the exact current snapshot, not permanent prov
   bounded distribution reports at most 100 names. These are disclosure
   controls, not parser confidence or acceptance thresholds; profiler frequency
   cannot authorize a parser-v3 rule.
+- The follow-up targeted opportunity profile is restricted to eight
+  predeclared numeric/text pattern families and the same fixed DEVELOPMENT
+  artifacts. All cross-tab categories require at least five distinct rows,
+  are capped at 100 names, and contain only closed structural labels and
+  aggregate counts. This diagnostic cannot create or approve Parser v3 rules.
 - The DEVELOPMENT portable manual-review v2 schema intentionally has 28
   columns, superseding the earlier 27-column draft because `assignment_role`
   was added before any v2 artifact existed. Tests freeze its exact Arrow order,

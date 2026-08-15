@@ -14,6 +14,10 @@ from .constants import (
 )
 from .development_comparison import compare_development_parser_outputs
 from .development_pattern_profiler import profile_development_patterns
+from .development_targeted_opportunity_profiler import (
+    TARGETED_PROFILER_VERSION,
+    profile_targeted_development_opportunities,
+)
 from .references import (
     ScriptReference,
     load_production_references,
@@ -123,6 +127,16 @@ def build_parser() -> argparse.ArgumentParser:
     pattern_profile.add_argument("--development-evidence", type=Path, required=True)
     pattern_profile.add_argument("--development-identities", type=Path, required=True)
     pattern_profile.add_argument("--output-directory", type=Path, required=True)
+    targeted_profile = subparsers.add_parser(
+        "development-targeted-opportunity-profile"
+    )
+    targeted_profile.add_argument("--development-payload", type=Path, required=True)
+    targeted_profile.add_argument("--development-core", type=Path, required=True)
+    targeted_profile.add_argument("--development-evidence", type=Path, required=True)
+    targeted_profile.add_argument(
+        "--development-identities", type=Path, required=True
+    )
+    targeted_profile.add_argument("--output-directory", type=Path, required=True)
     validate = subparsers.add_parser("pilot-validate")
     validate.add_argument("--phase02-manifest", type=Path, required=True)
     validate.add_argument("--input-path", type=Path, action="append", required=True)
@@ -438,6 +452,39 @@ def main(argv: Sequence[str] | None = None) -> int:
                 profile_result.report_json.name,
                 profile_result.opportunities_csv.name,
                 profile_result.interpretation_markdown.name,
+            ],
+            "locked_rows_read": 0,
+            "raw_values_reported": False,
+        }
+    elif args.command == "development-targeted-opportunity-profile":
+        profile_config = Phase03Config.for_parser_version(PARSER_VERSION_V2)
+        profile_config.validate()
+        _, script_reference = load_production_references(
+            expected_country_reference_id=profile_config.country_reference_version,
+            expected_unicode_reference_id=profile_config.unicode_reference_version,
+        )
+        registry = load_rule_registry(
+            registry_version=profile_config.rule_registry_version
+        )
+        targeted_result = profile_targeted_development_opportunities(
+            development_payload_path=args.development_payload,
+            core_path=args.development_core,
+            evidence_path=args.development_evidence,
+            development_identities_path=args.development_identities,
+            output_directory=args.output_directory,
+            script_reference=script_reference,
+            rule_registry_fingerprint=registry.fingerprint,
+            production=True,
+        )
+        payload = {
+            "status": "PASS",
+            "profiler_version": TARGETED_PROFILER_VERSION,
+            "rows": targeted_result.rows,
+            "profile_fingerprint": targeted_result.profile_fingerprint,
+            "report_files": [
+                targeted_result.report_json.name,
+                targeted_result.opportunities_csv.name,
+                targeted_result.interpretation_markdown.name,
             ],
             "locked_rows_read": 0,
             "raw_values_reported": False,
