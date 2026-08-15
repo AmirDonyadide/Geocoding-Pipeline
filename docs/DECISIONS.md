@@ -37,14 +37,20 @@ This register distinguishes approved project rules from questions that require e
   observed DEVELOPMENT sets are A=26 scientific-core changes and B=11
   experimental-rule-evidence rows, with nine overlap, 17 A-only, two B-only,
   and 28 in the union. Before any workspace initialization, the separately
-  versioned `phase03_parser_v3_change_diagnostic_v2` must explain those
+  versioned `phase03_parser_v3_change_diagnostic_v3` must explain those
   non-overlap populations using only aggregate fixed-field/family/provenance
   counts from immutable v2/v3 outputs. No Parser v3 rule, population gate, or
   human-review decision changes automatically from that diagnostic. Separate
   aggregate rule-selection totals do not establish identity-level V4 rule
   pairing; rule presence, asymmetric selection, rejection, and multiple-group
   states are measured and small cells are suppressed rather than treated as a
-  fail-closed scientific invariant.
+  fail-closed scientific invariant. Job `1749444` showed the 17 A-only rows
+  differ solely in `country_parse_method`; diagnostic v3 adds a privacy-safe
+  controlled-vocabulary transition table and evidence/provenance equality
+  reconciliation. Shared v2/v3 country-method derivation is hash-seed-sensitive
+  when an unselectable same-value free-form country candidate contributes a
+  second reference kind. This defect is not removed from scientific comparison
+  and is not treated as a Parser-v3 country-rule change.
 - Production-heavy commands reuse the common execution guard and require both `SAFE_EXECUTION_SITE=goethe-nhr` and a non-empty `SLURM_JOB_ID`; there is no ordinary local-production bypass. This controls runtime and SSD/I/O load, improves scheduler resource control, preserves reproducible host/runtime boundaries, strengthens auditability, and supports later full-data phases.
 
 ### Phase 3 execution-site correction

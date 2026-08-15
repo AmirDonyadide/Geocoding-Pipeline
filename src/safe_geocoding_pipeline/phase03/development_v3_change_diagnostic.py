@@ -18,6 +18,7 @@ from .constants import (
     COMPLETENESS_CLASSES,
     CONFLICT_FLAGS,
     CORE_COLUMNS,
+    COUNTRY_PARSE_METHODS,
     DIAGNOSTIC_FLAGS,
     EVALUATION_STATUSES,
     PARSER_VERSION_V2,
@@ -35,8 +36,8 @@ from .validation import (
     validate_evidence_rows,
 )
 
-DIAGNOSTIC_VERSION: Final = "phase03_parser_v3_change_diagnostic_v2"
-REPORT_SCHEMA_VERSION: Final = "phase03_parser_v3_change_diagnostic_report_v2"
+DIAGNOSTIC_VERSION: Final = "phase03_parser_v3_change_diagnostic_v3"
+REPORT_SCHEMA_VERSION: Final = "phase03_parser_v3_change_diagnostic_report_v3"
 REPORT_STATUS: Final = "SANITIZED_DEVELOPMENT_V3_CHANGE_DIAGNOSTIC_ONLY"
 EXPERIMENTAL_RULE_IDS: Final = (
     "HOUSE_NUMBER_EMBEDDED_DESIGNATOR_EXPERIMENT_V4",
@@ -442,6 +443,152 @@ def _transition_counts(
     }
 
 
+def _country_provenance(row: Mapping[str, Any]) -> tuple[tuple[Any, ...], ...]:
+    return tuple(
+        (
+            item["component"],
+            item["representation"],
+            tuple(item["source_fields"]),
+            tuple(item["rule_ids"]),
+            item["confidence"],
+        )
+        for item in row["selected_component_provenance"]
+        if item["component"] == "COUNTRY"
+    )
+
+
+def _country_evidence_by_identity(
+    evidence_rows: Sequence[Mapping[str, Any]],
+) -> dict[bytes, tuple[tuple[Any, ...], ...]]:
+    grouped: dict[bytes, list[tuple[Any, ...]]] = defaultdict(list)
+    for row in evidence_rows:
+        if row["component"] != "COUNTRY":
+            continue
+        identity = bytes(row["stable_source_row_id_v1"])
+        # Protected candidate values and source spans participate only in this
+        # in-memory equality check. They are never returned or serialized.
+        grouped[identity].append(
+            (
+                row["evidence_kind"],
+                row["component"],
+                row["representation"],
+                row["candidate_value"],
+                row["selected"],
+                row["confidence"],
+                row["rule_id"],
+                row["source_field"],
+                row["start_character"],
+                row["end_character_exclusive"],
+                row["conflict_flag"],
+                row["diagnostic_flag"],
+            )
+        )
+    return {
+        identity: tuple(sorted(rows, key=repr))
+        for identity, rows in grouped.items()
+    }
+
+
+def _country_method_diagnostic(
+    identities: set[bytes],
+    baseline_by_id: Mapping[bytes, Mapping[str, Any]],
+    experimental_by_id: Mapping[bytes, Mapping[str, Any]],
+    baseline_evidence: Sequence[Mapping[str, Any]],
+    experimental_evidence: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    transitions = Counter(
+        (
+            str(baseline_by_id[identity]["country_parse_method"]),
+            str(experimental_by_id[identity]["country_parse_method"]),
+        )
+        for identity in identities
+        if baseline_by_id[identity]["country_parse_method"]
+        != experimental_by_id[identity]["country_parse_method"]
+    )
+    allowed = set(COUNTRY_PARSE_METHODS)
+    if any(before not in allowed or after not in allowed for before, after in transitions):
+        raise ValueError("COUNTRY_PARSE_METHOD_OUTSIDE_CONTROLLED_VOCABULARY")
+
+    baseline_country_evidence = _country_evidence_by_identity(baseline_evidence)
+    experimental_country_evidence = _country_evidence_by_identity(
+        experimental_evidence
+    )
+    field_equality = {
+        field: sum(
+            baseline_by_id[identity][field] == experimental_by_id[identity][field]
+            for identity in identities
+        )
+        for field in (
+            "country_clean",
+            "country_native_clean",
+            "country_parse_confidence",
+            "country_input_class",
+        )
+    }
+    country_provenance_changed_rows = sum(
+        _country_provenance(baseline_by_id[identity])
+        != _country_provenance(experimental_by_id[identity])
+        for identity in identities
+    )
+    country_evidence_changed_rows = sum(
+        baseline_country_evidence.get(identity, ())
+        != experimental_country_evidence.get(identity, ())
+        for identity in identities
+    )
+    ordered_transitions = [
+        {
+            "from_method": before,
+            "to_method": after,
+            "rows": transitions[(before, after)],
+        }
+        for before in COUNTRY_PARSE_METHODS
+        for after in COUNTRY_PARSE_METHODS
+        if before != after and transitions[(before, after)]
+    ]
+    transition_rows = sum(transitions.values())
+    changed_only_country_method_exclusive_rows = sum(
+        _changed_fields(
+            baseline_by_id[identity], experimental_by_id[identity]
+        )
+        == ("country_parse_method",)
+        for identity in identities
+    )
+    return {
+        "population_rows": len(identities),
+        "country_parse_method_changed_rows": transition_rows,
+        "country_parse_method_only_changed_rows": (
+            changed_only_country_method_exclusive_rows
+        ),
+        "distinct_transition_pairs": len(transitions),
+        "all_method_changes_share_one_transition": bool(transitions)
+        and len(transitions) == 1,
+        "transitions": ordered_transitions,
+        "transition_rows_reconcile": transition_rows == len(identities),
+        "country_parse_method_only_rows_reconcile": (
+            changed_only_country_method_exclusive_rows == len(identities)
+        ),
+        "small_cell_suppression_applied": False,
+        "small_cell_suppression_reason": (
+            "CONTROLLED_COUNTRY_PARSE_METHOD_VOCABULARY"
+        ),
+        "equal_rows_by_field": field_equality,
+        "all_rows_equal_by_field": {
+            field: count == len(identities)
+            for field, count in field_equality.items()
+        },
+        "country_selected_provenance_changed_rows": (
+            country_provenance_changed_rows
+        ),
+        "country_evidence_semantics_changed_rows": country_evidence_changed_rows,
+        "country_evidence_semantics_equal_rows": (
+            len(identities) - country_evidence_changed_rows
+        ),
+        "raw_country_values_reported": False,
+        "identities_reported": False,
+        "source_spans_reported": False,
+    }
+
+
 def _experimental_evidence_groups(
     evidence_rows: Sequence[Mapping[str, Any]],
 ) -> dict[bytes, dict[str, dict[int, bool]]]:
@@ -622,6 +769,7 @@ def _root_cause_assessment(
     changed_only_ids: set[bytes],
     field_counts: Mapping[str, int],
     provenance: Mapping[str, Any],
+    country_method: Mapping[str, Any],
 ) -> dict[str, Any]:
     changed_fields = {field for field, count in field_counts.items() if count}
     selected_fields = set(_SELECTED_VALUE_FIELDS)
@@ -637,6 +785,16 @@ def _root_cause_assessment(
         sufficient = True
         explanation = (
             "SCIENTIFIC_SELECTION_STATUS_OR_CONFLICT_CHANGED_WITHOUT_V4_EVIDENCE"
+        )
+    elif changed_fields == {"country_parse_method"} and (
+        int(country_method["country_selected_provenance_changed_rows"]) == 0
+        and int(country_method["country_evidence_semantics_changed_rows"]) == 0
+    ):
+        classification = "F_SHARED_COUNTRY_METHOD_DERIVATION_SIDE_EFFECT"
+        sufficient = True
+        explanation = (
+            "COUNTRY_METHOD_CHANGED_WITH_IDENTICAL_COUNTRY_VALUE_CLASS_CONFIDENCE_"
+            "EVIDENCE_AND_PROVENANCE"
         )
     elif changed_fields <= {"selected_component_provenance"}:
         classification = "D_PROVENANCE_OR_ARBITRATION_SIDE_EFFECT"
@@ -741,6 +899,7 @@ def _render_markdown(payload: Mapping[str, Any]) -> str:
     evidence_metrics = cast(
         Mapping[str, Any], payload["experimental_evidence_metrics"]
     )
+    country_method = cast(Mapping[str, Any], payload["country_method_diagnostic"])
     lines = [
         "# Phase 3 Parser-v3 DEVELOPMENT change diagnostic",
         "",
@@ -773,6 +932,24 @@ def _render_markdown(payload: Mapping[str, Any]) -> str:
     lines.extend(f"- `{field}`: {count}" for field, count in nonzero)
     if not nonzero:
         lines.append("- None")
+    lines.extend(["", "## Changed-only country method transitions", ""])
+    transitions = cast(Sequence[Mapping[str, Any]], country_method["transitions"])
+    if transitions:
+        lines.extend(
+            f"- `{item['from_method']}` -> `{item['to_method']}`: {item['rows']}"
+            for item in transitions
+        )
+    else:
+        lines.append("- None")
+    lines.extend(
+        [
+            f"- Distinct transition pairs: {country_method['distinct_transition_pairs']}",
+            "- Country selected-provenance changes: "
+            f"{country_method['country_selected_provenance_changed_rows']}",
+            "- Country evidence-semantic changes: "
+            f"{country_method['country_evidence_semantics_changed_rows']}",
+        ]
+    )
     lines.extend(["", "## Experimental V4 evidence topology", ""])
     by_population = cast(
         Mapping[str, Mapping[str, Any]], evidence_metrics["by_population"]
@@ -967,6 +1144,18 @@ def diagnose_development_v3_changes(
         name: _provenance_summary(values, baseline_by_id, experimental_by_id)
         for name, values in populations.items()
     }
+    country_method_diagnostic = _country_method_diagnostic(
+        populations["changed_only"],
+        baseline_by_id,
+        experimental_by_id,
+        baseline_evidence,
+        experimental_evidence,
+    )
+    if production and not (
+        country_method_diagnostic["transition_rows_reconcile"]
+        and country_method_diagnostic["country_parse_method_only_rows_reconcile"]
+    ):
+        raise ValueError("COUNTRY_METHOD_TRANSITION_RECONCILIATION_FAILED")
     diagnostic_changes = {
         name: {
             "address_diagnostic_flags": _set_change_counts(
@@ -1034,10 +1223,12 @@ def diagnose_development_v3_changes(
         "provenance_change_metrics": provenance,
         "diagnostic_conflict_status_changes": diagnostic_changes,
         "experimental_evidence_metrics": evidence_summary,
+        "country_method_diagnostic": country_method_diagnostic,
         "root_cause_assessment": _root_cause_assessment(
             populations["changed_only"],
             field_change_counts["changed_only"],
             provenance["changed_only"],
+            country_method_diagnostic,
         ),
         "privacy": {
             "aggregate_only": True,

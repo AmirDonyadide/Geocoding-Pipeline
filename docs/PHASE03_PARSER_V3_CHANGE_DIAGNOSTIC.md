@@ -14,7 +14,7 @@ count of 26. The observed aggregate decomposition was:
 - 28 rows in the deduplicated union.
 
 The mismatch is not resolved by changing the expected count. Version
-`phase03_parser_v3_change_diagnostic_v2` explains the two non-overlap
+`phase03_parser_v3_change_diagnostic_v3` explains the two non-overlap
 populations from the already completed 8,000-row Parser v2 and Parser v3 core
 and evidence outputs. It does not rerun either parser, pilot selection, or Phase
 2; read human labels; create a review workspace; or access LOCKED_EVALUATION.
@@ -54,6 +54,26 @@ could report the changed-only field decomposition. Version 2 removes that
 unproved invariant. Presence and selection pairing are measured as diagnostic
 results; none is assumed.
 
+Goethe job `1749444` then established that every one of the 17 changed-only
+rows differs in exactly one scientific-core field: `country_parse_method`.
+Country values, input class, confidence, selected provenance, and every
+address, status, diagnostic, conflict, safety, and role field are unchanged.
+Version 3 therefore adds an exact controlled-vocabulary method-transition
+table plus internal equality checks for country evidence and selected
+provenance. The fixed method labels are reportable aggregate vocabulary; no
+country value or identity is emitted. Production reporting fails closed unless
+the transition table and the method-only changed-field check both reconcile to
+all 17 changed-only rows.
+
+Static and synthetic diagnosis found a shared v2/v3 defect in
+`_country_result()`: it collects reference kinds from all same-value country
+candidates, including unselectable free-form candidates, then chooses one with
+`next(iter(set))`. Separate v2 and v3 transformation processes did not set
+`PYTHONHASHSEED`, so the chosen kind can differ even though both parsers execute
+the same country logic and select the same structured country evidence. This is
+not a Parser-v3 country-rule change. A parser repair remains a separate,
+versioned decision; this diagnostic does not implement it.
+
 ## Sanitized output contract
 
 The diagnostic produces two owner-only files:
@@ -72,6 +92,10 @@ The JSON contains:
   cap, and explicit suppressed-combination/row residuals;
 - aggregate provenance, representation, conflict, diagnostic, completeness,
   evaluation, and safety changes;
+- exact changed-only `country_parse_method` transitions from the closed method
+  vocabulary, with reconciliation totals and aggregate equality checks for
+  country value, input class, confidence, evidence semantics, and selected
+  provenance;
 - per-population V4 presence topology (both rules, house only, or street only)
   and independent selection topology (both selected, either asymmetric
   selection, both unselected, or multiple candidate-group state), with counts

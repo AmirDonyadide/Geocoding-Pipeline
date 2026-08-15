@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import subprocess
+import sys
 from copy import deepcopy
 from pathlib import Path
 from typing import Any
@@ -27,12 +30,14 @@ from safe_geocoding_pipeline.phase03.development_v3_change_diagnostic import (
     SCIENTIFIC_CORE_FIELDS,
     PopulationExpectation,
     _combination_summary,
+    _country_method_diagnostic,
     _evidence_population_summary,
     _exact_evidence_topology,
     _experimental_evidence_groups,
     _family_change_counts,
     _field_change_counts,
     _provenance_summary,
+    _root_cause_assessment,
     diagnose_development_v3_changes,
 )
 from safe_geocoding_pipeline.phase03.development_comparison import (
@@ -285,8 +290,8 @@ def test_decomposition_field_families_and_evidence_are_exact(tmp_path: Path) -> 
     assert set(evidence["selected_candidate_groups_by_rule"]) == set(
         EXPERIMENTAL_RULE_IDS
     )
-    assert DIAGNOSTIC_VERSION == "phase03_parser_v3_change_diagnostic_v2"
-    assert REPORT_SCHEMA_VERSION == "phase03_parser_v3_change_diagnostic_report_v2"
+    assert DIAGNOSTIC_VERSION == "phase03_parser_v3_change_diagnostic_v3"
+    assert REPORT_SCHEMA_VERSION == "phase03_parser_v3_change_diagnostic_report_v3"
     assert payload["root_cause_assessment"]["classification"] == (
         "B_V3_PATH_CHANGED_SCIENTIFIC_METADATA_WITHOUT_V4_EVIDENCE"
     )
@@ -295,6 +300,159 @@ def test_decomposition_field_families_and_evidence_are_exact(tmp_path: Path) -> 
         "field_count": 36,
         "comparison_matches": True,
         "targeted_review_matches": True,
+    }
+    assert payload["country_method_diagnostic"] == {
+        "population_rows": 5,
+        "country_parse_method_changed_rows": 0,
+        "country_parse_method_only_changed_rows": 0,
+        "distinct_transition_pairs": 0,
+        "all_method_changes_share_one_transition": False,
+        "transitions": [],
+        "transition_rows_reconcile": False,
+        "country_parse_method_only_rows_reconcile": False,
+        "small_cell_suppression_applied": False,
+        "small_cell_suppression_reason": (
+            "CONTROLLED_COUNTRY_PARSE_METHOD_VOCABULARY"
+        ),
+        "equal_rows_by_field": {
+            "country_clean": 5,
+            "country_native_clean": 5,
+            "country_parse_confidence": 5,
+            "country_input_class": 5,
+        },
+        "all_rows_equal_by_field": {
+            "country_clean": True,
+            "country_native_clean": True,
+            "country_parse_confidence": True,
+            "country_input_class": True,
+        },
+        "country_selected_provenance_changed_rows": 0,
+        "country_evidence_semantics_changed_rows": 0,
+        "country_evidence_semantics_equal_rows": 5,
+        "raw_country_values_reported": False,
+        "identities_reported": False,
+        "source_spans_reported": False,
+    }
+
+
+def test_country_method_diagnostic_reports_only_controlled_aggregate_transitions(
+    tmp_path: Path,
+) -> None:
+    parser = engine(tmp_path)
+    baseline_by_id: dict[bytes, dict[str, Any]] = {}
+    experimental_by_id: dict[bytes, dict[str, Any]] = {}
+    identities = {_identity(index) for index in range(5)}
+    for index, identity in enumerate(sorted(identities)):
+        result = parser.transform(
+            phase02_row(
+                stable_source_row_id_v1=identity,
+                source_logical_record_number=index + 1,
+                country_iso_code="XZ",
+                street_address_line_4="Fictionland",
+            )
+        )
+        baseline = deepcopy(result.core_row)
+        experimental = deepcopy(result.core_row)
+        baseline["country_parse_method"] = "STRUCTURED_ALPHA2_EXACT"
+        experimental["country_parse_method"] = "STRUCTURED_COUNTRY_NAME_EXACT"
+        baseline_by_id[identity] = baseline
+        experimental_by_id[identity] = experimental
+
+    diagnostic = _country_method_diagnostic(
+        identities,
+        baseline_by_id,
+        experimental_by_id,
+        (),
+        (),
+    )
+    assert diagnostic["transitions"] == [
+        {
+            "from_method": "STRUCTURED_ALPHA2_EXACT",
+            "to_method": "STRUCTURED_COUNTRY_NAME_EXACT",
+            "rows": 5,
+        }
+    ]
+    assert diagnostic["distinct_transition_pairs"] == 1
+    assert diagnostic["all_method_changes_share_one_transition"] is True
+    assert diagnostic["country_parse_method_only_changed_rows"] == 5
+    assert diagnostic["transition_rows_reconcile"] is True
+    assert diagnostic["country_parse_method_only_rows_reconcile"] is True
+    assert diagnostic["all_rows_equal_by_field"] == {
+        "country_clean": True,
+        "country_native_clean": True,
+        "country_parse_confidence": True,
+        "country_input_class": True,
+    }
+    assert diagnostic["country_selected_provenance_changed_rows"] == 0
+    assert diagnostic["country_evidence_semantics_changed_rows"] == 0
+    assessment = _root_cause_assessment(
+        identities,
+        _field_change_counts(identities, baseline_by_id, experimental_by_id),
+        _provenance_summary(identities, baseline_by_id, experimental_by_id),
+        diagnostic,
+    )
+    assert assessment["classification"] == (
+        "F_SHARED_COUNTRY_METHOD_DERIVATION_SIDE_EFFECT"
+    )
+    assert assessment["aggregate_evidence_sufficient"] is True
+    assert "Fictionland" not in json.dumps(diagnostic)
+    assert not any(identity.hex() in json.dumps(diagnostic) for identity in identities)
+
+
+def test_shared_country_method_path_is_hash_seed_sensitive_without_v3_evidence() -> (
+    None
+):
+    script = """
+import tempfile
+from pathlib import Path
+from phase03_helpers import engine, phase02_row
+from safe_geocoding_pipeline.phase03.constants import PARSER_VERSION_V2, PARSER_VERSION_V3
+
+with tempfile.TemporaryDirectory() as raw:
+    root = Path(raw)
+    observed = []
+    for version in (PARSER_VERSION_V2, PARSER_VERSION_V3):
+        version_root = root / version
+        version_root.mkdir()
+        result = engine(version_root, parser_version=version).transform(
+            phase02_row(
+                country_iso_code="XZ",
+                street_address_line_4="Fictionland",
+            )
+        )
+        core = result.core_row
+        observed.append(
+            (
+                core["country_parse_method"],
+                core["country_clean"],
+                core["country_parse_confidence"],
+                core["country_input_class"],
+                core["selected_component_provenance"],
+                any("_EXPERIMENT_" in str(row["rule_id"]) for row in result.evidence_rows),
+            )
+        )
+    print(json.dumps(observed, sort_keys=True))
+"""
+    outputs: set[str] = set()
+    for seed in range(1, 33):
+        environment = dict(os.environ)
+        environment["PYTHONHASHSEED"] = str(seed)
+        environment["PYTHONPATH"] = "src:tests"
+        completed = subprocess.run(
+            [sys.executable, "-c", "import json\n" + script],
+            check=True,
+            capture_output=True,
+            text=True,
+            env=environment,
+        )
+        observed = json.loads(completed.stdout)
+        assert observed[0] == observed[1]
+        assert observed[0][1:4] == ["XZ", "HIGH", "ALPHA2_ASSIGNED_EXACT"]
+        assert observed[0][5] is False
+        outputs.add(str(observed[0][0]))
+    assert outputs == {
+        "STRUCTURED_ALPHA2_EXACT",
+        "STRUCTURED_COUNTRY_NAME_EXACT",
     }
 
 
@@ -645,6 +803,37 @@ def test_production_guard_runs_before_any_input_access(tmp_path: Path) -> None:
             implementation_commit="a" * 40,
             production=True,
         )
+
+
+def test_production_report_requires_all_changed_only_rows_in_transition_table(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    paths, _ = _fixture(tmp_path / "fixture")
+    from safe_geocoding_pipeline import execution_policy
+
+    monkeypatch.setattr(
+        execution_policy,
+        "require_goethe_nhr_slurm",
+        lambda _operation: None,
+    )
+    output = paths["root"] / "must-not-exist"
+    with pytest.raises(
+        ValueError, match="COUNTRY_METHOD_TRANSITION_RECONCILIATION_FAILED"
+    ):
+        diagnose_development_v3_changes(
+            baseline_core_path=paths["v2_core"],
+            baseline_evidence_path=paths["v2_evidence"],
+            experimental_core_path=paths["v3_core"],
+            experimental_evidence_path=paths["v3_evidence"],
+            development_identities_path=paths["identities"],
+            output_directory=output,
+            controlled_root=paths["root"],
+            report_root=paths["root"],
+            implementation_commit="a" * 40,
+            production=True,
+            expectation=_EXPECTATION,
+        )
+    assert not output.exists()
 
 
 def test_resolved_prohibited_path_fails_closed(tmp_path: Path) -> None:
