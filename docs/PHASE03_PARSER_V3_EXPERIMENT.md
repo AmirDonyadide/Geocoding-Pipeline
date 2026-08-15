@@ -133,7 +133,7 @@ DATA_ROOT="/work/footprint/donyadidegan/safe_geocoding_pipeline"
 PHASE03_GIT_COMMIT="<exact-reviewed-parser-v3-commit>"
 PHASE03_INTEGRATION_ROOT="${DATA_ROOT}_parser_v3_experimental_${PHASE03_GIT_COMMIT:0:12}"
 PHASE03_SOURCE_RUN_ROOT="${DATA_ROOT}/derived/controlled/phase03_v1/pilots/.in_progress/phase03_pilot_goethe_20260813T224643Z_1748630_750a1655"
-PARSER_V2_ITERATION="${DATA_ROOT}/derived/controlled/phase03_v1/development_iterations/phase03_development_parser_v2_20260814T132542Z_1748905_214fdd7d"
+PARSER_V2_ITERATION="${DATA_ROOT}/derived/controlled/phase03_v1/development_iterations/phase03_development_parser_v2_20260814T134743Z_1748928_06acc59e"
 
 git -C "${DATA_ROOT}" fetch --prune origin
 git -C "${DATA_ROOT}" cat-file -e "${PHASE03_GIT_COMMIT}^{commit}"
