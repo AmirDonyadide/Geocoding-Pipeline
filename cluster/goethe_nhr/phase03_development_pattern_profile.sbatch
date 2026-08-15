@@ -29,6 +29,8 @@ export PYTHONDONTWRITEBYTECODE=1
 readonly INTEGRATION_ROOT="$(realpath -e -- "${PHASE03_INTEGRATION_ROOT}")"
 readonly SUBMIT_DIRECTORY="$(realpath -e -- "${SLURM_SUBMIT_DIR}")"
 readonly EXPECTED_SBATCH="${INTEGRATION_ROOT}/cluster/goethe_nhr/phase03_development_pattern_profile.sbatch"
+readonly RESOLVED_DATA_ROOT="$(realpath -e -- "${DATA_ROOT}")"
+readonly CONTROLLED_PHASE03_ROOT="$(realpath -e -- "${RESOLVED_DATA_ROOT}/derived/controlled/phase03_v1")"
 
 [[ "${SUBMIT_DIRECTORY}" == "${INTEGRATION_ROOT}" ]] || {
   echo "PATTERN_PROFILE_SUBMIT_DIRECTORY_MISMATCH" >&2
@@ -65,7 +67,7 @@ for input in \
     exit 1
   }
   resolved_input="$(realpath -e -- "${input}")"
-  [[ "${resolved_input}" == "${DATA_ROOT}/derived/controlled/phase03_v1/"* ]] || {
+  [[ "${resolved_input}" == "${CONTROLLED_PHASE03_ROOT}/"* ]] || {
     echo "PATTERN_PROFILE_INPUT_OUTSIDE_CONTROLLED_DEVELOPMENT" >&2
     exit 1
   }

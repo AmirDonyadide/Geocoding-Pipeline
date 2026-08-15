@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import os
+import shlex
 import subprocess
+import sys
 from pathlib import Path
 
 
@@ -10,6 +12,12 @@ SYNC = REPOSITORY / "scripts" / "sync_to_goethe_nhr.sh"
 BOOTSTRAP = REPOSITORY / "cluster" / "goethe_nhr" / "bootstrap_env.sh"
 PREFLIGHT = REPOSITORY / "cluster" / "goethe_nhr" / "phase03_preflight.sh"
 SBATCH = REPOSITORY / "cluster" / "goethe_nhr" / "phase03_development_pilot.sbatch"
+PATTERN_PROFILE_SBATCH = (
+    REPOSITORY
+    / "cluster"
+    / "goethe_nhr"
+    / "phase03_development_pattern_profile.sbatch"
+)
 PHASE02_RUN = (
     "staging/controlled/phase02_v1/runs/"
     "phase02_20260810T173851Z_1349152b"
@@ -104,8 +112,104 @@ def _planned_sources(arguments: bytes) -> list[str]:
 
 
 def test_cluster_shell_assets_are_syntactically_valid() -> None:
-    for path in (SYNC, BOOTSTRAP, PREFLIGHT, SBATCH):
+    for path in (SYNC, BOOTSTRAP, PREFLIGHT, SBATCH, PATTERN_PROFILE_SBATCH):
         subprocess.run(["bash", "-n", str(path)], check=True)
+
+
+def _run_pattern_profile_path_guard(
+    data_root: Path,
+    input_path: Path,
+    *,
+    gnu_realpath: Path,
+) -> subprocess.CompletedProcess[str]:
+    guard = r"""
+set -euo pipefail
+DATA_ROOT="$1"
+input="$2"
+RESOLVED_DATA_ROOT="$(realpath -e -- "${DATA_ROOT}")"
+CONTROLLED_PHASE03_ROOT="$(realpath -e -- "${RESOLVED_DATA_ROOT}/derived/controlled/phase03_v1")"
+resolved_input="$(realpath -e -- "${input}")"
+[[ "${resolved_input}" == "${CONTROLLED_PHASE03_ROOT}/"* ]] || exit 41
+case "${resolved_input}" in
+  *[Ll][Oo][Cc][Kk][Ee][Dd]*) exit 42 ;;
+esac
+"""
+    return subprocess.run(
+        [
+            "bash",
+            "-c",
+            guard,
+            "pattern-profile-path-guard",
+            str(data_root),
+            str(input_path),
+        ],
+        env={**os.environ, "PATH": f"{gnu_realpath.parent}:{os.environ['PATH']}"},
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+
+def test_pattern_profile_guard_compares_canonical_root_and_input(tmp_path: Path) -> None:
+    gnu_realpath = tmp_path / "bin" / "realpath"
+    gnu_realpath.parent.mkdir()
+    gnu_realpath.write_text(
+        "#!/usr/bin/env bash\n"
+        "set -euo pipefail\n"
+        '[[ "${1:-}" == "-e" ]] && shift\n'
+        '[[ "${1:-}" == "--" ]] && shift\n'
+        f"exec {shlex.quote(sys.executable)} -c "
+        "'import pathlib, sys; print(pathlib.Path(sys.argv[1]).resolve(strict=True))' "
+        '"$1"\n',
+        encoding="utf-8",
+    )
+    gnu_realpath.chmod(0o755)
+
+    physical_root = tmp_path / "panfs" / "project"
+    controlled_root = physical_root / "derived" / "controlled" / "phase03_v1"
+    valid_identity = controlled_root / "selection" / "development.identities.bin"
+    valid_identity.parent.mkdir(parents=True)
+    valid_identity.touch()
+
+    work_alias = tmp_path / "work" / "project"
+    work_alias.parent.mkdir()
+    work_alias.symlink_to(physical_root, target_is_directory=True)
+
+    outside = physical_root / "derived" / "controlled" / "phase03_v1-sibling" / "input"
+    outside.parent.mkdir(parents=True)
+    outside.touch()
+    locked = controlled_root / "LoCkEd" / "input"
+    locked.parent.mkdir()
+    locked.touch()
+
+    accepted = _run_pattern_profile_path_guard(
+        work_alias,
+        work_alias / "derived" / "controlled" / "phase03_v1" / "selection" / valid_identity.name,
+        gnu_realpath=gnu_realpath,
+    )
+    rejected_outside = _run_pattern_profile_path_guard(
+        work_alias,
+        outside,
+        gnu_realpath=gnu_realpath,
+    )
+    rejected_locked = _run_pattern_profile_path_guard(
+        work_alias,
+        locked,
+        gnu_realpath=gnu_realpath,
+    )
+
+    assert accepted.returncode == 0
+    assert rejected_outside.returncode == 41
+    assert rejected_locked.returncode == 42
+
+    content = PATTERN_PROFILE_SBATCH.read_text(encoding="utf-8")
+    assert 'RESOLVED_DATA_ROOT="$(realpath -e -- "${DATA_ROOT}")"' in content
+    assert (
+        'CONTROLLED_PHASE03_ROOT="$(realpath -e -- '
+        '"${RESOLVED_DATA_ROOT}/derived/controlled/phase03_v1")"'
+    ) in content
+    assert '[[ "${resolved_input}" == "${CONTROLLED_PHASE03_ROOT}/"* ]]' in content
+    assert '[[ "${resolved_input,,}" != *locked* ]]' in content
 
 
 def test_sync_is_allowlisted_non_destructive_and_excludes_paused_state() -> None:

@@ -1,7 +1,10 @@
 # Phase 3 DEVELOPMENT address-pattern profiler
 
-Status: implemented with fictional synthetic validation; not yet executed on
-the protected 8,000-row DEVELOPMENT corpus.
+Status: implemented and committed. Initial job `1748986` failed in shell
+preflight after approximately two seconds with
+`PATTERN_PROFILE_INPUT_OUTSIDE_CONTROLLED_DEVELOPMENT`; the profiler itself
+never executed and no valid report exists. The failure was an operational path
+canonicalization defect, not a profiler or parser scientific failure.
 
 ## Purpose and boundary
 
@@ -97,7 +100,22 @@ validates Python 3.14.3, Unicode 16.0.0, CLDR/UCD references and registry v3,
 then atomically promotes only the sanitized report directory under
 `reports/generated/phase03/development_pattern_profiles/`.
 
-No job is submitted by this implementation task.
+The original reviewed implementation is commit
+`e4d15d426eb9e99d90c67450355e0527ec25be87`; the profiler source SHA-256 is
+`56dd654cb35b8eef78c24e59a4c17574f6c9770e7f45411b25a6020265c8198a`
+and the originally submitted SBATCH SHA-256 is
+`b3554a92dacc4bfd79fd654235dee6510e6a7f0810b5feab78b61abf9a781f23`.
+The detached Goethe worktree at that commit remains preserved as audit
+evidence for failed job `1748986`.
+
+The failed preflight canonicalized each input from `/work/...` to
+`/panfs/vdura1/...` while comparing it with an uncanonicalized `/work/...`
+trusted prefix. The corrected SBATCH canonicalizes both the trusted controlled
+root and each candidate input; its SHA-256 is
+`123998a872b63a75dc0f1f42667efa37afac13261a168aecbd933c0fac234ef7`.
+The LOCKED path prohibition and controlled-tree containment boundary are
+unchanged. A replacement must use a fresh detached integration worktree at the
+exact reviewed correction commit and a new output identity.
 
 ## Scientific use
 
