@@ -20,11 +20,16 @@ from safe_geocoding_pipeline.phase03.constants import (
 )
 from safe_geocoding_pipeline.phase03.cli import build_parser
 from safe_geocoding_pipeline.phase03.development_v3_change_diagnostic import (
+    DIAGNOSTIC_VERSION,
     EXPERIMENTAL_RULE_IDS,
     PRODUCTION_EXPECTATION,
+    REPORT_SCHEMA_VERSION,
     SCIENTIFIC_CORE_FIELDS,
     PopulationExpectation,
     _combination_summary,
+    _evidence_population_summary,
+    _exact_evidence_topology,
+    _experimental_evidence_groups,
     _family_change_counts,
     _field_change_counts,
     _provenance_summary,
@@ -224,25 +229,64 @@ def test_decomposition_field_families_and_evidence_are_exact(tmp_path: Path) -> 
         {"fields": ["address_diagnostic_flags"], "rows": 5}
     ]
     evidence = payload["experimental_evidence_metrics"]
-    assert evidence["rule_presence"] == {
-        "both_rules": 6,
-        "house_number_only": 0,
-        "street_only": 0,
+    assert evidence["by_population"]["all_experimental_evidence"][
+        "rule_presence"
+    ]["counts"] == {
+        "both_v4_rules_present": 6,
+        "house_number_v4_only": 0,
+        "street_v4_only": 0,
     }
-    assert evidence["selection_outcome"] == {
-        "selected": 5,
-        "unselected": 1,
-        "mixed": 0,
+    assert evidence["by_population"]["overlap"]["selection_outcome"][
+        "counts"
+    ] == {
+        "both_selected": 5,
+        "house_selected_street_unselected": 0,
+        "street_selected_house_unselected": 0,
+        "both_unselected": 0,
+        "mixed_or_multiple_evidence_state": 0,
     }
-    assert evidence["population_role"] == {"overlap": 5, "evidence_only": 1}
-    assert evidence["selection_outcome_by_population"] == {
-        "overlap": {"selected": 5, "unselected": 0, "mixed": 0},
-        "evidence_only": {"selected": 0, "unselected": 1, "mixed": 0},
+    evidence_only = evidence["by_population"]["evidence_only"]
+    assert evidence_only["selection_outcome"]["counts"]["both_unselected"] is None
+    assert evidence_only["selection_outcome"]["suppressed_categories"] == [
+        "both_unselected"
+    ]
+    assert evidence_only["selection_outcome"]["reconciliation_total"] == 1
+    assert evidence["by_population"]["changed_only"] == {
+        "population_rows": 5,
+        "experimental_evidence_identities": 0,
+        "identities_without_experimental_evidence": 5,
+        "rule_presence": {
+            "counts": {
+                "both_v4_rules_present": 0,
+                "house_number_v4_only": 0,
+                "street_v4_only": 0,
+            },
+            "suppressed_categories": [],
+            "suppression_threshold": 5,
+            "reconciliation_total": 0,
+            "reconciliation_passed": True,
+        },
+        "selection_outcome": {
+            "counts": {
+                "both_selected": 0,
+                "house_selected_street_unselected": 0,
+                "street_selected_house_unselected": 0,
+                "both_unselected": 0,
+                "mixed_or_multiple_evidence_state": 0,
+            },
+            "suppressed_categories": [],
+            "suppression_threshold": 5,
+            "reconciliation_total": 0,
+            "reconciliation_passed": True,
+        },
     }
-    assert evidence["overlap_all_have_both_rules_selected"] is True
+    assert evidence["pairing_or_selection_assumed"] is False
+    assert evidence["topology_is_diagnostic_result"] is True
     assert set(evidence["selected_candidate_groups_by_rule"]) == set(
         EXPERIMENTAL_RULE_IDS
     )
+    assert DIAGNOSTIC_VERSION == "phase03_parser_v3_change_diagnostic_v2"
+    assert REPORT_SCHEMA_VERSION == "phase03_parser_v3_change_diagnostic_report_v2"
     assert payload["root_cause_assessment"]["classification"] == (
         "B_V3_PATH_CHANGED_SCIENTIFIC_METADATA_WITHOUT_V4_EVIDENCE"
     )
@@ -252,6 +296,123 @@ def test_decomposition_field_families_and_evidence_are_exact(tmp_path: Path) -> 
         "comparison_matches": True,
         "targeted_review_matches": True,
     }
+
+
+def test_asymmetric_experimental_evidence_topologies_are_diagnostic_results() -> (
+    None
+):
+    house_rule, street_rule = EXPERIMENTAL_RULE_IDS
+    rows: list[dict[str, Any]] = []
+
+    def add(
+        identity_index: int,
+        evidence_id: int,
+        rule_id: str,
+        selected: bool,
+        *,
+        repeat_span: bool = False,
+    ) -> None:
+        row = {
+            "stable_source_row_id_v1": _identity(identity_index),
+            "evidence_id": evidence_id,
+            "rule_id": rule_id,
+            "selected": selected,
+        }
+        rows.append(row)
+        if repeat_span:
+            rows.append(dict(row))
+
+    # Exercise paired selection, asymmetric selection, paired rejection,
+    # one-rule evidence, and multiple candidate groups without changing rules.
+    add(0, 1, house_rule, True)
+    add(0, 2, street_rule, True)
+    add(1, 1, house_rule, True)
+    add(1, 2, street_rule, False)
+    add(2, 1, house_rule, False)
+    add(2, 2, street_rule, True)
+    add(3, 1, house_rule, False)
+    add(3, 2, street_rule, False)
+    add(4, 1, house_rule, True)
+    add(5, 1, street_rule, False)
+    add(6, 1, house_rule, True)
+    add(6, 2, house_rule, False)
+    add(6, 3, street_rule, True)
+    # Repeated span rows share one evidence_id and remain one candidate group.
+    add(8, 1, house_rule, True, repeat_span=True)
+    add(8, 2, street_rule, True)
+
+    changed_ids = {_identity(index) for index in range(8)}
+    groups = _experimental_evidence_groups(rows)
+    exact_overlap = _exact_evidence_topology(changed_ids & set(groups), groups)
+    assert exact_overlap == {
+        "population_rows": 7,
+        "experimental_evidence_identities": 7,
+        "identities_without_experimental_evidence": 0,
+        "rule_presence": {
+            "both_v4_rules_present": 5,
+            "house_number_v4_only": 1,
+            "street_v4_only": 1,
+        },
+        "selection_outcome": {
+            "both_selected": 1,
+            "house_selected_street_unselected": 2,
+            "street_selected_house_unselected": 1,
+            "both_unselected": 2,
+            "mixed_or_multiple_evidence_state": 1,
+        },
+    }
+
+    evidence_ids, summary = _evidence_population_summary(rows, changed_ids=changed_ids)
+    assert evidence_ids == {*(_identity(index) for index in range(7)), _identity(8)}
+    assert summary["by_population"]["overlap"]["rule_presence"]["counts"] == {
+        "both_v4_rules_present": 5,
+        "house_number_v4_only": None,
+        "street_v4_only": None,
+    }
+    assert summary["by_population"]["overlap"]["rule_presence"][
+        "reconciliation_total"
+    ] == 7
+    assert summary["by_population"]["changed_only"]["population_rows"] == 1
+    assert summary["by_population"]["changed_only"][
+        "experimental_evidence_identities"
+    ] == 0
+    assert summary["by_population"]["evidence_only"][
+        "experimental_evidence_identities"
+    ] == 1
+    assert summary["pairing_or_selection_assumed"] is False
+
+
+def test_unknown_experimental_rule_and_inconsistent_group_fail_closed() -> None:
+    with pytest.raises(ValueError, match="UNKNOWN_EXPERIMENTAL_RULE_ID"):
+        _experimental_evidence_groups(
+            [
+                {
+                    "stable_source_row_id_v1": _identity(0),
+                    "evidence_id": 1,
+                    "rule_id": "FICTIONAL_UNKNOWN_EXPERIMENT_V4",
+                    "selected": False,
+                }
+            ]
+        )
+
+    house_rule = EXPERIMENTAL_RULE_IDS[0]
+    with pytest.raises(ValueError, match="selection is inconsistent"):
+        _experimental_evidence_groups(
+            [
+                {
+                    "stable_source_row_id_v1": _identity(0),
+                    "evidence_id": 1,
+                    "rule_id": house_rule,
+                    "selected": False,
+                },
+                {
+                    "stable_source_row_id_v1": _identity(0),
+                    "evidence_id": 1,
+                    "rule_id": house_rule,
+                    "selected": True,
+                },
+            ]
+        )
 
 
 def test_report_is_deterministic_bounded_and_privacy_safe(tmp_path: Path) -> None:
@@ -279,6 +440,7 @@ def test_report_is_deterministic_bounded_and_privacy_safe(tmp_path: Path) -> Non
         "human_labels_read": False,
         "locked_rows_read": 0,
         "rare_field_combination_suppression_threshold": 5,
+        "evidence_topology_small_cell_suppression_threshold": 5,
     }
     assert first["scientific_rule_change"] is False
     assert first["human_labels"] is False

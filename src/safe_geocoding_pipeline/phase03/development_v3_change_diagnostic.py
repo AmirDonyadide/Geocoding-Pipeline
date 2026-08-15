@@ -35,8 +35,8 @@ from .validation import (
     validate_evidence_rows,
 )
 
-DIAGNOSTIC_VERSION: Final = "phase03_parser_v3_change_diagnostic_v1"
-REPORT_SCHEMA_VERSION: Final = "phase03_parser_v3_change_diagnostic_report_v1"
+DIAGNOSTIC_VERSION: Final = "phase03_parser_v3_change_diagnostic_v2"
+REPORT_SCHEMA_VERSION: Final = "phase03_parser_v3_change_diagnostic_report_v2"
 REPORT_STATUS: Final = "SANITIZED_DEVELOPMENT_V3_CHANGE_DIAGNOSTIC_ONLY"
 EXPERIMENTAL_RULE_IDS: Final = (
     "HOUSE_NUMBER_EMBEDDED_DESIGNATOR_EXPERIMENT_V4",
@@ -45,7 +45,21 @@ EXPERIMENTAL_RULE_IDS: Final = (
 SCIENTIFIC_CORE_FIELDS: Final = CORE_COLUMNS[5:41]
 MINIMUM_REPORTABLE_COMBINATION_COUNT: Final = 5
 MAX_REPORTED_COMBINATIONS: Final = 32
+SMALL_CELL_SUPPRESSION_THRESHOLD: Final = 5
 _COMMIT = re.compile(r"[0-9a-f]{40}")
+
+_RULE_PRESENCE_CATEGORIES: Final = (
+    "both_v4_rules_present",
+    "house_number_v4_only",
+    "street_v4_only",
+)
+_SELECTION_OUTCOME_CATEGORIES: Final = (
+    "both_selected",
+    "house_selected_street_unselected",
+    "street_selected_house_unselected",
+    "both_unselected",
+    "mixed_or_multiple_evidence_state",
+)
 
 _SELECTED_NON_NATIVE_FIELDS: Final = (
     "street_clean",
@@ -428,82 +442,179 @@ def _transition_counts(
     }
 
 
+def _experimental_evidence_groups(
+    evidence_rows: Sequence[Mapping[str, Any]],
+) -> dict[bytes, dict[str, dict[int, bool]]]:
+    by_identity: dict[bytes, dict[str, dict[int, bool]]] = defaultdict(
+        lambda: defaultdict(dict)
+    )
+    for row in evidence_rows:
+        raw_rule_id = row["rule_id"]
+        rule_id = str(raw_rule_id) if raw_rule_id is not None else ""
+        if rule_id not in EXPERIMENTAL_RULE_IDS:
+            if "_EXPERIMENT_" in rule_id or rule_id.endswith("_EXPERIMENT_V4"):
+                raise ValueError("UNKNOWN_EXPERIMENTAL_RULE_ID")
+            continue
+        identity = bytes(row["stable_source_row_id_v1"])
+        evidence_id = int(row["evidence_id"])
+        selected = bool(row["selected"])
+        previous = by_identity[identity][rule_id].get(evidence_id)
+        if previous is not None and previous != selected:
+            raise ValueError("experimental evidence group selection is inconsistent")
+        by_identity[identity][rule_id][evidence_id] = selected
+    return {
+        identity: {rule_id: dict(groups) for rule_id, groups in rules.items()}
+        for identity, rules in by_identity.items()
+    }
+
+
+def _exact_evidence_topology(
+    identities: set[bytes],
+    groups_by_identity: Mapping[bytes, Mapping[str, Mapping[int, bool]]],
+) -> dict[str, Any]:
+    presence: Counter[str] = Counter()
+    selection: Counter[str] = Counter()
+    evidence_identity_count = 0
+    house_rule, street_rule = EXPERIMENTAL_RULE_IDS
+    for identity in identities:
+        rules = groups_by_identity.get(identity)
+        if not rules:
+            continue
+        evidence_identity_count += 1
+        observed_rules = set(rules)
+        presence_category = (
+            "both_v4_rules_present"
+            if observed_rules == set(EXPERIMENTAL_RULE_IDS)
+            else "house_number_v4_only"
+            if observed_rules == {house_rule}
+            else "street_v4_only"
+            if observed_rules == {street_rule}
+            else ""
+        )
+        if not presence_category:
+            raise ValueError("UNKNOWN_EXPERIMENTAL_RULE_ID")
+        presence[presence_category] += 1
+
+        # One candidate group may have several span rows; those repetitions have
+        # already been collapsed by evidence_id. More than one candidate group
+        # for either rule is a genuine multiple-evidence topology and is kept
+        # separate rather than coerced to one selected/unselected Boolean.
+        if any(len(candidate_groups) > 1 for candidate_groups in rules.values()):
+            selection["mixed_or_multiple_evidence_state"] += 1
+            continue
+        house_selected = any(rules.get(house_rule, {}).values())
+        street_selected = any(rules.get(street_rule, {}).values())
+        outcome = (
+            "both_selected"
+            if house_selected and street_selected
+            else "house_selected_street_unselected"
+            if house_selected
+            else "street_selected_house_unselected"
+            if street_selected
+            else "both_unselected"
+        )
+        selection[outcome] += 1
+
+    presence_counts = {
+        category: presence[category] for category in _RULE_PRESENCE_CATEGORIES
+    }
+    selection_counts = {
+        category: selection[category]
+        for category in _SELECTION_OUTCOME_CATEGORIES
+    }
+    exact = {
+        "population_rows": len(identities),
+        "experimental_evidence_identities": evidence_identity_count,
+        "identities_without_experimental_evidence": (
+            len(identities) - evidence_identity_count
+        ),
+        "rule_presence": presence_counts,
+        "selection_outcome": selection_counts,
+    }
+    if sum(presence_counts.values()) != evidence_identity_count or sum(
+        selection_counts.values()
+    ) != evidence_identity_count:
+        raise ValueError("EXPERIMENTAL_EVIDENCE_TOPOLOGY_RECONCILIATION_FAILED")
+    return exact
+
+
+def _suppressed_partition(
+    counts: Mapping[str, int], categories: Sequence[str], *, total: int
+) -> dict[str, Any]:
+    if sum(counts[category] for category in categories) != total:
+        raise ValueError("EXPERIMENTAL_EVIDENCE_TOPOLOGY_RECONCILIATION_FAILED")
+    suppressed = [
+        category
+        for category in categories
+        if 0 < counts[category] < SMALL_CELL_SUPPRESSION_THRESHOLD
+    ]
+    return {
+        "counts": {
+            category: None if category in suppressed else counts[category]
+            for category in categories
+        },
+        "suppressed_categories": suppressed,
+        "suppression_threshold": SMALL_CELL_SUPPRESSION_THRESHOLD,
+        "reconciliation_total": total,
+        "reconciliation_passed": True,
+    }
+
+
+def _sanitized_evidence_topology(exact: Mapping[str, Any]) -> dict[str, Any]:
+    evidence_identities = int(exact["experimental_evidence_identities"])
+    presence = cast(Mapping[str, int], exact["rule_presence"])
+    selection = cast(Mapping[str, int], exact["selection_outcome"])
+    return {
+        "population_rows": int(exact["population_rows"]),
+        "experimental_evidence_identities": evidence_identities,
+        "identities_without_experimental_evidence": int(
+            exact["identities_without_experimental_evidence"]
+        ),
+        "rule_presence": _suppressed_partition(
+            presence, _RULE_PRESENCE_CATEGORIES, total=evidence_identities
+        ),
+        "selection_outcome": _suppressed_partition(
+            selection, _SELECTION_OUTCOME_CATEGORIES, total=evidence_identities
+        ),
+    }
+
+
 def _evidence_population_summary(
     evidence_rows: Sequence[Mapping[str, Any]],
     *,
     changed_ids: set[bytes],
 ) -> tuple[set[bytes], dict[str, Any]]:
-    by_identity: dict[bytes, dict[tuple[int, str], bool]] = defaultdict(dict)
-    for row in evidence_rows:
-        rule_id = str(row["rule_id"])
-        if rule_id not in EXPERIMENTAL_RULE_IDS:
-            continue
-        identity = bytes(row["stable_source_row_id_v1"])
-        key = (int(row["evidence_id"]), rule_id)
-        selected = bool(row["selected"])
-        previous = by_identity[identity].get(key)
-        if previous is not None and previous != selected:
-            raise ValueError("experimental evidence group selection is inconsistent")
-        by_identity[identity][key] = selected
-
-    presence: Counter[str] = Counter()
-    selection: Counter[str] = Counter()
-    population_role: Counter[str] = Counter()
-    selected_rule_counts: Counter[str] = Counter()
-    selection_by_population: dict[str, Counter[str]] = {
-        "overlap": Counter(),
-        "evidence_only": Counter(),
+    by_identity = _experimental_evidence_groups(evidence_rows)
+    evidence_ids = set(by_identity)
+    populations = {
+        "all_experimental_evidence": evidence_ids,
+        "overlap": changed_ids & evidence_ids,
+        "changed_only": changed_ids - evidence_ids,
+        "evidence_only": evidence_ids - changed_ids,
     }
-    for identity, groups in by_identity.items():
-        rules = {rule_id for _, rule_id in groups}
-        presence[
-            "both_rules"
-            if rules == set(EXPERIMENTAL_RULE_IDS)
-            else "house_number_only"
-            if rules == {EXPERIMENTAL_RULE_IDS[0]}
-            else "street_only"
-        ] += 1
-        states = set(groups.values())
-        outcome = (
-            "selected"
-            if states == {True}
-            else "unselected"
-            if states == {False}
-            else "mixed"
-        )
-        selection[outcome] += 1
-        role = "overlap" if identity in changed_ids else "evidence_only"
-        population_role[role] += 1
-        selection_by_population[role][outcome] += 1
-        if role == "overlap" and (
-            rules != set(EXPERIMENTAL_RULE_IDS) or outcome != "selected"
-        ):
-            raise ValueError("OVERLAP_EXPERIMENTAL_EVIDENCE_NOT_PAIRED_AND_SELECTED")
-        for (_, rule_id), selected in groups.items():
-            if selected:
-                selected_rule_counts[rule_id] += 1
-    return set(by_identity), {
-        "rule_presence": {
-            key: presence[key]
-            for key in ("both_rules", "house_number_only", "street_only")
+
+    candidate_group_counts: Counter[str] = Counter()
+    selected_rule_counts: Counter[str] = Counter()
+    for rules in by_identity.values():
+        for rule_id, groups in rules.items():
+            candidate_group_counts[rule_id] += len(groups)
+            selected_rule_counts[rule_id] += sum(groups.values())
+    return evidence_ids, {
+        "by_population": {
+            name: _sanitized_evidence_topology(
+                _exact_evidence_topology(identities, by_identity)
+            )
+            for name, identities in populations.items()
         },
-        "selection_outcome": {
-            key: selection[key] for key in ("selected", "unselected", "mixed")
+        "candidate_groups_by_rule": {
+            rule_id: candidate_group_counts[rule_id]
+            for rule_id in EXPERIMENTAL_RULE_IDS
         },
-        "population_role": {
-            key: population_role[key] for key in ("overlap", "evidence_only")
-        },
-        "selection_outcome_by_population": {
-            role: {
-                outcome: selection_by_population[role][outcome]
-                for outcome in ("selected", "unselected", "mixed")
-            }
-            for role in ("overlap", "evidence_only")
-        },
-        "overlap_all_have_both_rules_selected": True,
         "selected_candidate_groups_by_rule": {
             rule_id: selected_rule_counts[rule_id] for rule_id in EXPERIMENTAL_RULE_IDS
         },
+        "pairing_or_selection_assumed": False,
+        "topology_is_diagnostic_result": True,
     }
 
 
@@ -627,6 +738,9 @@ def _render_markdown(payload: Mapping[str, Any]) -> str:
     counts = cast(Mapping[str, int], payload["population"])
     assessment = cast(Mapping[str, Any], payload["root_cause_assessment"])
     field_counts = cast(Mapping[str, Mapping[str, int]], payload["field_change_counts"])
+    evidence_metrics = cast(
+        Mapping[str, Any], payload["experimental_evidence_metrics"]
+    )
     lines = [
         "# Phase 3 Parser-v3 DEVELOPMENT change diagnostic",
         "",
@@ -659,6 +773,26 @@ def _render_markdown(payload: Mapping[str, Any]) -> str:
     lines.extend(f"- `{field}`: {count}" for field, count in nonzero)
     if not nonzero:
         lines.append("- None")
+    lines.extend(["", "## Experimental V4 evidence topology", ""])
+    by_population = cast(
+        Mapping[str, Mapping[str, Any]], evidence_metrics["by_population"]
+    )
+    for population in ("overlap", "changed_only", "evidence_only"):
+        topology = by_population[population]
+        lines.append(f"### {population}")
+        lines.append("")
+        lines.append(
+            "- Experimental-evidence identities: "
+            f"{topology['experimental_evidence_identities']}"
+        )
+        for partition_name in ("rule_presence", "selection_outcome"):
+            partition = cast(Mapping[str, Any], topology[partition_name])
+            category_counts = cast(Mapping[str, int | None], partition["counts"])
+            lines.append(f"- {partition_name}:")
+            for category, value in category_counts.items():
+                rendered = "SUPPRESSED_LT_5" if value is None else str(value)
+                lines.append(f"  - `{category}`: {rendered}")
+        lines.append("")
     lines.extend(
         [
             "",
@@ -686,6 +820,7 @@ def _implementation_fingerprint(implementation_commit: str) -> str:
                 MINIMUM_REPORTABLE_COMBINATION_COUNT
             ),
             "maximum_reported_combinations": MAX_REPORTED_COMBINATIONS,
+            "small_cell_suppression_threshold": SMALL_CELL_SUPPRESSION_THRESHOLD,
         }
     )
 
@@ -914,6 +1049,9 @@ def diagnose_development_v3_changes(
             "locked_rows_read": 0,
             "rare_field_combination_suppression_threshold": (
                 MINIMUM_REPORTABLE_COMBINATION_COUNT
+            ),
+            "evidence_topology_small_cell_suppression_threshold": (
+                SMALL_CELL_SUPPRESSION_THRESHOLD
             ),
         },
         "inputs": artifacts,

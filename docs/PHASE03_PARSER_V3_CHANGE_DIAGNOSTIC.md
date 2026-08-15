@@ -14,7 +14,7 @@ count of 26. The observed aggregate decomposition was:
 - 28 rows in the deduplicated union.
 
 The mismatch is not resolved by changing the expected count. Version
-`phase03_parser_v3_change_diagnostic_v1` explains the two non-overlap
+`phase03_parser_v3_change_diagnostic_v2` explains the two non-overlap
 populations from the already completed 8,000-row Parser v2 and Parser v3 core
 and evidence outputs. It does not rerun either parser, pilot selection, or Phase
 2; read human labels; create a review workspace; or access LOCKED_EVALUATION.
@@ -45,6 +45,15 @@ The production command asserts all seven observed counts—8,000, 26, 11, 9,
 17, 2, and 28—before writing a report. It does not modify the separate
 targeted-review expected-count gate.
 
+Goethe job `1749435` independently confirmed all seven counts, then exposed an
+invalid diagnostic-only assumption: separate aggregate totals of nine selected
+house candidates and nine selected street candidates do not prove that both
+rules occur and are selected on the same nine identities. Version 1 therefore
+stopped on `OVERLAP_EXPERIMENTAL_EVIDENCE_NOT_PAIRED_AND_SELECTED` before it
+could report the changed-only field decomposition. Version 2 removes that
+unproved invariant. Presence and selection pairing are measured as diagnostic
+results; none is assumed.
+
 ## Sanitized output contract
 
 The diagnostic produces two owner-only files:
@@ -63,7 +72,10 @@ The JSON contains:
   cap, and explicit suppressed-combination/row residuals;
 - aggregate provenance, representation, conflict, diagnostic, completeness,
   evaluation, and safety changes;
-- experimental evidence presence and selected/unselected/mixed outcomes;
+- per-population V4 presence topology (both rules, house only, or street only)
+  and independent selection topology (both selected, either asymmetric
+  selection, both unselected, or multiple candidate-group state), with counts
+  from one to four suppressed;
 - one bounded root-cause classification or an explicit insufficient-evidence
   result;
 - input byte sizes and SHA-256 values keyed only by logical artifact role; and
@@ -76,6 +88,15 @@ experimental rule IDs are the only reported names. Rare changed-field
 combinations are suppressed rather than emitted as unique structural
 fingerprints. Frequency is not scientific correctness and the diagnostic
 applies no promotion or review threshold.
+
+The original diagnostic regression fixture contained 12 rows, not 500. Its
+five overlap rows were generated from one symmetric non-native Parser-v3 form,
+so both V4 rules were always present and selected together; its one
+evidence-only row also emitted the same paired rules. The fixture therefore
+encoded, rather than tested, the invalid pairing assumption. Version 2 adds
+asymmetric one-rule, one-selected, neither-selected, repeated-span, and
+multiple-candidate-group fixtures. Any unrelated 500-row tests in the
+repository exercise sampling caps, not this evidence topology.
 
 ## Fail-closed validation
 
