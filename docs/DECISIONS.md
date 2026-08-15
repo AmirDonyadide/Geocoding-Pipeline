@@ -25,6 +25,13 @@ This register distinguishes approved project rules from questions that require e
 - `/scratch` is not used; `/work/footprint/public` and the shared Conda base are not modified.
 - The existing `parquet_files` products are invalid and cannot serve as staging data.
 - Work proceeds one reviewed phase at a time and stops after every phase.
+- The completed parser-v3 experiment remains unpromoted. Its targeted human
+  review population is the deterministic deduplicated union of DEVELOPMENT
+  rows with v2-v3 scientific-output changes and rows with either experimental
+  rule's evidence. Every affected identity receives two independent blinded
+  reviews in a separate owner-only Goethe namespace; the main 800-row review
+  and LOCKED_EVALUATION remain untouched. No frequency, review result, or fill
+  rate automatically promotes the experiment.
 - Production-heavy commands reuse the common execution guard and require both `SAFE_EXECUTION_SITE=goethe-nhr` and a non-empty `SLURM_JOB_ID`; there is no ordinary local-production bypass. This controls runtime and SSD/I/O load, improves scheduler resource control, preserves reproducible host/runtime boundaries, strengthens auditability, and supports later full-data phases.
 
 ### Phase 3 execution-site correction

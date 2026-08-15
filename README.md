@@ -103,6 +103,23 @@ The same document specifies the narrower targeted-opportunity command, whose
 predeclared pattern-family cross-tabs retain the same privacy and phase
 boundaries.
 
+The narrow parser-v3 experiment has a separate protected DEVELOPMENT review
+command and schema. It does not reuse or alter the main 800-row review stores:
+
+```bash
+safe-geocoding-phase03-targeted-review schema
+safe-geocoding-phase03-targeted-review prepare ...
+safe-geocoding-phase03-targeted-review initialize ...
+safe-geocoding-phase03-targeted-review review ...
+safe-geocoding-phase03-targeted-review progress ...
+safe-geocoding-phase03-targeted-review export-controlled-labels ...
+safe-geocoding-phase03-targeted-review score ...
+```
+
+Real preparation and review run only on Goethe-NHR compute nodes, use the fixed
+8,000-row DEVELOPMENT payload, and reject LOCKED paths. See
+`docs/PHASE03_PARSER_V3_TARGETED_REVIEW.md`.
+
 Validate the bundled rule registry and display privacy-safe framework metadata:
 
 ```bash

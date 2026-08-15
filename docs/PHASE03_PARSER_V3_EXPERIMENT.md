@@ -113,7 +113,23 @@ source paths, or per-row results. It deliberately records
 `EXPERIMENTAL_COMPARISON_COMPLETE_NO_PROMOTION_DECISION` and applies no
 scientific PASS threshold.
 
-## Prepared Goethe-NHR evaluation (not submitted)
+## Completed Goethe-NHR comparison and targeted-review boundary
+
+The approved comparison ran as SLURM job `1749335` at commit
+`fa3b924657aed47bfe6aaa80d87353f8d9b78139`, producing immutable iteration
+`phase03_development_parser_v3_experimental_20260815T174529Z_1749335_fa3b9246`.
+It found 26 rows with scientific-output changes, nine new paired street/house
+selections, and 22 candidate groups for each experimental rule (nine selected,
+thirteen unselected), with no lost or changed v2 selections and no new
+conflicts. Status remains
+`EXPERIMENTAL_COMPARISON_COMPLETE_NO_PROMOTION_DECISION`.
+
+The separately versioned protected targeted-review workflow is documented in
+`docs/PHASE03_PARSER_V3_TARGETED_REVIEW.md`. It reviews the deduplicated union of
+changed rows and rows with experimental-rule evidence, and does not alter this
+parser or authorize promotion.
+
+## Historical Goethe-NHR evaluation procedure
 
 The job reads the fixed 8,000-row DEVELOPMENT payload and identities plus the
 immutable successful parser-v2 core/evidence artifacts. It does not run

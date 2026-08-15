@@ -49,6 +49,12 @@ This is the approved conceptual workflow. It is not an implementation plan or ev
   LOCKED_EVALUATION, and cannot be promoted without aggregate comparison and
   protected manual-review evidence. See
   `docs/PHASE03_PARSER_V3_EXPERIMENT.md`.
+- **Targeted parser-v3 review:** A separate protected DEVELOPMENT workflow may
+  review every identity in the exact union of v2-v3 scientific-output changes
+  and experimental-rule evidence. Both pseudonymous reviewers receive the full
+  population under deterministic independent order/blinding. Only aggregate
+  scores may leave Goethe; review evidence does not authorize promotion. See
+  `docs/PHASE03_PARSER_V3_TARGETED_REVIEW.md`.
 - **Major decisions:** International parsing rules, deterministic normalization, country mapping, handling of geography embedded in free-form lines, and separation of company/unit content.
 - **STOP gate:** Review country/address-family behavior, transformations, unresolved records, and evidence that raw values remain traceable and unchanged.
 
