@@ -41,6 +41,14 @@ This is the approved conceptual workflow. It is not an implementation plan or ev
   corroborating components, representation, country, and script. It applies
   the same five-row disclosure threshold and bounded labels; it remains
   descriptive evidence and does not authorize Parser v3.
+- **Narrow parser-v3 experiment:** The only implemented post-profile hypothesis
+  is the explicitly versioned, opt-in
+  `conservative_address_parser_v3_experimental` paired street/house rule for a
+  strictly gated subset of `WORDS HOUSELIKE_NUM WORDS`. It is evaluated only on
+  the existing 8,000 DEVELOPMENT payload, never reruns selection or accesses
+  LOCKED_EVALUATION, and cannot be promoted without aggregate comparison and
+  protected manual-review evidence. See
+  `docs/PHASE03_PARSER_V3_EXPERIMENT.md`.
 - **Major decisions:** International parsing rules, deterministic normalization, country mapping, handling of geography embedded in free-form lines, and separation of company/unit content.
 - **STOP gate:** Review country/address-family behavior, transformations, unresolved records, and evidence that raw values remain traceable and unchanged.
 

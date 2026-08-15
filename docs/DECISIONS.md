@@ -161,6 +161,21 @@ These are empirical properties of the exact current snapshot, not permanent prov
   artifacts. All cross-tab categories require at least five distinct rows,
   are capped at 100 names, and contain only closed structural labels and
   aggregate counts. This diagnostic cannot create or approve Parser v3 rules.
+- Sanitized targeted profile job `1749332` supports one narrow, unapproved
+  DEVELOPMENT experiment for the `WORDS HOUSELIKE_NUM WORDS` family. Parser
+  `conservative_address_parser_v3_experimental` accepts only one same-line,
+  punctuation-free center integer when exactly one side is an approved
+  designator-bearing street, the opposite side is one non-role word, at least
+  two unambiguous structured geography components corroborate the row, no
+  existing address-role candidate competes, postcode equality is absent, and
+  a material native/non-native counterpart independently agrees exactly. The
+  opposite word remains residual. The atomic hypothesis is represented by the
+  paired v4 street/house registry entries documented in
+  `docs/PHASE03_PARSER_V3_EXPERIMENT.md`.
+- Parser v3 is not scientifically approved and does not replace parser v2.
+  Promotion requires exact same-identity 8,000-row DEVELOPMENT comparison,
+  acceptable conflict/lost-selection diagnostics, and targeted protected human
+  review. The seven other targeted morphology families remain unsupported.
 - The DEVELOPMENT portable manual-review v2 schema intentionally has 28
   columns, superseding the earlier 27-column draft because `assignment_role`
   was added before any v2 artifact existed. Tests freeze its exact Arrow order,

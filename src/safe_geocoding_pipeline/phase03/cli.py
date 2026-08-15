@@ -10,9 +10,13 @@ from .config import Phase03Config
 from .constants import (
     PARSER_VERSION_V1,
     PARSER_VERSION_V2,
+    PARSER_VERSION_V3,
     RULE_EXECUTION_DISPOSITIONS,
 )
-from .development_comparison import compare_development_parser_outputs
+from .development_comparison import (
+    compare_development_parser_outputs,
+    compare_development_parser_v2_v3_outputs,
+)
 from .development_pattern_profiler import profile_development_patterns
 from .development_targeted_opportunity_profiler import (
     TARGETED_PROFILER_VERSION,
@@ -106,7 +110,7 @@ def build_parser() -> argparse.ArgumentParser:
     transform.add_argument("--git-commit", required=True)
     transform.add_argument(
         "--parser-version",
-        choices=(PARSER_VERSION_V1, PARSER_VERSION_V2),
+        choices=(PARSER_VERSION_V1, PARSER_VERSION_V2, PARSER_VERSION_V3),
         default=PARSER_VERSION_V1,
     )
     comparison = subparsers.add_parser("development-compare-parsers")
@@ -114,6 +118,21 @@ def build_parser() -> argparse.ArgumentParser:
     comparison.add_argument("--revised-core", type=Path, required=True)
     comparison.add_argument("--output", type=Path, required=True)
     comparison.add_argument("--expected-rows", type=int, default=8_000)
+    experimental_comparison = subparsers.add_parser(
+        "development-compare-parser-v2-v3"
+    )
+    experimental_comparison.add_argument(
+        "--baseline-core", type=Path, required=True
+    )
+    experimental_comparison.add_argument(
+        "--baseline-evidence", type=Path, required=True
+    )
+    experimental_comparison.add_argument("--revised-core", type=Path, required=True)
+    experimental_comparison.add_argument(
+        "--revised-evidence", type=Path, required=True
+    )
+    experimental_comparison.add_argument("--output", type=Path, required=True)
+    experimental_comparison.add_argument("--expected-rows", type=int, default=8_000)
     review_sample = subparsers.add_parser("development-review-sample")
     review_sample.add_argument("--state-path", type=Path, required=True)
     review_sample.add_argument("--development-payload", type=Path, required=True)
@@ -406,6 +425,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         payload = compare_development_parser_outputs(
             args.baseline_core,
             args.revised_core,
+            args.output,
+            expected_rows=args.expected_rows,
+        )
+    elif args.command == "development-compare-parser-v2-v3":
+        payload = compare_development_parser_v2_v3_outputs(
+            args.baseline_core,
+            args.baseline_evidence,
+            args.revised_core,
+            args.revised_evidence,
             args.output,
             expected_rows=args.expected_rows,
         )

@@ -250,6 +250,13 @@ The benchmark is fictional-only and reports performance, evidence expansion,
 and known-synthetic-truth component precision/recall without declaring a
 scientific acceptance threshold.
 
+The opt-in `conservative_address_parser_v3_experimental` adds only the narrow
+paired center-integer/designator hypothesis documented in
+`docs/PHASE03_PARSER_V3_EXPERIMENT.md`. It remains DEVELOPMENT-only and
+unapproved. Its prepared Goethe job reuses the existing 8,000 DEVELOPMENT rows,
+does not rerun sampling, and compares completed v2/v3 core and evidence using
+aggregate-only diagnostics. Parser v2 and the default parser remain unchanged.
+
 Production data must not be run from the Mac. The prepared, not-submitted
 Goethe workflow is
 `cluster/goethe_nhr/phase03_development_parser_v2.sbatch`; it reuses only the

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
-from collections import defaultdict
+from collections import Counter, defaultdict
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from typing import Any
@@ -17,9 +17,11 @@ from .constants import (
     EVIDENCE_KINDS,
     EXECUTION_SCOPES,
     PARSER_VERSION_V2,
+    PARSER_VERSION_V3,
     POSTCODE_FLAGS,
     REPRESENTATIONS,
 )
+
 from .errors import Phase03Error
 from .models import Candidate, RawSpan, SelectedComponent, TransformResult
 from .references import CountryReference, ScriptReference
@@ -32,6 +34,17 @@ from .text import (
     normalize_derived_text,
     representation_for_field,
     tokenize_with_spans,
+)
+
+_MODERN_PARSER_VERSIONS = frozenset({PARSER_VERSION_V2, PARSER_VERSION_V3})
+_EXPERIMENTAL_RULE_IDS = frozenset(
+    {
+        "HOUSE_NUMBER_EMBEDDED_DESIGNATOR_EXPERIMENT_V4",
+        "STREET_EMBEDDED_DESIGNATOR_EXPERIMENT_V4",
+    }
+)
+_EXPERIMENTAL_COMPETING_COMPONENTS = frozenset(
+    {"STREET", "HOUSE_NUMBER", "UNIT", "FLOOR", "BUILDING", "ORGANIZATION", "PO_BOX"}
 )
 
 _COMPONENT_TO_SCALAR = {
@@ -299,6 +312,8 @@ def _marker_matches(raw: str, tokens: Sequence[Token], rule: RuleSpec) -> list[_
         results.extend(_explicit_floor_matches(raw, tokens, rule))
     elif rule.matcher == "EXPLICIT_BUILDING_SEGMENT":
         results.extend(_explicit_building_matches(raw, tokens, rule))
+    elif rule.matcher == "EXPERIMENTAL_EMBEDDED_STREET_SEGMENT":
+        results.extend(_experimental_embedded_street_matches(raw, tokens, rule))
     return results
 
 
@@ -613,6 +628,62 @@ def _generic_street_matches(
             )
             output.append(_Match(span, (span,)))
     return sorted(set(output), key=lambda item: item.value_span)
+
+
+def _experimental_embedded_street_matches(
+    raw: str, tokens: Sequence[Token], rule: RuleSpec
+) -> list[_Match]:
+    """Match one deliberately narrow center-integer/designator hypothesis."""
+    segments = _segments(raw, tokens)
+    if len(segments) != 1 or any(token.kind != "WORD" for token in tokens):
+        return []
+    segment = segments[0]
+    parameters = rule.matching_condition["parameters"]
+    numeric_indices = [
+        index
+        for index, token in enumerate(segment.tokens)
+        if token.raw.isdecimal()
+        and _bounded_numeric_token(
+            token.raw, int(parameters["house_number_max_digits"])
+        )
+    ]
+    if len(numeric_indices) != 1:
+        return []
+    numeric_index = numeric_indices[0]
+    if numeric_index in {0, len(segment.tokens) - 1}:
+        return []
+    if any(
+        any(character.isdecimal() for character in token.raw)
+        for index, token in enumerate(segment.tokens)
+        if index != numeric_index
+    ):
+        return []
+    left = segment.tokens[:numeric_index]
+    right = segment.tokens[numeric_index + 1 :]
+    resource = _bound_street_reference(rule)
+    left_is_street = _street_designator_present(left, resource)
+    right_is_street = _street_designator_present(right, resource)
+    if left_is_street == right_is_street:
+        return []
+    street_tokens = left if left_is_street else right
+    opposite_tokens = right if left_is_street else left
+    if not 1 <= len(opposite_tokens) <= int(
+        parameters["maximum_opposite_word_tokens"]
+    ):
+        return []
+    reserved = set(parameters["reserved_role_tokens"])
+    if any(token.comparison in reserved for token in opposite_tokens):
+        return []
+    if any(not any(character.isalpha() for character in token.raw) for token in opposite_tokens):
+        return []
+    house = segment.tokens[numeric_index]
+    house_span = (house.start, house.end)
+    street_span = (street_tokens[0].start, street_tokens[-1].end)
+    if rule.extractor == "MATCHED_EMBEDDED_HOUSE_NUMBER_SPAN":
+        return [_Match(house_span, (house_span,))]
+    if rule.extractor == "MATCHED_EMBEDDED_STREET_SPAN":
+        return [_Match(street_span, (street_span,))]
+    raise Phase03Error("RULE_REGISTRY_INVALID", "experimental extractor mismatch")
 
 
 def _floor_identifier(value: str, maximum_digits: int) -> bool:
@@ -1029,6 +1100,114 @@ def _candidate_is_exact_selected_evidence(
     )
 
 
+def _gate_experimental_embedded_candidates(
+    raw: Mapping[str, str],
+    states: Mapping[str, str],
+    candidates: Sequence[Candidate],
+    *,
+    minimum_structured_geography_components: int,
+) -> list[Candidate]:
+    """Fail closed unless the complete row supports the v3 DEVELOPMENT experiment."""
+    experimental = [
+        candidate
+        for candidate in candidates
+        if candidate.rule_id in _EXPERIMENTAL_RULE_IDS
+    ]
+    if not experimental:
+        return list(candidates)
+
+    def disabled() -> list[Candidate]:
+        return [
+            replace(candidate, selectable=False)
+            if candidate.rule_id in _EXPERIMENTAL_RULE_IDS
+            else candidate
+            for candidate in candidates
+        ]
+
+    other_candidates = [
+        candidate
+        for candidate in candidates
+        if candidate.rule_id not in _EXPERIMENTAL_RULE_IDS
+    ]
+    if any(
+        candidate.component in _EXPERIMENTAL_COMPETING_COMPONENTS
+        for candidate in other_candidates
+    ):
+        return disabled()
+
+    direct_sources = {
+        "POSTCODE": "postcode",
+        "LOCALITY": "city",
+        "REGION": "region_in_country",
+        "COUNTRY": "country_iso_code",
+    }
+    structured_support = 0
+    for component, source_field in direct_sources.items():
+        direct_values = {
+            candidate.value
+            for candidate in other_candidates
+            if candidate.component == component
+            and candidate.selectable
+            and candidate.source_fields == (source_field,)
+        }
+        all_values = {
+            candidate.value
+            for candidate in other_candidates
+            if candidate.component == component
+        }
+        if len(all_values) > 1 or len(direct_values) > 1:
+            return disabled()
+        structured_support += len(direct_values)
+    if structured_support < minimum_structured_geography_components:
+        return disabled()
+
+    grouped: dict[tuple[str, str], list[Candidate]] = defaultdict(list)
+    for candidate in experimental:
+        if len(candidate.source_fields) != 1:
+            return disabled()
+        grouped[(candidate.representation, candidate.source_fields[0])].append(
+            candidate
+        )
+    if any(
+        {candidate.component for candidate in group} != {"STREET", "HOUSE_NUMBER"}
+        or len(group) != 2
+        or not all(candidate.selectable for candidate in group)
+        for group in grouped.values()
+    ):
+        return disabled()
+    by_representation = Counter(representation for representation, _ in grouped)
+    if any(count > 1 for count in by_representation.values()):
+        return disabled()
+
+    normalized_postcode = (
+        normalize_derived_text(raw["postcode"])
+        if states["postcode"] == "CONTENT"
+        else None
+    )
+    pair_values = {
+        key: {candidate.component: candidate.value for candidate in group}
+        for key, group in grouped.items()
+    }
+    for (representation, source_field), pair_components in pair_values.items():
+        if pair_components["HOUSE_NUMBER"] == normalized_postcode:
+            return disabled()
+        field_index = ADDRESS_FIELDS.index(source_field)
+        counterpart = ADDRESS_FIELDS[
+            field_index + 4 if representation == "NON_NATIVE" else field_index - 4
+        ]
+        counterpart_representation = (
+            "NATIVE" if representation == "NON_NATIVE" else "NON_NATIVE"
+        )
+        if states[counterpart] != "CONTENT":
+            continue
+        counterpart_values = pair_values.get(
+            (counterpart_representation, counterpart)
+        )
+        if counterpart_values != pair_components:
+            return disabled()
+    return list(candidates)
+
+
 def postcode_diagnostics(raw: str, state: str, normalized: str | None) -> list[str]:
     flags: set[str] = set()
     if raw == "":
@@ -1128,7 +1307,12 @@ class Phase03Engine:
             raise Phase03Error("RULE_REGISTRY_VERSION_MISMATCH")
         if execution_scope not in EXECUTION_SCOPES:
             raise ValueError("execution scope is not registered")
-        if config.parser_version == PARSER_VERSION_V2:
+        if (
+            config.parser_version == PARSER_VERSION_V3
+            and execution_scope != "DEVELOPMENT"
+        ):
+            raise Phase03Error("PARSER_V3_EXPERIMENT_DEVELOPMENT_ONLY")
+        if config.parser_version in _MODERN_PARSER_VERSIONS:
             street_resource = load_street_designators()
             for rule in registry.rules:
                 parameters = rule.matching_condition["parameters"]
@@ -1141,6 +1325,28 @@ class Phase03Engine:
                     != street_resource.artifact_sha256
                 ):
                     raise Phase03Error("STREET_DESIGNATOR_REFERENCE_MISMATCH")
+        experimental_rules = [
+            rule for rule in registry.rules if rule.rule_id in _EXPERIMENTAL_RULE_IDS
+        ]
+        self.experimental_structured_support_minimum: int | None
+        if config.parser_version == PARSER_VERSION_V3:
+            minima = {
+                int(
+                    rule.matching_condition["parameters"][
+                        "minimum_structured_geography_components"
+                    ]
+                )
+                for rule in experimental_rules
+            }
+            if (
+                {rule.rule_id for rule in experimental_rules}
+                != _EXPERIMENTAL_RULE_IDS
+                or len(minima) != 1
+            ):
+                raise Phase03Error("EXPERIMENTAL_RULE_PAIR_MISMATCH")
+            self.experimental_structured_support_minimum = next(iter(minima))
+        else:
+            self.experimental_structured_support_minimum = None
         self.config = config
         self.registry = registry
         self.country_reference = country_reference
@@ -1150,7 +1356,11 @@ class Phase03Engine:
         self.configuration_fingerprint = bytes.fromhex(
             fingerprint(
                 {
-                    "version": "phase03_effective_configuration_v2",
+                    "version": (
+                        "phase03_effective_configuration_v3_experimental"
+                        if config.parser_version == PARSER_VERSION_V3
+                        else "phase03_effective_configuration_v2"
+                    ),
                     "base_configuration_fingerprint": (
                         config.configuration_fingerprint().hex()
                     ),
@@ -1271,6 +1481,12 @@ class Phase03Engine:
                 if rule.development_shadow_only
                 else authoritative_candidates
             )
+            if rule.rule_id in _EXPERIMENTAL_RULE_IDS and any(
+                candidate.rule_id not in _EXPERIMENTAL_RULE_IDS
+                and candidate.component in _EXPERIMENTAL_COMPETING_COMPONENTS
+                for candidate in authoritative_candidates
+            ):
+                continue
             for field in rule.eligible_source_fields:
                 value = raw[field]
                 if not safe[field] or byte_lengths[field] > min(
@@ -1359,7 +1575,7 @@ class Phase03Engine:
                 )
             )
         ]
-        if self.config.parser_version == PARSER_VERSION_V2:
+        if self.config.parser_version in _MODERN_PARSER_VERSIONS:
             structured_postcode = (
                 normalize_derived_text(raw["postcode"])
                 if states["postcode"] == "CONTENT"
@@ -1373,8 +1589,18 @@ class Phase03Engine:
                     else candidate
                     for candidate in authoritative_candidates
                 ]
+        if self.config.parser_version == PARSER_VERSION_V3:
+            assert self.experimental_structured_support_minimum is not None
+            authoritative_candidates = _gate_experimental_embedded_candidates(
+                raw,
+                states,
+                authoritative_candidates,
+                minimum_structured_geography_components=(
+                    self.experimental_structured_support_minimum
+                ),
+            )
         conflicts.update(_registered_overlap_conflicts(authoritative_candidates))
-        if self.config.parser_version == PARSER_VERSION_V2:
+        if self.config.parser_version in _MODERN_PARSER_VERSIONS:
             conflicts.update(
                 _unresolved_component_overlap_conflicts(authoritative_candidates)
             )
@@ -1421,7 +1647,7 @@ class Phase03Engine:
         selected = [
             item for item in selected if item.component not in conflicted_components
         ]
-        if self.config.parser_version == PARSER_VERSION_V2:
+        if self.config.parser_version in _MODERN_PARSER_VERSIONS:
             selected = _reconcile_exact_representation_agreement(selected)
         if any(
             candidate.component == "PO_BOX" for candidate in authoritative_candidates
@@ -1449,7 +1675,7 @@ class Phase03Engine:
             if _candidate_supports_selection(candidate, selected)
             for span in candidate.spans
         )
-        if self.config.parser_version == PARSER_VERSION_V2:
+        if self.config.parser_version in _MODERN_PARSER_VERSIONS:
             unassigned_spans = tuple(
                 span
                 for field in ADDRESS_FIELDS

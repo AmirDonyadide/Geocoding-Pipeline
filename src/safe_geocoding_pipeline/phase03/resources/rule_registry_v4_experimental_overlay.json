@@ -1,0 +1,52 @@
+{
+  "schema_version": "phase03_rule_registry_overlay_schema_v1",
+  "registry_version": "phase03_rule_registry_v4_experimental",
+  "base_registry_version": "phase03_rule_registry_v3",
+  "base_registry_sha256": "a2aadae857b7d4bf7262bd37e6dacf58aae220e00b402ca971c51cea320d6f55",
+  "additional_rules": [
+    {
+      "rule_id": "HOUSE_NUMBER_EMBEDDED_DESIGNATOR_EXPERIMENT_V4",
+      "rule_version": 4,
+      "execution_disposition": "AUTHORITATIVE_SELECTABLE",
+      "component": "HOUSE_NUMBER",
+      "representation": "ANY",
+      "eligible_source_fields": ["street_address_line_1", "street_address_line_2", "street_address_line_3", "street_address_line_4", "street_address_line_1_native", "street_address_line_2_native", "street_address_line_3_native", "street_address_line_4_native"],
+      "preconditions": {"SEMANTIC_STATE_IS": "CONTENT"},
+      "match_input": "RAW_CODEPOINT_TOKENS",
+      "comparison_normalization": ["NFC_TOKEN", "ASCII_LOWER"],
+      "matching_condition": {"matcher": "EXPERIMENTAL_EMBEDDED_STREET_SEGMENT", "parameters": {"street_designator_reference_id": "street_designators_v2", "street_designator_artifact_sha256": "0bfbc60f843f8ecf8c3b84cc05e7f342a3da6f5f0f18f1961623566d15dc28cf", "house_number_max_digits": 4, "maximum_opposite_word_tokens": 1, "minimum_structured_geography_components": 2, "reserved_role_tokens": ["address", "apartment", "apt", "block", "box", "building", "campus", "center", "centre", "company", "complex", "corp", "corporation", "date", "department", "factory", "flat", "floor", "former", "gmbh", "holdings", "hotel", "identifier", "level", "lot", "ltd", "no", "office", "old", "parcel", "park", "plaza", "po", "post", "previous", "ref", "reference", "rm", "room", "site", "studio", "suite", "tower", "unit", "warehouse"]}},
+      "extraction_condition": {"extractor": "MATCHED_EMBEDDED_HOUSE_NUMBER_SPAN", "parameters": {"span_behavior": "RAW_CODEPOINTS"}},
+      "candidate_behavior": {"mode": "SELECTABLE", "value": "NORMALIZED_EXTRACTED_TEXT"},
+      "confidence": "MEDIUM",
+      "selection_priority": 124,
+      "conflict_behavior": "HOUSE_NUMBER_ROLE_AMBIGUITY",
+      "maximum_input_utf8_bytes": 65536,
+      "reference_ids": ["street_designators_v2", "phase03_targeted_opportunity_profile_1749332"],
+      "intended_positive_behavior": "Experimentally select the single bounded center integer in a same-line WORDS HOUSELIKE_NUM WORDS segment only when exactly one side is an approved designator-bearing street and row-level corroboration passes.",
+      "principal_negative_boundaries": ["not a generic WORDS HOUSELIKE_NUM WORDS rule", "requires two unambiguous structured geography components", "rejects competing address-role candidates, postcode equality, years, punctuation, multiple numbers, role markers, and native/non-native disagreement"],
+      "required_tests": ["parser_v3_embedded_designator_positive", "parser_v3_embedded_designator_structured_support", "parser_v3_embedded_designator_false_positive_boundaries", "parser_v3_embedded_designator_native_agreement"]
+    },
+    {
+      "rule_id": "STREET_EMBEDDED_DESIGNATOR_EXPERIMENT_V4",
+      "rule_version": 4,
+      "execution_disposition": "AUTHORITATIVE_SELECTABLE",
+      "component": "STREET",
+      "representation": "ANY",
+      "eligible_source_fields": ["street_address_line_1", "street_address_line_2", "street_address_line_3", "street_address_line_4", "street_address_line_1_native", "street_address_line_2_native", "street_address_line_3_native", "street_address_line_4_native"],
+      "preconditions": {"SEMANTIC_STATE_IS": "CONTENT"},
+      "match_input": "RAW_CODEPOINT_TOKENS",
+      "comparison_normalization": ["NFC_TOKEN", "ASCII_LOWER"],
+      "matching_condition": {"matcher": "EXPERIMENTAL_EMBEDDED_STREET_SEGMENT", "parameters": {"street_designator_reference_id": "street_designators_v2", "street_designator_artifact_sha256": "0bfbc60f843f8ecf8c3b84cc05e7f342a3da6f5f0f18f1961623566d15dc28cf", "house_number_max_digits": 4, "maximum_opposite_word_tokens": 1, "minimum_structured_geography_components": 2, "reserved_role_tokens": ["address", "apartment", "apt", "block", "box", "building", "campus", "center", "centre", "company", "complex", "corp", "corporation", "date", "department", "factory", "flat", "floor", "former", "gmbh", "holdings", "hotel", "identifier", "level", "lot", "ltd", "no", "office", "old", "parcel", "park", "plaza", "po", "post", "previous", "ref", "reference", "rm", "room", "site", "studio", "suite", "tower", "unit", "warehouse"]}},
+      "extraction_condition": {"extractor": "MATCHED_EMBEDDED_STREET_SPAN", "parameters": {"span_behavior": "RAW_CODEPOINTS"}},
+      "candidate_behavior": {"mode": "SELECTABLE", "value": "NORMALIZED_EXTRACTED_TEXT"},
+      "confidence": "MEDIUM",
+      "selection_priority": 125,
+      "conflict_behavior": "NONE",
+      "maximum_input_utf8_bytes": 65536,
+      "reference_ids": ["street_designators_v2", "phase03_targeted_opportunity_profile_1749332"],
+      "intended_positive_behavior": "Experimentally select only the contiguous approved designator-bearing side of a same-line WORDS HOUSELIKE_NUM WORDS segment after the paired center house-number hypothesis passes.",
+      "principal_negative_boundaries": ["does not concatenate text across the numeric token", "the opposite word remains residual and is never silently assigned", "paired row-level arbitration must reject competing roles and representation disagreement"],
+      "required_tests": ["parser_v3_embedded_designator_positive", "parser_v3_embedded_designator_exact_spans", "parser_v3_embedded_designator_residual_content", "parser_v3_embedded_designator_false_positive_boundaries"]
+    }
+  ]
+}

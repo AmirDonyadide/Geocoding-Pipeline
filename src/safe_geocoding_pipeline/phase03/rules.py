@@ -17,6 +17,7 @@ from .constants import (
     RULE_REGISTRY_VERSION,
     RULE_REGISTRY_VERSION_V2,
     RULE_REGISTRY_VERSION_V3,
+    RULE_REGISTRY_VERSION_V4,
 )
 from .errors import Phase03Error
 
@@ -58,6 +59,7 @@ MATCHERS = frozenset(
         "GENERIC_STREET_SEGMENT",
         "EXPLICIT_FLOOR_FORM",
         "EXPLICIT_BUILDING_SEGMENT",
+        "EXPERIMENTAL_EMBEDDED_STREET_SEGMENT",
     }
 )
 EXTRACTORS = frozenset(
@@ -72,6 +74,8 @@ EXTRACTORS = frozenset(
         "MATCHED_HOUSE_NUMBER_SPAN",
         "MATCHED_STREET_SPAN",
         "MATCHED_FLOOR_VALUE_SPAN",
+        "MATCHED_EMBEDDED_HOUSE_NUMBER_SPAN",
+        "MATCHED_EMBEDDED_STREET_SPAN",
     }
 )
 PRECONDITION_OPERATORS = frozenset(
@@ -277,6 +281,14 @@ def _validate_matcher_parameters(matcher: str, parameters: object) -> None:
             "maximum_word_tokens",
             "maximum_codepoints",
         },
+        "EXPERIMENTAL_EMBEDDED_STREET_SEGMENT": {
+            "street_designator_reference_id",
+            "street_designator_artifact_sha256",
+            "house_number_max_digits",
+            "maximum_opposite_word_tokens",
+            "minimum_structured_geography_components",
+            "reserved_role_tokens",
+        },
     }
     parameter_keys = set(parameters)
     marker_v1_keys = {"markers", "identifier_max_codepoints"}
@@ -391,6 +403,40 @@ def _validate_matcher_parameters(matcher: str, parameters: object) -> None:
             2 <= parameters["maximum_codepoints"] <= 256
         ):
             raise Phase03Error("RULE_REGISTRY_INVALID", "building length bound invalid")
+    elif matcher == "EXPERIMENTAL_EMBEDDED_STREET_SEGMENT":
+        if (
+            parameters["street_designator_reference_id"]
+            != "street_designators_v2"
+            or re.fullmatch(
+                r"[0-9a-f]{64}",
+                str(parameters["street_designator_artifact_sha256"]),
+            )
+            is None
+        ):
+            raise Phase03Error(
+                "RULE_REGISTRY_INVALID", "experimental street identity invalid"
+            )
+        for name, minimum, maximum in (
+            ("house_number_max_digits", 1, 4),
+            ("maximum_opposite_word_tokens", 1, 2),
+            ("minimum_structured_geography_components", 2, 4),
+        ):
+            if type(parameters[name]) is not int or not (
+                minimum <= parameters[name] <= maximum
+            ):
+                raise Phase03Error(
+                    "RULE_REGISTRY_INVALID", "experimental matcher bound invalid"
+                )
+        reserved = parameters["reserved_role_tokens"]
+        if (
+            not isinstance(reserved, list)
+            or not reserved
+            or reserved != sorted(set(reserved))
+            or any(not isinstance(token, str) or not token for token in reserved)
+        ):
+            raise Phase03Error(
+                "RULE_REGISTRY_INVALID", "experimental role tokens invalid"
+            )
 
 
 def _validate_extractor_parameters(extractor: str, parameters: object) -> None:
@@ -587,6 +633,7 @@ def load_rule_registry(
     resource_names = {
         RULE_REGISTRY_VERSION_V2: "rule_registry_v2.json",
         RULE_REGISTRY_VERSION_V3: "rule_registry_v3.json",
+        RULE_REGISTRY_VERSION_V4: "rule_registry_v4_experimental_overlay.json",
     }
     if path is None and registry_version not in resource_names:
         raise Phase03Error("RULE_REGISTRY_INVALID", "unsupported registry version")
@@ -603,6 +650,41 @@ def load_rule_registry(
         raise Phase03Error(
             "RULE_REGISTRY_READ_FAILURE", type(error).__name__
         ) from error
+    if path is None and registry_version == RULE_REGISTRY_VERSION_V4:
+        if not isinstance(value, dict) or set(value) != {
+            "schema_version",
+            "registry_version",
+            "base_registry_version",
+            "base_registry_sha256",
+            "additional_rules",
+        }:
+            raise Phase03Error(
+                "RULE_REGISTRY_INVALID", "experimental registry overlay invalid"
+            )
+        base = load_rule_registry(registry_version=RULE_REGISTRY_VERSION_V3)
+        if (
+            value["schema_version"] != "phase03_rule_registry_overlay_schema_v1"
+            or value["registry_version"] != RULE_REGISTRY_VERSION_V4
+            or value["base_registry_version"] != RULE_REGISTRY_VERSION_V3
+            or value["base_registry_sha256"] != base.fingerprint
+            or not isinstance(value["additional_rules"], list)
+            or not value["additional_rules"]
+        ):
+            raise Phase03Error(
+                "RULE_REGISTRY_INVALID", "experimental registry base mismatch"
+            )
+        base_value = json.loads(base.canonical_bytes.decode("utf-8"))
+        merged_rules = [*base_value["rules"], *value["additional_rules"]]
+        merged_rules.sort(
+            key=lambda item: (
+                int(item["selection_priority"]), str(item["rule_id"]).encode()
+            )
+        )
+        value = {
+            "schema_version": "phase03_rule_registry_schema_v4_experimental",
+            "registry_version": RULE_REGISTRY_VERSION_V4,
+            "rules": merged_rules,
+        }
     if not isinstance(value, dict) or set(value) != {
         "schema_version",
         "registry_version",
@@ -621,6 +703,7 @@ def load_rule_registry(
     expected_schema_version = {
         RULE_REGISTRY_VERSION_V2: "phase03_rule_registry_schema_v2",
         RULE_REGISTRY_VERSION_V3: "phase03_rule_registry_schema_v3",
+        RULE_REGISTRY_VERSION_V4: "phase03_rule_registry_schema_v4_experimental",
     }[str(value["registry_version"])]
     if value["schema_version"] != expected_schema_version:
         raise Phase03Error("RULE_REGISTRY_INVALID", "unsupported registry schema")
@@ -630,7 +713,8 @@ def load_rule_registry(
         _as_rule(
             item,
             require_documentation=(
-                value["registry_version"] == RULE_REGISTRY_VERSION_V3
+                value["registry_version"]
+                in {RULE_REGISTRY_VERSION_V3, RULE_REGISTRY_VERSION_V4}
             ),
         )
         for item in value["rules"]
