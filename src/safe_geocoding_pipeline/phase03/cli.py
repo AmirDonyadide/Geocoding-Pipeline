@@ -22,6 +22,7 @@ from .development_targeted_opportunity_profiler import (
     TARGETED_PROFILER_VERSION,
     profile_targeted_development_opportunities,
 )
+from .development_v3_change_diagnostic import diagnose_development_v3_changes
 from .references import (
     ScriptReference,
     load_production_references,
@@ -156,6 +157,20 @@ def build_parser() -> argparse.ArgumentParser:
         "--development-identities", type=Path, required=True
     )
     targeted_profile.add_argument("--output-directory", type=Path, required=True)
+    v3_diagnostic = subparsers.add_parser(
+        "development-diagnose-parser-v2-v3-changes"
+    )
+    v3_diagnostic.add_argument("--baseline-core", type=Path, required=True)
+    v3_diagnostic.add_argument("--baseline-evidence", type=Path, required=True)
+    v3_diagnostic.add_argument("--experimental-core", type=Path, required=True)
+    v3_diagnostic.add_argument("--experimental-evidence", type=Path, required=True)
+    v3_diagnostic.add_argument(
+        "--development-identities", type=Path, required=True
+    )
+    v3_diagnostic.add_argument("--controlled-root", type=Path, required=True)
+    v3_diagnostic.add_argument("--report-root", type=Path, required=True)
+    v3_diagnostic.add_argument("--output-directory", type=Path, required=True)
+    v3_diagnostic.add_argument("--implementation-commit", required=True)
     validate = subparsers.add_parser("pilot-validate")
     validate.add_argument("--phase02-manifest", type=Path, required=True)
     validate.add_argument("--input-path", type=Path, action="append", required=True)
@@ -513,6 +528,30 @@ def main(argv: Sequence[str] | None = None) -> int:
                 targeted_result.report_json.name,
                 targeted_result.opportunities_csv.name,
                 targeted_result.interpretation_markdown.name,
+            ],
+            "locked_rows_read": 0,
+            "raw_values_reported": False,
+        }
+    elif args.command == "development-diagnose-parser-v2-v3-changes":
+        diagnostic_result = diagnose_development_v3_changes(
+            baseline_core_path=args.baseline_core,
+            baseline_evidence_path=args.baseline_evidence,
+            experimental_core_path=args.experimental_core,
+            experimental_evidence_path=args.experimental_evidence,
+            development_identities_path=args.development_identities,
+            output_directory=args.output_directory,
+            controlled_root=args.controlled_root,
+            report_root=args.report_root,
+            implementation_commit=args.implementation_commit,
+            production=True,
+        )
+        payload = {
+            "status": "PASS",
+            "rows": diagnostic_result.rows,
+            "report_fingerprint": diagnostic_result.report_fingerprint,
+            "report_files": [
+                diagnostic_result.report_json.name,
+                diagnostic_result.report_markdown.name,
             ],
             "locked_rows_read": 0,
             "raw_values_reported": False,

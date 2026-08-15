@@ -32,6 +32,15 @@ This register distinguishes approved project rules from questions that require e
   reviews in a separate owner-only Goethe namespace; the main 800-row review
   and LOCKED_EVALUATION remain untouched. No frequency, review result, or fill
   rate automatically promotes the experiment.
+- Targeted-review preparation job `1749345` is a fail-closed population-gate
+  stop, not scientific evidence for changing the reviewed expected count. The
+  observed DEVELOPMENT sets are A=26 scientific-core changes and B=11
+  experimental-rule-evidence rows, with nine overlap, 17 A-only, two B-only,
+  and 28 in the union. Before any workspace initialization, the separately
+  versioned `phase03_parser_v3_change_diagnostic_v1` must explain those
+  non-overlap populations using only aggregate fixed-field/family/provenance
+  counts from immutable v2/v3 outputs. No Parser v3 rule, population gate, or
+  human-review decision changes automatically from that diagnostic.
 - Production-heavy commands reuse the common execution guard and require both `SAFE_EXECUTION_SITE=goethe-nhr` and a non-empty `SLURM_JOB_ID`; there is no ordinary local-production bypass. This controls runtime and SSD/I/O load, improves scheduler resource control, preserves reproducible host/runtime boundaries, strengthens auditability, and supports later full-data phases.
 
 ### Phase 3 execution-site correction

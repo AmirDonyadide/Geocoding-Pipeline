@@ -55,6 +55,13 @@ This is the approved conceptual workflow. It is not an implementation plan or ev
   population under deterministic independent order/blinding. Only aggregate
   scores may leave Goethe; review evidence does not authorize promotion. See
   `docs/PHASE03_PARSER_V3_TARGETED_REVIEW.md`.
+- **Parser-v3 change diagnostic:** Before targeted review is initialized, a
+  separate Goethe-only aggregate diagnostic reconciles the observed 26
+  scientific-change rows with 11 experimental-evidence rows (nine overlap,
+  17 change-only, two evidence-only). It reuses `CORE_COLUMNS[5:41]`, reads no
+  payload or human labels, rejects LOCKED paths, and reports only fixed-field
+  aggregates with rare combination suppression. See
+  `docs/PHASE03_PARSER_V3_CHANGE_DIAGNOSTIC.md`.
 - **Major decisions:** International parsing rules, deterministic normalization, country mapping, handling of geography embedded in free-form lines, and separation of company/unit content.
 - **STOP gate:** Review country/address-family behavior, transformations, unresolved records, and evidence that raw values remain traceable and unchanged.
 

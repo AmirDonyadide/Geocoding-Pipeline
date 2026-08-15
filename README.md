@@ -120,6 +120,12 @@ Real preparation and review run only on Goethe-NHR compute nodes, use the fixed
 8,000-row DEVELOPMENT payload, and reject LOCKED paths. See
 `docs/PHASE03_PARSER_V3_TARGETED_REVIEW.md`.
 
+Before the stopped Parser-v3 review population is initialized, the Goethe-only
+`development-diagnose-parser-v2-v3-changes` command explains the 26/11 set
+decomposition using only immutable DEVELOPMENT core/evidence and identities.
+It emits fixed aggregate categories only and does not change the reviewed
+expected-count gate. See `docs/PHASE03_PARSER_V3_CHANGE_DIAGNOSTIC.md`.
+
 Validate the bundled rule registry and display privacy-safe framework metadata:
 
 ```bash

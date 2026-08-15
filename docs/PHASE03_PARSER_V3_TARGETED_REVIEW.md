@@ -30,9 +30,17 @@ review artifact is created.
 The implementation validates all 8,000 DEVELOPMENT identities, payload rows,
 v2/v3 core rows, schemas, evidence relationships, page checksums, parser and
 registry roles, source ordering, and hashes. The Goethe invocation supplies the
-reviewed expected population (`26`). A mismatch fails with
-`TARGETED_REVIEW_POPULATION_COUNT_MISMATCH` before an output directory exists;
-the count is not hard-coded in the implementation.
+reviewed expected population (`26`). Goethe preparation job `1749345` correctly
+failed because the computed union was 28: 26 scientific-change rows, 11
+experimental-evidence rows, nine overlapping rows, 17 change-only rows, and two
+evidence-only rows. No review artifacts or workspace were created. A mismatch
+fails with `TARGETED_REVIEW_POPULATION_COUNT_MISMATCH` before an output
+directory exists; the count is not hard-coded in the implementation.
+
+The expected count remains unchanged pending the aggregate-only diagnostic in
+`docs/PHASE03_PARSER_V3_CHANGE_DIAGNOSTIC.md`. That workflow reads only the
+existing DEVELOPMENT core/evidence and identity artifacts, reports no row-level
+content, and does not initialize human review.
 
 ## Protected artifacts and provenance
 
@@ -167,7 +175,9 @@ or Goethe login node.
 
 ## STOP gate
 
-Do not initialize the real workspace until the code, commit, input paths,
-population count, and preparation output have been reviewed. Do not score until
-both reviewers finish. Human evidence does not itself authorize promotion;
-promotion criteria and any parser change require a separate scientific decision.
+Do not change the expected count or initialize the real workspace until the
+17 change-only and two evidence-only rows have been explained through the
+sanitized diagnostic and the population definition has been reviewed. Do not
+score until both reviewers finish. Human evidence does not itself authorize
+promotion; promotion criteria and any parser change require a separate
+scientific decision.
