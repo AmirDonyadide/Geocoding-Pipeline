@@ -18,6 +18,10 @@ from .targeted_experiment_review import (
     targeted_review_implementation_fingerprint,
     targeted_review_label_schema,
 )
+from .targeted_review_population import (
+    REPAIRED_POPULATION_EXPECTATION,
+    verify_repaired_targeted_review_population,
+)
 from .text import enforce_runtime_contract
 
 
@@ -29,6 +33,16 @@ def build_parser() -> argparse.ArgumentParser:
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("schema")
 
+    verify = commands.add_parser("verify-repaired-population")
+    verify.add_argument("--development-identities", type=Path, required=True)
+    verify.add_argument("--baseline-core", type=Path, required=True)
+    verify.add_argument("--baseline-evidence", type=Path, required=True)
+    verify.add_argument("--experimental-core", type=Path, required=True)
+    verify.add_argument("--experimental-evidence", type=Path, required=True)
+    verify.add_argument("--repair-success", type=Path, required=True)
+    verify.add_argument("--repair-comparison", type=Path, required=True)
+    verify.add_argument("--output", type=Path, required=True)
+
     prepare = commands.add_parser("prepare")
     prepare.add_argument("--development-payload", type=Path, required=True)
     prepare.add_argument("--development-identities", type=Path, required=True)
@@ -36,12 +50,12 @@ def build_parser() -> argparse.ArgumentParser:
     prepare.add_argument("--baseline-evidence", type=Path, required=True)
     prepare.add_argument("--experimental-core", type=Path, required=True)
     prepare.add_argument("--experimental-evidence", type=Path, required=True)
+    prepare.add_argument("--population-verification-report", type=Path, required=True)
     prepare.add_argument("--output-directory", type=Path, required=True)
     prepare.add_argument("--experiment-iteration", required=True)
     prepare.add_argument("--experimental-parser-commit", required=True)
     prepare.add_argument("--review-implementation-commit", required=True)
     prepare.add_argument("--expected-development-rows", type=int, default=8_000)
-    prepare.add_argument("--expected-population-count", type=int, required=True)
 
     initialize = commands.add_parser("initialize")
     initialize.add_argument("--protected-context", type=Path, required=True)
@@ -101,6 +115,24 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
     enforce_runtime_contract()
     require_goethe_nhr_slurm(f"phase03-targeted-review-{args.command}")
+    if args.command == "verify-repaired-population":
+        payload = verify_repaired_targeted_review_population(
+            development_identities_path=args.development_identities,
+            baseline_core_path=args.baseline_core,
+            baseline_evidence_path=args.baseline_evidence,
+            experimental_core_path=args.experimental_core,
+            experimental_evidence_path=args.experimental_evidence,
+            repair_success_path=args.repair_success,
+            repair_comparison_path=args.repair_comparison,
+            output_path=args.output,
+            verification_implementation_commit=current_repository_commit(),
+            verification_implementation_fingerprint=(
+                targeted_review_implementation_fingerprint()
+            ),
+            production=True,
+        )
+        _print(payload)
+        return 0
     if args.command == "prepare":
         if args.review_implementation_commit != current_repository_commit():
             raise ValueError("targeted-review implementation commit mismatch")
@@ -111,12 +143,13 @@ def main(argv: Sequence[str] | None = None) -> int:
             baseline_evidence_path=args.baseline_evidence,
             experimental_core_path=args.experimental_core,
             experimental_evidence_path=args.experimental_evidence,
+            population_verification_report_path=(args.population_verification_report),
             output_directory=args.output_directory,
             experiment_iteration=args.experiment_iteration,
             experimental_parser_commit=args.experimental_parser_commit,
             review_implementation_commit=args.review_implementation_commit,
             expected_development_rows=args.expected_development_rows,
-            expected_population_count=args.expected_population_count,
+            expected_population_count=REPAIRED_POPULATION_EXPECTATION.union_rows,
             production=True,
         )
         _print(

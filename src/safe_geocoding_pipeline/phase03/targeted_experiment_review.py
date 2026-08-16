@@ -21,11 +21,10 @@ import pyarrow.parquet as pq
 from ..phase02.fingerprints import JsonValue, canonical_json_bytes
 from ..phase02.schema import base_staging_schema, exact_schema_matches
 from .constants import (
-    CORE_COLUMNS,
     EVIDENCE_SCHEMA_VERSION,
     MANUAL_REVIEW_REASON_CODES_VERSION,
-    PARSER_VERSION_V2,
-    PARSER_VERSION_V3,
+    PARSER_VERSION_V2_1,
+    PARSER_VERSION_V3_1,
     RULE_REGISTRY_VERSION_V3,
     RULE_REGISTRY_VERSION_V4,
 )
@@ -41,15 +40,29 @@ from .review_v2 import (
     OVERALL_LABEL_VALUES,
 )
 from .rules import load_rule_registry
-from .schema import exact_core_schema_matches, exact_evidence_schema_matches
 from .semantic import core_digest, evidence_digest
+from .targeted_review_population import (
+    REPAIRED_ARTIFACT_PINS,
+    REPAIRED_BASELINE_CONFIGURATION_FINGERPRINT,
+    REPAIRED_EXECUTION_COMMIT,
+    REPAIRED_EXPERIMENTAL_CONFIGURATION_FINGERPRINT,
+    REPAIRED_ITERATION_ID,
+    REPAIRED_POPULATION_EXPECTATION,
+    SCIENTIFIC_CORE_FIELDS,
+    compute_targeted_population,
+    file_sha256,
+    population_digest as _population_digest,
+    read_core as _read_core,
+    read_evidence as _read_evidence,
+    reject_locked_path as _reject_locked_path,
+    validate_population_expectation,
+    validate_population_verification_report,
+)
 from .validation import (
     validate_core_evidence_relationship,
-    validate_core_rows,
-    validate_evidence_rows,
 )
 
-TARGETED_REVIEW_VERSION: Final = "phase03_parser_v3_targeted_review_v1"
+TARGETED_REVIEW_VERSION: Final = "phase03_parser_v3_targeted_review_v2_repaired"
 TARGETED_REVIEW_SCHEMA_VERSION: Final = "phase03_parser_v3_targeted_review_labels_v1"
 TARGETED_LABEL_VOCABULARY_VERSION: Final = (
     "phase03_parser_v3_targeted_review_vocabularies_v1"
@@ -110,7 +123,7 @@ TARGETED_LABEL_FIELDS: Final = (
     "missed_information_label",
     "overall_parse_acceptability_label",
 )
-_SCIENTIFIC_CORE_FIELDS: Final = CORE_COLUMNS[5:41]
+_SCIENTIFIC_CORE_FIELDS: Final = SCIENTIFIC_CORE_FIELDS
 _LOWER_HEX_64 = re.compile(r"[0-9a-f]{64}")
 _COMMIT = re.compile(r"[0-9a-f]{40}")
 _RAW_DISPLAY_FIELDS: Final = (
@@ -157,25 +170,12 @@ def utc_now() -> str:
     return datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
 
-def file_sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as stream:
-        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
 def _fsync_parent(path: Path) -> None:
     descriptor = os.open(path.parent, os.O_RDONLY)
     try:
         os.fsync(descriptor)
     finally:
         os.close(descriptor)
-
-
-def _reject_locked_path(path: Path) -> None:
-    if any("locked" in part.casefold() for part in path.parts):
-        raise ValueError("LOCKED paths are prohibited in targeted DEVELOPMENT review")
 
 
 def _require_owner_only(path: Path) -> None:
@@ -204,7 +204,11 @@ def targeted_review_implementation_fingerprint() -> str:
         b"safe_geocoding_pipeline:phase03_targeted_review_implementation_v1\0"
     )
     root = Path(__file__).resolve().parent
-    for name in ("targeted_experiment_review.py", "targeted_review_cli.py"):
+    for name in (
+        "targeted_experiment_review.py",
+        "targeted_review_cli.py",
+        "targeted_review_population.py",
+    ):
         path = root / name
         digest.update(len(name.encode()).to_bytes(8, "big"))
         digest.update(name.encode())
@@ -268,17 +272,6 @@ def _hashed_review_id(identity: bytes, experiment_iteration: str) -> str:
     return digest.hexdigest()
 
 
-def _population_digest(identities: Sequence[bytes]) -> str:
-    digest = hashlib.sha256(
-        b"safe_geocoding_pipeline:phase03_parser_v3_targeted_population_v1\0"
-    )
-    for ordinal, identity in enumerate(sorted(identities), start=1):
-        digest.update(ordinal.to_bytes(8, "big"))
-        digest.update(identity)
-    digest.update(len(identities).to_bytes(8, "big"))
-    return digest.hexdigest()
-
-
 def _rank(identity: bytes, reviewer_id: str) -> bytes:
     digest = hashlib.sha256()
     digest.update(TARGETED_REVIEW_SEED.encode())
@@ -295,24 +288,6 @@ def _experimental_is_parse_a(identity: bytes, reviewer_id: str) -> bool:
     digest.update(reviewer_id.encode())
     digest.update(identity)
     return bool(digest.digest()[0] & 1)
-
-
-def _read_core(path: Path) -> list[dict[str, Any]]:
-    parquet = pq.ParquetFile(path, page_checksum_verification=True, pre_buffer=True)
-    if not exact_core_schema_matches(parquet.schema_arrow):
-        raise ValueError("targeted-review core schema mismatch")
-    rows = cast(list[dict[str, Any]], parquet.read(use_threads=False).to_pylist())
-    validate_core_rows(rows)
-    return rows
-
-
-def _read_evidence(path: Path) -> list[dict[str, Any]]:
-    parquet = pq.ParquetFile(path, page_checksum_verification=True, pre_buffer=True)
-    if not exact_evidence_schema_matches(parquet.schema_arrow):
-        raise ValueError("targeted-review evidence schema mismatch")
-    rows = cast(list[dict[str, Any]], parquet.read(use_threads=False).to_pylist())
-    validate_evidence_rows(rows)
-    return rows
 
 
 def _json_safe(value: Any) -> Any:
@@ -346,6 +321,7 @@ def prepare_targeted_review_artifacts(
     baseline_evidence_path: Path,
     experimental_core_path: Path,
     experimental_evidence_path: Path,
+    population_verification_report_path: Path | None = None,
     output_directory: Path,
     experiment_iteration: str,
     experimental_parser_commit: str,
@@ -355,15 +331,17 @@ def prepare_targeted_review_artifacts(
     production: bool,
 ) -> PreparedTargetedReview:
     """Create immutable protected review inputs without initializing labels."""
-    paths = (
+    protected_inputs = (
         development_payload_path,
         development_identities_path,
         baseline_core_path,
         baseline_evidence_path,
         experimental_core_path,
         experimental_evidence_path,
-        output_directory,
     )
+    paths = [*protected_inputs, output_directory]
+    if population_verification_report_path is not None:
+        paths.append(population_verification_report_path)
     for path in paths:
         _reject_locked_path(path)
     if production:
@@ -376,9 +354,29 @@ def prepare_targeted_review_artifacts(
         raise ValueError("targeted-review experiment provenance is invalid")
     if not _COMMIT.fullmatch(review_implementation_commit):
         raise ValueError("targeted-review implementation commit is invalid")
+    if production:
+        if (
+            expected_development_rows
+            != REPAIRED_POPULATION_EXPECTATION.development_rows
+            or expected_population_count != REPAIRED_POPULATION_EXPECTATION.union_rows
+            or experiment_iteration != REPAIRED_ITERATION_ID
+            or experimental_parser_commit != REPAIRED_EXECUTION_COMMIT
+            or population_verification_report_path is None
+        ):
+            raise ValueError("targeted-review repaired production gate mismatch")
+        verification = validate_population_verification_report(
+            population_verification_report_path
+        )
+        if (
+            verification["verification_implementation_commit"]
+            != review_implementation_commit
+            or verification["verification_implementation_fingerprint"]
+            != targeted_review_implementation_fingerprint()
+        ):
+            raise ValueError("targeted-review verification implementation mismatch")
     if output_directory.exists():
         raise FileExistsError("targeted-review output already exists")
-    input_paths = paths[:-1]
+    input_paths = protected_inputs
     for path in input_paths:
         if not path.is_file():
             raise FileNotFoundError("targeted-review input is missing")
@@ -388,6 +386,19 @@ def prepare_targeted_review_artifacts(
     before = {
         str(path): (file_sha256(path), path.stat().st_size) for path in input_paths
     }
+    if production:
+        artifact_roles = (
+            "development_payload",
+            "development_identities",
+            "baseline_core",
+            "baseline_evidence",
+            "experimental_core",
+            "experimental_evidence",
+        )
+        for role, path in zip(artifact_roles, input_paths, strict=True):
+            pin = REPAIRED_ARTIFACT_PINS[role]
+            if before[str(path)] != (pin.sha256, pin.size_bytes):
+                raise ValueError("targeted-review repaired artifact identity mismatch")
 
     identity_metadata, identities = read_identity_set(development_identities_path)
     if identity_metadata.get("partition") != "DEVELOPMENT":
@@ -423,11 +434,11 @@ def prepare_targeted_review_artifacts(
     experimental_ids = [bytes(row["stable_source_row_id_v1"]) for row in experimental]
     if baseline_ids != experimental_ids or set(baseline_ids) != identity_set:
         raise ValueError("targeted-review core identity/order mismatch")
-    if {row["parser_version"] for row in baseline} != {PARSER_VERSION_V2}:
+    if {row["parser_version"] for row in baseline} != {PARSER_VERSION_V2_1}:
         raise ValueError("targeted-review baseline parser mismatch")
     if {row["rule_registry_version"] for row in baseline} != {RULE_REGISTRY_VERSION_V3}:
         raise ValueError("targeted-review baseline registry mismatch")
-    if {row["parser_version"] for row in experimental} != {PARSER_VERSION_V3}:
+    if {row["parser_version"] for row in experimental} != {PARSER_VERSION_V3_1}:
         raise ValueError("targeted-review experimental parser mismatch")
     if {row["rule_registry_version"] for row in experimental} != {
         RULE_REGISTRY_VERSION_V4
@@ -444,6 +455,13 @@ def prepare_targeted_review_artifacts(
         or len(experimental_configuration_fingerprints) != 1
     ):
         raise ValueError("targeted-review configuration fingerprint is not uniform")
+    if production and (
+        next(iter(baseline_configuration_fingerprints)).hex()
+        != REPAIRED_BASELINE_CONFIGURATION_FINGERPRINT
+        or next(iter(experimental_configuration_fingerprints)).hex()
+        != REPAIRED_EXPERIMENTAL_CONFIGURATION_FINGERPRINT
+    ):
+        raise ValueError("targeted-review repaired configuration mismatch")
     validate_core_evidence_relationship(baseline, baseline_evidence)
     validate_core_evidence_relationship(experimental, experimental_evidence)
     if {
@@ -453,19 +471,16 @@ def prepare_targeted_review_artifacts(
     } - identity_set:
         raise ValueError("targeted-review evidence identity mismatch")
 
-    changed_ids = {
-        bytes(before_row["stable_source_row_id_v1"])
-        for before_row, after_row in zip(baseline, experimental, strict=True)
-        if any(
-            before_row[field] != after_row[field] for field in _SCIENTIFIC_CORE_FIELDS
+    population_state = compute_targeted_population(
+        baseline, experimental, experimental_evidence
+    )
+    if production:
+        validate_population_expectation(
+            population_state, REPAIRED_POPULATION_EXPECTATION
         )
-    }
-    evidence_ids = {
-        bytes(row["stable_source_row_id_v1"])
-        for row in experimental_evidence
-        if row["rule_id"] in EXPERIMENTAL_RULE_IDS
-    }
-    population = tuple(sorted(changed_ids | evidence_ids))
+    changed_ids = population_state.changed_ids
+    evidence_ids = population_state.evidence_ids
+    population = population_state.population
     if len(population) != expected_population_count:
         raise ValueError(
             "TARGETED_REVIEW_POPULATION_COUNT_MISMATCH: "
@@ -494,8 +509,7 @@ def prepare_targeted_review_artifacts(
             if row["rule_id"] in EXPERIMENTAL_RULE_IDS
         ]
         observed_rules = {str(row["rule_id"]) for row in experiment_rows}
-        selection_states = {bool(row["selected"]) for row in experiment_rows}
-        if observed_rules != set(EXPERIMENTAL_RULE_IDS) or len(selection_states) != 1:
+        if observed_rules != set(EXPERIMENTAL_RULE_IDS):
             raise ValueError(
                 "targeted-review experimental street/house evidence is not paired"
             )
@@ -593,10 +607,12 @@ def prepare_targeted_review_artifacts(
         ):
             raise ValueError("targeted-review artifact read-back validation failed")
         manifest: dict[str, JsonValue] = {
-            "manifest_version": "phase03_parser_v3_targeted_review_input_manifest_v1",
+            "manifest_version": "phase03_parser_v3_targeted_review_input_manifest_v2",
             "status": "TARGETED_REVIEW_INPUT_PREPARED_NO_LABELS",
             "experiment_iteration": experiment_iteration,
             "experimental_parser_commit": experimental_parser_commit,
+            "repair_execution_commit": REPAIRED_EXECUTION_COMMIT,
+            "repair_job_id": "1749448",
             "review_implementation_commit": review_implementation_commit,
             "review_implementation_fingerprint": targeted_review_implementation_fingerprint(),
             "targeted_review_version": TARGETED_REVIEW_VERSION,
@@ -608,6 +624,9 @@ def prepare_targeted_review_artifacts(
             "development_identity_digest": str(identity_metadata["identity_digest"]),
             "scientific_output_change_rows": len(changed_ids),
             "experimental_rule_evidence_rows": len(evidence_ids),
+            "scientific_evidence_overlap_rows": population_state.overlap_rows,
+            "scientific_change_only_rows": population_state.changed_only_rows,
+            "experimental_evidence_only_rows": population_state.evidence_only_rows,
             "targeted_review_population_rows": len(population),
             "targeted_review_population_digest": _population_digest(population),
             "reviewer_1_rows": len(population),
@@ -628,8 +647,8 @@ def prepare_targeted_review_artifacts(
                 },
             },
             "parser_versions": {
-                "baseline": PARSER_VERSION_V2,
-                "experimental": PARSER_VERSION_V3,
+                "baseline": PARSER_VERSION_V2_1,
+                "experimental": PARSER_VERSION_V3_1,
             },
             "rule_registry_versions": {
                 "baseline": RULE_REGISTRY_VERSION_V3,
@@ -667,6 +686,11 @@ def prepare_targeted_review_artifacts(
             "portable_raw_values": False,
             "scientific_promotion_decision": "NOT_EVALUATED",
         }
+        if population_verification_report_path is not None:
+            manifest["population_verification_report"] = {
+                "sha256": file_sha256(population_verification_report_path),
+                "size_bytes": population_verification_report_path.stat().st_size,
+            }
         artifact_roles = (
             "development_payload",
             "development_identities",
@@ -1474,10 +1498,9 @@ def score_completed_targeted_review(
         first_rows = first.completed_rows()
         second_rows = second.completed_rows()
         metadata = first.metadata()
-    if (
-        file_sha256(context_path) != metadata["context_sha256"]
-        or context_path.stat().st_size != int(metadata["context_size_bytes"])
-    ):
+    if file_sha256(context_path) != metadata[
+        "context_sha256"
+    ] or context_path.stat().st_size != int(metadata["context_size_bytes"]):
         raise ValueError("targeted-review protected context identity changed")
     if {row["hashed_review_id"] for row in first_rows} != {
         row["hashed_review_id"] for row in second_rows

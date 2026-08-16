@@ -13,8 +13,11 @@ from phase03_helpers import engine, phase02_row
 from safe_geocoding_pipeline.execution_policy import ExecutionPolicyError
 from safe_geocoding_pipeline.phase02.schema import base_staging_schema
 from safe_geocoding_pipeline.phase03.constants import (
-    PARSER_VERSION_V2,
-    PARSER_VERSION_V3,
+    PARSER_VERSION_V2_1,
+    PARSER_VERSION_V3_1,
+)
+from safe_geocoding_pipeline.phase03.development_comparison import (
+    _SCIENTIFIC_CORE_FIELDS as COMPARISON_SCIENTIFIC_CORE_FIELDS,
 )
 from safe_geocoding_pipeline.phase03.pilot_runner import write_identity_set
 from safe_geocoding_pipeline.phase03.schema import core_schema, evidence_schema
@@ -34,6 +37,17 @@ from safe_geocoding_pipeline.phase03.targeted_review_cli import (
     _stable_artifact_reference,
     build_parser,
     main,
+)
+from safe_geocoding_pipeline.phase03.targeted_review_population import (
+    EXPERIMENTAL_RULE_IDS,
+    ArtifactPin,
+    PopulationExpectation,
+    SCIENTIFIC_CORE_FIELDS,
+    compute_targeted_population,
+    development_identity_order_digest,
+    file_sha256,
+    validate_population_expectation,
+    verify_repaired_targeted_review_population,
 )
 
 
@@ -99,8 +113,8 @@ def _fixture(tmp_path: Path) -> tuple[dict[str, Path], tuple[str, ...]]:
     ]
     (tmp_path / "v2").mkdir()
     (tmp_path / "v3").mkdir()
-    v2 = engine(tmp_path / "v2", parser_version=PARSER_VERSION_V2)
-    v3 = engine(tmp_path / "v3", parser_version=PARSER_VERSION_V3)
+    v2 = engine(tmp_path / "v2", parser_version=PARSER_VERSION_V2_1)
+    v3 = engine(tmp_path / "v3", parser_version=PARSER_VERSION_V3_1)
     v2_results = [v2.transform(row) for row in staging]
     v3_results = [v3.transform(row) for row in staging]
     paths = {
@@ -203,6 +217,197 @@ def test_population_is_exact_union_deduplicated_and_provenance_bound(
     assert not any(_identity(index).hex() in serialized for index in range(3))
     for path in paths.values():
         assert path.exists()
+
+
+def test_repaired_population_definition_reports_exact_a_union_b(
+    tmp_path: Path,
+) -> None:
+    assert SCIENTIFIC_CORE_FIELDS == COMPARISON_SCIENTIFIC_CORE_FIELDS
+    paths, _ = _fixture(tmp_path)
+    baseline = pq.read_table(paths["v2_core"]).to_pylist()
+    experimental = pq.read_table(paths["v3_core"]).to_pylist()
+    evidence = pq.read_table(paths["v3_evidence"]).to_pylist()
+    population = compute_targeted_population(baseline, experimental, evidence)
+    assert len(population.changed_ids) == 1
+    assert len(population.evidence_ids) == 2
+    assert population.overlap_rows == 1
+    assert population.changed_only_rows == 0
+    assert population.evidence_only_rows == 1
+    assert len(population.population) == 2
+    assert population.country_parse_method_only_rows == 0
+    assert population.country_parse_method_changed_rows == 0
+    assert population.rule_candidate_groups == {
+        rule_id: 2 for rule_id in EXPERIMENTAL_RULE_IDS
+    }
+    assert population.rule_selected_candidate_groups == {
+        rule_id: 1 for rule_id in EXPERIMENTAL_RULE_IDS
+    }
+    with pytest.raises(
+        ValueError, match="REPAIRED_TARGETED_REVIEW_POPULATION_MISMATCH"
+    ):
+        validate_population_expectation(
+            population,
+            PopulationExpectation(3, 26, 11, 9, 17, 2, 28, 22, 9),
+        )
+
+
+def test_repaired_population_verifier_is_sanitized_and_creates_no_review(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from safe_geocoding_pipeline.phase03 import targeted_review_population as module
+
+    paths, raw_values = _fixture(tmp_path)
+    baseline = pq.read_table(paths["v2_core"]).to_pylist()
+    experimental = pq.read_table(paths["v3_core"]).to_pylist()
+    identity_digest = development_identity_order_digest(baseline)
+    repair_success = tmp_path / "repair-success.json"
+    repair_success.write_text(
+        json.dumps(
+            {
+                "status": "DEVELOPMENT_COUNTRY_METHOD_REPAIR_COMPARISON_COMPLETE",
+                "iteration_id": module.REPAIRED_ITERATION_ID,
+                "git_commit": module.REPAIRED_EXECUTION_COMMIT,
+                "development_rows": 3,
+                "locked_payload_rows_read": 0,
+            },
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+    repair_comparison = tmp_path / "repair-comparison.json"
+    repair_comparison.write_text(
+        json.dumps(
+            {
+                "status": "EXPERIMENTAL_COMPARISON_COMPLETE_NO_PROMOTION_DECISION",
+                "rows": 3,
+                "identity_order_equal": True,
+                "identity_digest": identity_digest,
+                "baseline": {
+                    "parser_version": PARSER_VERSION_V2_1,
+                    "rule_registry_version": "phase03_rule_registry_v3",
+                    "configuration_fingerprint": bytes(
+                        baseline[0]["configuration_fingerprint"]
+                    ).hex(),
+                    "core_sha256": file_sha256(paths["v2_core"]),
+                    "evidence_sha256": file_sha256(paths["v2_evidence"]),
+                },
+                "experimental": {
+                    "parser_version": PARSER_VERSION_V3_1,
+                    "rule_registry_version": "phase03_rule_registry_v4_experimental",
+                    "configuration_fingerprint": bytes(
+                        experimental[0]["configuration_fingerprint"]
+                    ).hex(),
+                    "core_sha256": file_sha256(paths["v3_core"]),
+                    "evidence_sha256": file_sha256(paths["v3_evidence"]),
+                },
+            },
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+    verifier_paths = {
+        "development_identities": paths["identities"],
+        "baseline_core": paths["v2_core"],
+        "baseline_evidence": paths["v2_evidence"],
+        "experimental_core": paths["v3_core"],
+        "experimental_evidence": paths["v3_evidence"],
+        "repair_success": repair_success,
+        "repair_comparison": repair_comparison,
+    }
+    monkeypatch.setattr(
+        module,
+        "REPAIRED_ARTIFACT_PINS",
+        {
+            role: ArtifactPin(file_sha256(path), path.stat().st_size)
+            for role, path in verifier_paths.items()
+        },
+    )
+    monkeypatch.setattr(
+        module,
+        "REPAIRED_POPULATION_EXPECTATION",
+        PopulationExpectation(3, 1, 2, 1, 0, 1, 2, 2, 1),
+    )
+    monkeypatch.setattr(
+        module, "REPAIRED_DEVELOPMENT_IDENTITY_ORDER_DIGEST", identity_digest
+    )
+    monkeypatch.setattr(
+        module,
+        "REPAIRED_BASELINE_CONFIGURATION_FINGERPRINT",
+        bytes(baseline[0]["configuration_fingerprint"]).hex(),
+    )
+    monkeypatch.setattr(
+        module,
+        "REPAIRED_EXPERIMENTAL_CONFIGURATION_FINGERPRINT",
+        bytes(experimental[0]["configuration_fingerprint"]).hex(),
+    )
+    output = tmp_path / "report" / "population.json"
+    payload = verify_repaired_targeted_review_population(
+        development_identities_path=paths["identities"],
+        baseline_core_path=paths["v2_core"],
+        baseline_evidence_path=paths["v2_evidence"],
+        experimental_core_path=paths["v3_core"],
+        experimental_evidence_path=paths["v3_evidence"],
+        repair_success_path=repair_success,
+        repair_comparison_path=repair_comparison,
+        output_path=output,
+        verification_implementation_commit="b" * 40,
+        verification_implementation_fingerprint="c" * 64,
+        production=False,
+    )
+    assert payload["scientific_output_change_rows"] == 1
+    assert payload["experimental_rule_evidence_rows"] == 2
+    assert payload["overlap_rows"] == 1
+    assert payload["changed_only_rows"] == 0
+    assert payload["evidence_only_rows"] == 1
+    assert payload["targeted_review_population_rows"] == 2
+    assert payload["locked_rows_read"] == 0
+    assert payload["review_inputs_created"] is False
+    assert payload["review_databases_created"] is False
+    serialized = output.read_text(encoding="utf-8")
+    assert str(tmp_path) not in serialized
+    assert "stable_source_row_id_v1" not in serialized
+    assert not any(
+        identity.hex() in serialized for identity in map(_identity, range(3))
+    )
+    assert not any(raw in serialized for raw in raw_values)
+
+
+def test_repaired_population_verifier_rejects_resolved_locked_input(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from safe_geocoding_pipeline.phase03 import targeted_review_population as module
+
+    locked_root = tmp_path / "locked-evaluation"
+    locked_root.mkdir()
+    protected = locked_root / "identities.bin"
+    protected.write_bytes(b"synthetic-only")
+    alias_root = tmp_path / "development-alias"
+    alias_root.symlink_to(locked_root, target_is_directory=True)
+    aliased = alias_root / protected.name
+    monkeypatch.setattr(
+        module,
+        "REPAIRED_ARTIFACT_PINS",
+        {
+            **module.REPAIRED_ARTIFACT_PINS,
+            "development_identities": ArtifactPin(
+                file_sha256(aliased), aliased.stat().st_size
+            ),
+        },
+    )
+    with pytest.raises(ValueError, match="LOCKED paths are prohibited"):
+        verify_repaired_targeted_review_population(
+            development_identities_path=aliased,
+            baseline_core_path=tmp_path / "missing-baseline-core",
+            baseline_evidence_path=tmp_path / "missing-baseline-evidence",
+            experimental_core_path=tmp_path / "missing-experimental-core",
+            experimental_evidence_path=tmp_path / "missing-experimental-evidence",
+            repair_success_path=tmp_path / "missing-success",
+            repair_comparison_path=tmp_path / "missing-comparison",
+            output_path=tmp_path / "report.json",
+            verification_implementation_commit="b" * 40,
+            verification_implementation_fingerprint="c" * 64,
+            production=False,
+        )
 
 
 def test_population_count_mismatch_fails_before_output(tmp_path: Path) -> None:
@@ -480,6 +685,8 @@ def test_cli_and_cluster_asset_preserve_targeted_review_boundary() -> None:
             "v3-core.parquet",
             "--experimental-evidence",
             "v3-evidence.parquet",
+            "--population-verification-report",
+            "population-verification.json",
             "--output-directory",
             "targeted-review",
             "--experiment-iteration",
@@ -488,11 +695,9 @@ def test_cli_and_cluster_asset_preserve_targeted_review_boundary() -> None:
             "a" * 40,
             "--review-implementation-commit",
             "b" * 40,
-            "--expected-population-count",
-            "26",
         ]
     )
-    assert parsed.expected_population_count == 26
+    assert parsed.population_verification_report == Path("population-verification.json")
     script = Path(
         "cluster/goethe_nhr/phase03_parser_v3_targeted_review_prepare.sbatch"
     ).read_text()
@@ -502,6 +707,21 @@ def test_cli_and_cluster_asset_preserve_targeted_review_boundary() -> None:
     assert "pilot-select" not in script
     assert "development-transform" not in script
     assert "targeted_review_cli prepare" in script
+    assert "EXPECTED_POPULATION_COUNT=11" in script
+    assert "PHASE03_TARGETED_REVIEW_EXPECTED_COUNT" not in script
+    assert "RESOLVED_POPULATION_REPORT_ROOT" in script
+    assert "conservative_address_parser_v2_1" not in script
+    assert "phase03_development_country_method_repair_20260816" in script
+    verifier = Path(
+        "cluster/goethe_nhr/phase03_parser_v3_targeted_review_population_verify.sbatch"
+    ).read_text()
+    assert "verify-repaired-population" in verifier
+    assert "expected_population=9/11/9/0/2/11" in verifier
+    assert "RESOLVED_REPAIR_REPORT_ROOT" in verifier
+    assert "review_inputs_created=false" in verifier
+    assert "review_databases_created=false" in verifier
+    assert "pilot-select" not in verifier
+    assert "locked" in verifier.casefold()
     assert "TARGETED_REVIEW_LOCKED_PATH_PROHIBITED" in script
     assert "human_labels_created=false" in script
 
@@ -531,3 +751,26 @@ def test_real_cli_fails_before_opening_inputs_outside_goethe_slurm(
                 str(tmp_path / "does-not-exist.sqlite3"),
             ]
         )
+    with pytest.raises(ExecutionPolicyError):
+        main(
+            [
+                "verify-repaired-population",
+                "--development-identities",
+                str(tmp_path / "missing-identities"),
+                "--baseline-core",
+                str(tmp_path / "missing-baseline-core"),
+                "--baseline-evidence",
+                str(tmp_path / "missing-baseline-evidence"),
+                "--experimental-core",
+                str(tmp_path / "missing-experimental-core"),
+                "--experimental-evidence",
+                str(tmp_path / "missing-experimental-evidence"),
+                "--repair-success",
+                str(tmp_path / "missing-success"),
+                "--repair-comparison",
+                str(tmp_path / "missing-comparison"),
+                "--output",
+                str(tmp_path / "must-not-exist.json"),
+            ]
+        )
+    assert not (tmp_path / "must-not-exist.json").exists()

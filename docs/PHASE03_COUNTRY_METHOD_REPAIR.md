@@ -78,13 +78,23 @@ The historical observed counts remain evidence and are not rewritten:
 - evidence-only 2;
 - union 28.
 
-The post-repair hypothesis is 9 scientific changes, 11 experimental-evidence
-identities, overlap 9, changed-only 0, evidence-only 2, and union 11. These are
-not hard-coded as success criteria. The repaired comparison requires exact
-ordered identities, source provenance, schemas, page checksums, semantic
-digests, configuration roles, and core/evidence relationships, then reports
-the measured aggregates without a promotion decision. The existing targeted
-review expected-count gate is unchanged pending those measured results.
+Goethe job `1749448` completed repaired iteration
+`phase03_development_country_method_repair_20260816T001155Z_1749448_e4a47253`.
+Its validated aggregate comparison reports 8,000 rows, nine scientific changes,
+nine newly selected streets, nine newly selected house numbers, nine
+`UNPARSEABLE -> PARTIAL` transitions, no new conflicts, and unchanged V4
+candidate/selection totals of 22/9 per rule. The 17 historical
+`country_parse_method`-only differences are absent.
+
+The remaining identity-level hypothesis is 11 experimental-evidence identities,
+overlap 9, changed-only 0, evidence-only 2, and union 11. A separate
+verification-only command now computes those sets from the immutable repaired
+artifacts and fails closed unless the complete 8,000/9/11/9/0/2/11 contract,
+artifact hashes, parser/configuration identities, and 22/9 rule aggregates all
+match. The future targeted-review preparer requires that passing sanitized
+report; it cannot accept the obsolete 26/28 population or an operator-supplied
+replacement count. No review input or reviewer database is created by the
+verification step.
 
 ## Goethe-NHR execution plan
 

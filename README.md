@@ -114,6 +114,7 @@ command and schema. It does not reuse or alter the main 800-row review stores:
 
 ```bash
 safe-geocoding-phase03-targeted-review schema
+safe-geocoding-phase03-targeted-review verify-repaired-population ...
 safe-geocoding-phase03-targeted-review prepare ...
 safe-geocoding-phase03-targeted-review initialize ...
 safe-geocoding-phase03-targeted-review review ...
@@ -122,15 +123,19 @@ safe-geocoding-phase03-targeted-review export-controlled-labels ...
 safe-geocoding-phase03-targeted-review score ...
 ```
 
-Real preparation and review run only on Goethe-NHR compute nodes, use the fixed
-8,000-row DEVELOPMENT payload, and reject LOCKED paths. See
+The verification-only command reads the repaired v2.1/v3.1 DEVELOPMENT
+core/evidence and fixed identities, validates the exact hash-pinned
+8,000/9/11/9/0/2/11 A-union-B contract, and emits only sanitized aggregates.
+It creates no review inputs or databases. Real preparation is blocked without
+that passing report. All real verification, preparation, and review commands
+run only on Goethe-NHR compute nodes, use the fixed 8,000 DEVELOPMENT identities,
+and reject LOCKED paths. See
 `docs/PHASE03_PARSER_V3_TARGETED_REVIEW.md`.
 
-Before the stopped Parser-v3 review population is initialized, the Goethe-only
-`development-diagnose-parser-v2-v3-changes` command explains the 26/11 set
-decomposition using only immutable DEVELOPMENT core/evidence and identities.
-It emits fixed aggregate categories only and does not change the reviewed
-expected-count gate. See `docs/PHASE03_PARSER_V3_CHANGE_DIAGNOSTIC.md`.
+The historical Goethe-only `development-diagnose-parser-v2-v3-changes` command
+explains the pre-repair 26/11/28 decomposition. Those counts remain audit-only
+and are not accepted by repaired targeted-review preparation. See
+`docs/PHASE03_PARSER_V3_CHANGE_DIAGNOSTIC.md`.
 
 Validate the bundled rule registry and display privacy-safe framework metadata:
 

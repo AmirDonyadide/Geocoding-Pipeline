@@ -50,7 +50,16 @@ This register distinguishes approved project rules from questions that require e
   reconciliation. Shared v2/v3 country-method derivation is hash-seed-sensitive
   when an unselectable same-value free-form country candidate contributes a
   second reference kind. This defect is not removed from scientific comparison
-  and is not treated as a Parser-v3 country-rule change.
+  and is not treated as a Parser-v3 country-rule change. The explicit repaired
+  v2.1/v3.1 lineages executed successfully in Goethe job `1749448`; their
+  aggregate comparison contains nine substantive scientific changes and no
+  remaining country-method-only population. Historical 26/28 counts remain
+  audit evidence only. The active targeted-review population remains the exact
+  A-union-B definition and has a fail-closed repaired expectation of 11 only
+  after a separate identity-level verifier proves 8,000/9/11/9/0/2/11 against
+  the hash-pinned repaired artifacts. Review preparation requires that passing
+  sanitized report; neither preparation nor reviewer initialization is
+  authorized by the verifier implementation.
 - Production-heavy commands reuse the common execution guard and require both `SAFE_EXECUTION_SITE=goethe-nhr` and a non-empty `SLURM_JOB_ID`; there is no ordinary local-production bypass. This controls runtime and SSD/I/O load, improves scheduler resource control, preserves reproducible host/runtime boundaries, strengthens auditability, and supports later full-data phases.
 
 ### Phase 3 execution-site correction

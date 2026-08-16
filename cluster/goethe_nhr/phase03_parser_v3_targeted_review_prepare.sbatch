@@ -16,8 +16,19 @@ umask 077
 
 readonly DATA_ROOT="/work/footprint/donyadidegan/safe_geocoding_pipeline"
 readonly CONTROLLED_ROOT="${DATA_ROOT}/derived/controlled/phase03_v1"
-readonly REVIEW_ROOT="${CONTROLLED_ROOT}/reviews/parser_v3_experimental"
+readonly REVIEW_ROOT="${CONTROLLED_ROOT}/reviews/parser_v3_1_experimental"
 readonly REPORT_ROOT="${DATA_ROOT}/reports/generated/phase03/parser_v3_targeted_review"
+readonly SOURCE_RUN_ROOT="${CONTROLLED_ROOT}/pilots/.in_progress/phase03_pilot_goethe_20260813T224643Z_1748630_750a1655"
+readonly REPAIR_ITERATION_ID="phase03_development_country_method_repair_20260816T001155Z_1749448_e4a47253"
+readonly REPAIR_ITERATION_ROOT="${CONTROLLED_ROOT}/development_iterations/${REPAIR_ITERATION_ID}"
+readonly REPAIR_EXECUTION_COMMIT="e4a4725399a635476e7d97adcc8e446a592404cd"
+readonly EXPECTED_POPULATION_COUNT=11
+readonly PHASE03_DEVELOPMENT_PAYLOAD="${SOURCE_RUN_ROOT}/development/payload/development.parquet"
+readonly PHASE03_DEVELOPMENT_IDENTITIES="${SOURCE_RUN_ROOT}/selection/development.identities.bin"
+readonly PHASE03_PARSER_V2_CORE="${REPAIR_ITERATION_ROOT}/parser_v2_1/transformed/core/development.parquet"
+readonly PHASE03_PARSER_V2_EVIDENCE="${REPAIR_ITERATION_ROOT}/parser_v2_1/transformed/evidence/development.parquet"
+readonly PHASE03_PARSER_V3_CORE="${REPAIR_ITERATION_ROOT}/parser_v3_1_experimental/transformed/core/development.parquet"
+readonly PHASE03_PARSER_V3_EVIDENCE="${REPAIR_ITERATION_ROOT}/parser_v3_1_experimental/transformed/evidence/development.parquet"
 
 export SAFE_EXECUTION_SITE=goethe-nhr
 export PYTHONDONTWRITEBYTECODE=1
@@ -25,18 +36,11 @@ export PYTHONDONTWRITEBYTECODE=1
 : "${SLURM_SUBMIT_DIR:?SLURM_SUBMIT_DIR is required}"
 : "${PHASE03_GIT_COMMIT:?review implementation commit is required}"
 : "${PHASE03_INTEGRATION_ROOT:?detached integration worktree is required}"
-: "${PHASE03_EXPERIMENT_ITERATION:?parser-v3 iteration identity is required}"
-: "${PHASE03_EXPERIMENTAL_PARSER_COMMIT:?parser-v3 execution commit is required}"
-: "${PHASE03_DEVELOPMENT_PAYLOAD:?DEVELOPMENT payload is required}"
-: "${PHASE03_DEVELOPMENT_IDENTITIES:?DEVELOPMENT identity set is required}"
-: "${PHASE03_PARSER_V2_CORE:?parser-v2 core is required}"
-: "${PHASE03_PARSER_V2_EVIDENCE:?parser-v2 evidence is required}"
-: "${PHASE03_PARSER_V3_CORE:?parser-v3 core is required}"
-: "${PHASE03_PARSER_V3_EVIDENCE:?parser-v3 evidence is required}"
-: "${PHASE03_TARGETED_REVIEW_EXPECTED_COUNT:?reviewed expected population count is required}"
+: "${PHASE03_POPULATION_VERIFICATION_REPORT:?passing repaired population verification report is required}"
 
 readonly INTEGRATION_ROOT="$(realpath -e -- "${PHASE03_INTEGRATION_ROOT}")"
 readonly RESOLVED_CONTROLLED_ROOT="$(realpath -e -- "${CONTROLLED_ROOT}")"
+readonly RESOLVED_POPULATION_REPORT_ROOT="$(realpath -e -- "${DATA_ROOT}/reports/generated/phase03/parser_v3_targeted_review_population")"
 readonly SUBMIT_DIRECTORY="$(realpath -e -- "${SLURM_SUBMIT_DIR}")"
 readonly EXPECTED_SBATCH="${INTEGRATION_ROOT}/cluster/goethe_nhr/phase03_parser_v3_targeted_review_prepare.sbatch"
 
@@ -60,15 +64,6 @@ cmp -s -- "${BASH_SOURCE[0]}" "${EXPECTED_SBATCH}" || {
   echo "TARGETED_REVIEW_WORKTREE_NOT_CLEAN" >&2
   exit 1
 }
-[[ "${PHASE03_EXPERIMENTAL_PARSER_COMMIT}" == "fa3b924657aed47bfe6aaa80d87353f8d9b78139" ]] || {
-  echo "TARGETED_REVIEW_EXPERIMENTAL_COMMIT_MISMATCH" >&2
-  exit 1
-}
-[[ "${PHASE03_TARGETED_REVIEW_EXPECTED_COUNT}" =~ ^[1-9][0-9]*$ ]] || {
-  echo "TARGETED_REVIEW_EXPECTED_COUNT_INVALID" >&2
-  exit 1
-}
-
 readonly INPUTS=(
   "${PHASE03_DEVELOPMENT_PAYLOAD}"
   "${PHASE03_DEVELOPMENT_IDENTITIES}"
@@ -76,6 +71,7 @@ readonly INPUTS=(
   "${PHASE03_PARSER_V2_EVIDENCE}"
   "${PHASE03_PARSER_V3_CORE}"
   "${PHASE03_PARSER_V3_EVIDENCE}"
+  "${PHASE03_POPULATION_VERIFICATION_REPORT}"
 )
 for input in "${INPUTS[@]}"; do
   [[ -f "${input}" && -r "${input}" ]] || {
@@ -83,10 +79,17 @@ for input in "${INPUTS[@]}"; do
     exit 1
   }
   resolved_input="$(realpath -e -- "${input}")"
-  [[ "${resolved_input}" == "${RESOLVED_CONTROLLED_ROOT}/"* ]] || {
-    echo "TARGETED_REVIEW_INPUT_OUTSIDE_CONTROLLED_ROOT" >&2
-    exit 1
-  }
+  if [[ "${input}" == "${PHASE03_POPULATION_VERIFICATION_REPORT}" ]]; then
+    [[ "${resolved_input}" == "${RESOLVED_POPULATION_REPORT_ROOT}/"* ]] || {
+      echo "TARGETED_REVIEW_VERIFICATION_REPORT_OUTSIDE_APPROVED_ROOT" >&2
+      exit 1
+    }
+  else
+    [[ "${resolved_input}" == "${RESOLVED_CONTROLLED_ROOT}/"* ]] || {
+      echo "TARGETED_REVIEW_INPUT_OUTSIDE_CONTROLLED_ROOT" >&2
+      exit 1
+    }
+  fi
   [[ "${resolved_input,,}" != *locked* ]] || {
     echo "TARGETED_REVIEW_LOCKED_PATH_PROHIBITED" >&2
     exit 1
@@ -143,10 +146,10 @@ echo "job_id=${SLURM_JOB_ID}"
 echo "hostname=$(hostname)"
 echo "start_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 echo "git_commit=${PHASE03_GIT_COMMIT}"
-echo "experimental_parser_commit=${PHASE03_EXPERIMENTAL_PARSER_COMMIT}"
-echo "experiment_iteration=${PHASE03_EXPERIMENT_ITERATION}"
+echo "repair_execution_commit=${REPAIR_EXECUTION_COMMIT}"
+echo "experiment_iteration=${REPAIR_ITERATION_ID}"
 echo "targeted_review_id=${REVIEW_ID}"
-echo "expected_population_count=${PHASE03_TARGETED_REVIEW_EXPECTED_COUNT}"
+echo "expected_population_count=${EXPECTED_POPULATION_COUNT}"
 echo "locked_access=PROHIBITED"
 echo "pilot_selection_rerun=false"
 echo "human_labels_created=false"
@@ -158,16 +161,16 @@ python -m safe_geocoding_pipeline.phase03.targeted_review_cli prepare \
   --baseline-evidence "${PHASE03_PARSER_V2_EVIDENCE}" \
   --experimental-core "${PHASE03_PARSER_V3_CORE}" \
   --experimental-evidence "${PHASE03_PARSER_V3_EVIDENCE}" \
+  --population-verification-report "${PHASE03_POPULATION_VERIFICATION_REPORT}" \
   --output-directory "${ATTEMPT}/prepared_inputs" \
-  --experiment-iteration "${PHASE03_EXPERIMENT_ITERATION}" \
-  --experimental-parser-commit "${PHASE03_EXPERIMENTAL_PARSER_COMMIT}" \
+  --experiment-iteration "${REPAIR_ITERATION_ID}" \
+  --experimental-parser-commit "${REPAIR_EXECUTION_COMMIT}" \
   --review-implementation-commit "${PHASE03_GIT_COMMIT}" \
   --expected-development-rows 8000 \
-  --expected-population-count "${PHASE03_TARGETED_REVIEW_EXPECTED_COUNT}" \
   >"${ATTEMPT_REPORT}/prepare.json"
 chmod 0600 "${ATTEMPT_REPORT}/prepare.json"
 
-python - "${ATTEMPT}/prepared_inputs/targeted_review_input_manifest.json" "${PHASE03_TARGETED_REVIEW_EXPECTED_COUNT}" <<'PY'
+python - "${ATTEMPT}/prepared_inputs/targeted_review_input_manifest.json" "${EXPECTED_POPULATION_COUNT}" <<'PY'
 import json
 import sys
 from pathlib import Path

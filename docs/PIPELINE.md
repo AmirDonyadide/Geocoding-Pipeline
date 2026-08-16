@@ -56,8 +56,11 @@ This is the approved conceptual workflow. It is not an implementation plan or ev
   performs no pilot selection or LOCKED_EVALUATION access. See
   `docs/PHASE03_COUNTRY_METHOD_REPAIR.md`.
 - **Targeted parser-v3 review:** A separate protected DEVELOPMENT workflow may
-  review every identity in the exact union of v2-v3 scientific-output changes
-  and experimental-rule evidence. Both pseudonymous reviewers receive the full
+  review every identity in the exact union of repaired v2.1-v3.1
+  scientific-output changes and experimental-rule evidence. A separate
+  verification-only Goethe command must first prove the hash-pinned
+  8,000/9/11/9/0/2/11 identity-set contract and creates no review inputs or
+  databases. Both pseudonymous reviewers eventually receive the full verified
   population under deterministic independent order/blinding. Only aggregate
   scores may leave Goethe; review evidence does not authorize promotion. See
   `docs/PHASE03_PARSER_V3_TARGETED_REVIEW.md`.
