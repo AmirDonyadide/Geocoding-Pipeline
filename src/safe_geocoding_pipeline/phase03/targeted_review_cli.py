@@ -73,13 +73,15 @@ def build_parser() -> argparse.ArgumentParser:
     progress.add_argument("--progress-database", type=Path, required=True)
 
     export = commands.add_parser("export-controlled-labels")
+    export.add_argument("--single-reviewer", action="store_true")
     export.add_argument("--reviewer-one-database", type=Path, required=True)
-    export.add_argument("--reviewer-two-database", type=Path, required=True)
+    export.add_argument("--reviewer-two-database", type=Path)
     export.add_argument("--output", type=Path, required=True)
 
     score = commands.add_parser("score")
+    score.add_argument("--single-reviewer", action="store_true")
     score.add_argument("--reviewer-one-database", type=Path, required=True)
-    score.add_argument("--reviewer-two-database", type=Path, required=True)
+    score.add_argument("--reviewer-two-database", type=Path)
     score.add_argument("--protected-context", type=Path, required=True)
     score.add_argument("--output", type=Path, required=True)
     return parser
@@ -201,8 +203,12 @@ def main(argv: Sequence[str] | None = None) -> int:
             reviewer_one_database=args.reviewer_one_database,
             reviewer_two_database=args.reviewer_two_database,
             output_path=args.output,
+            single_reviewer=args.single_reviewer,
         )
-        _print({"status": "EXPORTED_CONTROLLED_LABELS", "output": str(path)})
+        result = {"status": "EXPORTED_CONTROLLED_LABELS", "output": str(path)}
+        if args.single_reviewer:
+            result["review_design"] = "SINGLE_REVIEWER"
+        _print(result)
         return 0
     if args.command == "score":
         payload = score_completed_targeted_review(
@@ -210,6 +216,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             reviewer_two_database=args.reviewer_two_database,
             context_path=args.protected_context,
             output_path=args.output,
+            single_reviewer=args.single_reviewer,
         )
         _print(payload)
         return 0

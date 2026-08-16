@@ -28,10 +28,19 @@ This register distinguishes approved project rules from questions that require e
 - The completed parser-v3 experiment remains unpromoted. Its targeted human
   review population is the deterministic deduplicated union of DEVELOPMENT
   rows with v2-v3 scientific-output changes and rows with either experimental
-  rule's evidence. Every affected identity receives two independent blinded
-  reviews in a separate owner-only Goethe namespace; the main 800-row review
-  and LOCKED_EVALUATION remain untouched. No frequency, review result, or fill
-  rate automatically promotes the experiment.
+  rule's evidence. The review was prepared for two independent blinded reviews
+  in a separate owner-only Goethe namespace; the main 800-row review and
+  LOCKED_EVALUATION remain untouched. No frequency, review result, or fill rate
+  automatically promotes the experiment.
+- After Targeted-R01 completed all 11 targeted DEVELOPMENT cases, the targeted
+  review protocol was explicitly changed to single-reviewer evaluation.
+  Targeted-R02 is skipped, its original pending SQLite assignments remain
+  untouched, and no labels may be copied, fabricated, or inferred for it. The
+  controlled export and sanitized score must declare `SINGLE_REVIEWER`, record
+  `SKIPPED_BY_EXPLICIT_DECISION`, and leave inter-reviewer agreement and
+  adjudication metrics unevaluated. This deliberate reduction in evidentiary
+  strength does not promote Parser v3.1 or weaken the existing two-reviewer
+  mode for any other invocation.
 - Targeted-review preparation job `1749345` is a fail-closed population-gate
   stop, not scientific evidence for changing the reviewed expected count. The
   observed DEVELOPMENT sets are A=26 scientific-core changes and B=11

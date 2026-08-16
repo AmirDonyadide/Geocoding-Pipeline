@@ -123,6 +123,12 @@ safe-geocoding-phase03-targeted-review export-controlled-labels ...
 safe-geocoding-phase03-targeted-review score ...
 ```
 
+For this completed 11-case DEVELOPMENT review only, the explicit
+`--single-reviewer` export/score mode consumes the completed `Targeted-R01`
+database without accepting or opening Targeted-R02. It records that the second
+review and inter-reviewer agreement were not evaluated. Omitting R02 without
+the flag remains an error, and the original two-reviewer mode is unchanged.
+
 The verification-only command reads the repaired v2.1/v3.1 DEVELOPMENT
 core/evidence and fixed identities, validates the exact hash-pinned
 8,000/9/11/9/0/2/11 A-union-B contract, and emits only sanitized aggregates.

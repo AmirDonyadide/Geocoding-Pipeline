@@ -183,6 +183,40 @@ def _valid_labels() -> dict[str, str]:
     }
 
 
+def _initialize_synthetic_targeted_review(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> tuple[Path, Path, Path, tuple[str, ...]]:
+    prepared, _, raw_values = _prepare(tmp_path)
+    monkeypatch.setattr(
+        "safe_geocoding_pipeline.phase03.targeted_experiment_review.current_repository_commit",
+        lambda: "b" * 40,
+    )
+    first_path, second_path = initialize_targeted_review_workspace(
+        context_path=prepared / "protected_targeted_review_context.parquet",
+        template_path=prepared / "protected_targeted_review_template.parquet",
+        manifest_path=prepared / "targeted_review_input_manifest.json",
+        output_directory=tmp_path / "progress",
+        implementation_commit="b" * 40,
+    )
+    return prepared, first_path, second_path, raw_values
+
+
+def _use_synthetic_single_reviewer_expectation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from safe_geocoding_pipeline.phase03 import targeted_experiment_review as module
+
+    assert module.REPAIRED_POPULATION_EXPECTATION.union_rows == 11
+    monkeypatch.setattr(
+        module,
+        "REPAIRED_POPULATION_EXPECTATION",
+        PopulationExpectation(3, 1, 2, 1, 0, 1, 2, 2, 1),
+    )
+    monkeypatch.setattr(
+        module, "REPAIRED_ITERATION_ID", "fictional_parser_v3_experiment"
+    )
+
+
 def test_population_is_exact_union_deduplicated_and_provenance_bound(
     tmp_path: Path,
 ) -> None:
@@ -548,6 +582,8 @@ def test_targeted_label_vocabulary_and_cross_field_validation() -> None:
 def test_independent_reviewers_have_separate_deterministic_orders_and_export(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    from safe_geocoding_pipeline.phase03 import targeted_experiment_review as module
+
     prepared, _, raw_values = _prepare(tmp_path)
     monkeypatch.setattr(
         "safe_geocoding_pipeline.phase03.targeted_experiment_review.current_repository_commit",
@@ -605,7 +641,8 @@ def test_independent_reviewers_have_separate_deterministic_orders_and_export(
         reviewer_two_database=second_path,
         output_path=export,
     )
-    table = pq.ParquetFile(export, page_checksum_verification=True).read()
+    exported_file = pq.ParquetFile(export, page_checksum_verification=True)
+    table = exported_file.read()
     assert table.schema.remove_metadata().equals(
         targeted_review_label_schema(), check_metadata=False
     )
@@ -615,6 +652,7 @@ def test_independent_reviewers_have_separate_deterministic_orders_and_export(
         "Targeted-R02",
     }
     assert table["is_independent_review"].to_pylist() == [True] * 4
+    assert exported_file.schema_arrow.metadata is None
     exported_bytes = export.read_bytes()
     assert not any(value.encode() in exported_bytes for value in raw_values)
 
@@ -626,16 +664,188 @@ def test_independent_reviewers_have_separate_deterministic_orders_and_export(
         output_path=score_path,
     )
     assert payload["number_reviewed"] == 2
+    assert payload["report_version"] == module.TARGETED_SCORE_VERSION
+    assert payload["status"] == (
+        "TARGETED_REVIEW_SCORED_NO_PROMOTION_THRESHOLD_APPLIED"
+    )
     assert payload["review_completion"] == {
         "Targeted-R01": 2,
         "Targeted-R02": 2,
     }
     assert payload["adjudication_needed_count"] == 0
     assert payload["scientific_promotion_threshold_applied"] is False
+    assert "review_design" not in payload
+    assert "independent_second_review" not in payload
     serialized = score_path.read_text()
     assert not any(value in serialized for value in raw_values)
     assert "hashed_review_id" not in serialized
     assert str(tmp_path) not in serialized
+
+
+def test_completed_r01_only_export_and_score_are_explicit_and_do_not_open_r02(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from safe_geocoding_pipeline.phase03 import targeted_experiment_review as module
+
+    prepared, first_path, second_path, raw_values = (
+        _initialize_synthetic_targeted_review(tmp_path, monkeypatch)
+    )
+    _use_synthetic_single_reviewer_expectation(monkeypatch)
+    protected_note = "private synthetic adjudication note"
+    with TargetedReviewStore(first_path) as first:
+        for hashed in first.assignment_ids():
+            first.save_completed(
+                hashed,
+                _valid_labels(),
+                ["OTHER_ADJUDICATION_REQUIRED"],
+                protected_note=protected_note,
+            )
+    second_before = (second_path.read_bytes(), second_path.stat().st_mtime_ns)
+    original_init = TargetedReviewStore.__init__
+    opened_databases: list[Path] = []
+
+    def tracked_init(
+        self: TargetedReviewStore, path: Path, *, readonly: bool = False
+    ) -> None:
+        opened_databases.append(path)
+        if path == second_path:
+            raise AssertionError(
+                "Targeted-R02 must not be opened in single-reviewer mode"
+            )
+        original_init(self, path, readonly=readonly)
+
+    monkeypatch.setattr(TargetedReviewStore, "__init__", tracked_init)
+    export = tmp_path / "single-export" / "targeted_labels.parquet"
+    export_completed_targeted_labels(
+        reviewer_one_database=first_path,
+        reviewer_two_database=None,
+        output_path=export,
+        single_reviewer=True,
+    )
+    parquet = pq.ParquetFile(export, page_checksum_verification=True)
+    table = parquet.read()
+    assert table.num_rows == 2
+    assert table.schema.remove_metadata().equals(
+        targeted_review_label_schema(), check_metadata=False
+    )
+    assert table["reviewer_id"].to_pylist() == ["Targeted-R01"] * 2
+    assert table["assignment_role"].to_pylist() == ["PRIMARY"] * 2
+    assert table["is_independent_review"].to_pylist() == [True] * 2
+    metadata = {
+        key.decode("utf-8"): value.decode("utf-8")
+        for key, value in (parquet.schema_arrow.metadata or {}).items()
+    }
+    assert metadata == {
+        "evaluation_version": module.TARGETED_SINGLE_REVIEW_EXPORT_VERSION,
+        "evaluation_implementation_commit": "b" * 40,
+        "evaluation_implementation_fingerprint": (
+            module.targeted_review_implementation_fingerprint()
+        ),
+        "review_input_implementation_commit": "b" * 40,
+        "review_input_implementation_fingerprint": (
+            module.targeted_review_implementation_fingerprint()
+        ),
+        "review_design": "SINGLE_REVIEWER",
+        "primary_reviewer": "Targeted-R01",
+        "primary_review_complete": "true",
+        "primary_review_rows": "2",
+        "independent_second_review": "SKIPPED_BY_EXPLICIT_DECISION",
+        "independent_second_review_rows": "0",
+        "inter_reviewer_agreement": "NOT_EVALUATED",
+        "independent_double_review_completed": "false",
+        "locked_rows_read": "0",
+        "scientific_scope": "DEVELOPMENT_ONLY",
+    }
+
+    score_path = tmp_path / "single-score" / "aggregate.json"
+    payload = score_completed_targeted_review(
+        reviewer_one_database=first_path,
+        reviewer_two_database=None,
+        context_path=prepared / "protected_targeted_review_context.parquet",
+        output_path=score_path,
+        single_reviewer=True,
+    )
+    assert payload["report_version"] == module.TARGETED_SINGLE_REVIEW_SCORE_VERSION
+    assert payload["status"] == (
+        "TARGETED_SINGLE_REVIEWER_SCORED_NO_PROMOTION_THRESHOLD_APPLIED"
+    )
+    assert payload["review_design"] == "SINGLE_REVIEWER"
+    assert payload["primary_reviewer"] == "Targeted-R01"
+    assert payload["primary_review_complete"] is True
+    assert payload["primary_review_rows"] == 2
+    assert payload["independent_second_review"] == ("SKIPPED_BY_EXPLICIT_DECISION")
+    assert payload["independent_second_review_rows"] == 0
+    assert payload["inter_reviewer_agreement"] == "NOT_EVALUATED"
+    assert payload["reviewer_agreement"] == "NOT_EVALUATED"
+    assert payload["adjudication_needed_count"] is None
+    assert payload["independent_double_review_completed"] is False
+    assert payload["locked_rows_read"] == 0
+    assert payload["scientific_scope"] == "DEVELOPMENT_ONLY"
+    assert payload["scientific_promotion_threshold_applied"] is False
+    assert payload["scientific_promotion_decision"] == "NOT_EVALUATED"
+    assert payload["evaluation_implementation_commit"] == "b" * 40
+    assert payload["review_input_implementation_commit"] == "b" * 40
+    assert set(payload["per_reviewer"]) == {"Targeted-R01"}
+    serialized_outputs = export.read_bytes() + score_path.read_bytes()
+    assert protected_note.encode("utf-8") not in serialized_outputs
+    assert not any(value.encode("utf-8") in serialized_outputs for value in raw_values)
+    assert second_before == (second_path.read_bytes(), second_path.stat().st_mtime_ns)
+    assert second_path not in opened_databases
+    assert set(opened_databases) == {first_path}
+
+
+def test_single_reviewer_mode_fails_closed_for_incomplete_or_wrong_reviewer(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    prepared, first_path, second_path, _ = _initialize_synthetic_targeted_review(
+        tmp_path, monkeypatch
+    )
+    _use_synthetic_single_reviewer_expectation(monkeypatch)
+    with pytest.raises(ValueError, match="exactly 2 completed assignments"):
+        export_completed_targeted_labels(
+            reviewer_one_database=first_path,
+            reviewer_two_database=None,
+            output_path=tmp_path / "incomplete" / "labels.parquet",
+            single_reviewer=True,
+        )
+    with pytest.raises(ValueError, match="Targeted-R01 with PRIMARY role"):
+        export_completed_targeted_labels(
+            reviewer_one_database=second_path,
+            reviewer_two_database=None,
+            output_path=tmp_path / "wrong-reviewer" / "labels.parquet",
+            single_reviewer=True,
+        )
+    assert not (tmp_path / "incomplete").exists()
+    assert not (tmp_path / "wrong-reviewer").exists()
+    assert not (tmp_path / "score").exists()
+    with pytest.raises(ValueError, match="prohibits a reviewer-two database"):
+        score_completed_targeted_review(
+            reviewer_one_database=first_path,
+            reviewer_two_database=second_path,
+            context_path=prepared / "protected_targeted_review_context.parquet",
+            output_path=tmp_path / "score" / "aggregate.json",
+            single_reviewer=True,
+        )
+    with pytest.raises(ValueError, match="requires a reviewer-two database"):
+        export_completed_targeted_labels(
+            reviewer_one_database=first_path,
+            reviewer_two_database=None,
+            output_path=tmp_path / "implicit-single" / "labels.parquet",
+            single_reviewer=False,
+        )
+
+
+def test_single_reviewer_mode_rejects_locked_paths_before_open(
+    tmp_path: Path,
+) -> None:
+    with pytest.raises(ValueError, match="LOCKED"):
+        export_completed_targeted_labels(
+            reviewer_one_database=tmp_path / "locked" / "Targeted-R01.sqlite3",
+            reviewer_two_database=None,
+            output_path=tmp_path / "must-not-exist.parquet",
+            single_reviewer=True,
+        )
+    assert not (tmp_path / "must-not-exist.parquet").exists()
 
 
 def test_prepare_is_deterministic_and_does_not_mutate_parser_outputs(
@@ -698,6 +908,33 @@ def test_cli_and_cluster_asset_preserve_targeted_review_boundary() -> None:
         ]
     )
     assert parsed.population_verification_report == Path("population-verification.json")
+    single_export = build_parser().parse_args(
+        [
+            "export-controlled-labels",
+            "--single-reviewer",
+            "--reviewer-one-database",
+            "Targeted-R01.sqlite3",
+            "--output",
+            "single-reviewer-labels.parquet",
+        ]
+    )
+    assert single_export.single_reviewer is True
+    assert single_export.reviewer_one_database == Path("Targeted-R01.sqlite3")
+    assert single_export.reviewer_two_database is None
+    single_score = build_parser().parse_args(
+        [
+            "score",
+            "--single-reviewer",
+            "--reviewer-one-database",
+            "Targeted-R01.sqlite3",
+            "--protected-context",
+            "context.parquet",
+            "--output",
+            "single-reviewer-score.json",
+        ]
+    )
+    assert single_score.single_reviewer is True
+    assert single_score.reviewer_two_database is None
     script = Path(
         "cluster/goethe_nhr/phase03_parser_v3_targeted_review_prepare.sbatch"
     ).read_text()

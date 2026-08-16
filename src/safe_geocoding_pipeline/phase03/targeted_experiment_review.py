@@ -71,6 +71,12 @@ TARGETED_PROGRESS_SCHEMA_VERSION: Final = (
     "phase03_parser_v3_targeted_review_progress_sqlite_v1"
 )
 TARGETED_SCORE_VERSION: Final = "phase03_parser_v3_targeted_review_score_v1"
+TARGETED_SINGLE_REVIEW_SCORE_VERSION: Final = (
+    "phase03_parser_v3_targeted_review_score_single_reviewer_v1"
+)
+TARGETED_SINGLE_REVIEW_EXPORT_VERSION: Final = (
+    "phase03_parser_v3_targeted_review_export_single_reviewer_v1"
+)
 TARGETED_REVIEW_SEED: Final = (
     "safe_geocoding_pipeline:phase03_parser_v3_targeted_review_v1:seed:1"
 )
@@ -1463,22 +1469,272 @@ def _unblind_comparison(label: str, *, experimental_is_a: bool) -> str:
     )
 
 
+def _validate_evaluation_mode(
+    *, single_reviewer: bool, reviewer_two_database: Path | None
+) -> None:
+    if single_reviewer and reviewer_two_database is not None:
+        raise ValueError("single-reviewer mode prohibits a reviewer-two database")
+    if not single_reviewer and reviewer_two_database is None:
+        raise ValueError(
+            "two-reviewer mode requires a reviewer-two database; "
+            "use --single-reviewer only for the explicit R01-only decision"
+        )
+
+
+def _validate_completed_primary_store(
+    store: TargetedReviewStore,
+) -> tuple[dict[str, str], list[dict[str, Any]]]:
+    metadata = store.metadata()
+    expected_rows = REPAIRED_POPULATION_EXPECTATION.union_rows
+    if (
+        metadata.get("reviewer_id") != REVIEWER_IDS[0]
+        or metadata.get("assignment_role") != ASSIGNMENT_ROLES[REVIEWER_IDS[0]]
+    ):
+        raise ValueError(
+            "single-reviewer evaluation requires Targeted-R01 with PRIMARY role"
+        )
+    if (
+        metadata.get("progress_schema_version") != TARGETED_PROGRESS_SCHEMA_VERSION
+        or metadata.get("experiment_iteration") != REPAIRED_ITERATION_ID
+        or metadata.get("expected_assignment_count") != str(expected_rows)
+        or metadata.get("population_count") != str(expected_rows)
+        or metadata.get("targeted_review_seed") != TARGETED_REVIEW_SEED
+        or metadata.get("label_schema_version") != TARGETED_REVIEW_SCHEMA_VERSION
+        or metadata.get("label_vocabulary_version") != TARGETED_LABEL_VOCABULARY_VERSION
+        or metadata.get("reason_codes_version") != MANUAL_REVIEW_REASON_CODES_VERSION
+        or not _COMMIT.fullmatch(metadata.get("implementation_commit", ""))
+        or not _LOWER_HEX_64.fullmatch(metadata.get("implementation_fingerprint", ""))
+        or not _LOWER_HEX_64.fullmatch(metadata.get("context_sha256", ""))
+        or not _LOWER_HEX_64.fullmatch(metadata.get("template_sha256", ""))
+        or not _LOWER_HEX_64.fullmatch(metadata.get("population_digest", ""))
+    ):
+        raise ValueError("single-reviewer progress binding is invalid")
+    try:
+        context_size = int(metadata["context_size_bytes"])
+        template_size = int(metadata["template_size_bytes"])
+    except (KeyError, ValueError) as error:
+        raise ValueError("single-reviewer progress binding is invalid") from error
+    if context_size < 1 or template_size < 1:
+        raise ValueError("single-reviewer progress binding is invalid")
+    summary = store.summary()
+    if (
+        summary["status"] != "COMPLETE"
+        or summary["assignment_count"] != expected_rows
+        or summary["complete_count"] != expected_rows
+        or summary["pending_count"] != 0
+    ):
+        raise ValueError(
+            f"Targeted-R01 must have exactly {expected_rows} completed assignments"
+        )
+    rows = store.completed_rows()
+    if len(rows) != expected_rows or any(
+        row["reviewer_id"] != REVIEWER_IDS[0]
+        or row["assignment_role"] != ASSIGNMENT_ROLES[REVIEWER_IDS[0]]
+        or row["is_independent_review"] is not True
+        for row in rows
+    ):
+        raise ValueError("single-reviewer completed labels are invalid")
+    return metadata, rows
+
+
+def _single_review_design_metadata(primary_rows: int) -> dict[str, JsonValue]:
+    return {
+        "review_design": "SINGLE_REVIEWER",
+        "primary_reviewer": REVIEWER_IDS[0],
+        "primary_review_complete": True,
+        "primary_review_rows": primary_rows,
+        "independent_second_review": "SKIPPED_BY_EXPLICIT_DECISION",
+        "independent_second_review_rows": 0,
+        "inter_reviewer_agreement": "NOT_EVALUATED",
+        "independent_double_review_completed": False,
+        "locked_rows_read": 0,
+        "scientific_scope": "DEVELOPMENT_ONLY",
+    }
+
+
+def _single_review_parquet_metadata(
+    primary_rows: int, primary_binding: Mapping[str, str]
+) -> dict[bytes, bytes]:
+    metadata: dict[str, JsonValue] = {
+        "evaluation_version": TARGETED_SINGLE_REVIEW_EXPORT_VERSION,
+        "evaluation_implementation_commit": current_repository_commit(),
+        "evaluation_implementation_fingerprint": (
+            targeted_review_implementation_fingerprint()
+        ),
+        "review_input_implementation_commit": primary_binding["implementation_commit"],
+        "review_input_implementation_fingerprint": primary_binding[
+            "implementation_fingerprint"
+        ],
+        **_single_review_design_metadata(primary_rows),
+    }
+    return {
+        key.encode("utf-8"): (
+            ("true" if value else "false") if isinstance(value, bool) else str(value)
+        ).encode("utf-8")
+        for key, value in metadata.items()
+    }
+
+
+def _score_reviewer_rows(
+    rows: Sequence[Mapping[str, Any]],
+    *,
+    context: TargetedContext,
+    reviewer: str,
+) -> dict[str, JsonValue]:
+    selected: Counter[str] = Counter()
+    rejected: Counter[str] = Counter()
+    comparison: Counter[str] = Counter()
+    component_correct = 0
+    component_assessed = 0
+    joint_correct = 0
+    joint_assessed = 0
+    for row in rows:
+        hashed = str(row["hashed_review_id"])
+        index = context.by_hashed_id[hashed]
+        identity = bytes(context.table["stable_source_row_id_v1"][index].as_py())
+        case_metadata = json.loads(
+            str(context.table["targeted_case_metadata_json"][index].as_py())
+        )
+        is_selected = bool(case_metadata["experimental_selected"])
+        if is_selected:
+            street = str(row["street_label"])
+            house = str(row["house_number_label"])
+            joint = str(row["joint_street_house_label"])
+            selected["street_exact_correct"] += street == "CORRECT"
+            selected["house_number_exact_correct"] += house == "CORRECT"
+            selected["joint_street_house_exact_correct"] += joint == "CORRECT"
+            selected["incorrect"] += (
+                street == "INCORRECT"
+                or house == "INCORRECT"
+                or joint == "INCORRECT"
+                or row["candidate_support_label"] == "NOT_SUPPORTED"
+            )
+            selected["uncertain"] += (
+                street == "CANNOT_ASSESS"
+                or house == "CANNOT_ASSESS"
+                or joint == "CANNOT_ASSESS"
+                or row["candidate_support_label"] == "CANNOT_ASSESS"
+            )
+            for value in (street, house):
+                if value in {"CORRECT", "INCORRECT"}:
+                    component_assessed += 1
+                    component_correct += value == "CORRECT"
+            if joint in {"CORRECT", "INCORRECT"}:
+                joint_assessed += 1
+                joint_correct += joint == "CORRECT"
+        elif bool(case_metadata["experimental_evidence_present"]):
+            support = str(row["candidate_support_label"])
+            rejected["correctly_rejected"] += support == "NOT_SUPPORTED"
+            rejected["would_have_been_correct_if_promoted"] += support == "SUPPORTED"
+            rejected["ambiguous_uncertain"] += support == "CANNOT_ASSESS"
+        unblinded = _unblind_comparison(
+            str(row["blind_parse_comparison_label"]),
+            experimental_is_a=_experimental_is_parse_a(identity, reviewer),
+        )
+        comparison[unblinded] += 1
+    return {
+        "selected_experimental_rows": dict(sorted(selected.items())),
+        "rejected_candidate_rows": dict(sorted(rejected.items())),
+        "parser_comparison": {
+            key: comparison[key]
+            for key in (
+                "BOTH_CORRECT",
+                "V2_INCORRECT_V3_CORRECT",
+                "V2_CORRECT_V3_INCORRECT",
+                "BOTH_INCORRECT",
+                "CANNOT_ASSESS",
+            )
+        },
+        "new_selection_precision": {
+            "numerator": component_correct,
+            "denominator": component_assessed,
+        },
+        "joint_street_house_precision": {
+            "numerator": joint_correct,
+            "denominator": joint_assessed,
+        },
+        "false_positive_count": selected["incorrect"],
+        "false_negative_opportunity_count": rejected[
+            "would_have_been_correct_if_promoted"
+        ],
+    }
+
+
 def score_completed_targeted_review(
     *,
     reviewer_one_database: Path,
-    reviewer_two_database: Path,
+    reviewer_two_database: Path | None,
     context_path: Path,
     output_path: Path,
+    single_reviewer: bool = False,
 ) -> dict[str, JsonValue]:
-    for path in (
-        reviewer_one_database,
-        reviewer_two_database,
-        context_path,
-        output_path,
-    ):
+    _validate_evaluation_mode(
+        single_reviewer=single_reviewer,
+        reviewer_two_database=reviewer_two_database,
+    )
+    paths = [reviewer_one_database, context_path, output_path]
+    if reviewer_two_database is not None:
+        paths.append(reviewer_two_database)
+    for path in paths:
         _reject_locked_path(path)
     if output_path.exists():
         raise FileExistsError("targeted-review score output exists")
+    if single_reviewer:
+        _reject_locked_path(reviewer_one_database.resolve(strict=True))
+        _reject_locked_path(context_path.resolve(strict=True))
+        with TargetedReviewStore(reviewer_one_database, readonly=True) as first:
+            metadata, first_rows = _validate_completed_primary_store(first)
+        if file_sha256(context_path) != metadata[
+            "context_sha256"
+        ] or context_path.stat().st_size != int(metadata["context_size_bytes"]):
+            raise ValueError("targeted-review protected context identity changed")
+        context = TargetedContext.open(context_path, metadata["experiment_iteration"])
+        if len(context.by_hashed_id) != len(first_rows) or set(
+            context.by_hashed_id
+        ) != {str(row["hashed_review_id"]) for row in first_rows}:
+            raise ValueError("Targeted-R01 and protected context identities differ")
+        single_reviewer_payload: dict[str, JsonValue] = {
+            "report_version": TARGETED_SINGLE_REVIEW_SCORE_VERSION,
+            "status": (
+                "TARGETED_SINGLE_REVIEWER_SCORED_NO_PROMOTION_THRESHOLD_APPLIED"
+            ),
+            "number_reviewed": len(context.by_hashed_id),
+            "review_completion": {REVIEWER_IDS[0]: len(first_rows)},
+            "reviewer_agreement": "NOT_EVALUATED",
+            "adjudication_needed_count": None,
+            "per_reviewer": {
+                REVIEWER_IDS[0]: _score_reviewer_rows(
+                    first_rows, context=context, reviewer=REVIEWER_IDS[0]
+                )
+            },
+            "evaluation_implementation_commit": current_repository_commit(),
+            "evaluation_implementation_fingerprint": (
+                targeted_review_implementation_fingerprint()
+            ),
+            "review_input_implementation_commit": metadata["implementation_commit"],
+            "review_input_implementation_fingerprint": metadata[
+                "implementation_fingerprint"
+            ],
+            **_single_review_design_metadata(len(first_rows)),
+            "scientific_promotion_threshold_applied": False,
+            "scientific_promotion_decision": "NOT_EVALUATED",
+            "raw_values_reported": False,
+            "identities_reported": False,
+        }
+        output_path.parent.mkdir(parents=True, exist_ok=False, mode=0o700)
+        output_path.parent.chmod(0o700)
+        temporary = output_path.with_name(f".{output_path.name}.tmp")
+        with temporary.open("xb") as stream:
+            os.chmod(temporary, 0o600)
+            stream.write(canonical_json_bytes(single_reviewer_payload) + b"\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, output_path)
+        output_path.chmod(0o600)
+        _fsync_parent(output_path)
+        return single_reviewer_payload
+
+    assert reviewer_two_database is not None
     with (
         TargetedReviewStore(reviewer_one_database, readonly=True) as first,
         TargetedReviewStore(reviewer_two_database, readonly=True) as second,
@@ -1514,85 +1770,9 @@ def score_completed_targeted_review(
         for row in first_rows + second_rows
     }
     for reviewer, rows in by_reviewer.items():
-        selected: Counter[str] = Counter()
-        rejected: Counter[str] = Counter()
-        comparison: Counter[str] = Counter()
-        component_correct = 0
-        component_assessed = 0
-        joint_correct = 0
-        joint_assessed = 0
-        for row in rows:
-            hashed = str(row["hashed_review_id"])
-            index = context.by_hashed_id[hashed]
-            identity = bytes(context.table["stable_source_row_id_v1"][index].as_py())
-            case_metadata = json.loads(
-                str(context.table["targeted_case_metadata_json"][index].as_py())
-            )
-            is_selected = bool(case_metadata["experimental_selected"])
-            if is_selected:
-                street = str(row["street_label"])
-                house = str(row["house_number_label"])
-                joint = str(row["joint_street_house_label"])
-                selected["street_exact_correct"] += street == "CORRECT"
-                selected["house_number_exact_correct"] += house == "CORRECT"
-                selected["joint_street_house_exact_correct"] += joint == "CORRECT"
-                selected["incorrect"] += (
-                    street == "INCORRECT"
-                    or house == "INCORRECT"
-                    or joint == "INCORRECT"
-                    or row["candidate_support_label"] == "NOT_SUPPORTED"
-                )
-                selected["uncertain"] += (
-                    street == "CANNOT_ASSESS"
-                    or house == "CANNOT_ASSESS"
-                    or joint == "CANNOT_ASSESS"
-                    or row["candidate_support_label"] == "CANNOT_ASSESS"
-                )
-                for value in (street, house):
-                    if value in {"CORRECT", "INCORRECT"}:
-                        component_assessed += 1
-                        component_correct += value == "CORRECT"
-                if joint in {"CORRECT", "INCORRECT"}:
-                    joint_assessed += 1
-                    joint_correct += joint == "CORRECT"
-            elif bool(case_metadata["experimental_evidence_present"]):
-                support = str(row["candidate_support_label"])
-                rejected["correctly_rejected"] += support == "NOT_SUPPORTED"
-                rejected["would_have_been_correct_if_promoted"] += (
-                    support == "SUPPORTED"
-                )
-                rejected["ambiguous_uncertain"] += support == "CANNOT_ASSESS"
-            unblinded = _unblind_comparison(
-                str(row["blind_parse_comparison_label"]),
-                experimental_is_a=_experimental_is_parse_a(identity, reviewer),
-            )
-            comparison[unblinded] += 1
-        per_reviewer[reviewer] = {
-            "selected_experimental_rows": dict(sorted(selected.items())),
-            "rejected_candidate_rows": dict(sorted(rejected.items())),
-            "parser_comparison": {
-                key: comparison[key]
-                for key in (
-                    "BOTH_CORRECT",
-                    "V2_INCORRECT_V3_CORRECT",
-                    "V2_CORRECT_V3_INCORRECT",
-                    "BOTH_INCORRECT",
-                    "CANNOT_ASSESS",
-                )
-            },
-            "new_selection_precision": {
-                "numerator": component_correct,
-                "denominator": component_assessed,
-            },
-            "joint_street_house_precision": {
-                "numerator": joint_correct,
-                "denominator": joint_assessed,
-            },
-            "false_positive_count": selected["incorrect"],
-            "false_negative_opportunity_count": rejected[
-                "would_have_been_correct_if_promoted"
-            ],
-        }
+        per_reviewer[reviewer] = _score_reviewer_rows(
+            rows, context=context, reviewer=reviewer
+        )
     agreement_fields = TARGETED_LABEL_FIELDS + ("reason_codes",)
     agreement_count = 0
     total_comparisons = 0
@@ -1644,38 +1824,54 @@ def score_completed_targeted_review(
 def export_completed_targeted_labels(
     *,
     reviewer_one_database: Path,
-    reviewer_two_database: Path,
+    reviewer_two_database: Path | None,
     output_path: Path,
+    single_reviewer: bool = False,
 ) -> Path:
-    for path in (reviewer_one_database, reviewer_two_database, output_path):
+    _validate_evaluation_mode(
+        single_reviewer=single_reviewer,
+        reviewer_two_database=reviewer_two_database,
+    )
+    paths = [reviewer_one_database, output_path]
+    if reviewer_two_database is not None:
+        paths.append(reviewer_two_database)
+    for path in paths:
         _reject_locked_path(path)
     if output_path.exists():
         raise FileExistsError("targeted label export exists")
-    with (
-        TargetedReviewStore(reviewer_one_database, readonly=True) as first,
-        TargetedReviewStore(reviewer_two_database, readonly=True) as second,
-    ):
-        first_metadata = first.metadata()
-        second_metadata = second.metadata()
-        first_binding = {
-            key: value
-            for key, value in first_metadata.items()
-            if key not in {"reviewer_id", "assignment_role"}
-        }
-        second_binding = {
-            key: value
-            for key, value in second_metadata.items()
-            if key not in {"reviewer_id", "assignment_role"}
-        }
-        if first_binding != second_binding:
-            raise ValueError("targeted reviewer stores have different bindings")
-        first_rows = first.completed_rows()
-        second_rows = second.completed_rows()
-        if {row["hashed_review_id"] for row in first_rows} != {
-            row["hashed_review_id"] for row in second_rows
-        }:
-            raise ValueError("targeted reviewers have different identity sets")
-        rows = first_rows + second_rows
+    if single_reviewer:
+        _reject_locked_path(reviewer_one_database.resolve(strict=True))
+        with TargetedReviewStore(reviewer_one_database, readonly=True) as first:
+            primary_binding, rows = _validate_completed_primary_store(first)
+        parquet_metadata = _single_review_parquet_metadata(len(rows), primary_binding)
+    else:
+        assert reviewer_two_database is not None
+        with (
+            TargetedReviewStore(reviewer_one_database, readonly=True) as first,
+            TargetedReviewStore(reviewer_two_database, readonly=True) as second,
+        ):
+            first_metadata = first.metadata()
+            second_metadata = second.metadata()
+            first_binding = {
+                key: value
+                for key, value in first_metadata.items()
+                if key not in {"reviewer_id", "assignment_role"}
+            }
+            second_binding = {
+                key: value
+                for key, value in second_metadata.items()
+                if key not in {"reviewer_id", "assignment_role"}
+            }
+            if first_binding != second_binding:
+                raise ValueError("targeted reviewer stores have different bindings")
+            first_rows = first.completed_rows()
+            second_rows = second.completed_rows()
+            if {row["hashed_review_id"] for row in first_rows} != {
+                row["hashed_review_id"] for row in second_rows
+            }:
+                raise ValueError("targeted reviewers have different identity sets")
+            rows = first_rows + second_rows
+        parquet_metadata = None
     if len({(row["hashed_review_id"], row["reviewer_id"]) for row in rows}) != len(
         rows
     ):
@@ -1683,8 +1879,11 @@ def export_completed_targeted_labels(
     output_path.parent.mkdir(parents=True, exist_ok=False, mode=0o700)
     output_path.parent.chmod(0o700)
     temporary = output_path.with_name(f".{output_path.name}.tmp")
+    table = pa.Table.from_pylist(rows, schema=targeted_review_label_schema())
+    if parquet_metadata is not None:
+        table = table.replace_schema_metadata(parquet_metadata)
     pq.write_table(
-        pa.Table.from_pylist(rows, schema=targeted_review_label_schema()),
+        table,
         temporary,
         compression="zstd",
         compression_level=3,
@@ -1701,6 +1900,11 @@ def export_completed_targeted_labels(
         targeted_review_label_schema(), check_metadata=False
     ):
         raise ValueError("targeted portable label export validation failed")
+    if (
+        parquet_metadata is not None
+        and verified.schema_arrow.metadata != parquet_metadata
+    ):
+        raise ValueError("single-reviewer label export metadata validation failed")
     os.replace(temporary, output_path)
     output_path.chmod(0o600)
     _fsync_parent(output_path)

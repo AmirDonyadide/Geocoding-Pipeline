@@ -18,6 +18,14 @@ any review artifact, a separate verification-only command must compute and
 validate the exact identity-level population and write a sanitized passing
 report. It creates neither review input nor reviewer database.
 
+Targeted-R01 subsequently completed all 11 prepared cases. By explicit
+scientific decision, Targeted-R02 will not be performed. Its existing SQLite
+database remains immutable with the originally prepared pending assignments;
+labels are not copied, generated, or inferred. Evaluation therefore uses the
+new explicit single-reviewer mode and has less evidentiary strength than the
+originally prepared independent double-review design. The existing
+two-reviewer mode remains available and unchanged.
+
 ## Exact population
 
 `phase03_parser_v3_targeted_review_v2_repaired` retains the exact deduplicated
@@ -142,8 +150,8 @@ aggregate output.
 The street and house-number labels assess the corresponding blinded candidate
 hypotheses against the protected source. The joint label assesses the pair.
 The neutral A/B label separately records whether either complete parser view is
-preferable; the scorer unblinds that comparison only after both label sets are
-complete.
+preferable; the scorer unblinds that comparison only after every label set
+required by the explicitly selected evaluation design is complete.
 
 ## Independent blinding
 
@@ -164,10 +172,19 @@ reviewers should not inspect the Parquet directly. Targeted-R01 and Targeted-R02
 have separate SQLite databases and cannot see each other's labels through the
 interface.
 
+The preceding paragraphs document the prepared design. For this specific
+targeted review, only Targeted-R01 was completed. The R01-only export and score
+must be requested explicitly with `--single-reviewer` and omit
+`--reviewer-two-database`. Supplying R02 in that mode, omitting R02 without that
+flag, using a non-primary database as reviewer one, or attempting to score an
+incomplete R01 fails before output is created. The R02 database is never opened
+by single-reviewer mode.
+
 ## Aggregate scorer
 
-After both reviewers finish, the scorer can create one owner-only sanitized JSON
-report. It unblinds deterministically and reports per reviewer:
+In the unchanged two-reviewer mode, after both reviewers finish, the scorer can
+create one owner-only sanitized JSON report. It unblinds deterministically and
+reports per reviewer:
 
 - selected-row street, house-number, and joint exact correctness;
 - incorrect and uncertain selected rows;
@@ -183,6 +200,34 @@ controlled environment after an independent privacy check. The optional
 `export-controlled-labels` Parquet is explicitly controlled and must not leave
 Goethe because it contains hashed review identities; it is not a portable
 aggregate report.
+
+Single-reviewer scoring calculates the same valid Targeted-R01 metrics, but
+records `review_design = SINGLE_REVIEWER`, primary completion of 11 rows,
+`independent_second_review = SKIPPED_BY_EXPLICIT_DECISION`, zero second-review
+rows, DEVELOPMENT-only scope, and zero LOCKED rows read. Inter-reviewer
+agreement is `NOT_EVALUATED` and adjudication count is null. The controlled
+R01-only Parquet carries the same declarations as schema metadata without
+changing its label schema. Neither artifact contains protected notes or raw
+address content, and neither applies a promotion threshold or decision.
+The row-level `is_independent_review` value remains the frozen identity-level
+designation from preparation; `independent_double_review_completed = false`
+and the skipped-second-review metadata are authoritative for the completed
+evaluation design.
+
+The explicit command forms are:
+
+```bash
+safe-geocoding-phase03-targeted-review export-controlled-labels \
+  --single-reviewer \
+  --reviewer-one-database <Targeted-R01.sqlite3> \
+  --output <controlled-r01-labels.parquet>
+
+safe-geocoding-phase03-targeted-review score \
+  --single-reviewer \
+  --reviewer-one-database <Targeted-R01.sqlite3> \
+  --protected-context <protected_targeted_review_context.parquet> \
+  --output <sanitized-r01-score.json>
+```
 
 ## Goethe-only execution plan
 
@@ -214,8 +259,9 @@ or Goethe login node.
 Do not prepare or initialize the real workspace until the verification-only
 workflow has produced the exact 8,000/9/11/9/0/2/11 result from the immutable
 repaired artifacts. This repository change does not execute that workflow.
-After a separately reviewed passing report, preparation remains separately
-authorized; initialization remains a later explicit action. Do not score until
-both reviewers finish. Human evidence does not itself authorize promotion;
-promotion criteria and any parser change require a separate scientific
-decision.
+After the separately reviewed passing report, preparation and initialization
+were completed under their own authorizations. Targeted-R01 is complete;
+Targeted-R02 is intentionally skipped and must remain untouched. The explicit
+single-reviewer score may summarize R01 evidence but cannot claim independent
+agreement or itself authorize promotion. Promotion criteria and any parser
+change require a separate scientific decision.
