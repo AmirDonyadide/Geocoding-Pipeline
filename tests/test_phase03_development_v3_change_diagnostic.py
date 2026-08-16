@@ -399,19 +399,29 @@ def test_country_method_diagnostic_reports_only_controlled_aggregate_transitions
     assert not any(identity.hex() in json.dumps(diagnostic) for identity in identities)
 
 
-def test_shared_country_method_path_is_hash_seed_sensitive_without_v3_evidence() -> (
+def test_shared_country_method_path_is_deterministic_after_repair() -> (
     None
 ):
     script = """
 import tempfile
 from pathlib import Path
 from phase03_helpers import engine, phase02_row
-from safe_geocoding_pipeline.phase03.constants import PARSER_VERSION_V2, PARSER_VERSION_V3
+from safe_geocoding_pipeline.phase03.constants import (
+    PARSER_VERSION_V2,
+    PARSER_VERSION_V2_1,
+    PARSER_VERSION_V3,
+    PARSER_VERSION_V3_1,
+)
 
 with tempfile.TemporaryDirectory() as raw:
     root = Path(raw)
     observed = []
-    for version in (PARSER_VERSION_V2, PARSER_VERSION_V3):
+    for version in (
+        PARSER_VERSION_V2,
+        PARSER_VERSION_V2_1,
+        PARSER_VERSION_V3,
+        PARSER_VERSION_V3_1,
+    ):
         version_root = root / version
         version_root.mkdir()
         result = engine(version_root, parser_version=version).transform(
@@ -446,14 +456,11 @@ with tempfile.TemporaryDirectory() as raw:
             env=environment,
         )
         observed = json.loads(completed.stdout)
-        assert observed[0] == observed[1]
+        assert observed == [observed[0]] * 4
         assert observed[0][1:4] == ["XZ", "HIGH", "ALPHA2_ASSIGNED_EXACT"]
         assert observed[0][5] is False
         outputs.add(str(observed[0][0]))
-    assert outputs == {
-        "STRUCTURED_ALPHA2_EXACT",
-        "STRUCTURED_COUNTRY_NAME_EXACT",
-    }
+    assert outputs == {"STRUCTURED_ALPHA2_EXACT"}
 
 
 def test_asymmetric_experimental_evidence_topologies_are_diagnostic_results() -> (

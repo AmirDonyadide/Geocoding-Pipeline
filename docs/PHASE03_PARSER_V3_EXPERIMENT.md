@@ -9,6 +9,13 @@ review of an exact 8,000-row v2-v3 comparison and a separately authorized
 protected human review. Engine construction fails closed if v3 is requested
 with `LOCKED_EVALUATION` or `AUTHORITATIVE` execution scope.
 
+The historical v2/v3 comparison later exposed a shared, unrelated
+`country_parse_method` reproducibility defect. The explicit repaired rerun uses
+`conservative_address_parser_v2_1` and
+`conservative_address_parser_v3_1_experimental` with the same unchanged v3/v4
+registries. This does not revise the V4 hypothesis. See
+`docs/PHASE03_COUNTRY_METHOD_REPAIR.md`.
+
 The experiment responds only to the sanitized targeted profile produced by
 SLURM job `1749332`, profile
 `phase03_development_targeted_opportunity_profile_20260815T165055Z_1749332_9f9ff679`.

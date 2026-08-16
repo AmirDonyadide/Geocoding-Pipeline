@@ -18,7 +18,9 @@ from .constants import (
     PARSE_STATUSES,
     PARSER_VERSION_V1,
     PARSER_VERSION_V2,
+    PARSER_VERSION_V2_1,
     PARSER_VERSION_V3,
+    PARSER_VERSION_V3_1,
     RULE_REGISTRY_VERSION_V2,
     RULE_REGISTRY_VERSION_V3,
     RULE_REGISTRY_VERSION_V4,
@@ -371,6 +373,54 @@ def compare_development_parser_v2_v3_outputs(
     expected_rows: int = 8_000,
 ) -> dict[str, Any]:
     """Compare frozen v2 and experimental v3 DEVELOPMENT outputs safely."""
+    return _compare_development_parser_v2_v3_outputs(
+        baseline_core,
+        baseline_evidence,
+        revised_core,
+        revised_evidence,
+        output_path,
+        expected_rows=expected_rows,
+        baseline_parser_version=PARSER_VERSION_V2,
+        revised_parser_version=PARSER_VERSION_V3,
+        report_version="phase03_development_parser_v2_v3_comparison_v1",
+    )
+
+
+def compare_development_parser_v2_1_v3_1_outputs(
+    baseline_core: Path,
+    baseline_evidence: Path,
+    revised_core: Path,
+    revised_evidence: Path,
+    output_path: Path,
+    *,
+    expected_rows: int = 8_000,
+) -> dict[str, Any]:
+    """Compare repaired v2.1 and experimental v3.1 DEVELOPMENT outputs safely."""
+    return _compare_development_parser_v2_v3_outputs(
+        baseline_core,
+        baseline_evidence,
+        revised_core,
+        revised_evidence,
+        output_path,
+        expected_rows=expected_rows,
+        baseline_parser_version=PARSER_VERSION_V2_1,
+        revised_parser_version=PARSER_VERSION_V3_1,
+        report_version="phase03_development_parser_v2_1_v3_1_comparison_v1",
+    )
+
+
+def _compare_development_parser_v2_v3_outputs(
+    baseline_core: Path,
+    baseline_evidence: Path,
+    revised_core: Path,
+    revised_evidence: Path,
+    output_path: Path,
+    *,
+    expected_rows: int,
+    baseline_parser_version: str,
+    revised_parser_version: str,
+    report_version: str,
+) -> dict[str, Any]:
     if expected_rows < 1:
         raise ValueError("development comparison expected rows must be positive")
     baseline = _read_core(baseline_core)
@@ -396,8 +446,10 @@ def compare_development_parser_v2_v3_outputs(
     ):
         raise ValueError("development comparison source provenance mismatch")
     if {str(row["parser_version"]) for row in baseline} != {
-        PARSER_VERSION_V2
-    } or {str(row["parser_version"]) for row in revised} != {PARSER_VERSION_V3}:
+        baseline_parser_version
+    } or {str(row["parser_version"]) for row in revised} != {
+        revised_parser_version
+    }:
         raise ValueError("development comparison parser-version mismatch")
     if {str(row["rule_registry_version"]) for row in baseline} != {
         RULE_REGISTRY_VERSION_V3
@@ -425,7 +477,7 @@ def compare_development_parser_v2_v3_outputs(
     )
     identity_digest = _identity_digest(baseline)
     payload: dict[str, JsonValue] = {
-        "report_version": "phase03_development_parser_v2_v3_comparison_v1",
+        "report_version": report_version,
         "status": "EXPERIMENTAL_COMPARISON_COMPLETE_NO_PROMOTION_DECISION",
         "rows": expected_rows,
         "identity_order_equal": True,
@@ -434,7 +486,7 @@ def compare_development_parser_v2_v3_outputs(
         "portable_raw_values": False,
         "scientific_threshold_applied": False,
         "baseline": {
-            "parser_version": PARSER_VERSION_V2,
+            "parser_version": baseline_parser_version,
             "rule_registry_version": RULE_REGISTRY_VERSION_V3,
             "configuration_fingerprint": bytes(
                 baseline[0]["configuration_fingerprint"]
@@ -451,7 +503,7 @@ def compare_development_parser_v2_v3_outputs(
             **_v2_v3_metrics(baseline),
         },
         "experimental": {
-            "parser_version": PARSER_VERSION_V3,
+            "parser_version": revised_parser_version,
             "rule_registry_version": RULE_REGISTRY_VERSION_V4,
             "configuration_fingerprint": bytes(
                 revised[0]["configuration_fingerprint"]

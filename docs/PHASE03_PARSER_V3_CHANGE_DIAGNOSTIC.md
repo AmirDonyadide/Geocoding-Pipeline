@@ -71,8 +71,12 @@ candidates, including unselectable free-form candidates, then chooses one with
 `next(iter(set))`. Separate v2 and v3 transformation processes did not set
 `PYTHONHASHSEED`, so the chosen kind can differ even though both parsers execute
 the same country logic and select the same structured country evidence. This is
-not a Parser-v3 country-rule change. A parser repair remains a separate,
-versioned decision; this diagnostic does not implement it.
+not a Parser-v3 country-rule change. A parser repair is implemented only in the
+new `conservative_address_parser_v2_1` and
+`conservative_address_parser_v3_1_experimental` lineages; this historical
+diagnostic remains unchanged evidence and does not itself implement the repair.
+The historical 26/11/9/17/2/28 counts remain authoritative for the old
+iterations. The post-repair counts must be measured and are not hard-coded.
 
 ## Sanitized output contract
 

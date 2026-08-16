@@ -9,9 +9,12 @@ import pytest
 
 from safe_geocoding_pipeline.phase03.constants import (
     PARSER_VERSION_V2,
+    PARSER_VERSION_V2_1,
     PARSER_VERSION_V3,
+    PARSER_VERSION_V3_1,
 )
 from safe_geocoding_pipeline.phase03.development_comparison import (
+    compare_development_parser_v2_1_v3_1_outputs,
     compare_development_parser_v2_v3_outputs,
 )
 from safe_geocoding_pipeline.phase03.schema import core_schema, evidence_schema
@@ -156,4 +159,73 @@ def test_v2_v3_comparison_fails_closed_on_wrong_roles_and_identity_order(
             v3_evidence,
             tmp_path / "wrong-order.json",
             expected_rows=2,
+        )
+
+
+def test_repaired_v2_1_v3_1_comparison_requires_repaired_roles(
+    tmp_path: Path,
+) -> None:
+    baseline_root = tmp_path / "v2-1"
+    revised_root = tmp_path / "v3-1"
+    baseline_root.mkdir()
+    revised_root.mkdir()
+    baseline_parser = engine(baseline_root, parser_version=PARSER_VERSION_V2_1)
+    revised_parser = engine(revised_root, parser_version=PARSER_VERSION_V3_1)
+    rows = [
+        phase02_row(
+            street_address_line_1="Annex 12 Example Street",
+            postcode="12345",
+            city="Fiction City",
+            country_iso_code="XZ",
+        )
+    ]
+    baseline_results = [baseline_parser.transform(row) for row in rows]
+    revised_results = [revised_parser.transform(row) for row in rows]
+    baseline_core = tmp_path / "v2-1-core.parquet"
+    baseline_evidence = tmp_path / "v2-1-evidence.parquet"
+    revised_core = tmp_path / "v3-1-core.parquet"
+    revised_evidence = tmp_path / "v3-1-evidence.parquet"
+    _write(
+        baseline_core,
+        [result.core_row for result in baseline_results],
+        core_schema(),
+    )
+    _write(
+        baseline_evidence,
+        [row for result in baseline_results for row in result.evidence_rows],
+        evidence_schema(),
+    )
+    _write(
+        revised_core,
+        [result.core_row for result in revised_results],
+        core_schema(),
+    )
+    _write(
+        revised_evidence,
+        [row for result in revised_results for row in result.evidence_rows],
+        evidence_schema(),
+    )
+    output = tmp_path / "repaired-comparison.json"
+    payload = compare_development_parser_v2_1_v3_1_outputs(
+        baseline_core,
+        baseline_evidence,
+        revised_core,
+        revised_evidence,
+        output,
+        expected_rows=1,
+    )
+    assert payload["report_version"] == (
+        "phase03_development_parser_v2_1_v3_1_comparison_v1"
+    )
+    assert payload["baseline"]["parser_version"] == PARSER_VERSION_V2_1
+    assert payload["experimental"]["parser_version"] == PARSER_VERSION_V3_1
+    assert payload["changes"]["rows_with_scientific_output_change"] == 1
+    with pytest.raises(ValueError, match="parser-version"):
+        compare_development_parser_v2_v3_outputs(
+            baseline_core,
+            baseline_evidence,
+            revised_core,
+            revised_evidence,
+            tmp_path / "historical-role-rejection.json",
+            expected_rows=1,
         )

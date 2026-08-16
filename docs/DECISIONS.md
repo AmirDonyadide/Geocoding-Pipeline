@@ -202,6 +202,17 @@ These are empirical properties of the exact current snapshot, not permanent prov
   Promotion requires exact same-identity 8,000-row DEVELOPMENT comparison,
   acceptable conflict/lost-selection diagnostics, and targeted protected human
   review. The seven other targeted morphology families remain unsupported.
+- Country-method diagnostic job `1749446` established a shared v2/v3
+  reproducibility defect: selected structured country evidence could receive a
+  method label from an unselected same-value free-form candidate because
+  `_country_result()` chose from an unordered set. The explicit repaired
+  lineages are `conservative_address_parser_v2_1` and
+  `conservative_address_parser_v3_1_experimental`, paired with the unchanged v3
+  and v4 registries respectively. They derive the method only from the actual
+  selected source/rule/value route and fail closed if that route is not unique.
+  Historical v2/v3 iterations and identifiers remain unchanged for audit; the
+  repaired 8,000-row comparison must be measured before any review gate changes.
+  See `docs/PHASE03_COUNTRY_METHOD_REPAIR.md`.
 - The DEVELOPMENT portable manual-review v2 schema intentionally has 28
   columns, superseding the earlier 27-column draft because `assignment_role`
   was added before any v2 artifact existed. Tests freeze its exact Arrow order,

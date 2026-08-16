@@ -49,6 +49,12 @@ This is the approved conceptual workflow. It is not an implementation plan or ev
   LOCKED_EVALUATION, and cannot be promoted without aggregate comparison and
   protected manual-review evidence. See
   `docs/PHASE03_PARSER_V3_EXPERIMENT.md`.
+- **Country-method reproducibility repair:** The explicit Parser-v2.1/v3.1
+  lineages change no rule or selected country value. They replace
+  hash-seed-dependent method provenance with a fail-closed selected-source
+  derivation. Validation reuses only the fixed 8,000 DEVELOPMENT payload and
+  performs no pilot selection or LOCKED_EVALUATION access. See
+  `docs/PHASE03_COUNTRY_METHOD_REPAIR.md`.
 - **Targeted parser-v3 review:** A separate protected DEVELOPMENT workflow may
   review every identity in the exact union of v2-v3 scientific-output changes
   and experimental-rule evidence. Both pseudonymous reviewers receive the full

@@ -103,6 +103,12 @@ The same document specifies the narrower targeted-opportunity command, whose
 predeclared pattern-family cross-tabs retain the same privacy and phase
 boundaries.
 
+The deterministic country-method provenance repair is documented in
+`docs/PHASE03_COUNTRY_METHOD_REPAIR.md`. Its explicit Parser-v2.1/v3.1
+DEVELOPMENT lineages reuse the unchanged v3/v4 registries and fixed 8,000-row
+payload; no pilot selection, LOCKED access, rule change, or review-gate change
+is included.
+
 The narrow parser-v3 experiment has a separate protected DEVELOPMENT review
 command and schema. It does not reuse or alter the main 800-row review stores:
 

@@ -16,8 +16,11 @@ from .constants import (
     DIAGNOSTIC_FLAGS,
     EVIDENCE_KINDS,
     EXECUTION_SCOPES,
+    PARSER_VERSION_V1,
     PARSER_VERSION_V2,
+    PARSER_VERSION_V2_1,
     PARSER_VERSION_V3,
+    PARSER_VERSION_V3_1,
     POSTCODE_FLAGS,
     REPRESENTATIONS,
 )
@@ -36,7 +39,10 @@ from .text import (
     tokenize_with_spans,
 )
 
-_MODERN_PARSER_VERSIONS = frozenset({PARSER_VERSION_V2, PARSER_VERSION_V3})
+_MODERN_PARSER_VERSIONS = frozenset(
+    {PARSER_VERSION_V2, PARSER_VERSION_V2_1, PARSER_VERSION_V3, PARSER_VERSION_V3_1}
+)
+_EXPERIMENTAL_PARSER_VERSIONS = frozenset({PARSER_VERSION_V3, PARSER_VERSION_V3_1})
 _EXPERIMENTAL_RULE_IDS = frozenset(
     {
         "HOUSE_NUMBER_EMBEDDED_DESIGNATOR_EXPERIMENT_V4",
@@ -1308,7 +1314,7 @@ class Phase03Engine:
         if execution_scope not in EXECUTION_SCOPES:
             raise ValueError("execution scope is not registered")
         if (
-            config.parser_version == PARSER_VERSION_V3
+            config.parser_version in _EXPERIMENTAL_PARSER_VERSIONS
             and execution_scope != "DEVELOPMENT"
         ):
             raise Phase03Error("PARSER_V3_EXPERIMENT_DEVELOPMENT_ONLY")
@@ -1329,7 +1335,7 @@ class Phase03Engine:
             rule for rule in registry.rules if rule.rule_id in _EXPERIMENTAL_RULE_IDS
         ]
         self.experimental_structured_support_minimum: int | None
-        if config.parser_version == PARSER_VERSION_V3:
+        if config.parser_version in _EXPERIMENTAL_PARSER_VERSIONS:
             minima = {
                 int(
                     rule.matching_condition["parameters"][
@@ -1357,9 +1363,21 @@ class Phase03Engine:
             fingerprint(
                 {
                     "version": (
-                        "phase03_effective_configuration_v3_experimental"
-                        if config.parser_version == PARSER_VERSION_V3
-                        else "phase03_effective_configuration_v2"
+                        {
+                            PARSER_VERSION_V1: "phase03_effective_configuration_v2",
+                            PARSER_VERSION_V2: "phase03_effective_configuration_v2",
+                            PARSER_VERSION_V2_1: (
+                                "phase03_effective_configuration_v2_1_"
+                                "country_method_repair"
+                            ),
+                            PARSER_VERSION_V3: (
+                                "phase03_effective_configuration_v3_experimental"
+                            ),
+                            PARSER_VERSION_V3_1: (
+                                "phase03_effective_configuration_v3_1_"
+                                "experimental_country_method_repair"
+                            ),
+                        }[config.parser_version]
                     ),
                     "base_configuration_fingerprint": (
                         config.configuration_fingerprint().hex()
@@ -1452,7 +1470,7 @@ class Phase03Engine:
         diagnostics: set[str] = set()
         conflicts: set[str] = set()
         historical_spans: list[tuple[str, int, int, str]] = []
-        country_kinds: dict[tuple[str, str], str] = {}
+        country_kinds: dict[tuple[str, str, str], str] = {}
         country_input_class = self._country_input_class(
             raw["country_iso_code"], states["country_iso_code"]
         )
@@ -1546,7 +1564,9 @@ class Phase03Engine:
                     )
                     target_candidates.append(candidate)
                     if rule.component == "COUNTRY" and match.reference_kind:
-                        country_kinds[(field, candidate.value)] = match.reference_kind
+                        country_kinds[
+                            (candidate.rule_id, field, candidate.value)
+                        ] = match.reference_kind
                     if not self._within_candidate_limits(target_candidates):
                         target_candidates.pop()
                         if rule.development_shadow_only:
@@ -1589,7 +1609,7 @@ class Phase03Engine:
                     else candidate
                     for candidate in authoritative_candidates
                 ]
-        if self.config.parser_version == PARSER_VERSION_V3:
+        if self.config.parser_version in _EXPERIMENTAL_PARSER_VERSIONS:
             assert self.experimental_structured_support_minimum is not None
             authoritative_candidates = _gate_experimental_embedded_candidates(
                 raw,
@@ -1703,7 +1723,6 @@ class Phase03Engine:
         completeness = _completeness(selected_values)
         country_method, country_confidence = self._country_result(
             selected,
-            authoritative_candidates,
             country_kinds,
             conflicts,
             diagnostics,
@@ -1928,7 +1947,7 @@ class Phase03Engine:
         raw: Mapping[str, str],
         states: Mapping[str, str],
         candidates: list[Candidate],
-        country_kinds: dict[tuple[str, str], str],
+        country_kinds: dict[tuple[str, str, str], str],
         diagnostics: set[str],
         conflicts: set[str],
     ) -> None:
@@ -1960,7 +1979,9 @@ class Phase03Engine:
                     conflict_behavior="COUNTRY_DIFFERENT_VALUES_CONFLICT",
                 )
             )
-            country_kinds[("country_iso_code", "NA")] = "CORROBORATED_COLLISION"
+            country_kinds[
+                ("COUNTRY_STRUCTURED_REFERENCE_V1", "country_iso_code", "NA")
+            ] = "CORROBORATED_COLLISION"
             diagnostics.add("PLACEHOLDER_REFERENCE_COLLISION_CORROBORATED")
         elif freeform:
             conflicts.add("COUNTRY_SOURCE_CONFLICT")
@@ -2001,8 +2022,7 @@ class Phase03Engine:
     def _country_result(
         self,
         selected: Sequence[SelectedComponent],
-        candidates: Sequence[Candidate],
-        kinds: Mapping[tuple[str, str], str],
+        kinds: Mapping[tuple[str, str, str], str],
         conflicts: set[str],
         diagnostics: set[str],
     ) -> tuple[str, str]:
@@ -2020,23 +2040,29 @@ class Phase03Engine:
             return "UNRESOLVED", "UNRESOLVED"
         if "PLACEHOLDER_REFERENCE_COLLISION_CORROBORATED" in diagnostics:
             return "MULTISOURCE_CORROBORATED_PLACEHOLDER_COLLISION", "HIGH"
-        kinds_for_value = {
-            kinds[(field, candidate.value)]
-            for candidate in candidates
-            if candidate.value == country.value
-            for field in candidate.source_fields
-            if (field, candidate.value) in kinds
-        }
         if len(country.source_fields) > 1:
             return "MULTISOURCE_AGREEMENT", country.confidence
+        if not country.source_fields:
+            raise Phase03Error("COUNTRY_SELECTED_SOURCE_METHOD_UNRESOLVED")
         source_field = country.source_fields[0]
-        kind = next(iter(kinds_for_value), "NONE")
-        mapping = (
-            _COUNTRY_SOURCE_METHOD
-            if source_field == "country_iso_code"
-            else _COUNTRY_FREE_METHOD
+        if source_field == "country_iso_code":
+            mapping = _COUNTRY_SOURCE_METHOD
+        elif source_field in ADDRESS_FIELDS:
+            mapping = _COUNTRY_FREE_METHOD
+        else:
+            raise Phase03Error("COUNTRY_SELECTED_SOURCE_METHOD_UNRESOLVED")
+        selected_route_kinds = tuple(
+            sorted(
+                {
+                    kinds[(rule_id, source_field, country.value)]
+                    for rule_id in country.rule_ids
+                    if (rule_id, source_field, country.value) in kinds
+                }
+            )
         )
-        return mapping.get(kind, "UNRESOLVED"), country.confidence
+        if len(selected_route_kinds) != 1 or selected_route_kinds[0] not in mapping:
+            raise Phase03Error("COUNTRY_SELECTED_SOURCE_METHOD_UNRESOLVED")
+        return mapping[selected_route_kinds[0]], country.confidence
 
     def _selected_provenance(
         self, selected: Sequence[SelectedComponent]
