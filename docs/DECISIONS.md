@@ -294,6 +294,15 @@ These are empirical properties of the exact current snapshot, not permanent prov
   separately without emitting `LOCKED_PASS` or `LOCKED_FAIL_REVISE`, and must
   not be represented as human-review evidence. See
   `docs/PHASE03_LOCKED_AI_R01_DIAGNOSTIC.md`.
+- Run `phase03_locked_evaluation_20260817T140155Z_7472394` is frozen as
+  diagnostic-only observed evaluation data. The frozen 4,000-row LOCKED set
+  was opened and processed; v2.1 and v3.2 had zero scientific-output
+  differences, and V5 produced zero candidate/evidence rows. The original
+  human-human protocol was not completed because R01 was performed by
+  Codex/AI and R02 remains untouched. No formal `LOCKED_PASS` or
+  `LOCKED_FAIL_REVISE` exists. This observed LOCKED set is permanently excluded
+  from parser tuning, rule design, example discovery, and any future claim of
+  untouched holdout evaluation.
 
 ## Open decisions
 

@@ -103,3 +103,26 @@ satisfy the preregistered human-human review design, do not provide an
 agreement result, and cannot yield the formal deterministic LOCKED decision.
 No parser, rule, registry, configuration, threshold, review population, saved
 R01 label, or R02 artifact was changed for this diagnostic.
+
+## Diagnostic-only freeze
+
+This run is closed without finalization and is retained only as diagnostic
+audit evidence:
+
+- the LOCKED partition was opened and exactly 4,000 rows were processed;
+- frozen v2.1 and v3.2 produced zero scientific-output differences;
+- V5 produced zero candidate/evidence rows;
+- Codex/AI performed all 400 R01 judgments;
+- the preregistered primary-human plus independent-human review design was not
+  completed;
+- R02 remains untouched;
+- no human-human agreement, formal `LOCKED_PASS`, or formal
+  `LOCKED_FAIL_REVISE` was produced; and
+- the observed 4,000-row set must not be used for parser tuning, rule design,
+  lexical-example discovery, targeted sampling, or any later claim of an
+  untouched holdout.
+
+No further review, scoring, finalization, resampling, or parser-development
+work is authorized from this run. A future formal evaluation would require a
+new previously untouched holdout and a separately approved human-review
+protocol.
