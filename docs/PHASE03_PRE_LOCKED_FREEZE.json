@@ -1,0 +1,182 @@
+{
+  "manifest_version": "phase03_pre_locked_freeze_v1",
+  "status": "PRE_LOCKED_FREEZE_AWAITING_EXPLICIT_APPROVAL",
+  "created_from_repository_evidence_only": true,
+  "candidate": {
+    "git_commit": "e78f52374c156477ce026e0d1dbb9755b85f5d82",
+    "parser_version": "conservative_address_parser_v3_2_experimental",
+    "rule_registry_version": "phase03_rule_registry_v5_experimental",
+    "rule_registry_sha256": "4e66e0be62c3d0aae3e9452babe7d16f312c7bb49c69af1a2a0e6839cc3bb1fd",
+    "effective_configuration_scope": "DEVELOPMENT",
+    "effective_configuration_sha256": "89370fddf5f9dae8f381f62344df4da96f0b3dc34627cff23a8068555b909a73",
+    "locked_effective_configuration_sha256": null,
+    "rules": [
+      "HOUSE_NUMBER_EMBEDDED_DESIGNATOR_EXPERIMENT_V5",
+      "STREET_EMBEDDED_DESIGNATOR_EXPERIMENT_V5"
+    ],
+    "scientific_decision": "APPROVED_AS_LOCKED_EVALUATION_CANDIDATE_ONLY",
+    "production_promotion": "NOT_EVALUATED"
+  },
+  "frozen_configuration": {
+    "phase03_version": "phase03_v1",
+    "normalization_version": "derived_text_nfc_ws_v1_ucd16.0.0",
+    "placeholder_policy_version": "placeholder_policy_v1",
+    "country_reference_version": "country_reference_v2_iso_normative_cldr_46_1_operational",
+    "unicode_reference_version": "unicode_ucd_16_0_0_scripts_20240430",
+    "diagnostic_vocabulary_version": "diagnostic_vocabulary_v1",
+    "component_schema_version": "phase03_component_core_v1",
+    "evidence_schema_version": "phase03_component_evidence_v1",
+    "evidence_sidecar_policy_version": "evidence_sidecar_policy_v1",
+    "manual_review_reason_codes_version": "manual_review_reason_codes_v1",
+    "python_version": "3.14.3",
+    "unicode_version": "16.0.0",
+    "per_field_safety_limit_bytes": 65536,
+    "combined_field_safety_limit_bytes": 262144,
+    "maximum_candidates_per_component": 8,
+    "maximum_candidates_per_row": 64
+  },
+  "development_evidence": {
+    "rows": 8000,
+    "development_identity_digest_from_pilot_seal": "1cc101298d24afeb5eb8b75b2bab9e47742e51ddc98ed9bf992e2a0863f29e61",
+    "development_core_order_identity_digest": "4c3d34efd77b1af0774bd7eab0893c1e826ffd672d4fc13fc943bff1c4da1666",
+    "core": {
+      "path": "derived/controlled/phase03_v1/development_iterations/phase03_development_parser_v3_2_experimental_20260817T082202Z_1750488_e78f5237/transformed/core/development.parquet",
+      "sha256": "28efa83eed2870c681891e9f0ecc526c8b5abdf3c6305dd63ef3f0ff2811f10f"
+    },
+    "evidence": {
+      "path": "derived/controlled/phase03_v1/development_iterations/phase03_development_parser_v3_2_experimental_20260817T082202Z_1750488_e78f5237/transformed/evidence/development.parquet",
+      "sha256": "ca6be7107a0dc72903542030a3b0846fe9e15ceee4bf2c9352682b4817f37b16"
+    },
+    "comparison_sha256": "83fb83689608049ffe8980d6ad71a8feb92a393621c02f6c026c6b6b4e139806",
+    "reuse_verification_sha256": "02b57b5d789be3f55c5c3056058135c0d8d6a14938d604b0898cfda46138685a",
+    "single_reviewer_score_sha256": "af7f87d37855604fc3bf4e16c9ea192331be90b921cc3a43ecb9d2ac81371b41",
+    "evaluation_manifest_sha256": "6adce23592130778aaadd2fd371bc8edfccef0543e31d1cea6c7f9bdd244f631",
+    "success_sha256": "2c359bf9bd2fb1dd7999b67b7cc5f7b7621e1c792418dac2a93fa8bcf5e6eb3d",
+    "selected_rows": 4,
+    "joint_street_house_correct": 4,
+    "observed_false_positives": 0,
+    "false_negative_opportunities": 3,
+    "review_design": "SINGLE_REVIEWER",
+    "primary_reviewer": "Targeted-R01",
+    "independent_second_review": "SKIPPED_BY_EXPLICIT_DECISION",
+    "inter_reviewer_agreement": "NOT_EVALUATED"
+  },
+  "execution_provenance": {
+    "cancelled_submission": {
+      "job_id": "1750475",
+      "state": "CANCELLED_BEFORE_EXECUTION",
+      "runtime_seconds": 0,
+      "reason": "SCHEDULER_PRIORITY"
+    },
+    "executed_job": {
+      "job_id": "1750488",
+      "site": "goethe-nhr",
+      "scheduler": "SLURM",
+      "partition": "test",
+      "node": "node17-001",
+      "runtime_seconds": 79,
+      "exit_code": "0:0",
+      "preferred_partition_in_job_file": "general1",
+      "partition_deviation": "RECORDED_NO_EXPLICIT_POLICY_INVALIDATION"
+    },
+    "development_evaluation_execution_count": 1,
+    "selector_rerun": false,
+    "full_production_transform": false,
+    "geocoding": false
+  },
+  "pilot_seal": {
+    "path": "derived/controlled/phase03_v1/pilots/.in_progress/phase03_pilot_goethe_20260813T224643Z_1748630_750a1655/selection/pilot_seal.json",
+    "sha256": "ae1e9dd6eb927301eeaa33561aefc6c5197b22ab9eeea5bd8d37fcccce6616e7",
+    "pilot_seal_version": "phase03_pilot_seal_v1",
+    "sampling_contract_version": "phase03_sampling_contract_v1",
+    "sampling_contract_sha256": "0fb7527db5b6a7eb1c7d7eb86d4a038abf4d605728bfe9cf761c74cd33c6d1c7",
+    "phase02_manifest_identity": "5fa416ec9d79a55eeae372e21caecf1616e5443fc04fcb4de995ac0b29ea6a96",
+    "development_count": 8000,
+    "development_identity_digest": "1cc101298d24afeb5eb8b75b2bab9e47742e51ddc98ed9bf992e2a0863f29e61",
+    "locked_evaluation_count": 4000,
+    "locked_evaluation_identity_digest": "dbae5d2d69db4b3e330f416a0c68d102c87b6446c04c1390f36e17dc3e8deb73"
+  },
+  "locked_evaluation_contract": {
+    "authorization": "NOT_GRANTED",
+    "locked_rows_read": 0,
+    "execution_implementation_status": "NOT_IMPLEMENTED",
+    "current_candidate_scope_guard": "PARSER_V3_EXPERIMENT_DEVELOPMENT_ONLY",
+    "conceptual_inputs_defined": [
+      "frozen locked identity set and pilot seal",
+      "authoritative immutable Phase 2 snapshot",
+      "frozen parser, registry, references, normalization, schemas, and evidence policy"
+    ],
+    "exact_executable_input_contract": "UNDEFINED",
+    "conceptual_outputs_defined": [
+      "one validated core row per LOCKED identity",
+      "controlled evidence sidecar",
+      "protected manual-review material",
+      "sanitized aggregate evaluation metrics",
+      "hash-bound manifests and success/failure result"
+    ],
+    "exact_output_layout_and_atomic_promotion_contract": "UNDEFINED",
+    "human_review_required": true,
+    "planned_manual_review_rows": "APPROXIMATELY_400_NOT_EXACTLY_FROZEN",
+    "minimum_independent_double_review_fraction": 0.25,
+    "new_targeted_change_population": "UNDEFINED_NOT_SPECIFIED_BY_EXISTING_DESIGN",
+    "development_shadow_rules_execute": false,
+    "unseen_pattern_policy": "FAIL_REVISE_IF_METHODOLOGICAL_CHANGE_IS_REQUIRED; OTHERWISE_THRESHOLD_DEPENDENT_AND_UNDEFINED",
+    "false_positive_policy": "MEASURE_AS_SELECTED_COMPONENT_ERROR_AND_FALSE_STRUCTURE_OVERREACH; ACCEPTANCE_THRESHOLD_UNDEFINED",
+    "pass_semantics": "UNDEFINED_UNTIL_QUANTITATIVE_THRESHOLDS_AND_EXECUTABLE_CONTRACT_ARE_APPROVED",
+    "fail_semantics": {
+      "integrity_or_nondeterminism": "FAIL",
+      "methodological_defect_requiring_change": "FAIL_REVISE_NEW_VERSION_AND_NEW_LOCKED_SAMPLE",
+      "quantitative_metric_miss": "FAIL_REVISE_AFTER_THRESHOLDS_ARE_FROZEN"
+    },
+    "after_pass": "NO_AUTOMATIC_PROMOTION; EXPLICIT_SCIENTIFIC_DECISION_AND_SEPARATE_FULL_RUN_AUTHORIZATION_REQUIRED"
+  },
+  "evaluation_metrics": {
+    "defined_metric_families": [
+      "selected_component_precision",
+      "extractable_information_recall",
+      "false_structure_overreach_rate",
+      "conflict_precision",
+      "conflict_recall",
+      "unresolved_rate",
+      "missed_information_rate",
+      "evidence_sidecar_coverage",
+      "country_script_completeness_stratified_results",
+      "reviewer_percent_agreement",
+      "reviewer_chance_adjusted_agreement"
+    ],
+    "prohibited_acceptance_metric": "FILL_RATE",
+    "exact_formulas_denominators_and_aggregation": "UNDEFINED_REQUIRES_SCIENTIFIC_APPROVAL",
+    "chance_adjusted_agreement_measure": "UNDEFINED_REQUIRES_SCIENTIFIC_APPROVAL"
+  },
+  "acceptance_thresholds": {
+    "status": "UNDEFINED_REQUIRES_SCIENTIFIC_APPROVAL",
+    "selected_component_precision": null,
+    "extractable_information_recall": null,
+    "false_structure_overreach_rate": null,
+    "conflict_precision": null,
+    "conflict_recall": null,
+    "unresolved_rate": null,
+    "missed_information_rate": null,
+    "evidence_sidecar_coverage": null,
+    "stratum_level_requirements": null,
+    "reviewer_percent_agreement": null,
+    "reviewer_chance_adjusted_agreement": null
+  },
+  "human_review_protocol": {
+    "environment": "PROTECTED_CONTROLLED",
+    "reason_codes_version": "manual_review_reason_codes_v1",
+    "raw_values_portable": false,
+    "at_least_25_percent_independently_double_reviewed": true,
+    "exact_review_sample_size_and_selection": "UNDEFINED_REQUIRES_SCIENTIFIC_APPROVAL",
+    "locked_review_label_schema_version": "UNDEFINED_REQUIRES_SCIENTIFIC_APPROVAL",
+    "reviewer_assignment_and_adjudication_workflow": "UNDEFINED_REQUIRES_SCIENTIFIC_APPROVAL"
+  },
+  "privacy_and_state": {
+    "locked_rows_read": 0,
+    "locked_payload_materialized": false,
+    "targeted_r01_modified": false,
+    "targeted_r02_opened_or_modified": false,
+    "raw_locked_content_present": false,
+    "locked_identities_present": false
+  }
+}

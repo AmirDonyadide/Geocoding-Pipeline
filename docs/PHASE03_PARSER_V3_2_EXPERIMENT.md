@@ -85,3 +85,35 @@ after validation.
 
 LOCKED remains sealed. Phase 3 full-data transformation, geocoding, Phase 4,
 and any final promotion decision remain unauthorized.
+
+## DEVELOPMENT decision and pre-LOCKED status
+
+The authoritative DEVELOPMENT execution used commit
+`e78f52374c156477ce026e0d1dbb9755b85f5d82`. Submission `1750475` was
+cancelled with zero runtime while pending for scheduler priority. Replacement
+job `1750488` was the only DEVELOPMENT evaluation execution and completed on a
+Goethe SLURM `test` compute node using the frozen 8,000-row DEVELOPMENT inputs.
+The committed job preferred `general1`; the partition override is retained as
+explicit provenance. The repository execution policy requires Goethe plus
+SLURM and contains no rule invalidating this bounded run on `test`, so no
+duplicate run is created solely to change partition.
+
+The v2.1-v3.2 comparison found exactly four scientific-output changes: four
+new street selections, four paired house-number selections, and four
+`UNPARSEABLE` to `PARTIAL` transitions. Every other component, native field,
+country method, and conflict outcome was unchanged. Reuse of the existing
+Targeted-R01 labels was mechanically validated; all four retained selections
+were jointly correct, no observed false positive remained, and three
+false-negative opportunities remained. Targeted-R02 stayed untouched and
+inter-reviewer agreement was not evaluated.
+
+By explicit scientific decision, v3.2 is now the candidate for a future
+LOCKED evaluation. It is not promoted for production. The current code remains
+deliberately DEVELOPMENT-only: `Phase03Engine` raises
+`PARSER_V3_EXPERIMENT_DEVELOPMENT_ONLY` if v3.2 is instantiated for
+`LOCKED_EVALUATION` or `AUTHORITATIVE`, and the repository has no implemented
+LOCKED materialization/transform/review runner. Quantitative acceptance
+thresholds and several operational review details are also not yet defined.
+`docs/PHASE03_PRE_LOCKED_FREEZE.json` records the frozen identities, the
+available pre-unseal seal digest, the defined metric families, and every
+remaining decision. LOCKED rows read remain zero.

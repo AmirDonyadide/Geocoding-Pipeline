@@ -248,14 +248,41 @@ These are empirical properties of the exact current snapshot, not permanent prov
   v3.2 is not approved for promotion. Existing R01 labels may be reused only
   after exact identity/candidate/span equivalence is proved mechanically.
   See `docs/PHASE03_PARSER_V3_2_EXPERIMENT.md`.
+- DEVELOPMENT evaluation job `1750488` established four retained v3.2
+  selections, all four jointly street/house correct under the completed
+  single-reviewer Targeted-R01 evidence, with zero observed false positives
+  and three false-negative opportunities. Parser v3.1 remains unpromoted.
+  Parser v3.2 is approved only as the candidate whose semantics may advance to
+  a separately authorized LOCKED evaluation; production promotion remains
+  `NOT_EVALUATED` and LOCKED remains sealed. Targeted-R02 was intentionally
+  skipped, so no inter-reviewer agreement exists for this DEVELOPMENT result.
+- The original DEVELOPMENT evaluation submission `1750475` was cancelled by
+  the operator with zero runtime while pending for scheduler priority. The
+  only DEVELOPMENT evaluation execution was replacement job `1750488`, which
+  ran the exact commit `e78f52374c156477ce026e0d1dbb9755b85f5d82` on the
+  frozen 8,000-row DEVELOPMENT inputs through Goethe SLURM's `test` partition.
+  This differs from the job file's preferred `general1` partition but satisfies
+  the repository's explicit execution-site contract, which requires Goethe
+  plus SLURM and does not prohibit `test` for this bounded evaluation. The run
+  is not repeated merely to change partition.
+- The pre-LOCKED freeze is incomplete by design. The current v3.2 engine fails
+  closed with `PARSER_V3_EXPERIMENT_DEVELOPMENT_ONLY` outside `DEVELOPMENT`,
+  and no executable LOCKED materialization/transform/review workflow exists.
+  Metric families are documented, but quantitative thresholds, exact metric
+  formulas/aggregation, exact review-sample design, the chance-adjusted
+  agreement measure, and the LOCKED PASS gate remain undefined. These must be
+  separately reviewed and frozen before any LOCKED identity or payload is
+  opened. The sanitized record is `docs/PHASE03_PRE_LOCKED_FREEZE.json`.
 
 ## Open decisions
 
 - Whether, and under what evidence/rules, an address-layer interpolated result is `usable_for_analysis`.
 - Whether parser-v2 DEVELOPMENT review supports freezing its selectable rules
   for a future, separately versioned and authorized evaluation.
-- Whether the completed DEVELOPMENT-only v3.2 evidence warrants a later
-  promotion proposal; the implementation and score cannot decide this.
+- Exact implementation/configuration changes required to execute the frozen
+  v3.2 candidate under `LOCKED_EVALUATION` scope without changing its rule
+  semantics, plus the still-missing LOCKED materialization, validation, review,
+  and atomic-output workflow.
 - Final Phase 3 operational settings after the required real development-pilot benchmark of storage size, compression, write/read throughput, memory, and join ergonomics. Synthetic evidence currently supports retaining the provisional limits/settings.
 - Quantitative Phase 3 parser/manual-review acceptance thresholds. These must be pre-registered after the development subset and before the locked evaluation subset is opened.
 - Whether a pinned libpostal build/model should be evaluated only as a secondary candidate generator during the development pilot.
