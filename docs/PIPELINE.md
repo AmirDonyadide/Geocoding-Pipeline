@@ -41,6 +41,13 @@ This is the approved conceptual workflow. It is not an implementation plan or ev
   corroborating components, representation, country, and script. It applies
   the same five-row disclosure threshold and bounded labels; it remains
   descriptive evidence and does not authorize Parser v3.
+- **Post-v3.2 DEVELOPMENT opportunity intersection:** A separate sanitized
+  profiler measures exact unique identity populations and intersections for
+  H1 component-span conflicts, H2 explicit role/street-house overlap, and H3
+  narrow adjacent explicit-street/house-like-line relationships. It binds only
+  approved DEVELOPMENT artifacts, reports Targeted-v3.1 R01 identity overlap
+  separately from scientific reusability, and implements no parser rule. See
+  `docs/PHASE03_DEVELOPMENT_HYPOTHESIS_INTERSECTION_PROFILE.md`.
 - **Narrow parser-v3 experiment:** The only implemented post-profile hypothesis
   is the explicitly versioned, opt-in
   `conservative_address_parser_v3_experimental` paired street/house rule for a

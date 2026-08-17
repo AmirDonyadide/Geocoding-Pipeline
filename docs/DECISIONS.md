@@ -303,6 +303,15 @@ These are empirical properties of the exact current snapshot, not permanent prov
   `LOCKED_FAIL_REVISE` exists. This observed LOCKED set is permanently excluded
   from parser tuning, rule design, example discovery, and any future claim of
   untouched holdout evaluation.
+- The next Parser-v3 DEVELOPMENT cycle begins with an aggregate-only H1/H2/H3
+  intersection profile on the fixed 8,000-row DEVELOPMENT population. H1 is
+  the existing component-span-overlap conflict set; H2 is explicit
+  unit/floor/building/organization evidence overlapping street/house evidence;
+  H3 is the narrow adjacent explicit-street/single-house-like-line set after
+  preregistered structural exclusions. Exact identity overlap and completed
+  Targeted-v3.1 R01 identity coverage may be counted, but those same-line V4
+  labels are not silently reused for a different scientific question. This
+  diagnostic authorizes no parser implementation and uses no LOCKED evidence.
 
 ## Open decisions
 

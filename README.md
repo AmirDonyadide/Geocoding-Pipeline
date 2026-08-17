@@ -103,6 +103,13 @@ The same document specifies the narrower targeted-opportunity command, whose
 predeclared pattern-family cross-tabs retain the same privacy and phase
 boundaries.
 
+The DEVELOPMENT hypothesis-intersection profiler is documented in
+`docs/PHASE03_DEVELOPMENT_HYPOTHESIS_INTERSECTION_PROFILE.md`. It measures the
+exact H1 span-conflict, H2 explicit-role, and H3 adjacent street/number
+populations and their identity-level intersections without exposing identities
+or changing parser output. The report is decision support for one later
+experimental hypothesis, not permission to implement it.
+
 The deterministic country-method provenance repair is documented in
 `docs/PHASE03_COUNTRY_METHOD_REPAIR.md`. Its explicit Parser-v2.1/v3.1
 DEVELOPMENT lineages reuse the unchanged v3/v4 registries and fixed 8,000-row

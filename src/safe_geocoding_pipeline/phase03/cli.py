@@ -22,6 +22,13 @@ from .development_comparison import (
     compare_development_parser_v2_1_v3_2_outputs,
     compare_development_parser_v2_v3_outputs,
 )
+from .development_hypothesis_intersection_profiler import (
+    PROFILER_VERSION as HYPOTHESIS_INTERSECTION_PROFILER_VERSION,
+)
+from .development_hypothesis_intersection_profiler import (
+    RuleEvidenceSemantics,
+    profile_development_hypothesis_intersections,
+)
 from .development_pattern_profiler import profile_development_patterns
 from .development_targeted_opportunity_profiler import (
     TARGETED_PROFILER_VERSION,
@@ -173,6 +180,22 @@ def build_parser() -> argparse.ArgumentParser:
     targeted_profile.add_argument("--development-evidence", type=Path, required=True)
     targeted_profile.add_argument("--development-identities", type=Path, required=True)
     targeted_profile.add_argument("--output-directory", type=Path, required=True)
+    intersection_profile = subparsers.add_parser(
+        "development-hypothesis-intersection-profile"
+    )
+    intersection_profile.add_argument("--development-payload", type=Path, required=True)
+    intersection_profile.add_argument("--baseline-core", type=Path, required=True)
+    intersection_profile.add_argument("--baseline-evidence", type=Path, required=True)
+    intersection_profile.add_argument("--candidate-core", type=Path, required=True)
+    intersection_profile.add_argument("--candidate-evidence", type=Path, required=True)
+    intersection_profile.add_argument(
+        "--development-identities", type=Path, required=True
+    )
+    intersection_profile.add_argument(
+        "--targeted-r01-context", type=Path, required=True
+    )
+    intersection_profile.add_argument("--targeted-r01-labels", type=Path, required=True)
+    intersection_profile.add_argument("--output-directory", type=Path, required=True)
     v3_diagnostic = subparsers.add_parser("development-diagnose-parser-v2-v3-changes")
     v3_diagnostic.add_argument("--baseline-core", type=Path, required=True)
     v3_diagnostic.add_argument("--baseline-evidence", type=Path, required=True)
@@ -555,6 +578,51 @@ def main(argv: Sequence[str] | None = None) -> int:
                 targeted_result.report_json.name,
                 targeted_result.opportunities_csv.name,
                 targeted_result.interpretation_markdown.name,
+            ],
+            "locked_rows_read": 0,
+            "raw_values_reported": False,
+        }
+    elif args.command == "development-hypothesis-intersection-profile":
+        baseline_config = Phase03Config.for_parser_version(PARSER_VERSION_V2_1)
+        candidate_config = Phase03Config.for_parser_version(PARSER_VERSION_V3_2)
+        baseline_config.validate()
+        candidate_config.validate()
+        baseline_registry = load_rule_registry(
+            registry_version=baseline_config.rule_registry_version
+        )
+        candidate_registry = load_rule_registry(
+            registry_version=candidate_config.rule_registry_version
+        )
+        combined_rules = {
+            rule.rule_id: RuleEvidenceSemantics(
+                confidence=rule.confidence,
+                selection_priority=rule.selection_priority,
+            )
+            for registry_value in (baseline_registry, candidate_registry)
+            for rule in registry_value.ordered_rules()
+        }
+        intersection_result = profile_development_hypothesis_intersections(
+            development_payload_path=args.development_payload,
+            baseline_core_path=args.baseline_core,
+            baseline_evidence_path=args.baseline_evidence,
+            candidate_core_path=args.candidate_core,
+            candidate_evidence_path=args.candidate_evidence,
+            development_identities_path=args.development_identities,
+            targeted_r01_context_path=args.targeted_r01_context,
+            targeted_r01_labels_path=args.targeted_r01_labels,
+            output_directory=args.output_directory,
+            rule_semantics=combined_rules,
+            production=True,
+        )
+        payload = {
+            "status": "PASS",
+            "profiler_version": HYPOTHESIS_INTERSECTION_PROFILER_VERSION,
+            "rows": intersection_result.rows,
+            "profile_fingerprint": intersection_result.profile_fingerprint,
+            "report_files": [
+                intersection_result.report_json.name,
+                intersection_result.intersections_csv.name,
+                intersection_result.interpretation_markdown.name,
             ],
             "locked_rows_read": 0,
             "raw_values_reported": False,
