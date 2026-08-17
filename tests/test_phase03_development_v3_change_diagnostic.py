@@ -234,16 +234,14 @@ def test_decomposition_field_families_and_evidence_are_exact(tmp_path: Path) -> 
         {"fields": ["address_diagnostic_flags"], "rows": 5}
     ]
     evidence = payload["experimental_evidence_metrics"]
-    assert evidence["by_population"]["all_experimental_evidence"][
-        "rule_presence"
-    ]["counts"] == {
+    assert evidence["by_population"]["all_experimental_evidence"]["rule_presence"][
+        "counts"
+    ] == {
         "both_v4_rules_present": 6,
         "house_number_v4_only": 0,
         "street_v4_only": 0,
     }
-    assert evidence["by_population"]["overlap"]["selection_outcome"][
-        "counts"
-    ] == {
+    assert evidence["by_population"]["overlap"]["selection_outcome"]["counts"] == {
         "both_selected": 5,
         "house_selected_street_unselected": 0,
         "street_selected_house_unselected": 0,
@@ -311,9 +309,7 @@ def test_decomposition_field_families_and_evidence_are_exact(tmp_path: Path) -> 
         "transition_rows_reconcile": False,
         "country_parse_method_only_rows_reconcile": False,
         "small_cell_suppression_applied": False,
-        "small_cell_suppression_reason": (
-            "CONTROLLED_COUNTRY_PARSE_METHOD_VOCABULARY"
-        ),
+        "small_cell_suppression_reason": ("CONTROLLED_COUNTRY_PARSE_METHOD_VOCABULARY"),
         "equal_rows_by_field": {
             "country_clean": 5,
             "country_native_clean": 5,
@@ -399,9 +395,7 @@ def test_country_method_diagnostic_reports_only_controlled_aggregate_transitions
     assert not any(identity.hex() in json.dumps(diagnostic) for identity in identities)
 
 
-def test_shared_country_method_path_is_deterministic_after_repair() -> (
-    None
-):
+def test_shared_country_method_path_is_deterministic_after_repair() -> None:
     script = """
 import tempfile
 from pathlib import Path
@@ -463,9 +457,7 @@ with tempfile.TemporaryDirectory() as raw:
     assert outputs == {"STRUCTURED_ALPHA2_EXACT"}
 
 
-def test_asymmetric_experimental_evidence_topologies_are_diagnostic_results() -> (
-    None
-):
+def test_asymmetric_experimental_evidence_topologies_are_diagnostic_results() -> None:
     house_rule, street_rule = EXPERIMENTAL_RULE_IDS
     rows: list[dict[str, Any]] = []
 
@@ -534,16 +526,19 @@ def test_asymmetric_experimental_evidence_topologies_are_diagnostic_results() ->
         "house_number_v4_only": None,
         "street_v4_only": None,
     }
-    assert summary["by_population"]["overlap"]["rule_presence"][
-        "reconciliation_total"
-    ] == 7
+    assert (
+        summary["by_population"]["overlap"]["rule_presence"]["reconciliation_total"]
+        == 7
+    )
     assert summary["by_population"]["changed_only"]["population_rows"] == 1
-    assert summary["by_population"]["changed_only"][
-        "experimental_evidence_identities"
-    ] == 0
-    assert summary["by_population"]["evidence_only"][
-        "experimental_evidence_identities"
-    ] == 1
+    assert (
+        summary["by_population"]["changed_only"]["experimental_evidence_identities"]
+        == 0
+    )
+    assert (
+        summary["by_population"]["evidence_only"]["experimental_evidence_identities"]
+        == 1
+    )
     assert summary["pairing_or_selection_assumed"] is False
 
 
@@ -795,7 +790,11 @@ def test_prohibited_paths_and_wrong_partition_fail_closed(tmp_path: Path) -> Non
         )
 
 
-def test_production_guard_runs_before_any_input_access(tmp_path: Path) -> None:
+def test_production_guard_runs_before_any_input_access(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("SAFE_EXECUTION_SITE", raising=False)
+    monkeypatch.delenv("SLURM_JOB_ID", raising=False)
     missing = tmp_path / "missing"
     with pytest.raises(ExecutionPolicyError, match="HEAVY_PROCESS_CLUSTER_REQUIRED"):
         diagnose_development_v3_changes(

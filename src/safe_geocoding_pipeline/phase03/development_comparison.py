@@ -21,9 +21,11 @@ from .constants import (
     PARSER_VERSION_V2_1,
     PARSER_VERSION_V3,
     PARSER_VERSION_V3_1,
+    PARSER_VERSION_V3_2,
     RULE_REGISTRY_VERSION_V2,
     RULE_REGISTRY_VERSION_V3,
     RULE_REGISTRY_VERSION_V4,
+    RULE_REGISTRY_VERSION_V5,
 )
 from .schema import exact_core_schema_matches, exact_evidence_schema_matches
 from .semantic import core_digest, evidence_digest
@@ -80,9 +82,7 @@ def _identity_digest(rows: Sequence[Mapping[str, Any]]) -> str:
 
 
 def _metrics(rows: Sequence[Mapping[str, Any]]) -> dict[str, JsonValue]:
-    conflicts = Counter(
-        flag for row in rows for flag in row["address_conflict_flags"]
-    )
+    conflicts = Counter(flag for row in rows for flag in row["address_conflict_flags"])
     unknown_conflicts = set(conflicts) - set(CONFLICT_FLAGS)
     if unknown_conflicts:
         raise ValueError("unregistered conflict in comparison input")
@@ -113,8 +113,7 @@ def _metrics(rows: Sequence[Mapping[str, Any]]) -> dict[str, JsonValue]:
             for row in rows
         ),
         "unsafe_or_skipped": sum(
-            row["diagnostic_evaluation_status"] != "FULLY_EVALUATED"
-            for row in rows
+            row["diagnostic_evaluation_status"] != "FULLY_EVALUATED" for row in rows
         ),
         "candidate_limit_exceeded": sum(
             "CANDIDATE_LIMIT_EXCEEDED" in row["address_diagnostic_flags"]
@@ -320,9 +319,10 @@ def compare_development_parser_outputs(
         RULE_REGISTRY_VERSION_V3
     }:
         raise ValueError("development comparison rule-registry mismatch")
-    if len({bytes(row["configuration_fingerprint"]) for row in baseline}) != 1 or len(
-        {bytes(row["configuration_fingerprint"]) for row in revised}
-    ) != 1:
+    if (
+        len({bytes(row["configuration_fingerprint"]) for row in baseline}) != 1
+        or len({bytes(row["configuration_fingerprint"]) for row in revised}) != 1
+    ):
         raise ValueError("development comparison configuration is not uniform")
     identity_digest = _identity_digest(baseline)
     payload: dict[str, JsonValue] = {
@@ -406,6 +406,39 @@ def compare_development_parser_v2_1_v3_1_outputs(
         baseline_parser_version=PARSER_VERSION_V2_1,
         revised_parser_version=PARSER_VERSION_V3_1,
         report_version="phase03_development_parser_v2_1_v3_1_comparison_v1",
+        revised_rule_registry_version=RULE_REGISTRY_VERSION_V4,
+        experimental_rule_ids=(
+            "HOUSE_NUMBER_EMBEDDED_DESIGNATOR_EXPERIMENT_V4",
+            "STREET_EMBEDDED_DESIGNATOR_EXPERIMENT_V4",
+        ),
+    )
+
+
+def compare_development_parser_v2_1_v3_2_outputs(
+    baseline_core: Path,
+    baseline_evidence: Path,
+    revised_core: Path,
+    revised_evidence: Path,
+    output_path: Path,
+    *,
+    expected_rows: int = 8_000,
+) -> dict[str, Any]:
+    """Compare repaired v2.1 and narrowed v3.2 DEVELOPMENT outputs safely."""
+    return _compare_development_parser_v2_v3_outputs(
+        baseline_core,
+        baseline_evidence,
+        revised_core,
+        revised_evidence,
+        output_path,
+        expected_rows=expected_rows,
+        baseline_parser_version=PARSER_VERSION_V2_1,
+        revised_parser_version=PARSER_VERSION_V3_2,
+        report_version="phase03_development_parser_v2_1_v3_2_comparison_v1",
+        revised_rule_registry_version=RULE_REGISTRY_VERSION_V5,
+        experimental_rule_ids=(
+            "HOUSE_NUMBER_EMBEDDED_DESIGNATOR_EXPERIMENT_V5",
+            "STREET_EMBEDDED_DESIGNATOR_EXPERIMENT_V5",
+        ),
     )
 
 
@@ -420,6 +453,11 @@ def _compare_development_parser_v2_v3_outputs(
     baseline_parser_version: str,
     revised_parser_version: str,
     report_version: str,
+    revised_rule_registry_version: str = RULE_REGISTRY_VERSION_V4,
+    experimental_rule_ids: Sequence[str] = (
+        "HOUSE_NUMBER_EMBEDDED_DESIGNATOR_EXPERIMENT_V4",
+        "STREET_EMBEDDED_DESIGNATOR_EXPERIMENT_V4",
+    ),
 ) -> dict[str, Any]:
     if expected_rows < 1:
         raise ValueError("development comparison expected rows must be positive")
@@ -447,19 +485,18 @@ def _compare_development_parser_v2_v3_outputs(
         raise ValueError("development comparison source provenance mismatch")
     if {str(row["parser_version"]) for row in baseline} != {
         baseline_parser_version
-    } or {str(row["parser_version"]) for row in revised} != {
-        revised_parser_version
-    }:
+    } or {str(row["parser_version"]) for row in revised} != {revised_parser_version}:
         raise ValueError("development comparison parser-version mismatch")
     if {str(row["rule_registry_version"]) for row in baseline} != {
         RULE_REGISTRY_VERSION_V3
     } or {str(row["rule_registry_version"]) for row in revised} != {
-        RULE_REGISTRY_VERSION_V4
+        revised_rule_registry_version
     }:
         raise ValueError("development comparison rule-registry mismatch")
-    if len({bytes(row["configuration_fingerprint"]) for row in baseline}) != 1 or len(
-        {bytes(row["configuration_fingerprint"]) for row in revised}
-    ) != 1:
+    if (
+        len({bytes(row["configuration_fingerprint"]) for row in baseline}) != 1
+        or len({bytes(row["configuration_fingerprint"]) for row in revised}) != 1
+    ):
         raise ValueError("development comparison configuration is not uniform")
     validate_core_evidence_relationship(baseline, baseline_evidence_rows)
     validate_core_evidence_relationship(revised, revised_evidence_rows)
@@ -471,10 +508,6 @@ def _compare_development_parser_v2_v3_outputs(
     } - baseline_identity_set:
         raise ValueError("development comparison evidence identity mismatch")
 
-    experimental_rule_ids = (
-        "HOUSE_NUMBER_EMBEDDED_DESIGNATOR_EXPERIMENT_V4",
-        "STREET_EMBEDDED_DESIGNATOR_EXPERIMENT_V4",
-    )
     identity_digest = _identity_digest(baseline)
     payload: dict[str, JsonValue] = {
         "report_version": report_version,
@@ -504,7 +537,7 @@ def _compare_development_parser_v2_v3_outputs(
         },
         "experimental": {
             "parser_version": revised_parser_version,
-            "rule_registry_version": RULE_REGISTRY_VERSION_V4,
+            "rule_registry_version": revised_rule_registry_version,
             "configuration_fingerprint": bytes(
                 revised[0]["configuration_fingerprint"]
             ).hex(),

@@ -6,9 +6,11 @@ PARSER_VERSION_V2 = "conservative_address_parser_v2"
 PARSER_VERSION_V3 = "conservative_address_parser_v3_experimental"
 PARSER_VERSION_V2_1 = "conservative_address_parser_v2_1"
 PARSER_VERSION_V3_1 = "conservative_address_parser_v3_1_experimental"
+PARSER_VERSION_V3_2 = "conservative_address_parser_v3_2_experimental"
 RULE_REGISTRY_VERSION_V2 = "phase03_rule_registry_v2"
 RULE_REGISTRY_VERSION_V3 = "phase03_rule_registry_v3"
 RULE_REGISTRY_VERSION_V4 = "phase03_rule_registry_v4_experimental"
+RULE_REGISTRY_VERSION_V5 = "phase03_rule_registry_v5_experimental"
 
 # Keep the frozen pilot/sampling defaults on v1. Development parser revisions
 # must opt in explicitly so they cannot alter the sealed pilot identities.
@@ -20,6 +22,7 @@ PARSER_RULE_REGISTRY_VERSIONS = {
     PARSER_VERSION_V3: RULE_REGISTRY_VERSION_V4,
     PARSER_VERSION_V2_1: RULE_REGISTRY_VERSION_V3,
     PARSER_VERSION_V3_1: RULE_REGISTRY_VERSION_V4,
+    PARSER_VERSION_V3_2: RULE_REGISTRY_VERSION_V5,
 }
 CLEANING_RULES_VERSION = "derived_text_nfc_ws_v1_ucd16.0.0"
 PLACEHOLDER_POLICY_VERSION = "placeholder_policy_v1"

@@ -71,6 +71,13 @@ This is the approved conceptual workflow. It is not an implementation plan or ev
   payload or human labels, rejects LOCKED paths, and reports only fixed-field
   aggregates with rare combination suppression. See
   `docs/PHASE03_PARSER_V3_CHANGE_DIAGNOSTIC.md`.
+- **Parser-v3.2 orientation narrowing:** Protected Targeted-R01 evidence
+  confirmed that the forward `STREET_NUMBER_RESIDUAL` orientation was 4/4
+  jointly correct while the reverse `RESIDUAL_NUMBER_STREET` orientation was
+  1/5. The separately versioned v3.2 DEVELOPMENT experiment rejects only the
+  reverse orientation. It reuses the fixed 8,000-row payload, never reruns
+  selection, and may reuse R01 labels only after exact identity/value/span
+  equivalence. See `docs/PHASE03_PARSER_V3_2_EXPERIMENT.md`.
 - **Major decisions:** International parsing rules, deterministic normalization, country mapping, handling of geography embedded in free-form lines, and separation of company/unit content.
 - **STOP gate:** Review country/address-family behavior, transformations, unresolved records, and evidence that raw values remain traceable and unchanged.
 

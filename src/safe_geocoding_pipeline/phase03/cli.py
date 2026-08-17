@@ -13,11 +13,13 @@ from .constants import (
     PARSER_VERSION_V2_1,
     PARSER_VERSION_V3,
     PARSER_VERSION_V3_1,
+    PARSER_VERSION_V3_2,
     RULE_EXECUTION_DISPOSITIONS,
 )
 from .development_comparison import (
     compare_development_parser_outputs,
     compare_development_parser_v2_1_v3_1_outputs,
+    compare_development_parser_v2_1_v3_2_outputs,
     compare_development_parser_v2_v3_outputs,
 )
 from .development_pattern_profiler import profile_development_patterns
@@ -120,6 +122,7 @@ def build_parser() -> argparse.ArgumentParser:
             PARSER_VERSION_V2_1,
             PARSER_VERSION_V3,
             PARSER_VERSION_V3_1,
+            PARSER_VERSION_V3_2,
         ),
         default=PARSER_VERSION_V1,
     )
@@ -128,34 +131,29 @@ def build_parser() -> argparse.ArgumentParser:
     comparison.add_argument("--revised-core", type=Path, required=True)
     comparison.add_argument("--output", type=Path, required=True)
     comparison.add_argument("--expected-rows", type=int, default=8_000)
-    experimental_comparison = subparsers.add_parser(
-        "development-compare-parser-v2-v3"
-    )
-    experimental_comparison.add_argument(
-        "--baseline-core", type=Path, required=True
-    )
+    experimental_comparison = subparsers.add_parser("development-compare-parser-v2-v3")
+    experimental_comparison.add_argument("--baseline-core", type=Path, required=True)
     experimental_comparison.add_argument(
         "--baseline-evidence", type=Path, required=True
     )
     experimental_comparison.add_argument("--revised-core", type=Path, required=True)
-    experimental_comparison.add_argument(
-        "--revised-evidence", type=Path, required=True
-    )
+    experimental_comparison.add_argument("--revised-evidence", type=Path, required=True)
     experimental_comparison.add_argument("--output", type=Path, required=True)
     experimental_comparison.add_argument("--expected-rows", type=int, default=8_000)
-    repaired_comparison = subparsers.add_parser(
-        "development-compare-parser-v2-1-v3-1"
-    )
+    repaired_comparison = subparsers.add_parser("development-compare-parser-v2-1-v3-1")
     repaired_comparison.add_argument("--baseline-core", type=Path, required=True)
-    repaired_comparison.add_argument(
-        "--baseline-evidence", type=Path, required=True
-    )
+    repaired_comparison.add_argument("--baseline-evidence", type=Path, required=True)
     repaired_comparison.add_argument("--revised-core", type=Path, required=True)
-    repaired_comparison.add_argument(
-        "--revised-evidence", type=Path, required=True
-    )
+    repaired_comparison.add_argument("--revised-evidence", type=Path, required=True)
     repaired_comparison.add_argument("--output", type=Path, required=True)
     repaired_comparison.add_argument("--expected-rows", type=int, default=8_000)
+    narrowed_comparison = subparsers.add_parser("development-compare-parser-v2-1-v3-2")
+    narrowed_comparison.add_argument("--baseline-core", type=Path, required=True)
+    narrowed_comparison.add_argument("--baseline-evidence", type=Path, required=True)
+    narrowed_comparison.add_argument("--revised-core", type=Path, required=True)
+    narrowed_comparison.add_argument("--revised-evidence", type=Path, required=True)
+    narrowed_comparison.add_argument("--output", type=Path, required=True)
+    narrowed_comparison.add_argument("--expected-rows", type=int, default=8_000)
     review_sample = subparsers.add_parser("development-review-sample")
     review_sample.add_argument("--state-path", type=Path, required=True)
     review_sample.add_argument("--development-payload", type=Path, required=True)
@@ -169,26 +167,18 @@ def build_parser() -> argparse.ArgumentParser:
     pattern_profile.add_argument("--development-evidence", type=Path, required=True)
     pattern_profile.add_argument("--development-identities", type=Path, required=True)
     pattern_profile.add_argument("--output-directory", type=Path, required=True)
-    targeted_profile = subparsers.add_parser(
-        "development-targeted-opportunity-profile"
-    )
+    targeted_profile = subparsers.add_parser("development-targeted-opportunity-profile")
     targeted_profile.add_argument("--development-payload", type=Path, required=True)
     targeted_profile.add_argument("--development-core", type=Path, required=True)
     targeted_profile.add_argument("--development-evidence", type=Path, required=True)
-    targeted_profile.add_argument(
-        "--development-identities", type=Path, required=True
-    )
+    targeted_profile.add_argument("--development-identities", type=Path, required=True)
     targeted_profile.add_argument("--output-directory", type=Path, required=True)
-    v3_diagnostic = subparsers.add_parser(
-        "development-diagnose-parser-v2-v3-changes"
-    )
+    v3_diagnostic = subparsers.add_parser("development-diagnose-parser-v2-v3-changes")
     v3_diagnostic.add_argument("--baseline-core", type=Path, required=True)
     v3_diagnostic.add_argument("--baseline-evidence", type=Path, required=True)
     v3_diagnostic.add_argument("--experimental-core", type=Path, required=True)
     v3_diagnostic.add_argument("--experimental-evidence", type=Path, required=True)
-    v3_diagnostic.add_argument(
-        "--development-identities", type=Path, required=True
-    )
+    v3_diagnostic.add_argument("--development-identities", type=Path, required=True)
     v3_diagnostic.add_argument("--controlled-root", type=Path, required=True)
     v3_diagnostic.add_argument("--report-root", type=Path, required=True)
     v3_diagnostic.add_argument("--output-directory", type=Path, required=True)
@@ -239,9 +229,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     elif args.command == "validate-country-reference":
         paths = production_reference_paths()
         manifest_path = args.manifest or paths["country_manifest"]
-        reference_directory = (
-            args.reference_directory or paths["country_directory"]
-        )
+        reference_directory = args.reference_directory or paths["country_directory"]
         manifest = verify_cldr_reference_bundle(manifest_path, reference_directory)
         payload = {
             "status": "PASS",
@@ -358,9 +346,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             git_commit=args.git_commit,
             phase03_configuration_fingerprint=config.configuration_fingerprint().hex(),
             reference_configuration_fingerprint=hashlib.sha256(
-                (
-                    country_reference.version + "\0" + script_reference.version
-                ).encode()
+                (country_reference.version + "\0" + script_reference.version).encode()
             ).hexdigest(),
             production=True,
             selection_engine=args.selection_engine,
@@ -416,15 +402,16 @@ def main(argv: Sequence[str] | None = None) -> int:
         development_metadata, development = read_identity_set(
             args.development_identities
         )
-        if development_metadata["partition"] != "DEVELOPMENT" or len(development) != 8_000:
+        if (
+            development_metadata["partition"] != "DEVELOPMENT"
+            or len(development) != 8_000
+        ):
             raise ValueError("development identity-set mismatch")
         country_reference, script_reference = load_production_references(
             expected_country_reference_id=config.country_reference_version,
             expected_unicode_reference_id=config.unicode_reference_version,
         )
-        registry = load_rule_registry(
-            registry_version=config.rule_registry_version
-        )
+        registry = load_rule_registry(registry_version=config.rule_registry_version)
         implementation = hashlib.sha256(args.git_commit.encode()).digest()
         engine = Phase03Engine(
             config,
@@ -476,6 +463,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
     elif args.command == "development-compare-parser-v2-1-v3-1":
         payload = compare_development_parser_v2_1_v3_1_outputs(
+            args.baseline_core,
+            args.baseline_evidence,
+            args.revised_core,
+            args.revised_evidence,
+            args.output,
+            expected_rows=args.expected_rows,
+        )
+    elif args.command == "development-compare-parser-v2-1-v3-2":
+        payload = compare_development_parser_v2_1_v3_2_outputs(
             args.baseline_core,
             args.baseline_evidence,
             args.revised_core,
@@ -593,7 +589,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             args.input_path,
             production=True,
         )
-        development_metadata, development = read_identity_set(args.development_identities)
+        development_metadata, development = read_identity_set(
+            args.development_identities
+        )
         locked_metadata, locked = read_identity_set(args.locked_identities)
         if (
             development_metadata["partition"] != "DEVELOPMENT"
@@ -611,9 +609,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             or seal.get("development_count") != len(development)
             or seal.get("locked_evaluation_count") != len(locked)
             or seal.get("development_identity_digest")
-            != identity_digest(
-                b"phase03:development_identities_v1\0", development
-            )
+            != identity_digest(b"phase03:development_identities_v1\0", development)
             or seal.get("locked_evaluation_identity_digest")
             != identity_digest(b"phase03:locked_identities_v1\0", locked)
             or seal.get("input_phase02_manifest_identity") != manifest_identity

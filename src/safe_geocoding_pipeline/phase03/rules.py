@@ -18,6 +18,7 @@ from .constants import (
     RULE_REGISTRY_VERSION_V2,
     RULE_REGISTRY_VERSION_V3,
     RULE_REGISTRY_VERSION_V4,
+    RULE_REGISTRY_VERSION_V5,
 )
 from .errors import Phase03Error
 
@@ -292,8 +293,18 @@ def _validate_matcher_parameters(matcher: str, parameters: object) -> None:
     }
     parameter_keys = set(parameters)
     marker_v1_keys = {"markers", "identifier_max_codepoints"}
-    if parameter_keys != expected_keys[matcher] and not (
-        matcher == "MARKER_WITH_IDENTIFIER" and parameter_keys == marker_v1_keys
+    experimental_v5_keys = expected_keys["EXPERIMENTAL_EMBEDDED_STREET_SEGMENT"] | {
+        "allowed_orientation"
+    }
+    if (
+        parameter_keys != expected_keys[matcher]
+        and not (
+            matcher == "MARKER_WITH_IDENTIFIER" and parameter_keys == marker_v1_keys
+        )
+        and not (
+            matcher == "EXPERIMENTAL_EMBEDDED_STREET_SEGMENT"
+            and parameter_keys == experimental_v5_keys
+        )
     ):
         raise Phase03Error("RULE_REGISTRY_INVALID", "matcher parameter schema mismatch")
     if matcher == "COUNTRY_REFERENCE_EXACT":
@@ -328,8 +339,7 @@ def _validate_matcher_parameters(matcher: str, parameters: object) -> None:
         raise Phase03Error("RULE_REGISTRY_INVALID", "house matcher flags invalid")
     elif matcher in {"EXPLICIT_STREET_SEGMENT", "GENERIC_STREET_SEGMENT"}:
         if (
-            parameters["street_designator_reference_id"]
-            != "street_designators_v2"
+            parameters["street_designator_reference_id"] != "street_designators_v2"
             or re.fullmatch(
                 r"[0-9a-f]{64}",
                 str(parameters["street_designator_artifact_sha256"]),
@@ -384,8 +394,7 @@ def _validate_matcher_parameters(matcher: str, parameters: object) -> None:
         _validate_token_phrases(parameters["markers"], name="building markers")
         _validate_token_phrases(parameters["legal_forms"], name="legal forms")
         if (
-            parameters["street_designator_reference_id"]
-            != "street_designators_v2"
+            parameters["street_designator_reference_id"] != "street_designators_v2"
             or re.fullmatch(
                 r"[0-9a-f]{64}",
                 str(parameters["street_designator_artifact_sha256"]),
@@ -405,8 +414,14 @@ def _validate_matcher_parameters(matcher: str, parameters: object) -> None:
             raise Phase03Error("RULE_REGISTRY_INVALID", "building length bound invalid")
     elif matcher == "EXPERIMENTAL_EMBEDDED_STREET_SEGMENT":
         if (
-            parameters["street_designator_reference_id"]
-            != "street_designators_v2"
+            "allowed_orientation" in parameters
+            and parameters["allowed_orientation"] != "STREET_NUMBER_RESIDUAL"
+        ):
+            raise Phase03Error(
+                "RULE_REGISTRY_INVALID", "experimental orientation invalid"
+            )
+        if (
+            parameters["street_designator_reference_id"] != "street_designators_v2"
             or re.fullmatch(
                 r"[0-9a-f]{64}",
                 str(parameters["street_designator_artifact_sha256"]),
@@ -496,9 +511,7 @@ def _as_rule(value: object, *, require_documentation: bool) -> RuleSpec:
         raise Phase03Error("RULE_REGISTRY_INVALID", "invalid execution disposition")
     allowed_dispositions = {
         "SELECTABLE": {"AUTHORITATIVE_SELECTABLE"},
-        "SELECTABLE_WITH_PLACEHOLDER_COLLISION_GUARD": {
-            "AUTHORITATIVE_SELECTABLE"
-        },
+        "SELECTABLE_WITH_PLACEHOLDER_COLLISION_GUARD": {"AUTHORITATIVE_SELECTABLE"},
         "CANDIDATE_ONLY": {
             "AUTHORITATIVE_CANDIDATE_ONLY",
             "DEVELOPMENT_SHADOW_ONLY",
@@ -593,8 +606,7 @@ def _as_rule(value: object, *, require_documentation: bool) -> RuleSpec:
         or not intended_positive_behavior
         or not isinstance(principal_negative_boundaries, list)
         or not principal_negative_boundaries
-        or len(set(principal_negative_boundaries))
-        != len(principal_negative_boundaries)
+        or len(set(principal_negative_boundaries)) != len(principal_negative_boundaries)
         or any(
             not isinstance(boundary, str) or not boundary
             for boundary in principal_negative_boundaries
@@ -634,6 +646,7 @@ def load_rule_registry(
         RULE_REGISTRY_VERSION_V2: "rule_registry_v2.json",
         RULE_REGISTRY_VERSION_V3: "rule_registry_v3.json",
         RULE_REGISTRY_VERSION_V4: "rule_registry_v4_experimental_overlay.json",
+        RULE_REGISTRY_VERSION_V5: "rule_registry_v5_experimental_overlay.json",
     }
     if path is None and registry_version not in resource_names:
         raise Phase03Error("RULE_REGISTRY_INVALID", "unsupported registry version")
@@ -650,7 +663,10 @@ def load_rule_registry(
         raise Phase03Error(
             "RULE_REGISTRY_READ_FAILURE", type(error).__name__
         ) from error
-    if path is None and registry_version == RULE_REGISTRY_VERSION_V4:
+    if path is None and registry_version in {
+        RULE_REGISTRY_VERSION_V4,
+        RULE_REGISTRY_VERSION_V5,
+    }:
         if not isinstance(value, dict) or set(value) != {
             "schema_version",
             "registry_version",
@@ -664,7 +680,7 @@ def load_rule_registry(
         base = load_rule_registry(registry_version=RULE_REGISTRY_VERSION_V3)
         if (
             value["schema_version"] != "phase03_rule_registry_overlay_schema_v1"
-            or value["registry_version"] != RULE_REGISTRY_VERSION_V4
+            or value["registry_version"] != registry_version
             or value["base_registry_version"] != RULE_REGISTRY_VERSION_V3
             or value["base_registry_sha256"] != base.fingerprint
             or not isinstance(value["additional_rules"], list)
@@ -677,12 +693,20 @@ def load_rule_registry(
         merged_rules = [*base_value["rules"], *value["additional_rules"]]
         merged_rules.sort(
             key=lambda item: (
-                int(item["selection_priority"]), str(item["rule_id"]).encode()
+                int(item["selection_priority"]),
+                str(item["rule_id"]).encode(),
             )
         )
         value = {
-            "schema_version": "phase03_rule_registry_schema_v4_experimental",
-            "registry_version": RULE_REGISTRY_VERSION_V4,
+            "schema_version": {
+                RULE_REGISTRY_VERSION_V4: (
+                    "phase03_rule_registry_schema_v4_experimental"
+                ),
+                RULE_REGISTRY_VERSION_V5: (
+                    "phase03_rule_registry_schema_v5_experimental"
+                ),
+            }[registry_version],
+            "registry_version": registry_version,
             "rules": merged_rules,
         }
     if not isinstance(value, dict) or set(value) != {
@@ -696,14 +720,16 @@ def load_rule_registry(
     expected_registry_version = (
         registry_version if path is None else str(value["registry_version"])
     )
-    if value["registry_version"] != expected_registry_version or value[
-        "registry_version"
-    ] not in resource_names:
+    if (
+        value["registry_version"] != expected_registry_version
+        or value["registry_version"] not in resource_names
+    ):
         raise Phase03Error("RULE_REGISTRY_INVALID", "unexpected registry version")
     expected_schema_version = {
         RULE_REGISTRY_VERSION_V2: "phase03_rule_registry_schema_v2",
         RULE_REGISTRY_VERSION_V3: "phase03_rule_registry_schema_v3",
         RULE_REGISTRY_VERSION_V4: "phase03_rule_registry_schema_v4_experimental",
+        RULE_REGISTRY_VERSION_V5: "phase03_rule_registry_schema_v5_experimental",
     }[str(value["registry_version"])]
     if value["schema_version"] != expected_schema_version:
         raise Phase03Error("RULE_REGISTRY_INVALID", "unsupported registry schema")
@@ -714,11 +740,24 @@ def load_rule_registry(
             item,
             require_documentation=(
                 value["registry_version"]
-                in {RULE_REGISTRY_VERSION_V3, RULE_REGISTRY_VERSION_V4}
+                in {
+                    RULE_REGISTRY_VERSION_V3,
+                    RULE_REGISTRY_VERSION_V4,
+                    RULE_REGISTRY_VERSION_V5,
+                }
             ),
         )
         for item in value["rules"]
     )
+    for rule in rules:
+        if rule.matcher != "EXPERIMENTAL_EMBEDDED_STREET_SEGMENT":
+            continue
+        has_orientation = "allowed_orientation" in rule.matching_condition["parameters"]
+        if has_orientation != (value["registry_version"] == RULE_REGISTRY_VERSION_V5):
+            raise Phase03Error(
+                "RULE_REGISTRY_INVALID",
+                "experimental orientation does not match registry version",
+            )
     identities = [rule.rule_id for rule in rules]
     priorities = [(rule.selection_priority, rule.rule_id) for rule in rules]
     if len(set(identities)) != len(identities):

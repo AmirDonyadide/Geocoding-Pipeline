@@ -235,12 +235,27 @@ These are empirical properties of the exact current snapshot, not permanent prov
   columns, superseding the earlier 27-column draft because `assignment_role`
   was added before any v2 artifact existed. Tests freeze its exact Arrow order,
   nullability, allowed values, and identity-level independent-review semantics.
+- The completed Parser-v3.1 Targeted-R01 review is preserved as historical
+  single-reviewer evidence: five of nine selected rows were jointly correct
+  and four were false positives; Targeted-R02 was explicitly skipped and no
+  promotion threshold was applied. Exact protected evidence confirmed an
+  orientation split of 4/4 correct for `STREET_NUMBER_RESIDUAL` versus 1/5 for
+  `RESIDUAL_NUMBER_STREET`.
+- `conservative_address_parser_v3_2_experimental` with
+  `phase03_rule_registry_v5_experimental` is the separately versioned,
+  DEVELOPMENT-only narrowing. It retains only `STREET_NUMBER_RESIDUAL` and
+  changes no other v3.1 condition. V2.1/v3.1 remain immutable and reproducible;
+  v3.2 is not approved for promotion. Existing R01 labels may be reused only
+  after exact identity/candidate/span equivalence is proved mechanically.
+  See `docs/PHASE03_PARSER_V3_2_EXPERIMENT.md`.
 
 ## Open decisions
 
 - Whether, and under what evidence/rules, an address-layer interpolated result is `usable_for_analysis`.
 - Whether parser-v2 DEVELOPMENT review supports freezing its selectable rules
   for a future, separately versioned and authorized evaluation.
+- Whether the completed DEVELOPMENT-only v3.2 evidence warrants a later
+  promotion proposal; the implementation and score cannot decide this.
 - Final Phase 3 operational settings after the required real development-pilot benchmark of storage size, compression, write/read throughput, memory, and join ergonomics. Synthetic evidence currently supports retaining the provisional limits/settings.
 - Quantitative Phase 3 parser/manual-review acceptance thresholds. These must be pre-registered after the development subset and before the locked evaluation subset is opened.
 - Whether a pinned libpostal build/model should be evaluated only as a secondary candidate generator during the development pilot.

@@ -297,6 +297,13 @@ unapproved. Its prepared Goethe job reuses the existing 8,000 DEVELOPMENT rows,
 does not rerun sampling, and compares completed v2/v3 core and evidence using
 aggregate-only diagnostics. Parser v2 and the default parser remain unchanged.
 
+The later `conservative_address_parser_v3_2_experimental` is a strictly
+narrower DEVELOPMENT-only revision of repaired v3.1. Protected R01 evidence
+supports only `STREET_NUMBER_RESIDUAL`; the reverse orientation is rejected
+before experimental candidates are emitted. It has its own V5 registry/rule
+identities and no promotion decision. See
+`docs/PHASE03_PARSER_V3_2_EXPERIMENT.md`.
+
 Production data must not be run from the Mac. The prepared, not-submitted
 Goethe workflow is
 `cluster/goethe_nhr/phase03_development_parser_v2.sbatch`; it reuses only the

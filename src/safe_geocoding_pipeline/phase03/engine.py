@@ -21,6 +21,7 @@ from .constants import (
     PARSER_VERSION_V2_1,
     PARSER_VERSION_V3,
     PARSER_VERSION_V3_1,
+    PARSER_VERSION_V3_2,
     POSTCODE_FLAGS,
     REPRESENTATIONS,
 )
@@ -40,15 +41,37 @@ from .text import (
 )
 
 _MODERN_PARSER_VERSIONS = frozenset(
-    {PARSER_VERSION_V2, PARSER_VERSION_V2_1, PARSER_VERSION_V3, PARSER_VERSION_V3_1}
-)
-_EXPERIMENTAL_PARSER_VERSIONS = frozenset({PARSER_VERSION_V3, PARSER_VERSION_V3_1})
-_EXPERIMENTAL_RULE_IDS = frozenset(
     {
-        "HOUSE_NUMBER_EMBEDDED_DESIGNATOR_EXPERIMENT_V4",
-        "STREET_EMBEDDED_DESIGNATOR_EXPERIMENT_V4",
+        PARSER_VERSION_V2,
+        PARSER_VERSION_V2_1,
+        PARSER_VERSION_V3,
+        PARSER_VERSION_V3_1,
+        PARSER_VERSION_V3_2,
     }
 )
+_EXPERIMENTAL_PARSER_VERSIONS = frozenset(
+    {PARSER_VERSION_V3, PARSER_VERSION_V3_1, PARSER_VERSION_V3_2}
+)
+_EXPERIMENTAL_RULE_IDS_BY_PARSER = {
+    PARSER_VERSION_V3: frozenset(
+        {
+            "HOUSE_NUMBER_EMBEDDED_DESIGNATOR_EXPERIMENT_V4",
+            "STREET_EMBEDDED_DESIGNATOR_EXPERIMENT_V4",
+        }
+    ),
+    PARSER_VERSION_V3_1: frozenset(
+        {
+            "HOUSE_NUMBER_EMBEDDED_DESIGNATOR_EXPERIMENT_V4",
+            "STREET_EMBEDDED_DESIGNATOR_EXPERIMENT_V4",
+        }
+    ),
+    PARSER_VERSION_V3_2: frozenset(
+        {
+            "HOUSE_NUMBER_EMBEDDED_DESIGNATOR_EXPERIMENT_V5",
+            "STREET_EMBEDDED_DESIGNATOR_EXPERIMENT_V5",
+        }
+    ),
+}
 _EXPERIMENTAL_COMPETING_COMPONENTS = frozenset(
     {"STREET", "HOUSE_NUMBER", "UNIT", "FLOOR", "BUILDING", "ORGANIZATION", "PO_BOX"}
 )
@@ -332,8 +355,7 @@ def _token_sequence_at_end(
 ) -> bool:
     comparisons = [token.comparison for token in tokens]
     return any(
-        len(phrase) < len(tokens)
-        and comparisons[-len(phrase) :] == list(phrase)
+        len(phrase) < len(tokens) and comparisons[-len(phrase) :] == list(phrase)
         for phrase in phrases
     )
 
@@ -343,8 +365,7 @@ def _token_sequence_at_start(
 ) -> bool:
     comparisons = [token.comparison for token in tokens]
     return any(
-        len(phrase) < len(tokens)
-        and comparisons[: len(phrase)] == list(phrase)
+        len(phrase) < len(tokens) and comparisons[: len(phrase)] == list(phrase)
         for phrase in phrases
     )
 
@@ -402,11 +423,7 @@ def _street_designator_in_address_segment(
         if found is None:
             continue
         _, boundary = found
-        remainder = (
-            segment.tokens[boundary:]
-            if leading
-            else segment.tokens[:boundary]
-        )
+        remainder = segment.tokens[boundary:] if leading else segment.tokens[:boundary]
         if _street_designator_present(remainder, resource):
             return True
     return False
@@ -417,8 +434,7 @@ def _bound_street_reference(rule: RuleSpec) -> StreetDesignatorResource:
     resource = load_street_designators()
     if (
         parameters["street_designator_reference_id"] != resource.resource_id
-        or parameters["street_designator_artifact_sha256"]
-        != resource.artifact_sha256
+        or parameters["street_designator_artifact_sha256"] != resource.artifact_sha256
     ):
         raise Phase03Error("STREET_DESIGNATOR_REFERENCE_MISMATCH")
     return resource
@@ -491,8 +507,7 @@ def _house_span_at_edge(
             and chunk[2].raw.isalpha()
         )
         enabled = (
-            numeric_pair
-            and ((separator in {"-", "–"} and allow_range) or allow_slash)
+            numeric_pair and ((separator in {"-", "–"} and allow_range) or allow_slash)
         ) or (letter_suffix and allow_alphanumeric)
         if contiguous and enabled:
             return span, (3 if leading else len(tokens) - 3)
@@ -508,9 +523,7 @@ def _house_span_at_edge(
         and raw[pair[0].end : pair[1].start]
         and raw[pair[0].end : pair[1].start].isspace()
     ):
-        return (pair[0].start, pair[1].end), (
-            2 if leading else len(tokens) - 2
-        )
+        return (pair[0].start, pair[1].end), (2 if leading else len(tokens) - 2)
 
     token_index = 0 if leading else len(tokens) - 1
     token = tokens[token_index]
@@ -560,14 +573,17 @@ def _street_match_pairs(
         if not between or not between.isspace():
             continue
         if any(
-            token.kind == "WORD" and any(character.isdecimal() for character in token.raw)
+            token.kind == "WORD"
+            and any(character.isdecimal() for character in token.raw)
             for token in street_tokens
         ):
             continue
         has_designator = _street_designator_present(street_tokens, resource)
         if require_designator != has_designator:
             continue
-        if not require_designator and not _generic_street_text_allowed(street_tokens, rule):
+        if not require_designator and not _generic_street_text_allowed(
+            street_tokens, rule
+        ):
             continue
         results.append((house_span, street_span))
     return sorted(set(results))
@@ -598,11 +614,10 @@ def _explicit_street_matches(
     matches: list[tuple[tuple[int, int] | None, tuple[int, int]]] = []
     resource = _bound_street_reference(rule)
     for segment in _segments(raw, tokens):
-        matches.extend(
-            _street_match_pairs(raw, segment, rule, require_designator=True)
-        )
+        matches.extend(_street_match_pairs(raw, segment, rule, require_designator=True))
         if not any(
-            token.kind == "WORD" and any(character.isdecimal() for character in token.raw)
+            token.kind == "WORD"
+            and any(character.isdecimal() for character in token.raw)
             for token in segment.tokens
         ) and _street_designator_present(segment.tokens, resource):
             matches.append((None, (segment.start, segment.end)))
@@ -671,16 +686,22 @@ def _experimental_embedded_street_matches(
     right_is_street = _street_designator_present(right, resource)
     if left_is_street == right_is_street:
         return []
+    if (
+        parameters.get("allowed_orientation") == "STREET_NUMBER_RESIDUAL"
+        and not left_is_street
+    ):
+        return []
     street_tokens = left if left_is_street else right
     opposite_tokens = right if left_is_street else left
-    if not 1 <= len(opposite_tokens) <= int(
-        parameters["maximum_opposite_word_tokens"]
-    ):
+    if not 1 <= len(opposite_tokens) <= int(parameters["maximum_opposite_word_tokens"]):
         return []
     reserved = set(parameters["reserved_role_tokens"])
     if any(token.comparison in reserved for token in opposite_tokens):
         return []
-    if any(not any(character.isalpha() for character in token.raw) for token in opposite_tokens):
+    if any(
+        not any(character.isalpha() for character in token.raw)
+        for token in opposite_tokens
+    ):
         return []
     house = segment.tokens[numeric_index]
     house_span = (house.start, house.end)
@@ -742,9 +763,7 @@ def _explicit_floor_matches(
                 and marker_end == len(segment_tokens)
                 and len(segment_tokens) >= 2
                 and _floor_identifier(segment_tokens[0].raw, maximum_digits)
-                and re.fullmatch(
-                    r"[0-9]+(?:st|nd|rd|th)", segment_tokens[0].comparison
-                )
+                and re.fullmatch(r"[0-9]+(?:st|nd|rd|th)", segment_tokens[0].comparison)
             ):
                 identifier = segment_tokens[0]
                 digit_match = re.match(r"[0-9]+", identifier.raw)
@@ -1087,7 +1106,9 @@ def _candidate_supports_selection(
             or (
                 item.representation == "NON_NATIVE"
                 and candidate.representation == "NATIVE"
-                and all(field in item.source_fields for field in candidate.source_fields)
+                and all(
+                    field in item.source_fields for field in candidate.source_fields
+                )
             )
         )
         for item in selected
@@ -1112,12 +1133,13 @@ def _gate_experimental_embedded_candidates(
     candidates: Sequence[Candidate],
     *,
     minimum_structured_geography_components: int,
+    experimental_rule_ids: frozenset[str],
 ) -> list[Candidate]:
     """Fail closed unless the complete row supports the v3 DEVELOPMENT experiment."""
     experimental = [
         candidate
         for candidate in candidates
-        if candidate.rule_id in _EXPERIMENTAL_RULE_IDS
+        if candidate.rule_id in experimental_rule_ids
     ]
     if not experimental:
         return list(candidates)
@@ -1125,7 +1147,7 @@ def _gate_experimental_embedded_candidates(
     def disabled() -> list[Candidate]:
         return [
             replace(candidate, selectable=False)
-            if candidate.rule_id in _EXPERIMENTAL_RULE_IDS
+            if candidate.rule_id in experimental_rule_ids
             else candidate
             for candidate in candidates
         ]
@@ -1133,7 +1155,7 @@ def _gate_experimental_embedded_candidates(
     other_candidates = [
         candidate
         for candidate in candidates
-        if candidate.rule_id not in _EXPERIMENTAL_RULE_IDS
+        if candidate.rule_id not in experimental_rule_ids
     ]
     if any(
         candidate.component in _EXPERIMENTAL_COMPETING_COMPONENTS
@@ -1206,9 +1228,7 @@ def _gate_experimental_embedded_candidates(
         )
         if states[counterpart] != "CONTENT":
             continue
-        counterpart_values = pair_values.get(
-            (counterpart_representation, counterpart)
-        )
+        counterpart_values = pair_values.get((counterpart_representation, counterpart))
         if counterpart_values != pair_components:
             return disabled()
     return list(candidates)
@@ -1331,8 +1351,13 @@ class Phase03Engine:
                     != street_resource.artifact_sha256
                 ):
                     raise Phase03Error("STREET_DESIGNATOR_REFERENCE_MISMATCH")
+        self.experimental_rule_ids = _EXPERIMENTAL_RULE_IDS_BY_PARSER.get(
+            config.parser_version, frozenset()
+        )
         experimental_rules = [
-            rule for rule in registry.rules if rule.rule_id in _EXPERIMENTAL_RULE_IDS
+            rule
+            for rule in registry.rules
+            if rule.rule_id in self.experimental_rule_ids
         ]
         self.experimental_structured_support_minimum: int | None
         if config.parser_version in _EXPERIMENTAL_PARSER_VERSIONS:
@@ -1344,11 +1369,9 @@ class Phase03Engine:
                 )
                 for rule in experimental_rules
             }
-            if (
-                {rule.rule_id for rule in experimental_rules}
-                != _EXPERIMENTAL_RULE_IDS
-                or len(minima) != 1
-            ):
+            if {
+                rule.rule_id for rule in experimental_rules
+            } != self.experimental_rule_ids or len(minima) != 1:
                 raise Phase03Error("EXPERIMENTAL_RULE_PAIR_MISMATCH")
             self.experimental_structured_support_minimum = next(iter(minima))
         else:
@@ -1376,6 +1399,10 @@ class Phase03Engine:
                             PARSER_VERSION_V3_1: (
                                 "phase03_effective_configuration_v3_1_"
                                 "experimental_country_method_repair"
+                            ),
+                            PARSER_VERSION_V3_2: (
+                                "phase03_effective_configuration_v3_2_"
+                                "experimental_forward_orientation_only"
                             ),
                         }[config.parser_version]
                     ),
@@ -1499,8 +1526,8 @@ class Phase03Engine:
                 if rule.development_shadow_only
                 else authoritative_candidates
             )
-            if rule.rule_id in _EXPERIMENTAL_RULE_IDS and any(
-                candidate.rule_id not in _EXPERIMENTAL_RULE_IDS
+            if rule.rule_id in self.experimental_rule_ids and any(
+                candidate.rule_id not in self.experimental_rule_ids
                 and candidate.component in _EXPERIMENTAL_COMPETING_COMPONENTS
                 for candidate in authoritative_candidates
             ):
@@ -1564,9 +1591,9 @@ class Phase03Engine:
                     )
                     target_candidates.append(candidate)
                     if rule.component == "COUNTRY" and match.reference_kind:
-                        country_kinds[
-                            (candidate.rule_id, field, candidate.value)
-                        ] = match.reference_kind
+                        country_kinds[(candidate.rule_id, field, candidate.value)] = (
+                            match.reference_kind
+                        )
                     if not self._within_candidate_limits(target_candidates):
                         target_candidates.pop()
                         if rule.development_shadow_only:
@@ -1618,6 +1645,7 @@ class Phase03Engine:
                 minimum_structured_geography_components=(
                     self.experimental_structured_support_minimum
                 ),
+                experimental_rule_ids=self.experimental_rule_ids,
             )
         conflicts.update(_registered_overlap_conflicts(authoritative_candidates))
         if self.config.parser_version in _MODERN_PARSER_VERSIONS:
@@ -2098,8 +2126,9 @@ class Phase03Engine:
     ) -> list[dict[str, Any]]:
         groups: list[dict[str, Any]] = []
         for candidate in candidates:
-            is_selected = candidate.selectable and _candidate_is_exact_selected_evidence(
-                candidate, selected
+            is_selected = (
+                candidate.selectable
+                and _candidate_is_exact_selected_evidence(candidate, selected)
             )
             trivial = candidate.rule_id in {
                 "POSTCODE_STRUCTURED_DIRECT_V1",

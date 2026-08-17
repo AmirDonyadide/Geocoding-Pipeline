@@ -22,6 +22,8 @@ from .targeted_review_population import (
     REPAIRED_POPULATION_EXPECTATION,
     verify_repaired_targeted_review_population,
 )
+from .targeted_orientation_analysis import analyze_targeted_v3_1_orientations
+from .targeted_v3_2_evaluation import evaluate_targeted_v3_2_label_reuse
 from .text import enforce_runtime_contract
 
 
@@ -84,6 +86,24 @@ def build_parser() -> argparse.ArgumentParser:
     score.add_argument("--reviewer-two-database", type=Path)
     score.add_argument("--protected-context", type=Path, required=True)
     score.add_argument("--output", type=Path, required=True)
+
+    orientation = commands.add_parser("analyze-v3-1-orientations")
+    orientation.add_argument("--input-manifest", type=Path, required=True)
+    orientation.add_argument("--protected-context", type=Path, required=True)
+    orientation.add_argument("--controlled-r01-labels", type=Path, required=True)
+    orientation.add_argument("--output", type=Path, required=True)
+
+    v3_2 = commands.add_parser("evaluate-v3-2-label-reuse")
+    v3_2.add_argument("--input-manifest", type=Path, required=True)
+    v3_2.add_argument("--protected-context", type=Path, required=True)
+    v3_2.add_argument("--controlled-r01-labels", type=Path, required=True)
+    v3_2.add_argument("--development-identities", type=Path, required=True)
+    v3_2.add_argument("--baseline-core", type=Path, required=True)
+    v3_2.add_argument("--baseline-evidence", type=Path, required=True)
+    v3_2.add_argument("--v3-2-core", type=Path, required=True)
+    v3_2.add_argument("--v3-2-evidence", type=Path, required=True)
+    v3_2.add_argument("--comparison-report", type=Path, required=True)
+    v3_2.add_argument("--output-directory", type=Path, required=True)
     return parser
 
 
@@ -134,6 +154,41 @@ def main(argv: Sequence[str] | None = None) -> int:
             production=True,
         )
         _print(payload)
+        return 0
+    if args.command == "analyze-v3-1-orientations":
+        payload = analyze_targeted_v3_1_orientations(
+            input_manifest_path=args.input_manifest,
+            protected_context_path=args.protected_context,
+            controlled_labels_path=args.controlled_r01_labels,
+            output_path=args.output,
+            implementation_commit=current_repository_commit(),
+            production=True,
+        )
+        _print(payload)
+        return 0
+    if args.command == "evaluate-v3-2-label-reuse":
+        artifacts = evaluate_targeted_v3_2_label_reuse(
+            input_manifest_path=args.input_manifest,
+            protected_context_path=args.protected_context,
+            controlled_labels_path=args.controlled_r01_labels,
+            development_identities_path=args.development_identities,
+            baseline_core_path=args.baseline_core,
+            baseline_evidence_path=args.baseline_evidence,
+            v3_2_core_path=getattr(args, "v3_2_core"),
+            v3_2_evidence_path=getattr(args, "v3_2_evidence"),
+            comparison_report_path=args.comparison_report,
+            output_directory=args.output_directory,
+            implementation_commit=current_repository_commit(),
+            production=True,
+        )
+        _print(
+            {
+                "status": "V3_2_TARGETED_EVALUATION_COMPLETE_NO_PROMOTION_DECISION",
+                "artifacts": sorted(path.name for path in artifacts.values()),
+                "locked_rows_read": 0,
+                "raw_values_reported": False,
+            }
+        )
         return 0
     if args.command == "prepare":
         if args.review_implementation_commit != current_repository_commit():
