@@ -6,6 +6,7 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=16G
 #SBATCH --time=02:00:00
+#SBATCH --tmp=10000
 #SBATCH --mail-user=donyadidegan@safe-frankfurt.de
 #SBATCH --mail-type=BEGIN,END,FAIL
 #SBATCH --output=/work/footprint/donyadidegan/safe_geocoding_pipeline/logs/slurm/%x_%j.out
@@ -35,10 +36,24 @@ export PYTHONPATH="${INTEGRATION_ROOT}/src"
 export SAFE_EXECUTION_SITE=goethe-nhr
 export PYTHONDONTWRITEBYTECODE=1
 
+if [[ -n "${SLURM_TMPDIR:-}" && -d "${SLURM_TMPDIR}" ]]; then
+  export TMPDIR="${SLURM_TMPDIR}"
+elif [[ -d "/local/${SLURM_JOB_ID}" ]]; then
+  export TMPDIR="/local/${SLURM_JOB_ID}"
+else
+  echo "LOCKED_PROTOCOL_VALIDATION_NODE_LOCAL_TEMP_UNAVAILABLE" >&2
+  exit 1
+fi
+[[ -w "${TMPDIR}" ]] || {
+  echo "LOCKED_PROTOCOL_VALIDATION_NODE_LOCAL_TEMP_NOT_WRITABLE" >&2
+  exit 1
+}
+
 echo "job_id=${SLURM_JOB_ID}"
 echo "hostname=$(hostname)"
 echo "partition=${SLURM_JOB_PARTITION:-unknown}"
 echo "git_commit=${PHASE03_GIT_COMMIT}"
+echo "temporary_root=${TMPDIR}"
 echo "locked_rows_read=0"
 echo "stage=focused"
 python -m pytest -q \
