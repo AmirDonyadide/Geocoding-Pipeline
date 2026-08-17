@@ -186,10 +186,23 @@ separate final scientific promotion decision.
 
 ## Executable workflow and atomicity
 
-The dedicated command is `safe-geocoding-phase03-locked-evaluation`. It has
-explicit `protocol-info`, `preflight`, `materialize`, `transform`,
-`prepare-review`, `initialize-review`, `review`, `review-progress`,
-`export-labels`, `score`, and `finalize` stages.
+The dedicated CLI is `safe-geocoding-phase03-locked-evaluation`. The SLURM
+harness invokes the same entry point explicitly as
+`python -m safe_geocoding_pipeline.phase03.locked_evaluation_cli` from the
+commit-pinned `PYTHONPATH`; it does not depend on refreshing console scripts in
+the shared project virtual environment. It has explicit `protocol-info`,
+`preflight`, `materialize`, `transform`, `prepare-review`, `initialize-review`,
+`review`, `review-progress`, `export-labels`, `score`, and `finalize` stages.
+
+The first zero-row preflight attempt, job `1750709`, stopped at shell command
+resolution before the Python entry point ran because the virtual environment
+did not contain the newly declared console script. Its owner-only attempt
+directory remained empty, no final directory existed, and LOCKED rows read
+remained zero. The preserved failure is an execution-packaging event, not a
+scientific result. Commit `e91412b8544e7a84a36205a54e6994dc75650722`
+corrects only the SLURM invocation and adds an executable-resolution regression
+test; parser, registry, configuration, review, and decision semantics are
+unchanged.
 
 The committed Goethe workflow is
 `cluster/goethe_nhr/phase03_locked_evaluation.sbatch`. `PREFLIGHT` is the only

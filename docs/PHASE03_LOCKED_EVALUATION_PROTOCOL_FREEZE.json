@@ -16,7 +16,7 @@
     "provenance_commit": "67e18738a97f4a836ded91dde37fad1543084cd3",
     "registry_sha256": "4e66e0be62c3d0aae3e9452babe7d16f312c7bb49c69af1a2a0e6839cc3bb1fd",
     "registry_version": "phase03_rule_registry_v5_experimental",
-    "workflow_implementation_commit": "64df2e4559a7d9d5e67b5c5bd5c5648bad462f5e"
+    "workflow_implementation_commit": "e91412b8544e7a84a36205a54e6994dc75650722"
   },
   "decision": {
     "automatic_parser_promotion": false,
@@ -42,6 +42,16 @@
     "sampling_contract_sha256": "0fb7527db5b6a7eb1c7d7eb86d4a038abf4d605728bfe9cf761c74cd33c6d1c7"
   },
   "locked_rows_read": 0,
+  "execution_harness_repair": {
+    "corrected_invocation": "PYTHON_MODULE_FROM_COMMIT_PINNED_PYTHONPATH",
+    "failed_preflight_attempt_directory_state": "EMPTY_OWNER_ONLY_DIRECTORY",
+    "failed_preflight_entrypoint_executed": false,
+    "failed_preflight_job_id": "1750709",
+    "failed_preflight_locked_rows_read": 0,
+    "failed_preflight_run_id": "phase03_locked_evaluation_20260817T111346Z_f4a0a2d",
+    "failed_preflight_status": "EXECUTION_PACKAGING_FAILURE_PRESERVED",
+    "repair_commit": "e91412b8544e7a84a36205a54e6994dc75650722"
+  },
   "metric_definitions": {
     "false_negative_opportunities": "REJECTED_V5_EVIDENCE_CASES_LABELED_CANDIDATE_SUPPORTED_COUNT_REPORT_ONLY",
     "false_structure_overreach_rate": "R01_OVERREACH_PRESENT_DIVIDED_BY_R01_OVERREACH_PRESENT_OR_ABSENT",
@@ -89,22 +99,23 @@
   "validation": {
     "bash_syntax_status": "PASS",
     "format_status": "PASS",
-    "goethe_slurm_job_id": "1750597",
+    "cli_resolution_job_id": "1750838",
+    "goethe_slurm_job_id": "1750808",
     "goethe_slurm_job_state": "COMPLETED",
-    "goethe_slurm_node": "node17-006",
+    "goethe_slurm_node": "node17-005",
     "goethe_slurm_partition": "test",
-    "goethe_slurm_runtime": "01:21:49",
+    "goethe_slurm_runtime": "01:06:32",
     "goethe_slurm_exit_code": "0:0",
     "locked_rows_read": 0,
     "mypy_source_files": 74,
     "mypy_status": "PASS",
-    "phase03_tests_passed": 502,
+    "phase03_tests_passed": 503,
     "repository_local_safe_tests_deselected": 4,
     "repository_local_safe_tests_passed": 87,
     "ruff_status": "PASS",
     "scope": "SYNTHETIC_AND_STATIC_ONLY",
     "status": "PASS",
-    "focused_tests_passed": 38,
+    "focused_tests_passed": 39,
     "git_diff_check_status": "PASS"
   }
 }
