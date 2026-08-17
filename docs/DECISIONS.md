@@ -273,18 +273,27 @@ These are empirical properties of the exact current snapshot, not permanent prov
   agreement measure, and the LOCKED PASS gate remain undefined. These must be
   separately reviewed and frozen before any LOCKED identity or payload is
   opened. The sanitized record is `docs/PHASE03_PRE_LOCKED_FREEZE.json`.
+- The separately versioned `phase03_locked_evaluation_protocol_v1` freezes the
+  pre-unseal evaluation methodology: a 400-row deterministic structural review
+  sample, exactly 100 independently double-reviewed rows, exact precision and
+  overreach denominators, 0.95 precision minima, 0.05 maximum overreach,
+  per-label Cohen's kappa minimum 0.80, and a pre-registered undefined-kappa
+  fallback requiring at least 80 assessable pairs and 0.95 exact agreement.
+  Fill rate is prohibited. Any hard-gate, provenance, privacy, unexplained
+  change, unrelated regression, or methodological-defect failure yields
+  `LOCKED_FAIL_REVISE`; PASS never promotes or authorizes production. The
+  executable path requires an exact LOCKED protocol token and cannot run v3.2
+  under `AUTHORITATIVE`. See
+  `docs/PHASE03_LOCKED_EVALUATION_PROTOCOL.md`.
 
 ## Open decisions
 
 - Whether, and under what evidence/rules, an address-layer interpolated result is `usable_for_analysis`.
 - Whether parser-v2 DEVELOPMENT review supports freezing its selectable rules
   for a future, separately versioned and authorized evaluation.
-- Exact implementation/configuration changes required to execute the frozen
-  v3.2 candidate under `LOCKED_EVALUATION` scope without changing its rule
-  semantics, plus the still-missing LOCKED materialization, validation, review,
-  and atomic-output workflow.
+- Explicit user authorization to unseal and execute the frozen LOCKED protocol;
+  protocol implementation and pre-execution validation do not grant it.
 - Final Phase 3 operational settings after the required real development-pilot benchmark of storage size, compression, write/read throughput, memory, and join ergonomics. Synthetic evidence currently supports retaining the provisional limits/settings.
-- Quantitative Phase 3 parser/manual-review acceptance thresholds. These must be pre-registered after the development subset and before the locked evaluation subset is opened.
 - Whether a pinned libpostal build/model should be evaluated only as a secondary candidate generator during the development pilot.
 - International canonical-address rules that are not yet expressible as exact registry entries remain unresolved and must not be invented during implementation.
 - Native-script versus transliterated primary/rescue query rules.

@@ -16,6 +16,7 @@ from .constants import (
     DIAGNOSTIC_FLAGS,
     EVIDENCE_KINDS,
     EXECUTION_SCOPES,
+    LOCKED_EVALUATION_PROTOCOL_VERSION,
     PARSER_VERSION_V1,
     PARSER_VERSION_V2,
     PARSER_VERSION_V2_1,
@@ -1322,6 +1323,7 @@ class Phase03Engine:
         script_reference: ScriptReference | None = None,
         implementation_fingerprint: bytes,
         execution_scope: str,
+        locked_evaluation_protocol_version: str | None = None,
     ) -> None:
         config.validate()
         enforce_runtime_contract(
@@ -1333,11 +1335,20 @@ class Phase03Engine:
             raise Phase03Error("RULE_REGISTRY_VERSION_MISMATCH")
         if execution_scope not in EXECUTION_SCOPES:
             raise ValueError("execution scope is not registered")
-        if (
-            config.parser_version in _EXPERIMENTAL_PARSER_VERSIONS
-            and execution_scope != "DEVELOPMENT"
+        locked_v3_2_authorized = (
+            config.parser_version == PARSER_VERSION_V3_2
+            and execution_scope == "LOCKED_EVALUATION"
+            and locked_evaluation_protocol_version == LOCKED_EVALUATION_PROTOCOL_VERSION
+        )
+        if config.parser_version in _EXPERIMENTAL_PARSER_VERSIONS and not (
+            execution_scope == "DEVELOPMENT" or locked_v3_2_authorized
         ):
             raise Phase03Error("PARSER_V3_EXPERIMENT_DEVELOPMENT_ONLY")
+        if (
+            locked_evaluation_protocol_version is not None
+            and not locked_v3_2_authorized
+        ):
+            raise Phase03Error("LOCKED_EVALUATION_PROTOCOL_SCOPE_MISMATCH")
         if config.parser_version in _MODERN_PARSER_VERSIONS:
             street_resource = load_street_designators()
             for rule in registry.rules:
@@ -1448,6 +1459,15 @@ class Phase03Engine:
                         }
                         if script_reference
                         else {"reference_id": config.unicode_reference_version}
+                    ),
+                    **(
+                        {
+                            "locked_evaluation_protocol_version": (
+                                locked_evaluation_protocol_version
+                            )
+                        }
+                        if locked_evaluation_protocol_version is not None
+                        else {}
                     ),
                 }
             )
