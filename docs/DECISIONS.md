@@ -285,6 +285,15 @@ These are empirical properties of the exact current snapshot, not permanent prov
   executable path requires an exact LOCKED protocol token and cannot run v3.2
   under `AUTHORITATIVE`. See
   `docs/PHASE03_LOCKED_EVALUATION_PROTOCOL.md`.
+- The completed `LOCKED-R01` labels are a user-authorized methodological
+  deviation from that frozen protocol: Codex/AI, not a human reviewer,
+  produced all 400 primary judgments. They may be used only as
+  `LOCKED_AI_R01_DIAGNOSTIC` evidence. `LOCKED-R02` remains untouched, so
+  human-human agreement and the preregistered final LOCKED decision are not
+  available. The diagnostic must report each quantitative threshold result
+  separately without emitting `LOCKED_PASS` or `LOCKED_FAIL_REVISE`, and must
+  not be represented as human-review evidence. See
+  `docs/PHASE03_LOCKED_AI_R01_DIAGNOSTIC.md`.
 
 ## Open decisions
 
