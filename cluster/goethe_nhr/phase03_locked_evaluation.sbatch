@@ -63,6 +63,9 @@ cmp -s -- "${BASH_SOURCE[0]}" "${EXPECTED_SBATCH}" || {
 cd "${INTEGRATION_ROOT}"
 source "${DATA_ROOT}/.venv-goethe-nhr/bin/activate"
 export PYTHONPATH="${INTEGRATION_ROOT}/src"
+readonly -a LOCKED_CLI=(
+  python -m safe_geocoding_pipeline.phase03.locked_evaluation_cli
+)
 
 mapfile -d '' PHASE02_SHARDS < <(
   find "${PHASE02_RUN}/data" -maxdepth 1 -type f -name '*.parquet' -print0 | sort -z
@@ -90,7 +93,7 @@ if [[ "${PHASE03_LOCKED_STAGE}" == "PREFLIGHT" ]]; then
     exit 1
   }
   install -d -m 700 "${LOCKED_ROOT}/.in_progress" "${ATTEMPT}"
-  safe-geocoding-phase03-locked-evaluation preflight \
+  "${LOCKED_CLI[@]}" preflight \
     --phase02-manifest "${PHASE02_MANIFEST}" \
     "${INPUT_ARGS[@]}" \
     --locked-identities "${PHASE03_LOCKED_IDENTITIES}" \
@@ -116,19 +119,19 @@ if [[ "${PHASE03_LOCKED_STAGE}" == "OPEN_AND_PREPARE" ]]; then
     echo "LOCKED_EVALUATION_OPEN_STAGE_OUTPUT_EXISTS" >&2
     exit 1
   }
-  safe-geocoding-phase03-locked-evaluation materialize \
+  "${LOCKED_CLI[@]}" materialize \
     "${INPUT_ARGS[@]}" \
     --locked-identities "${PHASE03_LOCKED_IDENTITIES}" \
     --preflight-report "${PREFLIGHT_REPORT}" \
     --workflow-git-commit "${PHASE03_GIT_COMMIT}" \
     --output "${LOCKED_PAYLOAD}"
-  safe-geocoding-phase03-locked-evaluation transform \
+  "${LOCKED_CLI[@]}" transform \
     --locked-payload "${LOCKED_PAYLOAD}" \
     --locked-identities "${PHASE03_LOCKED_IDENTITIES}" \
     --preflight-report "${PREFLIGHT_REPORT}" \
     --output-root "${TRANSFORMED}" \
     --workflow-git-commit "${PHASE03_GIT_COMMIT}"
-  safe-geocoding-phase03-locked-evaluation prepare-review \
+  "${LOCKED_CLI[@]}" prepare-review \
     --locked-payload "${LOCKED_PAYLOAD}" \
     --baseline-core "${TRANSFORMED}/baseline/core/locked_evaluation.parquet" \
     --baseline-evidence "${TRANSFORMED}/baseline/evidence/locked_evaluation.parquet" \
@@ -142,7 +145,7 @@ if [[ "${PHASE03_LOCKED_STAGE}" == "OPEN_AND_PREPARE" ]]; then
 fi
 
 if [[ "${PHASE03_LOCKED_STAGE}" == "INITIALIZE_REVIEW" ]]; then
-  safe-geocoding-phase03-locked-evaluation initialize-review \
+  "${LOCKED_CLI[@]}" initialize-review \
     --protected-context "${REVIEW_INPUT}/protected_locked_review_context.parquet" \
     --protected-template "${REVIEW_INPUT}/protected_locked_review_template.parquet" \
     --input-manifest "${REVIEW_INPUT}/locked_review_input_manifest.json" \
@@ -157,17 +160,17 @@ if [[ "${PHASE03_LOCKED_STAGE}" == "SCORE_AND_FINALIZE" ]]; then
   readonly LABELS="${ATTEMPT}/controlled_labels/locked_review_labels.parquet"
   readonly SCORE="${ATTEMPT}/reports/locked_evaluation_score.json"
   install -d -m 700 "$(dirname "${LABELS}")" "$(dirname "${SCORE}")"
-  safe-geocoding-phase03-locked-evaluation export-labels \
+  "${LOCKED_CLI[@]}" export-labels \
     --reviewer-one-database "${REVIEW_PROGRESS}/LOCKED-R01/review_progress.sqlite3" \
     --reviewer-two-database "${REVIEW_PROGRESS}/LOCKED-R02/review_progress.sqlite3" \
     --output "${LABELS}"
-  safe-geocoding-phase03-locked-evaluation score \
+  "${LOCKED_CLI[@]}" score \
     --controlled-labels "${LABELS}" \
     --protected-context "${REVIEW_INPUT}/protected_locked_review_context.parquet" \
     --review-input-manifest "${REVIEW_INPUT}/locked_review_input_manifest.json" \
     --machine-checks "${PHASE03_LOCKED_MACHINE_CHECKS}" \
     --output "${SCORE}"
-  safe-geocoding-phase03-locked-evaluation finalize \
+  "${LOCKED_CLI[@]}" finalize \
     --attempt-directory "${ATTEMPT}" \
     --final-directory "${FINAL}" \
     --score "${SCORE}" \

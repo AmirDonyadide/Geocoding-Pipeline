@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import shlex
+import subprocess
 from pathlib import Path
 from typing import Any
 
@@ -745,3 +748,32 @@ def test_locked_sbatch_separates_preflight_from_explicit_unseal() -> None:
     assert "pilot-select" not in script
     assert "pelias" not in script.lower()
     assert "phase04" not in script.lower()
+
+
+def test_locked_sbatch_cli_invocation_resolves_from_source_checkout() -> None:
+    script = Path("cluster/goethe_nhr/phase03_locked_evaluation.sbatch").read_text(
+        encoding="utf-8"
+    )
+    prefix = "readonly -a LOCKED_CLI=("
+    lines = script.splitlines()
+    start = lines.index(prefix)
+    end = lines.index(")", start + 1)
+    command = shlex.split(" ".join(lines[start + 1 : end]))
+    assert command == [
+        "python",
+        "-m",
+        "safe_geocoding_pipeline.phase03.locked_evaluation_cli",
+    ]
+    assert script.count('"${LOCKED_CLI[@]}"') == 8
+    assert "safe-geocoding-phase03-locked-evaluation " not in script
+
+    result = subprocess.run(
+        [*command, "--help"],
+        cwd=Path.cwd(),
+        env={**os.environ, "PYTHONPATH": str(Path("src").resolve())},
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "Frozen, fail-closed Phase 3 LOCKED evaluation workflow" in result.stdout
