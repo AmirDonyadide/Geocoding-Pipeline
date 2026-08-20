@@ -2,8 +2,8 @@
 
 ## Status
 
-**IMPLEMENTED_PENDING_FINAL_REVIEW.** Stage 1 has not yet received its final
-acceptance review, and Stage 2 has not started.
+**STAGE_1_ACCEPTED.** Stage 1 passed its final critical review and complete
+local-safe validation. Stage 2 has not started.
 
 ## Purpose and reuse boundary
 
@@ -101,17 +101,26 @@ The Stage 1 validator fails closed unless the completed Phase 2 bundle has:
 - exact Arrow schema and required provenance metadata;
 - matching source/staging row counts and raw semantic digests;
 - complete Phase 2 SQLite state and attempt history;
+- state output hashes/sizes, configuration identities, run metadata, and final
+  attempt evidence matching the manifest;
 - passing global row, null, schema, and stable-ID reconciliation;
 - matching schema, run, reconciliation, file-validation, failure, and summary
   reports;
 - recorded successful page-checksum read-back evidence;
 - owner-only controlled directories/files; and
-- unchanged file identities between validation and adoption publication.
+- unchanged file identities and exact run/data/work/progress/report directory
+  topology between validation and adoption publication.
 
 Full production shard hashing is guarded by the shared execution policy and
 must run under Goethe-NHR/SLURM. Matching historical Parquet hashes bind the
 current bytes to the files whose pages were independently checksum-read during
 Phase 2.
+
+SQLite validation never opens the authoritative database. A completed bundle
+must have no non-empty WAL; the database is copied into an owner-only temporary
+directory and the copy is integrity-checked and queried there. Authoritative
+database, WAL, and SHM identities and protected-tree membership are checked
+again before adoption publication.
 
 ## Output and identity separation
 
@@ -161,10 +170,9 @@ partially, and output collisions are never overwritten.
 
 ## Acceptance and Stage 2 boundary
 
-Final acceptance requires the separately reviewed Stage 1 acceptance contract:
-exact Stage 0 binding; one-for-one lossless record preservation; unchanged
-stable IDs; deterministic layout-independent logical identity; complete
-physical integrity, read-back evidence, reconciliation, terminal state, and
-permissions; privacy-safe portable metadata; adoption of the existing complete
-Phase 2 dataset without source rescan or Parquet rewrite; and an explicit stop
-before Stage 2.
+Stage 1 acceptance establishes exact Stage 0 binding; one-for-one lossless
+record preservation; unchanged stable IDs; deterministic layout-independent
+logical identity; complete physical integrity, read-back evidence,
+reconciliation, terminal state, and permissions; privacy-safe portable
+metadata; adoption of the existing complete Phase 2 dataset without source
+rescan or Parquet rewrite; and an explicit stop before Stage 2.

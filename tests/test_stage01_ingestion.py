@@ -427,6 +427,14 @@ def _synthetic_bundle(
 
     state_path = work / "phase02_state.sqlite3"
     with RunState(state_path) as state:
+        for key, value in (
+            ("run_id", RUN_ID),
+            ("run_scope", "FULL_CONVERSION"),
+            ("phase01_input_manifest_sha256", PHASE01_INPUT_MANIFEST_DIGEST),
+            ("configuration_fingerprint", CONFIGURATION_DIGEST),
+            ("implementation_fingerprint", IMPLEMENTATION_DIGEST),
+        ):
+            state.set_meta(key, value)
         state.prepare_files(
             entries,
             config_fingerprint=CONFIGURATION_DIGEST,
@@ -609,7 +617,9 @@ def _independent_logical_digest(records: list[Stage01SourceRecord]) -> str:
     return hashlib.sha256(payload).hexdigest()
 
 
-def test_logical_dataset_fingerprint_golden_vector_and_layout_invariance() -> None:
+def test_logical_dataset_fingerprint_golden_vector_and_layout_invariance(
+    tmp_path: Path,
+) -> None:
     records = [
         Stage01SourceRecord("fictional_b.csv", "b" * 64, 3, "d" * 64),
         Stage01SourceRecord("fictional_a.csv", "a" * 64, 2, "c" * 64),
@@ -632,12 +642,78 @@ def test_logical_dataset_fingerprint_golden_vector_and_layout_invariance() -> No
         )
         == observed
     )
-    # Physical shard count, names, compression, runtime, and Git are not inputs.
-    one_physical_shard = records
-    many_physical_shards = list(records)
-    assert _independent_logical_digest(
-        one_physical_shard
-    ) == _independent_logical_digest(many_physical_shards)
+    raw_rows = [
+        ("fictional_a.csv", "a" * 64, _raw_row("1", "00123", "Example City")),
+        ("fictional_a.csv", "a" * 64, _raw_row("2", "00124", "Example City")),
+        ("fictional_b.csv", "b" * 64, _raw_row("3", "00125", "Example City")),
+        ("fictional_b.csv", "b" * 64, _raw_row("4", "00126", "Example City")),
+    ]
+    columns: list[list[Any]] = [[] for _ in range(22)]
+    ordinals = {"fictional_a.csv": 0, "fictional_b.csv": 0}
+    for source_path, source_sha, raw in raw_rows:
+        ordinals[source_path] += 1
+        ordinal = ordinals[source_path]
+        source_hash = bytes.fromhex(source_sha)
+        values: tuple[Any, ...] = tuple(raw) + (
+            source_path,
+            ordinal,
+            stable_source_row_id_v1(source_hash, ordinal),
+            source_hash,
+            SOURCE_SCHEMA_VERSION,
+            PARSER_VERSION,
+            STAGING_VERSION,
+        )
+        for target, value in zip(columns, values, strict=True):
+            target.append(value)
+    schema = base_staging_schema()
+    table = pa.Table.from_arrays(
+        [
+            pa.array(values, type=field.type)
+            for field, values in zip(schema, columns, strict=True)
+        ],
+        schema=schema,
+    )
+    one_shard = tmp_path / "all.parquet"
+    pq.write_table(table, one_shard, row_group_size=4)
+    multiple_shards = [tmp_path / "part-a.parquet", tmp_path / "part-b.parquet"]
+    pq.write_table(table.slice(0, 2), multiple_shards[0], row_group_size=1)
+    pq.write_table(table.slice(2, 2), multiple_shards[1], row_group_size=1)
+    one_physical_identity = (_sha256(one_shard),)
+    many_physical_identity = tuple(_sha256(path) for path in multiple_shards)
+    assert one_physical_identity != many_physical_identity
+    assert pq.read_table(one_shard).equals(table)
+    assert pa.concat_tables([pq.read_table(path) for path in multiple_shards]).equals(
+        table
+    )
+    layout_records = [
+        Stage01SourceRecord(
+            "fictional_a.csv",
+            "a" * 64,
+            2,
+            _semantic_digest([raw_rows[0][2], raw_rows[1][2]]),
+        ),
+        Stage01SourceRecord(
+            "fictional_b.csv",
+            "b" * 64,
+            2,
+            _semantic_digest([raw_rows[2][2], raw_rows[3][2]]),
+        ),
+    ]
+    layout_digest = stage01_logical_dataset_sha256_v1(
+        layout_records,
+        stage00_source_population_sha256_v1=SOURCE_POPULATION_DIGEST,
+        stage00_scientific_inventory_sha256_v1=SCIENTIFIC_INVENTORY_DIGEST,
+        stage00_parser_contract_fingerprint=PARSER_CONTRACT_DIGEST,
+    )
+    assert (
+        stage01_logical_dataset_sha256_v1(
+            list(reversed(layout_records)),
+            stage00_source_population_sha256_v1=SOURCE_POPULATION_DIGEST,
+            stage00_scientific_inventory_sha256_v1=SCIENTIFIC_INVENTORY_DIGEST,
+            stage00_parser_contract_fingerprint=PARSER_CONTRACT_DIGEST,
+        )
+        == layout_digest
+    )
 
 
 @pytest.mark.parametrize(
@@ -703,10 +779,19 @@ def test_valid_adoption_is_source_free_private_and_sanitized(
     bundle = _synthetic_bundle(tmp_path, monkeypatch)
     outcome = _adopt(bundle)
     record = json.loads(outcome.adoption_record_path.read_text(encoding="utf-8"))
-    assert record["status"] == "IMPLEMENTED_PENDING_FINAL_REVIEW"
+    assert record["status"] == "STAGE_1_ACCEPTED"
     assert record["scientific_identity"]["source_file_count"] == 2
     assert record["scientific_identity"]["total_row_count"] == 4
     assert record["validation"]["source_csv_access"] == "NOT_PERFORMED"
+    assert all(
+        record["validation"][key] == "PASS"
+        for key in (
+            "state_integrity",
+            "state_manifest_reconciliation",
+            "wal_checkpoint_state",
+            "directory_topology",
+        )
+    )
     assert outcome.adoption_record_path.name == STAGE01_ADOPTION_RECORD_NAME
     assert outcome.output_directory.stat().st_mode & 0o777 == 0o700
     assert outcome.adoption_record_path.stat().st_mode & 0o777 == 0o600
@@ -805,6 +890,7 @@ def test_stage00_to_phase02_projection_and_reconciliation_fail_closed(
     ("mutation", "expected_code"),
     [
         ("missing_manifest", "MISSING_OR_UNSAFE_ARTIFACT"),
+        ("malformed_manifest", "MALFORMED_PHASE02_MANIFEST"),
         ("tampered_manifest", "PHASE02_SUCCESS_MISMATCH"),
         ("missing_marker", "MISSING_OR_UNSAFE_ARTIFACT"),
         ("tampered_marker", "PHASE02_SUCCESS_MISMATCH"),
@@ -812,7 +898,13 @@ def test_stage00_to_phase02_projection_and_reconciliation_fail_closed(
         ("missing_shard", "PHASE02_SHARD_SET_MISMATCH"),
         ("unexpected_shard", "PHASE02_SHARD_SET_MISMATCH"),
         ("symlinked_shard", "UNSAFE_SHARD"),
+        ("broken_symlinked_shard", "UNSAFE_SHARD"),
+        ("special_shard", "UNSAFE_SHARD"),
+        ("wrong_shard_size", "ARTIFACT_SIZE_MISMATCH"),
         ("same_size_shard_change", "ARTIFACT_SHA256_MISMATCH"),
+        ("wrong_parquet_schema", "PARQUET_SCHEMA_MISMATCH"),
+        ("wrong_parquet_row_count", "PARQUET_ROW_COUNT_MISMATCH"),
+        ("wrong_configuration_identity", "PARQUET_METADATA_MISMATCH"),
         ("in_progress", "BUNDLE_IN_PROGRESS"),
         ("contradictory_marker", "CONTRADICTORY_TERMINAL_STATE"),
         ("permission", "PERMISSION_FAILURE"),
@@ -830,6 +922,9 @@ def test_physical_bundle_tampering_fails_closed(
     shard = bundle.phase02_run / bundle.manifest["files"][0]["output_file"]
     if mutation == "missing_manifest":
         manifest_path.unlink()
+    elif mutation == "malformed_manifest":
+        manifest_path.write_text("{", encoding="utf-8")
+        manifest_path.chmod(0o600)
     elif mutation == "tampered_manifest":
         payload = manifest_path.read_bytes()
         manifest_path.write_bytes(payload + b" ")
@@ -851,16 +946,45 @@ def test_physical_bundle_tampering_fails_closed(
         extra.write_bytes(shard.read_bytes())
         extra.chmod(0o600)
     elif mutation == "symlinked_shard":
-        replacement = bundle.phase02_run / "replacement.parquet"
+        replacement = tmp_path / "replacement.parquet"
         replacement.write_bytes(shard.read_bytes())
         replacement.chmod(0o600)
         shard.unlink()
         shard.symlink_to(replacement)
+    elif mutation == "broken_symlinked_shard":
+        shard.unlink()
+        shard.symlink_to(bundle.phase02_run / "absent.parquet")
+    elif mutation == "special_shard":
+        shard.unlink()
+        os.mkfifo(shard, mode=0o600)
+    elif mutation == "wrong_shard_size":
+        shard.write_bytes(shard.read_bytes() + b"x")
+        shard.chmod(0o600)
     elif mutation == "same_size_shard_change":
         changed_payload = bytearray(shard.read_bytes())
         changed_payload[len(changed_payload) // 2] ^= 1
         shard.write_bytes(changed_payload)
         shard.chmod(0o600)
+    elif mutation == "wrong_parquet_schema":
+        pq.write_table(pa.table({"wrong": ["schema"]}), shard)
+        shard.chmod(0o600)
+        bundle.manifest["files"][0]["output_size_bytes"] = shard.stat().st_size
+        bundle.manifest["files"][0]["output_sha256"] = _sha256(shard)
+        _refresh_manifest_and_marker(bundle)
+    elif mutation == "wrong_parquet_row_count":
+        item = bundle.manifest["files"][0]
+        _write_parquet(
+            shard,
+            source_path=item["source_file"],
+            source_sha256=item["source_sha256"],
+            rows=[_raw_row("0001", "00123", "Fictional City")],
+        )
+        item["output_size_bytes"] = shard.stat().st_size
+        item["output_sha256"] = _sha256(shard)
+        _refresh_manifest_and_marker(bundle)
+    elif mutation == "wrong_configuration_identity":
+        bundle.manifest["configuration_fingerprint"] = "0" * 64
+        _refresh_manifest_and_marker(bundle)
     elif mutation == "in_progress":
         pending = bundle.phase02_run / ".in_progress/pending.tmp"
         pending.write_bytes(b"pending")
@@ -895,6 +1019,21 @@ def test_schema_and_page_checksum_evidence_mismatch_fail(
     with pytest.raises(Stage01ValidationError, match="SCHEMA_REPORT_MISMATCH"):
         _validate(bundle)
 
+    other = tmp_path / "page-evidence"
+    other.mkdir()
+    bundle = _synthetic_bundle(other, monkeypatch)
+    report = bundle.phase02_reports / "phase02_file_validation.csv"
+    with report.open("r", encoding="utf-8", newline="") as stream:
+        rows = list(csv.DictReader(stream))
+    rows[0]["page_checksums_verified"] = "False"
+    with report.open("w", encoding="utf-8", newline="") as stream:
+        writer = csv.DictWriter(stream, fieldnames=FILE_VALIDATION_COLUMNS)
+        writer.writeheader()
+        writer.writerows(rows)
+    report.chmod(0o600)
+    with pytest.raises(Stage01ValidationError, match="FILE_REPORT_VALIDATION_MISMATCH"):
+        _validate(bundle)
+
 
 def test_extended_phase02_success_marker_is_validated(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -919,16 +1058,6 @@ def test_extended_phase02_success_marker_is_validated(
     marker["staging_bytes"] += 1
     _write_json(marker_path, marker)
     with pytest.raises(Stage01ValidationError, match="PHASE02_SUCCESS_MISMATCH"):
-        _validate(bundle)
-
-    other = tmp_path / "second"
-    other.mkdir()
-    bundle = _synthetic_bundle(other, monkeypatch)
-    report = bundle.phase02_reports / "phase02_file_validation.csv"
-    content = report.read_text(encoding="utf-8").replace("True", "False", 1)
-    report.write_text(content, encoding="utf-8")
-    report.chmod(0o600)
-    with pytest.raises(Stage01ValidationError, match="FILE_REPORT_VALIDATION_MISMATCH"):
         _validate(bundle)
 
 
@@ -992,6 +1121,56 @@ def test_uncheckpointed_state_wal_fails_closed(
         _validate(bundle)
 
 
+@pytest.mark.parametrize(
+    ("mutation", "expected_code"),
+    [
+        ("output_sha", "STATE_FILE_MISMATCH"),
+        ("output_size", "STATE_FILE_MISMATCH"),
+        ("configuration", "STATE_FILE_MISMATCH"),
+        ("run_meta", "STATE_META_MISMATCH"),
+        ("attempt_history", "STATE_TERMINAL_MISMATCH"),
+    ],
+)
+def test_state_manifest_and_terminal_evidence_must_reconcile(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mutation: str,
+    expected_code: str,
+) -> None:
+    bundle = _synthetic_bundle(tmp_path, monkeypatch)
+    state = bundle.phase02_run / "_work/phase02_state.sqlite3"
+    connection = __import__("sqlite3").connect(state)
+    if mutation == "output_sha":
+        connection.execute(
+            "UPDATE file_state SET output_sha256=? WHERE relative_path=?",
+            ("0" * 64, "fictional_a.csv"),
+        )
+    elif mutation == "output_size":
+        connection.execute(
+            "UPDATE file_state SET output_size_bytes=output_size_bytes+1 "
+            "WHERE relative_path='fictional_a.csv'"
+        )
+    elif mutation == "configuration":
+        connection.execute(
+            "UPDATE file_state SET config_fingerprint=? "
+            "WHERE relative_path='fictional_a.csv'",
+            ("0" * 64,),
+        )
+    elif mutation == "run_meta":
+        connection.execute(
+            "UPDATE run_meta SET value=? WHERE key='run_id'", ("wrong-run",)
+        )
+    else:
+        connection.execute(
+            "UPDATE attempt_history SET terminal_status='FAILED', failure_code='X' "
+            "WHERE relative_path='fictional_a.csv'"
+        )
+    connection.commit()
+    connection.close()
+    with pytest.raises(Stage01ValidationError, match=expected_code):
+        _validate(bundle)
+
+
 def test_duplicate_source_content_and_stable_id_policy_fail_closed(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -1017,18 +1196,52 @@ def test_duplicate_source_content_and_stable_id_policy_fail_closed(
     assert stable_source_row_id_v1(source_hash, 1) != stable_source_row_id_v1(
         source_hash, 2
     )
+    assert stable_source_row_id_v1(bytes.fromhex("a" * 64), 1) != (
+        stable_source_row_id_v1(bytes.fromhex("b" * 64), 1)
+    )
 
 
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "existing_marker",
+        "new_shard",
+        "new_work_file",
+        "new_in_progress_file",
+        "new_failure_marker",
+        "new_report",
+    ],
+)
 def test_bundle_mutation_before_publication_is_detected(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mutation: str
 ) -> None:
     bundle = _synthetic_bundle(tmp_path, monkeypatch)
     original = s01._build_adoption_record
 
     def mutate(*args: Any, **kwargs: Any) -> dict[str, Any]:
         record = original(*args, **kwargs)
-        marker = bundle.phase02_run / "_SUCCESS.json"
-        os.utime(marker, ns=(marker.stat().st_atime_ns, marker.stat().st_mtime_ns + 1))
+        if mutation == "existing_marker":
+            marker = bundle.phase02_run / "_SUCCESS.json"
+            os.utime(
+                marker, ns=(marker.stat().st_atime_ns, marker.stat().st_mtime_ns + 1)
+            )
+        elif mutation == "new_shard":
+            added = bundle.phase02_run / "data/late.parquet"
+            added.write_bytes(b"late")
+            added.chmod(0o600)
+        elif mutation == "new_work_file":
+            added = bundle.phase02_run / "_work/late.state"
+            added.write_bytes(b"late")
+            added.chmod(0o600)
+        elif mutation == "new_in_progress_file":
+            added = bundle.phase02_run / ".in_progress/late.tmp"
+            added.write_bytes(b"late")
+            added.chmod(0o600)
+        elif mutation == "new_failure_marker":
+            _write_json(bundle.phase02_run / "_FAILURE.json", {"status": "FAIL"})
+        else:
+            added = bundle.phase02_reports / "late_report.json"
+            _write_json(added, {"status": "late"})
         return record
 
     monkeypatch.setattr(s01, "_build_adoption_record", mutate)

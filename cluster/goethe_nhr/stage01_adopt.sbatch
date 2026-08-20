@@ -21,7 +21,7 @@ readonly STAGE00_RECORD="${DATA_ROOT}/reports/generated/stage00/stage00_phase01_
 readonly PHASE01_RUN="${DATA_ROOT}/reports/generated/phase01/phase01_20260810T151626Z_7df9bc8f"
 readonly PHASE02_RUN="${DATA_ROOT}/staging/controlled/phase02_v1/runs/phase02_20260810T173851Z_1349152b"
 readonly PHASE02_REPORTS="${DATA_ROOT}/reports/generated/phase02/phase02_20260810T173851Z_1349152b"
-readonly OUTPUT="${DATA_ROOT}/reports/generated/stage01/stage01_phase02_20260810T173851Z_1349152b_implemented_pending_review_v1"
+readonly OUTPUT="${DATA_ROOT}/reports/generated/stage01/stage01_phase02_20260810T173851Z_1349152b_accepted_v1"
 
 cd "${INTEGRATION_ROOT}"
 source "${DATA_ROOT}/.venv-goethe-nhr/bin/activate"
@@ -67,7 +67,7 @@ outcome = adopt_phase02_bundle(
     production=True,
     operational_metadata={"slurm_job_id": sys.argv[7], "execution_site": "goethe-nhr"},
 )
-print(f"status=IMPLEMENTED_PENDING_FINAL_REVIEW")
+print("status=STAGE_1_ACCEPTED")
 print(f"source_files={outcome.bundle.source_file_count}")
 print(f"total_rows={outcome.bundle.total_row_count}")
 print(f"physical_shards={len(outcome.bundle.shards)}")

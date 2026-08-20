@@ -33,8 +33,8 @@ This register distinguishes approved project rules from questions that require e
 - Exact duplicate source content fails Stage 1 because
   `stable_source_row_id_v1` intentionally excludes path and would collide at
   matching logical ordinals. Stage 1 neither disambiguates by path nor removes
-  a source record. Stage 1 implementation status remains
-  `IMPLEMENTED_PENDING_FINAL_REVIEW` until its separate final review.
+  a source record. Stage 1 status is `STAGE_1_ACCEPTED` after its final critical
+  review; Stage 2 remains separate and has not started.
 
 - The research objective requires physical building/plant/branch/store/facility point locations.
 - `usable_for_analysis` is the main Boolean indicator of suitability for point-level research; diagnostic tiers remain separate.

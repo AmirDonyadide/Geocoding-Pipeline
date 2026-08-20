@@ -47,7 +47,7 @@ from .s00_inventory import (
 
 STAGE01_CONTRACT_VERSION = "stage01_lossless_ingestion_contract_v1"
 STAGE01_VALIDATION_CONTRACT_VERSION = "stage01_phase02_bundle_validation_v1"
-STAGE01_IMPLEMENTATION_STATUS = "IMPLEMENTED_PENDING_FINAL_REVIEW"
+STAGE01_IMPLEMENTATION_STATUS = "STAGE_1_ACCEPTED"
 STAGE01_LOGICAL_DATASET_DOMAIN = b"SAFE_STAGE01_LOGICAL_DATASET_V1"
 STAGE01_ADOPTION_RECORD_NAME = "stage01_adoption.json"
 
@@ -122,6 +122,11 @@ class ValidatedPhase02Bundle:
     reports: tuple[ArtifactIdentity, ...]
     shards: tuple[ArtifactIdentity, ...]
     snapshots: tuple[_FileSnapshot, ...]
+    run_topology: tuple[tuple[str, str], ...]
+    data_topology: tuple[tuple[str, str], ...]
+    work_topology: tuple[tuple[str, str], ...]
+    in_progress_topology: tuple[tuple[str, str], ...]
+    reports_topology: tuple[tuple[str, str], ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -293,16 +298,13 @@ def _artifact_identity(
     *,
     expected_size: int | None = None,
     expected_sha256: str | None = None,
-    hash_bytes: bool = True,
 ) -> tuple[ArtifactIdentity, _FileSnapshot]:
     before = _snapshot(path)
     if expected_size is not None and before.size_bytes != expected_size:
         _fail("ARTIFACT_SIZE_MISMATCH", "Controlled artifact byte size differs")
     if expected_sha256 is not None:
         _digest_bytes(expected_sha256)
-    observed_sha = _sha256_file(path) if hash_bytes else expected_sha256
-    if observed_sha is None:
-        _fail("MISSING_ARTIFACT_IDENTITY", "Artifact hash was not supplied")
+    observed_sha = _sha256_file(path)
     if expected_sha256 is not None and observed_sha != expected_sha256:
         _fail("ARTIFACT_SHA256_MISMATCH", "Controlled artifact SHA-256 differs")
     after = _snapshot(path)
@@ -529,8 +531,62 @@ def _protected_tree_snapshots(path: Path) -> tuple[_FileSnapshot, ...]:
     return tuple(sorted(snapshots, key=lambda item: item.path.as_posix()))
 
 
+def _directory_topology(
+    path: Path, *, recursive: bool = False, protected: bool = False
+) -> tuple[tuple[str, str], ...]:
+    if path.is_symlink() or not path.is_dir():
+        _fail("UNSAFE_DIRECTORY_TOPOLOGY", "Controlled directory is missing or unsafe")
+    pending = [path]
+    topology: list[tuple[str, str]] = []
+    try:
+        while pending:
+            directory = pending.pop()
+            if protected:
+                _verify_directory_mode(directory, 0o700, "PERMISSION_FAILURE")
+            with os.scandir(directory) as entries:
+                for entry in entries:
+                    child = Path(entry.path)
+                    relative = child.relative_to(path).as_posix()
+                    if entry.is_symlink():
+                        _fail(
+                            "UNSAFE_DIRECTORY_TOPOLOGY",
+                            "Controlled directory contains a symlink",
+                        )
+                    if entry.is_dir(follow_symlinks=False):
+                        topology.append((relative, "directory"))
+                        if recursive:
+                            pending.append(child)
+                    elif entry.is_file(follow_symlinks=False):
+                        if protected and child.stat().st_mode & 0o777 != 0o600:
+                            _fail(
+                                "PERMISSION_FAILURE",
+                                "Protected file is not owner-only",
+                            )
+                        topology.append((relative, "file"))
+                    else:
+                        _fail(
+                            "UNSAFE_DIRECTORY_TOPOLOGY",
+                            "Controlled directory contains a special file",
+                        )
+    except Stage01ValidationError:
+        raise
+    except OSError as error:
+        raise Stage01ValidationError(
+            "DIRECTORY_TOPOLOGY_FAILURE",
+            "Controlled directory topology could not be inspected",
+        ) from error
+    return tuple(sorted(topology))
+
+
 def _validate_phase02_state(
-    state_path: Path, records: Sequence[Stage01SourceRecord]
+    state_path: Path,
+    records: Sequence[Stage01SourceRecord],
+    *,
+    run_id: str,
+    phase01_input_manifest_sha256: str,
+    configuration_fingerprint: str,
+    implementation_fingerprint: str,
+    manifest_files: Mapping[str, Mapping[str, Any]],
 ) -> None:
     expected = {record.relative_path: record for record in records}
     wal_path = state_path.with_name(f"{state_path.name}-wal")
@@ -556,21 +612,25 @@ def _validate_phase02_state(
                     _fail("STATE_INTEGRITY_FAILURE", "Phase 2 state store is not valid")
                 rows = connection.execute(
                     """
-                    SELECT relative_path, source_sha256, expected_rows, status,
+                    SELECT relative_path, source_sha256, expected_rows, status, attempt,
+                           config_fingerprint, implementation_fingerprint, final_path,
                            source_semantic_digest, staging_semantic_digest,
-                           output_sha256, output_size_bytes, source_rows, staging_rows
+                           output_sha256, output_size_bytes, source_rows, staging_rows,
+                           failure_code, failure_detail
                     FROM file_state ORDER BY relative_path COLLATE BINARY
                     """
                 ).fetchall()
                 attempts = connection.execute(
-                    "SELECT terminal_status, count(*) FROM attempt_history "
-                    "GROUP BY terminal_status"
+                    "SELECT relative_path, attempt, completed_at_utc, terminal_status, "
+                    "failure_code, output_sha256 FROM attempt_history "
+                    "ORDER BY relative_path COLLATE BINARY, attempt"
                 ).fetchall()
+                run_meta = dict(connection.execute("SELECT key, value FROM run_meta"))
             finally:
                 connection.close()
     except Stage01ValidationError:
         raise
-    except sqlite3.Error as error:
+    except (OSError, sqlite3.Error) as error:
         raise Stage01ValidationError(
             "STATE_INTEGRITY_FAILURE", "Phase 2 state store cannot be validated"
         ) from error
@@ -580,26 +640,57 @@ def _validate_phase02_state(
         _fail("STATE_SCOPE_MISMATCH", "Phase 2 state source scope differs")
     for row in rows:
         record = expected[str(row["relative_path"])]
+        manifest_file = manifest_files[record.relative_path]
         if (
             row["status"] != "COMPLETE"
             or row["source_sha256"] != record.source_file_sha256
             or row["expected_rows"] != record.logical_record_count
+            or row["config_fingerprint"] != configuration_fingerprint
+            or row["implementation_fingerprint"] != implementation_fingerprint
+            or row["final_path"] != manifest_file["output_file"]
             or row["source_rows"] != record.logical_record_count
             or row["staging_rows"] != record.logical_record_count
             or row["source_semantic_digest"] != record.raw_semantic_digest_v1
             or row["staging_semantic_digest"] != record.raw_semantic_digest_v1
-            or not isinstance(row["output_sha256"], str)
-            or _SHA256_RE.fullmatch(row["output_sha256"]) is None
-            or not isinstance(row["output_size_bytes"], int)
-            or row["output_size_bytes"] <= 0
+            or row["output_sha256"] != manifest_file["output_sha256"]
+            or row["output_size_bytes"] != manifest_file["output_size_bytes"]
+            or not isinstance(row["attempt"], int)
+            or row["attempt"] < 1
+            or row["failure_code"] != ""
+            or row["failure_detail"] != ""
         ):
             _fail("STATE_FILE_MISMATCH", "Phase 2 state file evidence differs")
-    if (
-        len(attempts) != 1
-        or attempts[0][0] != "COMPLETE"
-        or attempts[0][1] != len(records)
-    ):
-        _fail("STATE_TERMINAL_MISMATCH", "Phase 2 attempt history is not complete")
+    expected_meta = {
+        "run_id": run_id,
+        "run_scope": "FULL_CONVERSION",
+        "phase01_input_manifest_sha256": phase01_input_manifest_sha256,
+        "configuration_fingerprint": configuration_fingerprint,
+        "implementation_fingerprint": implementation_fingerprint,
+    }
+    if any(run_meta.get(key) != value for key, value in expected_meta.items()):
+        _fail("STATE_META_MISMATCH", "Phase 2 state run metadata differs")
+    attempts_by_path: dict[str, list[sqlite3.Row]] = {}
+    for attempt_row in attempts:
+        relative_path = attempt_row["relative_path"]
+        if relative_path not in expected:
+            _fail("STATE_TERMINAL_MISMATCH", "Phase 2 attempt scope differs")
+        attempts_by_path.setdefault(relative_path, []).append(attempt_row)
+    state_by_path = {str(row["relative_path"]): row for row in rows}
+    for relative_path, record in expected.items():
+        history = attempts_by_path.get(relative_path, [])
+        final_attempt = state_by_path[relative_path]["attempt"]
+        if (
+            [row["attempt"] for row in history] != list(range(1, final_attempt + 1))
+            or any(row["completed_at_utc"] == "" for row in history)
+            or any(row["terminal_status"] != "FAILED" for row in history[:-1])
+            or any(row["failure_code"] == "" for row in history[:-1])
+            or not history
+            or history[-1]["terminal_status"] != "COMPLETE"
+            or history[-1]["failure_code"] != ""
+            or history[-1]["output_sha256"]
+            != manifest_files[record.relative_path]["output_sha256"]
+        ):
+            _fail("STATE_TERMINAL_MISMATCH", "Phase 2 attempt history is not complete")
 
 
 def _validate_file_report(
@@ -861,16 +952,10 @@ def validate_phase02_bundle(
     expected_phase02_run_id: str,
     expected_phase02_producing_git_commit: str,
     production: bool,
-    verify_shard_hashes: bool = True,
 ) -> ValidatedPhase02Bundle:
     """Validate a completed Phase 2 bundle without opening source CSV files."""
     if production:
         require_goethe_nhr_slurm("stage01.phase02-bundle-validation")
-        if not verify_shard_hashes:
-            _fail(
-                "INCOMPLETE_PRODUCTION_VALIDATION",
-                "Production shard hashes are required",
-            )
     if _RUN_ID_RE.fullmatch(expected_phase02_run_id) is None:
         _fail("INVALID_PHASE02_RUN_ID", "Expected Phase 2 run ID is malformed")
     if _FULL_GIT_SHA_RE.fullmatch(expected_phase02_producing_git_commit) is None:
@@ -894,6 +979,22 @@ def validate_phase02_bundle(
     _verify_directory_mode(data_dir, 0o700, "PERMISSION_FAILURE")
     work_snapshots = _protected_tree_snapshots(work_dir)
     in_progress_snapshots = _protected_tree_snapshots(in_progress_dir)
+    run_topology = _directory_topology(run_dir)
+    expected_run_topology = tuple(
+        sorted(
+            (
+                (".in_progress", "directory"),
+                ("_SUCCESS.json", "file"),
+                ("_work", "directory"),
+                ("data", "directory"),
+                ("dataset_manifest.json", "file"),
+            )
+        )
+    )
+    work_topology = _directory_topology(work_dir, recursive=True, protected=True)
+    in_progress_topology = _directory_topology(
+        in_progress_dir, recursive=True, protected=True
+    )
     if in_progress_snapshots:
         _fail("BUNDLE_IN_PROGRESS", "Phase 2 in-progress directory is not empty")
     for marker in (
@@ -918,6 +1019,8 @@ def validate_phase02_bundle(
     success_identity, success_snapshot = _artifact_identity(
         success_path, PHASE02_SUCCESS_MARKER
     )
+    if run_topology != expected_run_topology:
+        _fail("PHASE02_RUN_TOPOLOGY_MISMATCH", "Phase 2 run artifact set differs")
     if manifest_snapshot.mode != 0o600 or success_snapshot.mode != 0o600:
         _fail("PERMISSION_FAILURE", "Phase 2 terminal artifacts are not owner-only")
     manifest = _load_json_object(manifest_path, "MALFORMED_PHASE02_MANIFEST")
@@ -1059,6 +1162,7 @@ def validate_phase02_bundle(
     }
     if observed_relative != set(expected_shards):
         _fail("PHASE02_SHARD_SET_MISMATCH", "Phase 2 shard set differs from manifest")
+    data_topology = _directory_topology(data_dir, protected=True)
 
     shard_identities: list[ArtifactIdentity] = []
     shard_snapshots: list[_FileSnapshot] = []
@@ -1071,7 +1175,6 @@ def validate_phase02_bundle(
             relative_path,
             expected_size=cast(int, shard_item["output_size_bytes"]),
             expected_sha256=cast(str, shard_item["output_sha256"]),
-            hash_bytes=verify_shard_hashes,
         )
         if snapshot.mode != 0o600:
             _fail("PERMISSION_FAILURE", "Phase 2 shard is not owner-only")
@@ -1144,7 +1247,15 @@ def validate_phase02_bundle(
     state_identity, state_snapshot = _artifact_identity(state_path, PHASE02_STATE_NAME)
     if state_snapshot.mode != 0o600:
         _fail("PERMISSION_FAILURE", "Phase 2 state store is not owner-only")
-    _validate_phase02_state(state_path, ordered_sources)
+    _validate_phase02_state(
+        state_path,
+        ordered_sources,
+        run_id=expected_phase02_run_id,
+        phase01_input_manifest_sha256=stage00.phase01_input_manifest_sha256,
+        configuration_fingerprint=cast(str, manifest["configuration_fingerprint"]),
+        implementation_fingerprint=cast(str, manifest["implementation_fingerprint"]),
+        manifest_files=manifest_files,
+    )
 
     reports, report_snapshots, run = _validate_phase02_reports(
         phase02_reports_directory,
@@ -1155,6 +1266,13 @@ def validate_phase02_bundle(
         manifest_files=manifest_files,
         total_parquet_bytes=total_parquet_bytes,
     )
+    reports_topology = _directory_topology(phase02_reports_directory)
+    expected_reports_topology = tuple(sorted((name, "file") for name in REPORT_NAMES))
+    if reports_topology != expected_reports_topology:
+        _fail(
+            "PHASE02_REPORT_TOPOLOGY_MISMATCH",
+            "Phase 2 report artifact set differs",
+        )
     logical_digest = stage01_logical_dataset_sha256_v1(
         ordered_sources,
         stage00_source_population_sha256_v1=stage00.source_population_sha256_v1,
@@ -1188,6 +1306,11 @@ def validate_phase02_bundle(
         reports=reports,
         shards=tuple(shard_identities),
         snapshots=snapshots,
+        run_topology=run_topology,
+        data_topology=data_topology,
+        work_topology=work_topology,
+        in_progress_topology=in_progress_topology,
+        reports_topology=reports_topology,
     )
 
 
@@ -1198,6 +1321,28 @@ def _verify_snapshots_unchanged(snapshots: Sequence[_FileSnapshot]) -> None:
                 "BUNDLE_CHANGED_DURING_ADOPTION",
                 "Phase 2 bundle changed before adoption",
             )
+
+
+def _verify_bundle_topology_unchanged(bundle: ValidatedPhase02Bundle) -> None:
+    run_dir = bundle.run_directory
+    _verify_directory_mode(run_dir, 0o700, "PERMISSION_FAILURE")
+    _verify_directory_mode(run_dir / "data", 0o700, "PERMISSION_FAILURE")
+    if _directory_topology(run_dir) != bundle.run_topology:
+        _fail("BUNDLE_CHANGED_DURING_ADOPTION", "Phase 2 run topology changed")
+    if _directory_topology(run_dir / "data", protected=True) != bundle.data_topology:
+        _fail("BUNDLE_CHANGED_DURING_ADOPTION", "Phase 2 data topology changed")
+    if (
+        _directory_topology(run_dir / "_work", recursive=True, protected=True)
+        != bundle.work_topology
+    ):
+        _fail("BUNDLE_CHANGED_DURING_ADOPTION", "Phase 2 work topology changed")
+    if (
+        _directory_topology(run_dir / ".in_progress", recursive=True, protected=True)
+        != bundle.in_progress_topology
+    ):
+        _fail("BUNDLE_CHANGED_DURING_ADOPTION", "Phase 2 progress topology changed")
+    if _directory_topology(bundle.reports_directory) != bundle.reports_topology:
+        _fail("BUNDLE_CHANGED_DURING_ADOPTION", "Phase 2 report topology changed")
 
 
 def _utc_now_text() -> str:
@@ -1288,6 +1433,10 @@ def _build_adoption_record(
             "global_stable_source_row_id_uniqueness": "PASS",
             "page_checksum_evidence": "PASS",
             "reconciliation": "PASS",
+            "state_integrity": "PASS",
+            "state_manifest_reconciliation": "PASS",
+            "wal_checkpoint_state": "PASS",
+            "directory_topology": "PASS",
             "permissions": "PASS",
             "bundle_stability": "PASS",
             "source_csv_access": "NOT_PERFORMED",
@@ -1361,7 +1510,6 @@ def adopt_phase02_bundle(
         expected_phase02_run_id=expected_phase02_run_id,
         expected_phase02_producing_git_commit=expected_phase02_producing_git_commit,
         production=production,
-        verify_shard_hashes=True,
     )
     record = _build_adoption_record(
         bundle,
@@ -1371,6 +1519,7 @@ def adopt_phase02_bundle(
         operational_metadata=operational_metadata,
     )
     _verify_snapshots_unchanged(bundle.snapshots)
+    _verify_bundle_topology_unchanged(bundle)
     record_path = _write_owner_only_adoption_directory(output_directory, record)
     return Stage01AdoptionOutcome(
         output_directory=output_directory.resolve(),
