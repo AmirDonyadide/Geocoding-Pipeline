@@ -11,6 +11,7 @@ import shutil
 import sqlite3
 import struct
 import sys
+import tempfile
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -532,26 +533,41 @@ def _validate_phase02_state(
     state_path: Path, records: Sequence[Stage01SourceRecord]
 ) -> None:
     expected = {record.relative_path: record for record in records}
+    wal_path = state_path.with_name(f"{state_path.name}-wal")
+    if wal_path.exists():
+        _require_regular_file(wal_path, "STATE_INTEGRITY_FAILURE")
+        if wal_path.stat().st_size != 0:
+            _fail(
+                "STATE_NOT_CHECKPOINTED",
+                "Completed Phase 2 state has an uncheckpointed WAL",
+            )
     try:
-        connection = sqlite3.connect(f"file:{state_path.as_posix()}?mode=ro", uri=True)
-        connection.row_factory = sqlite3.Row
-        try:
-            integrity = connection.execute("PRAGMA integrity_check").fetchone()
-            if integrity is None or integrity[0] != "ok":
-                _fail("STATE_INTEGRITY_FAILURE", "Phase 2 state store is not valid")
-            rows = connection.execute(
-                """
-                SELECT relative_path, source_sha256, expected_rows, status,
-                       source_semantic_digest, staging_semantic_digest,
-                       output_sha256, output_size_bytes, source_rows, staging_rows
-                FROM file_state ORDER BY relative_path COLLATE BINARY
-                """
-            ).fetchall()
-            attempts = connection.execute(
-                "SELECT terminal_status, count(*) FROM attempt_history GROUP BY terminal_status"
-            ).fetchall()
-        finally:
-            connection.close()
+        with tempfile.TemporaryDirectory(prefix="safe-stage01-state-") as temporary:
+            temporary_path = Path(temporary)
+            temporary_path.chmod(0o700)
+            isolated_state = temporary_path / state_path.name
+            shutil.copyfile(state_path, isolated_state)
+            isolated_state.chmod(0o600)
+            connection = sqlite3.connect(isolated_state)
+            connection.row_factory = sqlite3.Row
+            try:
+                integrity = connection.execute("PRAGMA integrity_check").fetchone()
+                if integrity is None or integrity[0] != "ok":
+                    _fail("STATE_INTEGRITY_FAILURE", "Phase 2 state store is not valid")
+                rows = connection.execute(
+                    """
+                    SELECT relative_path, source_sha256, expected_rows, status,
+                           source_semantic_digest, staging_semantic_digest,
+                           output_sha256, output_size_bytes, source_rows, staging_rows
+                    FROM file_state ORDER BY relative_path COLLATE BINARY
+                    """
+                ).fetchall()
+                attempts = connection.execute(
+                    "SELECT terminal_status, count(*) FROM attempt_history "
+                    "GROUP BY terminal_status"
+                ).fetchall()
+            finally:
+                connection.close()
     except Stage01ValidationError:
         raise
     except sqlite3.Error as error:

@@ -954,6 +954,44 @@ def test_state_failure_and_output_collision_fail_closed(
         _adopt(bundle)
 
 
+def test_state_validation_does_not_mutate_authoritative_sqlite_sidecars(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    bundle = _synthetic_bundle(tmp_path, monkeypatch)
+    state = bundle.phase02_run / "_work/phase02_state.sqlite3"
+    shm = state.with_name(f"{state.name}-shm")
+    shm.write_bytes(b"fictional sqlite shared-memory sidecar")
+    shm.chmod(0o600)
+
+    def identity(path: Path) -> tuple[int, int, int, int, int, str]:
+        status = path.stat()
+        return (
+            status.st_dev,
+            status.st_ino,
+            status.st_size,
+            status.st_mtime_ns,
+            status.st_mode & 0o777,
+            _sha256(path),
+        )
+
+    before = (identity(state), identity(shm))
+    assert _validate(bundle).total_row_count == 4
+    after = (identity(state), identity(shm))
+    assert before == after
+
+
+def test_uncheckpointed_state_wal_fails_closed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    bundle = _synthetic_bundle(tmp_path, monkeypatch)
+    state = bundle.phase02_run / "_work/phase02_state.sqlite3"
+    wal = state.with_name(f"{state.name}-wal")
+    wal.write_bytes(b"fictional uncheckpointed state")
+    wal.chmod(0o600)
+    with pytest.raises(Stage01ValidationError, match="STATE_NOT_CHECKPOINTED"):
+        _validate(bundle)
+
+
 def test_duplicate_source_content_and_stable_id_policy_fail_closed(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
