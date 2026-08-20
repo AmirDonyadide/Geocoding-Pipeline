@@ -13,6 +13,8 @@ DEFAULT_PARSER_FIELD_LIMIT_CHARS = 64 * 1024 * 1024
 @dataclass(frozen=True, slots=True)
 class InventoryConfig:
     source_root: Path
+    population_scope_file: Path | None = None
+    expected_population_scope_sha256: str | None = None
     reports_root: Path = Path("reports/generated/phase01")
     run_scope: RunScope = "TEST"
     include_files: tuple[str, ...] = ()
@@ -53,10 +55,32 @@ class InventoryConfig:
             raise ValueError("categorical_max_value_chars must be positive")
         if self.require_free_bytes < 0:
             raise ValueError("require_free_bytes cannot be negative")
-        if self.run_scope == "FULL_INVENTORY" and not self.authorize_full_inventory:
+        if self.run_scope == "FULL_INVENTORY":
+            if not self.authorize_full_inventory:
+                raise ValueError(
+                    "FULL_INVENTORY requires --authorize-full-inventory; this flag is an "
+                    "operator safety acknowledgement, not project approval"
+                )
+            if self.population_scope_file is None:
+                raise ValueError(
+                    "FULL_INVENTORY requires an authorized population-scope file"
+                )
+            if self.expected_population_scope_sha256 is None:
+                raise ValueError(
+                    "FULL_INVENTORY requires the expected population-scope SHA-256"
+                )
+            if self.include_files:
+                raise ValueError("FULL_INVENTORY does not accept --include")
+            if self.parser_field_limit_chars != DEFAULT_PARSER_FIELD_LIMIT_CHARS:
+                raise ValueError(
+                    "FULL_INVENTORY requires the accepted Stage 0 parser ceiling"
+                )
+        elif (
+            self.population_scope_file is not None
+            or self.expected_population_scope_sha256 is not None
+        ):
             raise ValueError(
-                "FULL_INVENTORY requires --authorize-full-inventory; this flag is an "
-                "operator safety acknowledgement, not project approval"
+                "Population-scope authorization is valid only for FULL_INVENTORY"
             )
         for name in self.include_files:
             candidate = Path(name)

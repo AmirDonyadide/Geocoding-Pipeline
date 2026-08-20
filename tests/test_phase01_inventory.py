@@ -456,7 +456,7 @@ def test_resume_reuses_only_hash_verified_completed_files(
 
     with (source_dir / "synthetic_ordinary.csv").open("a", encoding="utf-8") as stream:
         stream.write("\n")
-    with pytest.raises(RuntimeError, match="changed before resume"):
+    with pytest.raises(RuntimeError, match="input_manifest_sha256"):
         run_inventory(
             InventoryConfig(
                 source_root=source_dir,

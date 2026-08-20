@@ -33,6 +33,7 @@ from .parser import (
     hash_file,
     scan_csv_file,
 )
+from .population import PopulationScope, load_population_scope
 from .reports import atomic_json, write_reports
 from .store import IdStore
 
@@ -49,6 +50,15 @@ class InventoryOutcome:
     phase01_completion_gate: str
     file_results: tuple[FileResult, ...]
     metrics: dict[str, float | int]
+
+
+@dataclass(frozen=True, slots=True)
+class _SourcePopulationSnapshot:
+    relative_path: str
+    device: int
+    inode: int
+    size_bytes: int
+    mtime_ns: int
 
 
 def _utc_now() -> datetime:
@@ -112,7 +122,11 @@ def _same_metadata(*values: FileMetadata) -> bool:
     return len(pairs) == 1
 
 
-def _validate_scope(config: InventoryConfig, files: list[SourceFile]) -> None:
+def _validate_scope(
+    config: InventoryConfig,
+    files: list[SourceFile],
+    population_scope: PopulationScope | None,
+) -> None:
     if not files:
         raise ValueError("No source CSV files were selected")
     if config.run_scope == "SMOKE_TEST":
@@ -123,13 +137,13 @@ def _validate_scope(config: InventoryConfig, files: list[SourceFile]) -> None:
                 "SMOKE_TEST is limited to at most two explicitly selected files"
             )
     if config.run_scope == "FULL_INVENTORY":
-        if config.include_files:
+        if population_scope is None:
+            raise ValueError("FULL_INVENTORY requires an authorized population scope")
+        if tuple(source.relative_path for source in files) != (
+            population_scope.relative_paths
+        ):
             raise ValueError(
-                "FULL_INVENTORY must discover the complete direct-child collection"
-            )
-        if len(files) != 206:
-            raise ValueError(
-                f"FULL_INVENTORY expected 206 CSV files, discovered {len(files)}"
+                "FULL_INVENTORY source paths differ from the authorized population"
             )
         disk_probe = config.reports_root.resolve()
         while not disk_probe.exists() and disk_probe != disk_probe.parent:
@@ -172,8 +186,9 @@ def _initial_payload(
     files: list[SourceFile],
     started_at: datetime,
     input_manifest_sha256: str,
+    population_scope: PopulationScope | None,
 ) -> dict[str, Any]:
-    return {
+    payload: dict[str, Any] = {
         "run_id": run_id,
         "inventory_version": INVENTORY_VERSION,
         "status": "IN_PROGRESS",
@@ -220,6 +235,50 @@ def _initial_payload(
         "error_counts": {},
         "metrics": {},
     }
+    if population_scope is not None:
+        payload["authorized_population_scope"] = population_scope.provenance()
+    return payload
+
+
+def _source_population_snapshot(
+    files: list[SourceFile],
+) -> tuple[_SourcePopulationSnapshot, ...]:
+    snapshots: list[_SourcePopulationSnapshot] = []
+    for source in files:
+        if source.path.is_symlink() or not source.path.is_file():
+            raise OSError("Authorized source population contains an unsafe CSV entry")
+        metadata = source.path.stat(follow_symlinks=False)
+        snapshots.append(
+            _SourcePopulationSnapshot(
+                relative_path=source.relative_path,
+                device=metadata.st_dev,
+                inode=metadata.st_ino,
+                size_bytes=metadata.st_size,
+                mtime_ns=metadata.st_mtime_ns,
+            )
+        )
+    return tuple(snapshots)
+
+
+def _verify_authorized_population_unchanged(
+    config: InventoryConfig,
+    population_scope: PopulationScope,
+    expected_snapshot: tuple[_SourcePopulationSnapshot, ...],
+) -> None:
+    assert config.population_scope_file is not None
+    assert config.expected_population_scope_sha256 is not None
+    observed_scope = load_population_scope(
+        config.population_scope_file,
+        expected_sha256=config.expected_population_scope_sha256,
+        expected_parser_field_limit_chars=config.parser_field_limit_chars,
+    )
+    if observed_scope != population_scope:
+        raise RuntimeError("Authorized population scope changed during inventory")
+    observed_files = discover_source_files(
+        config, authorized_relative_paths=population_scope.relative_paths
+    )
+    if _source_population_snapshot(observed_files) != expected_snapshot:
+        raise RuntimeError("Authorized source population changed during inventory")
 
 
 def _verify_resumable_completed_file(
@@ -245,8 +304,23 @@ def run_inventory(config: InventoryConfig) -> InventoryOutcome:
     if config.run_scope == "FULL_INVENTORY":
         require_goethe_nhr_slurm("phase01.full-inventory")
     config.validate()
-    files = discover_source_files(config)
-    _validate_scope(config, files)
+    population_scope: PopulationScope | None = None
+    if config.run_scope == "FULL_INVENTORY":
+        assert config.population_scope_file is not None
+        assert config.expected_population_scope_sha256 is not None
+        population_scope = load_population_scope(
+            config.population_scope_file,
+            expected_sha256=config.expected_population_scope_sha256,
+            expected_parser_field_limit_chars=config.parser_field_limit_chars,
+        )
+    files = discover_source_files(
+        config,
+        authorized_relative_paths=(
+            population_scope.relative_paths if population_scope is not None else None
+        ),
+    )
+    _validate_scope(config, files, population_scope)
+    population_snapshot = _source_population_snapshot(files)
     run_id, run_dir, resumed = _prepare_run_directory(config)
     run_dir.chmod(0o700)
     work_dir = run_dir / "_work"
@@ -254,12 +328,6 @@ def run_inventory(config: InventoryConfig) -> InventoryOutcome:
     anomaly_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
     work_dir.chmod(0o700)
     anomaly_dir.chmod(0o700)
-    marker = run_dir / "_IN_PROGRESS"
-    (run_dir / "_SCOPE_PASS").unlink(missing_ok=True)
-    (run_dir / "_SCOPE_FAIL").unlink(missing_ok=True)
-    marker.write_text("Phase 1 inventory is in progress.\n", encoding="utf-8")
-    marker.chmod(0o600)
-
     started_at = _utc_now()
     overall_started = time.perf_counter()
     input_manifest_sha256 = _input_manifest_hash(files)
@@ -269,9 +337,9 @@ def run_inventory(config: InventoryConfig) -> InventoryOutcome:
         files=files,
         started_at=started_at,
         input_manifest_sha256=input_manifest_sha256,
+        population_scope=population_scope,
     )
     payload["resume_information"] = {"resumed": resumed}
-    atomic_json(run_dir / "phase01_run.json", payload)
 
     parse_seconds = 0.0
     hash_seconds = 0.0
@@ -282,14 +350,41 @@ def run_inventory(config: InventoryConfig) -> InventoryOutcome:
 
     store_path = work_dir / "phase01.sqlite3"
     with IdStore(store_path) as store:
-        store.set_meta("run_id", run_id)
-        store.set_meta("inventory_version", INVENTORY_VERSION)
-        existing_scope = store.get_meta("run_scope")
-        if existing_scope is not None and existing_scope != config.run_scope:
-            raise RuntimeError("Resumed run scope differs from the original run")
-        store.set_meta("run_scope", config.run_scope)
+        expected_metadata = {
+            "run_id": run_id,
+            "inventory_version": INVENTORY_VERSION,
+            "run_scope": config.run_scope,
+            "input_manifest_sha256": input_manifest_sha256,
+        }
+        if population_scope is not None:
+            expected_metadata.update(
+                {
+                    "population_scope_version": (
+                        population_scope.population_scope_version
+                    ),
+                    "population_scope_sha256": population_scope.artifact_sha256,
+                    "population_id": population_scope.population_id,
+                    "population_expected_source_count": str(
+                        population_scope.expected_source_count
+                    ),
+                }
+            )
+        if resumed:
+            for key, value in expected_metadata.items():
+                if store.get_meta(key) != value:
+                    raise RuntimeError(f"Resumed run metadata mismatch: {key}")
+        else:
+            for key, value in expected_metadata.items():
+                store.set_meta(key, value)
         store.prepare_files(files)
         states = store.file_states()
+
+        marker = run_dir / "_IN_PROGRESS"
+        (run_dir / "_SCOPE_PASS").unlink(missing_ok=True)
+        (run_dir / "_SCOPE_FAIL").unlink(missing_ok=True)
+        marker.write_text("Phase 1 inventory is in progress.\n", encoding="utf-8")
+        marker.chmod(0o600)
+        atomic_json(run_dir / "phase01_run.json", payload)
 
         for source in files:
             state = states[source.file_id]
@@ -430,6 +525,10 @@ def run_inventory(config: InventoryConfig) -> InventoryOutcome:
                 "working_store_integrity": integrity,
             }
         )
+        if population_scope is not None:
+            _verify_authorized_population_unchanged(
+                config, population_scope, population_snapshot
+            )
         write_reports(
             run_dir=run_dir,
             run_id=run_id,
@@ -440,6 +539,10 @@ def run_inventory(config: InventoryConfig) -> InventoryOutcome:
             runtime_started=overall_started,
         )
 
+    if population_scope is not None:
+        _verify_authorized_population_unchanged(
+            config, population_scope, population_snapshot
+        )
     marker.unlink(missing_ok=True)
     terminal_marker = run_dir / (
         "_SCOPE_PASS" if scope_gate == "PASS" else "_SCOPE_FAIL"

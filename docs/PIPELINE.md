@@ -11,6 +11,11 @@ benchmark baseline. See `docs/STAGE00.md`, `docs/STAGE01.md`, and
 `docs/CUSTOM_PREPROCESSING_BASELINE.md`. New stages proceed one reviewed stage
 at a time and do not rewrite this historical workflow.
 
+Future `FULL_INVENTORY` execution is population-size independent. It requires a
+hash-pinned `stage00_population_scope_v1` artifact containing the exact sorted
+direct-child CSV path set. The historical Phase 1 description below remains a
+record of the accepted 206-file snapshot rather than a generic execution rule.
+
 # Historical Phase 0–13 workflow
 
 This is the approved conceptual workflow. It is not an implementation plan or evidence that a phase has run. Each phase requires design review, implementation approval, validation, a phase report, and an explicit stop before the next phase.

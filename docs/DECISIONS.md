@@ -18,6 +18,13 @@ This register distinguishes approved project rules from questions that require e
   of retained protected working state is an operational privacy action.
 - Stage 0 status is `STAGE_0_ACCEPTED` after its final critical review. Stage 1
   remains a separate stage and was not started by the Stage 0 acceptance work.
+- Future Phase 1 `FULL_INVENTORY` execution is population-generic and requires
+  an explicit hash-pinned owner-only `stage00_population_scope_v1` artifact.
+  Its exact canonical direct-child CSV path set, expected count, Phase 1
+  inventory version, source-schema fingerprint, and parser ceiling define the
+  authorized scope. Directory contents cannot add files implicitly, and
+  source/scope membership is bound to resume state and revalidated before
+  success publication. The historical 206-file run remains unchanged evidence.
 - Library-first Stage 1 reuses historical Phase 2 as the single authoritative
   CSV-to-Parquet converter. Stage 1 validates and adopts the existing complete
   Phase 2 bundle; it does not rescan source CSVs, rewrite Parquet, or duplicate
@@ -131,7 +138,7 @@ This register distinguishes approved project rules from questions that require e
 - Raw categorical output is allowed only for `country_iso_code`, `batch_priority`, `location_information`, and exact configured placeholder candidates. Street/address, native-address, city, and postcode values do not receive raw frequency tables.
 - Postcodes receive lexical-pattern profiles only. Native fields receive relationship and script diagnostics rather than raw value profiles.
 - Phase 1 uses one full logical CSV parsing pass plus a separate simple sequential raw-byte SHA-256 pass. The raw hashing pass is intentionally separate for correctness and testability; it is not a second CSV parsing pass.
-- Before a full run, all 206 source files must be fully hydrated locally, adequate local free space must be confirmed, and active source modification must be prevented. Pausing OneDrive synchronization is recommended when practical. Pre/post size and modification metadata plus exact hashes detect changed files; changed files are incomplete.
+- Before the historical 206-file full run, all source files had to be fully hydrated, adequate free space confirmed, and active source modification prevented. That historical execution evidence remains unchanged. Future runs apply the same quiescence/integrity rules to the exact explicitly authorized scope rather than a fixed count.
 - A fatal parsing, encoding, or source-change failure marks the affected file incomplete, preserves diagnostics, continues with other files where safe, and causes the overall Phase 1 gate to fail. The parser does not attempt unsafe resynchronization after malformed quoting.
 - The MacBook was the approved environment for the full Phase 1 inventory, superseding the earlier assumption that final inventory automatically required Goethe-NHR. The full run was later separately authorized and completed.
 - Synthetic/unit tests, small integration tests, one ordinary real-shard smoke test, one known anomalous real-shard smoke test, and a resource benchmark were mandatory prerequisites to the full Phase 1 run and were completed before full-run authorization.
@@ -391,6 +398,6 @@ These are empirical properties of the exact current snapshot, not permanent prov
 - **Replacement:** ISO 3166 remains the normative code system; official Unicode
   CLDR 46.1 under Unicode-3.0 is the pinned operational mapping.
 - **Superseded:** The current source collection was previously estimated at approximately 500 GB.
-- **Replacement:** The authoritative current source dataset is 206 CSV files totaling approximately 3.29 GB.
-- There is currently no known additional source collection that this pipeline must process.
+- **Historical replacement:** The first accepted source snapshot is 206 CSV files totaling approximately 3.29 GB.
+- A later delivery is not authoritative until its exact population is frozen and accepted through the versioned Stage 0 scope and inventory contracts.
 - Engineering choices must reflect the verified current scale. CSV-aware parsing, chunking/streaming where useful, and robust diagnostics remain necessary because parsed memory use can be much larger and extreme multiline fields exist. Distributed or big-data technology is not justified solely by the superseded estimate.

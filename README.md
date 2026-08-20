@@ -84,9 +84,13 @@ Generated reports and the temporary SQLite working database are written beneath
 `reports/generated/phase01/<run_id>/`, which is ignored by Git. Absolute source
 paths and confidential raw row values are excluded from portable reports.
 
-`FULL_INVENTORY` has additional file-count, free-space, and explicit operator
-acknowledgement guards. Passing those guards is not project authorization; the
-complete 206-file run still requires the user's explicit approval.
+`FULL_INVENTORY` additionally requires a controlled owner-only
+`--population-scope-file`, its exact
+`--expected-population-scope-sha256`, free-space validation, and explicit
+operator acknowledgement. The scope's exact sorted path set—not a hardcoded
+count or whatever files happen to be present—defines the authorized
+population. Passing those guards is not project authorization. The first
+accepted 206-file run remains immutable historical evidence.
 
 ## Phase 2 interface
 

@@ -105,9 +105,11 @@ class IdStore:
         self.close()
 
     def set_meta(self, key: str, value: str) -> None:
+        existing = self.get_meta(key)
+        if existing is not None and existing != value:
+            raise RuntimeError(f"Resumed run metadata mismatch: {key}")
         self.connection.execute(
-            "INSERT INTO run_meta(key, value) VALUES (?, ?) "
-            "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+            "INSERT OR IGNORE INTO run_meta(key, value) VALUES (?, ?)",
             (key, value),
         )
         self.connection.commit()

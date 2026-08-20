@@ -3,7 +3,8 @@
 ## Status
 
 **STAGE_0_ACCEPTED.** The Stage 0 implementation and production adoption passed
-the final critical review. Stage 1 remains a separate implementation task.
+the final critical review. Stage 1 was subsequently accepted as a separate
+stage; this document continues to define only the Stage 0 boundary.
 
 ## Purpose and reuse boundary
 
@@ -21,22 +22,45 @@ CSV reader and delegates any future scan to `phase01.run_inventory`.
 
 ## Input contract
 
-For the current snapshot, the source population is exactly the 206 regular,
-non-symlink, direct-child CSV files discovered by Phase 1 in ascending portable
-relative-path order. Original files are read-only. Duplicate content is
-reported but no source path is removed. The approved parser contract is strict
+The first accepted historical snapshot contains exactly 206 regular,
+non-symlink, direct-child CSV files. Future `FULL_INVENTORY` runs are
+population-size independent and require an owner-only, hash-pinned
+`stage00_population_scope_v1` JSON artifact before discovery. Its exact schema
+is:
+
+```text
+population_scope_version
+population_id
+phase01_inventory_version
+source_schema_fingerprint
+parser_field_limit_chars
+expected_source_count
+relative_paths
+```
+
+`relative_paths` is a nonempty, duplicate-free, canonically sorted list of
+direct CSV filenames. Its length must equal `expected_source_count`. The
+directory must contain exactly those regular CSV files: missing, extra,
+symlinked, broken-symlink, or non-regular CSV entries fail closed. The scope's
+exact byte SHA-256 and identity are bound to Phase 1 run provenance and resume
+state, and both scope and source membership are checked again before success
+publication. Directory contents never authorize new files implicitly.
+
+Original files are read-only. Duplicate content is reported but no source path
+is removed. The approved parser contract is strict
 UTF-8 with an optional UTF-8 BOM, `newline=""`, comma delimiter, double-quote
 quoting, doubled quotes, no escape character, no initial-space skipping,
 `strict=True`, the exact ordered 15-column source schema, and a 64 Mi-character
 field safety ceiling.
 
-A changed delivery requires a new versioned source-population contract. Stage 0
-does not detect or substitute an alternative encoding or dialect.
+A changed delivery requires a new explicitly authorized scope artifact and a
+new Stage 0 snapshot. Stage 0 does not detect or substitute an alternative
+encoding or dialect.
 
 ## Output and adoption contract
 
 The authoritative inventory remains the completed Phase 1 bundle. Stage 0 does
-not copy its 206 rows and does not create a redundant Parquet inventory. The
+not copy its per-file rows and does not create a redundant Parquet inventory. The
 owner-only `stage00_adoption.json` binds:
 
 - the Stage 0, validation, Phase 1, and parser contracts;

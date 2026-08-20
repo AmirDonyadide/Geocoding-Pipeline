@@ -31,9 +31,13 @@ Diagnostic quality tiers remain separate:
 
 Confidence is supporting evidence, not a standalone acceptance rule. A successful HTTP request or a returned first feature is not automatically a successful scientific geocode.
 
-## Current source scope
+## Source-snapshot scope
 
-The authoritative current source dataset is 206 CSV files totaling approximately 3.29 GB. No additional source collection is currently known to be required.
+The first accepted historical source snapshot is 206 CSV files totaling
+approximately 3.29 GB. A later delivery becomes authoritative only after its
+exact direct-child path population is explicitly frozen in a versioned Stage 0
+scope and passes Stage 0. Directory contents or an approximate delivery count
+are not an accepted scientific snapshot.
 
 The compressed/on-disk size understates possible parsed memory use: quoted multiline records and multi-million-character fields have been observed. Processing should therefore remain CSV-aware, reproducible, and bounded-memory where useful, without introducing distributed technology solely on scale grounds.
 

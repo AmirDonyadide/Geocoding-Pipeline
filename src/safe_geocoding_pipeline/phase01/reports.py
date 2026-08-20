@@ -469,5 +469,5 @@ def render_summary(
 
 ## Gate interpretation
 
-This report inventories only the configured `{run_payload["run_scope"]}` scope. A successful smoke or test gate does not complete Phase 1 and does not authorize Phase 2. The complete 206-file inventory requires separate approval.
+This report inventories only the configured `{run_payload["run_scope"]}` scope. A successful smoke or test gate does not complete Phase 1 and does not authorize Phase 2. FULL_INVENTORY requires a separate explicitly authorized population scope and approval.
 """

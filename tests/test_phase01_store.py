@@ -22,6 +22,15 @@ def test_store_rejects_sqlite_symlink_before_opening_it(tmp_path: Path) -> None:
     assert target.read_bytes() == original
 
 
+def test_store_metadata_cannot_be_reinterpreted_on_resume(tmp_path: Path) -> None:
+    with IdStore(tmp_path / "ids.sqlite3") as store:
+        store.set_meta("population_scope_sha256", "a" * 64)
+        store.set_meta("population_scope_sha256", "a" * 64)
+        with pytest.raises(RuntimeError, match="population_scope_sha256"):
+            store.set_meta("population_scope_sha256", "b" * 64)
+        assert store.get_meta("population_scope_sha256") == "a" * 64
+
+
 def test_compact_store_tracks_within_and_cross_file_duplicates(tmp_path: Path) -> None:
     database = tmp_path / "ids.sqlite3"
     files = [

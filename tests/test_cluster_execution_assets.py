@@ -14,6 +14,9 @@ SYNC = REPOSITORY / "scripts" / "sync_to_goethe_nhr.sh"
 BOOTSTRAP = REPOSITORY / "cluster" / "goethe_nhr" / "bootstrap_env.sh"
 PREFLIGHT = REPOSITORY / "cluster" / "goethe_nhr" / "phase03_preflight.sh"
 SBATCH = REPOSITORY / "cluster" / "goethe_nhr" / "phase03_development_pilot.sbatch"
+STAGE00_INVENTORY_SBATCH = (
+    REPOSITORY / "cluster" / "goethe_nhr" / "stage00_inventory.sbatch"
+)
 PATTERN_PROFILE_SBATCH = (
     REPOSITORY / "cluster" / "goethe_nhr" / "phase03_development_pattern_profile.sbatch"
 )
@@ -22,6 +25,18 @@ PHASE01_ANOMALY = (
     "reports/generated/phase01/phase01_20260810T151626Z_7df9bc8f/"
     "phase01_anomalies.csv.gz"
 )
+
+
+def test_stage00_inventory_launcher_is_population_scope_driven() -> None:
+    script = STAGE00_INVENTORY_SBATCH.read_text(encoding="utf-8")
+    assert "--population-scope-file" in script
+    assert "--expected-population-scope-sha256" in script
+    assert "STAGE00_SOURCE_ROOT" in script
+    assert "STAGE00_RUN_ID" in script
+    assert "SAFE_EXECUTION_SITE=goethe-nhr" in script
+    assert "FULL_INVENTORY" in script
+    assert "206" not in script
+    assert "2822" not in script
 
 
 def _fake_rsync(path: Path, *, modern: bool, label: str) -> Path:

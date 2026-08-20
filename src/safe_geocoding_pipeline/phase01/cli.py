@@ -15,6 +15,15 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--source-root", required=True, type=Path)
     parser.add_argument(
+        "--population-scope-file",
+        type=Path,
+        help="Hash-pinned authorized source population required for FULL_INVENTORY.",
+    )
+    parser.add_argument(
+        "--expected-population-scope-sha256",
+        help="Exact lowercase SHA-256 of --population-scope-file.",
+    )
+    parser.add_argument(
         "--reports-root", type=Path, default=Path("reports/generated/phase01")
     )
     parser.add_argument(
@@ -58,6 +67,8 @@ def build_parser() -> argparse.ArgumentParser:
 def config_from_args(args: argparse.Namespace) -> InventoryConfig:
     return InventoryConfig(
         source_root=args.source_root,
+        population_scope_file=args.population_scope_file,
+        expected_population_scope_sha256=args.expected_population_scope_sha256,
         reports_root=args.reports_root,
         run_scope=args.run_scope,
         include_files=tuple(args.include),

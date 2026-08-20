@@ -56,6 +56,12 @@ may run locally. The 8,000-row DEVELOPMENT transformation is individually
 lightweight, but it remains in the same cluster job for one reproducible pilot
 environment.
 
+The generic Stage 0 production launcher is
+`cluster/goethe_nhr/stage00_inventory.sbatch`. Submission must provide the
+exact reviewed Git commit/integration worktree, controlled source root,
+owner-only population-scope JSON and its SHA-256, reports root, and run ID.
+The launcher contains no population-count constant and performs no transfer.
+
 Future full-production commands in Phases 4, 5, 8, 9, 10, 11, 12, and 13 must
 reuse the shared guard for full diagnostics, address-key/deduplication,
 geocoding orchestration, candidate selection, usability classification,
