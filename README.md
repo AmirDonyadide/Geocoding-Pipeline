@@ -3,6 +3,27 @@
 The repository implements the reviewed project workflow documented under `docs/`.
 Work proceeds one phase at a time.
 
+## Development and cluster workflow
+
+GitHub is the shared source of truth. Development, review, lightweight tests,
+documentation, commits, and pushes happen on the Mac; production-scale work
+runs through SLURM on Goethe-NHR. Code reaches the cluster through Git, not
+manual file copying:
+
+```text
+Mac/Codex -> test/review -> commit -> push -> GitHub
+GitHub -> fetch + fast-forward-only synchronization -> exact commit -> SLURM
+```
+
+Before a cluster submission, use `ssh goethe`, inspect the cluster worktree,
+fetch `origin`, and either fast-forward a clean tracking branch or create a
+detached integration worktree at the exact reviewed commit. Never put an
+uncontrolled `git pull` inside a job. The job must log and validate the exact
+commit it executes. `scripts/sync_to_goethe_nhr.sh` transfers only the
+explicitly approved ignored Phase 1/Phase 2 data artifacts; it never transfers
+source code or Git metadata. See `docs/EXECUTION_POLICY.md` for the complete
+pre-submission procedure.
+
 ## Execution-site policy
 
 **HEAVY PRODUCTION PROCESSING = GOETHE-NHR ONLY.** The MacBook is for code,
@@ -29,8 +50,23 @@ python3 -m pip install -e '.[dev]'
 Run tests:
 
 ```bash
+python3 -m pytest -m "not requires_production_transfer_payload"
+```
+
+This is `LOCAL_SAFE_VALIDATION`. It runs the repository suite without opening
+the ignored production-transfer payload. Four cluster-sync integration tests
+are explicitly deselected and must be reported as deselected, not passed.
+
+`FULL_ENVIRONMENT_VALIDATION` is:
+
+```bash
 python3 -m pytest
 ```
+
+The full command includes the four cluster-sync tests. They require the exact
+ignored completed Phase 1/Phase 2 transfer artifacts, including all 206 Phase 2
+Parquet shards. Missing prerequisites are a test failure; pytest does not skip
+or fabricate them.
 
 Run an explicitly scoped smoke inventory:
 

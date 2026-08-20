@@ -6,6 +6,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 
 REPOSITORY = Path(__file__).resolve().parents[1]
 SYNC = REPOSITORY / "scripts" / "sync_to_goethe_nhr.sh"
@@ -13,28 +15,19 @@ BOOTSTRAP = REPOSITORY / "cluster" / "goethe_nhr" / "bootstrap_env.sh"
 PREFLIGHT = REPOSITORY / "cluster" / "goethe_nhr" / "phase03_preflight.sh"
 SBATCH = REPOSITORY / "cluster" / "goethe_nhr" / "phase03_development_pilot.sbatch"
 PATTERN_PROFILE_SBATCH = (
-    REPOSITORY
-    / "cluster"
-    / "goethe_nhr"
-    / "phase03_development_pattern_profile.sbatch"
+    REPOSITORY / "cluster" / "goethe_nhr" / "phase03_development_pattern_profile.sbatch"
 )
-PHASE02_RUN = (
-    "staging/controlled/phase02_v1/runs/"
-    "phase02_20260810T173851Z_1349152b"
-)
+PHASE02_RUN = "staging/controlled/phase02_v1/runs/phase02_20260810T173851Z_1349152b"
 PHASE01_ANOMALY = (
     "reports/generated/phase01/phase01_20260810T151626Z_7df9bc8f/"
     "phase01_anomalies.csv.gz"
 )
-SYNC_BASELINE = "648080ff93eb82566368286303b6fd3069d6a2f7"
 
 
 def _fake_rsync(path: Path, *, modern: bool, label: str) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     protect_help = "  --protect-args  no space-splitting" if modern else ""
-    protect_probe = (
-        f'echo "rsync {label} protocol version 31"' if modern else "exit 1"
-    )
+    protect_probe = f'echo "rsync {label} protocol version 31"' if modern else "exit 1"
     path.write_text(
         f"""#!/usr/bin/env bash
 set -euo pipefail
@@ -106,7 +99,7 @@ def _rsync_calls(arguments: bytes) -> list[list[str]]:
 def _planned_sources(arguments: bytes) -> list[str]:
     sources: list[str] = []
     for call in _rsync_calls(arguments):
-        assert call[-1].startswith("donyadidegan@goethe.hhlr-gu.de:")
+        assert call[-1].startswith("goethe:")
         sources.extend(item for item in call[:-1] if not item.startswith("-"))
     return sources
 
@@ -150,7 +143,9 @@ esac
     )
 
 
-def test_pattern_profile_guard_compares_canonical_root_and_input(tmp_path: Path) -> None:
+def test_pattern_profile_guard_compares_canonical_root_and_input(
+    tmp_path: Path,
+) -> None:
     gnu_realpath = tmp_path / "bin" / "realpath"
     gnu_realpath.parent.mkdir()
     gnu_realpath.write_text(
@@ -184,7 +179,12 @@ def test_pattern_profile_guard_compares_canonical_root_and_input(tmp_path: Path)
 
     accepted = _run_pattern_profile_path_guard(
         work_alias,
-        work_alias / "derived" / "controlled" / "phase03_v1" / "selection" / valid_identity.name,
+        work_alias
+        / "derived"
+        / "controlled"
+        / "phase03_v1"
+        / "selection"
+        / valid_identity.name,
         gnu_realpath=gnu_realpath,
     )
     rejected_outside = _run_pattern_profile_path_guard(
@@ -212,40 +212,39 @@ def test_pattern_profile_guard_compares_canonical_root_and_input(tmp_path: Path)
     assert '[[ "${resolved_input,,}" != *locked* ]]' in content
 
 
-def test_sync_is_allowlisted_non_destructive_and_excludes_paused_state() -> None:
+def test_sync_is_data_only_non_destructive_and_excludes_paused_state() -> None:
     content = SYNC.read_text(encoding="utf-8")
     assert "--dry-run" in content
     assert "--delete" not in "\n".join(
         line for line in content.splitlines() if not line.lstrip().startswith("#")
     )
-    assert "git ls-files -z" in content
-    assert ".git/refs/heads" in content
+    assert "git ls-files -z" not in content
+    assert ".git/refs/heads" not in content
+    assert 'echo "code sync=GITHUB_ONLY"' in content
+    assert 'echo "Source code and Git metadata transferred=false"' in content
+    assert "CLUSTER_GIT_CLONE_REQUIRED" in content
     assert "phase02_20260810T173851Z_1349152b" in content
     assert "phase01_20260810T151626Z_7df9bc8f" in content
     assert "phase01_anomalies.csv.gz" in content
     assert "derived/controlled/phase03" not in content
     assert ".venv" not in " ".join(
-        line.strip() for line in content.splitlines() if line.strip().startswith("rsync ")
+        line.strip()
+        for line in content.splitlines()
+        if line.strip().startswith("rsync ")
     )
 
 
-def test_sync_dry_run_plan_is_minimal_complete_and_reconstructable(
+@pytest.mark.requires_production_transfer_payload
+def test_sync_dry_run_plan_contains_only_approved_controlled_data(
     tmp_path: Path,
 ) -> None:
     modern = _fake_rsync(tmp_path / "modern" / "rsync", modern=True, label="3.4.1")
     result, arguments = _run_sync_dry_run(tmp_path, selected_rsync=modern)
     calls = _rsync_calls(arguments)
     sources = _planned_sources(arguments)
-    current_commit = subprocess.run(
-        ["git", "rev-parse", "HEAD"],
-        cwd=REPOSITORY,
-        text=True,
-        capture_output=True,
-        check=True,
-    ).stdout.strip()
-
-    assert len(calls) == 4
-    assert f"git commit={current_commit}" in result.stdout
+    assert len(calls) == 2
+    assert "code sync=GITHUB_ONLY" in result.stdout
+    assert "Source code and Git metadata transferred=false" in result.stdout
     assert "Phase 2 Parquet shards=206" in result.stdout
     required_exclusions = {
         "--exclude=.DS_Store",
@@ -274,46 +273,26 @@ def test_sync_dry_run_plan_is_minimal_complete_and_reconstructable(
     for call in calls:
         assert required_exclusions.issubset(call)
 
-    expected_tracked = subprocess.run(
-        ["git", "ls-files"],
-        cwd=REPOSITORY,
-        text=True,
-        capture_output=True,
-        check=True,
-    ).stdout.splitlines()
-    assert set(expected_tracked).issubset(sources)
-    for required_project_path in (
-        "AGENTS.md",
-        "README.md",
-        "pyproject.toml",
-        "scripts/sync_to_goethe_nhr.sh",
-        "src/safe_geocoding_pipeline/execution_policy.py",
-        "docs/EXECUTION_POLICY.md",
-        "cluster/goethe_nhr/phase03_development_pilot.sbatch",
-    ):
-        assert required_project_path in sources
-
-    for required_git_path in (
-        ".git/HEAD",
-        ".git/config",
-        ".git/index",
-        ".git/objects",
-        ".git/refs/heads",
-    ):
-        assert required_git_path in sources
-    assert not any(source.startswith(".git/refs/codex") for source in sources)
+    assert not any(source.startswith(".git/") for source in sources)
+    assert not any(source.startswith("src/") for source in sources)
+    assert not any(source.startswith("tests/") for source in sources)
+    assert not any(source.startswith("docs/") for source in sources)
+    assert "README.md" not in sources
+    assert "pyproject.toml" not in sources
 
     phase02_sources = [source for source in sources if source.startswith(PHASE02_RUN)]
-    parquet_sources = [source for source in phase02_sources if source.endswith(".parquet")]
+    parquet_sources = [
+        source for source in phase02_sources if source.endswith(".parquet")
+    ]
     assert len(parquet_sources) == 206
     assert len(set(parquet_sources)) == 206
     assert f"{PHASE02_RUN}/dataset_manifest.json" in phase02_sources
     assert f"{PHASE02_RUN}/_SUCCESS.json" in phase02_sources
     assert len(phase02_sources) == 208
     assert PHASE01_ANOMALY in sources
-    assert [source for source in sources if source.startswith("reports/generated/phase01/")] == [
-        PHASE01_ANOMALY
-    ]
+    assert [
+        source for source in sources if source.startswith("reports/generated/phase01/")
+    ] == [PHASE01_ANOMALY]
 
     prohibited_fragments = (
         ".DS_Store",
@@ -341,23 +320,8 @@ def test_sync_dry_run_plan_is_minimal_complete_and_reconstructable(
     for source in sources:
         assert not any(fragment in source for fragment in prohibited_fragments), source
 
-    subprocess.run(
-        ["git", "cat-file", "-e", f"{SYNC_BASELINE}^{{commit}}"],
-        cwd=REPOSITORY,
-        check=True,
-    )
-    subprocess.run(
-        ["git", "merge-base", "--is-ancestor", SYNC_BASELINE, "HEAD"],
-        cwd=REPOSITORY,
-        check=True,
-    )
-    subprocess.run(
-        ["git", "fsck", "--no-dangling", "--no-progress"],
-        cwd=REPOSITORY,
-        check=True,
-    )
 
-
+@pytest.mark.requires_production_transfer_payload
 def test_sync_uses_protect_args_with_modern_rsync(tmp_path: Path) -> None:
     modern = _fake_rsync(tmp_path / "modern" / "rsync", modern=True, label="3.4.1")
     result, arguments = _run_sync_dry_run(tmp_path, selected_rsync=modern)
@@ -365,7 +329,7 @@ def test_sync_uses_protect_args_with_modern_rsync(tmp_path: Path) -> None:
     assert "rsync version=rsync 3.4.1 protocol version 31" in result.stdout
     assert "dry-run=true" in result.stdout
     assert "rsync protect-args=true" in result.stdout
-    assert arguments.count(b"--protect-args\0") == 4
+    assert arguments.count(b"--protect-args\0") == 2
     planned_sources = "\0".join(_planned_sources(arguments)).encode("utf-8")
     for forbidden in (
         b"csv_files",
@@ -379,6 +343,7 @@ def test_sync_uses_protect_args_with_modern_rsync(tmp_path: Path) -> None:
         assert forbidden not in planned_sources
 
 
+@pytest.mark.requires_production_transfer_payload
 def test_sync_omits_protect_args_with_old_rsync(tmp_path: Path) -> None:
     old = _fake_rsync(tmp_path / "old" / "rsync", modern=False, label="2.6.9")
     result, arguments = _run_sync_dry_run(tmp_path, selected_rsync=old)
@@ -387,9 +352,10 @@ def test_sync_omits_protect_args_with_old_rsync(tmp_path: Path) -> None:
     assert "dry-run=true" in result.stdout
     assert "rsync protect-args=false" in result.stdout
     assert b"--protect-args\0" not in arguments
-    assert arguments.count(b"--dry-run\0") == 4
+    assert arguments.count(b"--dry-run\0") == 2
 
 
+@pytest.mark.requires_production_transfer_payload
 def test_sync_prefers_homebrew_rsync_over_path_rsync(tmp_path: Path) -> None:
     homebrew_prefix = tmp_path / "homebrew"
     homebrew = _fake_rsync(
@@ -405,7 +371,7 @@ def test_sync_prefers_homebrew_rsync_over_path_rsync(tmp_path: Path) -> None:
     )
     assert f"rsync executable={homebrew}" in result.stdout
     assert "rsync version=rsync homebrew protocol version 31" in result.stdout
-    assert arguments.count(b"--protect-args\0") == 4
+    assert arguments.count(b"--protect-args\0") == 2
 
 
 def test_preflight_requires_cluster_runtime_snapshot_and_node_local_space() -> None:
@@ -429,7 +395,9 @@ def test_preflight_requires_cluster_runtime_snapshot_and_node_local_space() -> N
     assert "/scratch|/scratch/*) continue" in content
 
 
-def test_slurm_workflow_is_single_node_sequential_and_preserves_locked_firewall() -> None:
+def test_slurm_workflow_is_single_node_sequential_and_preserves_locked_firewall() -> (
+    None
+):
     content = SBATCH.read_text(encoding="utf-8")
     assert "#SBATCH --nodes=1" in content
     assert "#SBATCH --ntasks=1" in content

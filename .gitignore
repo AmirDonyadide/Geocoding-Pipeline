@@ -7,11 +7,17 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
 
 # Virtual environments
 .venv/
 .venv-goethe-nhr/
 *.egg-info/
+.eggs/
+build/
+dist/
 venv/
 env/
 
@@ -119,6 +125,10 @@ logs/
 *.temp
 *.bak
 *.prof
+*.bundle
+*.swp
+*.swo
+*~
 .cache/
 
 # IDE

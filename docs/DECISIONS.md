@@ -22,6 +22,8 @@ This register distinguishes approved project rules from questions that require e
 - Normal API concurrency is 2–4 requests total across the complete process, regardless of workers, shards, nodes, or jobs.
 - Production retries are bounded and use classified transient failures, exponential backoff, jitter, checkpoints, and persistent error status.
 - Heavy production processing is Goethe-NHR-only and runs through SLURM. The MacBook is limited to development, documentation, Git, unit/synthetic tests, small diagnostics, lightweight validation, and small controlled manual-review workflows. When production workload classification is uncertain, default to Goethe-NHR. The exact OR-based heavy definition and fail-closed markers are in `docs/EXECUTION_POLICY.md`.
+- GitHub `origin` is the shared source of truth for code, tests, configuration, and documentation. Coherent reviewed changes are committed and pushed from the Mac to an appropriate branch; force-pushes and shared-history rewrites require explicit approval. Goethe-NHR obtains code through Git, not source-file rsync.
+- Cluster code is synchronized before job submission with fetch/status and a fast-forward-only update of a clean tracking branch, or with a detached integration worktree at an exact pushed commit. A SLURM job never performs an uncontrolled pull; it records and validates the exact commit used. Large data, generated outputs, logs, credentials, and environment files remain outside Git.
 - `/scratch` is not used; `/work/footprint/public` and the shared Conda base are not modified.
 - The existing `parquet_files` products are invalid and cannot serve as staging data.
 - Work proceeds one reviewed phase at a time and stops after every phase.

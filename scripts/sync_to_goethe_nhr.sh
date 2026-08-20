@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-readonly REMOTE_HOST="${GOETHE_NHR_HOST:-donyadidegan@goethe.hhlr-gu.de}"
+# Controlled-data transfer only. Source code and Git metadata reach Goethe-NHR
+# through the shared GitHub repository, never through this rsync helper.
+
+readonly REMOTE_HOST="${GOETHE_NHR_HOST:-goethe}"
 readonly REMOTE_ROOT="${GOETHE_NHR_REPO:-/work/footprint/donyadidegan/safe_geocoding_pipeline}"
 readonly PHASE02_RUN="staging/controlled/phase02_v1/runs/phase02_20260810T173851Z_1349152b"
 readonly PHASE01_RUN="reports/generated/phase01/phase01_20260810T151626Z_7df9bc8f"
 readonly PHASE01_ANOMALIES="${PHASE01_RUN}/phase01_anomalies.csv.gz"
-readonly REQUIRED_BASELINE_COMMIT="648080ff93eb82566368286303b6fd3069d6a2f7"
 
 if [[ ! "${REMOTE_HOST}" =~ ^[A-Za-z0-9._@-]+$ ]]; then
   echo "Unsafe Goethe-NHR host value." >&2
@@ -23,7 +25,7 @@ case "${1:-}" in
   "") ;;
   --dry-run) dry_run=true ;;
   --help|-h)
-    echo "Usage: $0 [--dry-run]"
+    echo "Usage: $0 [--dry-run]  # sync only approved controlled data"
     exit 0
     ;;
   *)
@@ -76,61 +78,8 @@ if ! git cat-file -e "${sync_commit}^{commit}"; then
   echo "Current Git commit is not reconstructable: ${sync_commit}" >&2
   exit 1
 fi
-if ! git merge-base --is-ancestor "${REQUIRED_BASELINE_COMMIT}" "${sync_commit}"; then
-  echo "Required sync baseline is not an ancestor of HEAD: ${REQUIRED_BASELINE_COMMIT}" >&2
-  exit 1
-fi
-if [[ "${dry_run}" == false ]] && ! git diff-index --quiet HEAD --; then
-  echo "Tracked working-tree changes must be committed before a real sync." >&2
-  exit 1
-fi
-
-is_prohibited_repository_path() {
-  case "$1" in
-    .DS_Store|*/.DS_Store|__pycache__/*|*/__pycache__/*|*.pyc|*.pyo|*.egg-info|*.egg-info/*) return 0 ;;
-    .pytest_cache/*|*/.pytest_cache/*|.mypy_cache/*|*/.mypy_cache/*) return 0 ;;
-    .ruff_cache/*|*/.ruff_cache/*|.agents/*|*/.agents/*|logs/*|*/logs/*) return 0 ;;
-    .venv/*|*/.venv/*|.venv-goethe-nhr/*|*/.venv-goethe-nhr/*) return 0 ;;
-    derived/controlled/*|reports/generated/*|staging/controlled/*) return 0 ;;
-    csv_files/*|parquet_files/*|.env|*/.env|.env.*|*/.env.*|*.pem|*.key) return 0 ;;
-    *) return 1 ;;
-  esac
-}
-
-tracked_files=()
-while IFS= read -r -d '' tracked_file; do
-  if is_prohibited_repository_path "${tracked_file}"; then
-    continue
-  fi
-  tracked_files+=("${tracked_file}")
-done < <(git ls-files -z)
-if [[ "${#tracked_files[@]}" -eq 0 ]]; then
-  echo "No Git-tracked project files were discovered." >&2
-  exit 1
-fi
-
-# Ordinary Git metadata required to reconstruct and validate the current branch.
-# Codex refs, logs, checkpoints, hooks, and other agent-local state are omitted.
-git_metadata=(
-  .git/HEAD
-  .git/config
-  .git/index
-  .git/objects
-  .git/refs/heads
-)
-for optional_git_metadata in .git/packed-refs .git/shallow; do
-  if [[ -e "${optional_git_metadata}" ]]; then
-    git_metadata+=("${optional_git_metadata}")
-  fi
-done
-
-if git config --local --name-only --get-regexp '(^|\.)http\..*\.extraheader$|(^|\.)(password|token)$' >/dev/null 2>&1; then
-  echo "Potential secret-bearing local Git configuration must not be synchronized." >&2
-  exit 1
-fi
-origin_url="$(git config --local --get remote.origin.url 2>/dev/null || true)"
-if [[ "${origin_url}" =~ ^https?://[^/@]+@ ]]; then
-  echo "Credential-like user information in the Git remote URL must not be synchronized." >&2
+if [[ "${dry_run}" == false ]] && [[ -n "$(git status --porcelain)" ]]; then
+  echo "The Git worktree must be clean before a real controlled-data sync." >&2
   exit 1
 fi
 
@@ -148,8 +97,6 @@ fi
 phase02_files+=("${phase02_shards[@]}")
 
 required_paths=(
-  "${git_metadata[@]}"
-  "${tracked_files[@]}"
   "${phase02_files[@]}"
   "${PHASE01_ANOMALIES}"
 )
@@ -196,24 +143,13 @@ if [[ "${dry_run}" == true ]]; then
   echo "DRY RUN: no files will be transferred."
 else
   ssh "${REMOTE_HOST}" \
-    "umask 077 && mkdir -p '${REMOTE_ROOT}' '${REMOTE_ROOT}/reports/generated/phase01/phase01_20260810T151626Z_7df9bc8f' '${REMOTE_ROOT}/staging/controlled/phase02_v1/runs'"
+    "test -d '${REMOTE_ROOT}/.git' || { echo 'CLUSTER_GIT_CLONE_REQUIRED' >&2; exit 1; }; umask 077 && mkdir -p '${REMOTE_ROOT}/reports/generated/phase01/phase01_20260810T151626Z_7df9bc8f' '${REMOTE_ROOT}/staging/controlled/phase02_v1/runs'"
 fi
 
-echo "git commit=${sync_commit}"
-echo "Git-tracked project files=${#tracked_files[@]}"
+echo "code sync=GITHUB_ONLY"
+echo "local Git commit context=${sync_commit}"
 echo "Phase 2 Parquet shards=${#phase02_shards[@]}"
-
-# Minimal ordinary Git database metadata. There is deliberately no --delete.
-"${rsync_executable}" "${rsync_options[@]}" \
-  "${git_metadata[@]}" \
-  "${REMOTE_HOST}:${REMOTE_ROOT}/"
-
-# Git-tracked project files only. Untracked/ignored caches, .agents, logs,
-# virtual environments, generated pilot state, secrets, and raw CSVs cannot
-# hitchhike with broad source-directory recursion.
-"${rsync_executable}" "${rsync_options[@]}" \
-  "${tracked_files[@]}" \
-  "${REMOTE_HOST}:${REMOTE_ROOT}/"
+echo "Source code and Git metadata transferred=false"
 
 # Immutable completed Phase 2 products only.
 "${rsync_executable}" "${rsync_options[@]}" \
@@ -224,4 +160,4 @@ echo "Phase 2 Parquet shards=${#phase02_shards[@]}"
   "${PHASE01_ANOMALIES}" \
   "${REMOTE_HOST}:${REMOTE_ROOT}/"
 
-echo "Sync plan completed for ${REMOTE_HOST}:${REMOTE_ROOT}"
+echo "Controlled-data sync plan completed for ${REMOTE_HOST}:${REMOTE_ROOT}"

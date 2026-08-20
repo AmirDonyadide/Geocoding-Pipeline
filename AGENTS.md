@@ -7,6 +7,14 @@
 - Treat `docs/PROJECT_BRIEF.md` as the long-form reference, `docs/DECISIONS.md` as the decision register, and empirical reports as evidence—not permission to start work.
 - Do not implement Phase 1 or any later phase without explicit approval for that phase.
 
+## Source-control workflow
+
+- GitHub `origin` is the shared source of truth for code, tests, configuration, and documentation. Develop and validate on the Mac, then commit and push each coherent completed change to an appropriate branch.
+- Before integrating or pushing, fetch remote state, inspect the branch/worktree, and preserve colleagues' changes. Use fast-forward-only pulls when appropriate; never force-push or rewrite shared history without explicit approval.
+- Do not copy source files or Git metadata to Goethe-NHR with rsync. The cluster obtains code from GitHub. The rsync helper is limited to explicitly approved ignored data artifacts.
+- Synchronize the cluster checkout before submission, never from inside a SLURM job. Each job runs an exact reviewed commit, logs that commit, and fails closed if its declared commit differs from the executable worktree.
+- Before committing, exclude generated outputs, large or raw data, logs, caches, credentials, environment files, and agent-local state. Use a feature branch for experimental or unfinished changes rather than destabilizing shared `main`.
+
 ## Data
 
 - The authoritative current source scope is 206 CSV files totaling approximately 3.29 GB.
@@ -48,9 +56,17 @@
 - The MacBook is for code, documentation, Git, unit/synthetic tests, small diagnostics, lightweight validation, and small controlled manual-review workflows—not full-production scans or multi-GB processing.
 - Heavy includes any complete production Phase 2 scan, at least 1,000,000 production rows, a substantial fraction of 20.6M rows, at least 2 GiB working state, an expected local runtime of at least 10 minutes, or full-production joins, grouping, deduplication, address keys, Phase 3 transformation, geocoding, selection, validation, merge-back, or reconciliation.
 - Heavy work must run through SLURM on Goethe-NHR, never a login node. Production-heavy commands must invoke the shared fail-closed execution guard; do not add a local bypass.
+- Use the configured `ssh goethe` alias for normal cluster access. Login nodes are limited to SSH, Git/light shell work, file transfer, `sbatch`/`salloc`/`srun`, and job inspection. Run Python, tests, profiling, and data processing only inside an allocated compute-node session or batch job.
 - Never use `/scratch`, modify `/work/footprint/public`, or modify the shared Conda base environment.
 - Keep important code and documentation in Git-backed storage; `/work` is not backed up.
 - Do not introduce distributed or big-data technology merely because of the superseded scale estimate.
+
+## Phase 3 DEVELOPMENT governance
+
+- The selected 8,000-row DEVELOPMENT set is fixed. Do not rerun the full 20.6M-row selector or reconstruction merely to iterate on a parser or diagnostic that can reuse the preserved DEVELOPMENT payload.
+- The 4,000-row LOCKED_EVALUATION set remains sealed. Do not materialize, inspect, transform, profile, review, or otherwise access LOCKED payload or identities without explicit authorization for that evaluation step.
+- Protected real addresses remain on controlled Goethe `/work` storage. Never copy them to the Mac, Git, documentation, portable reports, prompts, or an external AI/service. Use fictional synthetic values in committed tests and examples.
+- Preserve failed runs, reconstructed state, submitted-job evidence, and detached integration worktrees as audit boundaries. Do not advance, mutate, delete, or reuse them for convenience; create a new worktree/output identity for a new reviewed iteration.
 
 ## Prohibited without explicit approval
 

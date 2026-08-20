@@ -64,6 +64,18 @@ an independent permissive environment check.
 
 ## Goethe-NHR layout and operating rules
 
+Normal access uses the configured local SSH alias:
+
+```bash
+ssh goethe
+```
+
+The login node is an orchestration boundary, not a Python execution host. It is
+limited to SSH, Git and light shell inspection, file transfer, `sbatch`,
+`salloc`, `srun`, queue/accounting inspection, and similar low-impact work. Run
+Python, tests, profiling, and data processing only within a scheduled batch job
+or an allocated compute-node shell.
+
 Repository root:
 
 ```text
@@ -108,8 +120,13 @@ sampling methodology or its scientific version.
 
 ## Cluster workflow
 
-- `scripts/sync_to_goethe_nhr.sh` uses a non-destructive rsync allowlist and
-  supports `--dry-run`.
+- GitHub `origin` is the shared source of truth for code, tests, configuration,
+  and documentation. Source code and Git metadata are never deployed with
+  rsync.
+- `scripts/sync_to_goethe_nhr.sh` is a controlled-data-only helper. It uses a
+  non-destructive rsync allowlist, supports `--dry-run`, and transfers only the
+  immutable completed Phase 2 data products plus the approved sanitized Phase
+  1 anomaly artifact.
 - `cluster/goethe_nhr/bootstrap_env.sh` creates or reuses an isolated exact
   runtime and fails `CLUSTER_RUNTIME_NOT_READY` rather than substituting Python.
 - `cluster/goethe_nhr/phase03_preflight.sh` validates the site, SLURM job,
@@ -120,10 +137,70 @@ sampling methodology or its scientific version.
   LOCKED payload. Persistent results are validated and atomically promoted
   before `DEVELOPMENT_PILOT_PASS` is reported.
 
+### GitHub-first code synchronization
+
+Develop, review, and run lightweight validation on the Mac. Before pushing,
+fetch `origin`, inspect status and upstream divergence, exclude all data,
+generated output, logs, caches, credentials, environment files, and agent-local
+state, then commit and push the coherent change to the appropriate branch.
+Never force-push or rewrite shared history without explicit approval.
+
+Before a new cluster submission, use the login node only for Git and light
+orchestration:
+
+```bash
+ssh goethe
+cd /work/footprint/donyadidegan/safe_geocoding_pipeline
+git fetch --prune origin
+git status --short --branch
+git pull --ff-only
+git rev-parse HEAD
+install -d -m 700 /work/footprint/donyadidegan/safe_geocoding_pipeline/logs/slurm
+```
+
+Run `git pull --ff-only` only on the intended clean tracking branch. If the
+checkout is dirty, diverged, or is preserved audit evidence, stop and inspect
+it; do not overwrite, reset, clean, or merge automatically. For a reviewed
+experimental or historical revision, create a new detached integration
+worktree from the exact commit already pushed to GitHub instead of advancing or
+repurposing an audit worktree. Confirm the commit is available from `origin`
+before submission.
+
+Never run `git pull` or otherwise select code dynamically inside an SBATCH
+script. A queued job may start much later; its executable worktree and declared
+commit must already be fixed. Important jobs log `git rev-parse HEAD` and fail
+closed when it differs from their submitted commit variable. The owner-only
+SLURM log directory must exist before `sbatch`, because the scheduler opens its
+stdout/stderr targets before the job body can create directories.
+
 The initial job request is one node, one task, four CPUs, 16 GiB memory, and a
 12-hour walltime. No partition or account is hardcoded; the user's permitted
 SLURM defaults apply. The runner is mostly single-process, and per-stage GNU
 `time` reports record actual CPU and memory use for later engineering review.
+
+## Repository validation modes
+
+The local-safe repository validation command is:
+
+```bash
+python3 -m pytest -m "not requires_production_transfer_payload"
+```
+
+The `requires_production_transfer_payload` marker identifies four cluster-sync
+integration tests that execute the real transfer-plan script. They require the
+ignored completed Phase 1/Phase 2 transfer payload, including exactly 206 Phase
+2 Parquet shards and the approved Phase 1 anomaly artifact. Local-safe runs
+report these tests as deselected; their absence is never reported as a pass.
+
+Full-environment validation is:
+
+```bash
+python3 -m pytest
+```
+
+It runs those four integration tests only when the controlled prerequisites are
+present. If they are absent or incomplete, the full command fails rather than
+skipping or synthesizing protected artifacts.
 
 SLURM logs contain job/environment identity, stage transitions, aggregate
 timing and validation outcomes. They must not contain addresses, stable or

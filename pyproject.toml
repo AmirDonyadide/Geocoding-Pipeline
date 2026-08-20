@@ -39,6 +39,7 @@ testpaths = ["tests"]
 markers = [
     "slow: generated large-field tests",
     "production_reference: requires controlled production reference data",
+    "requires_production_transfer_payload: requires the ignored completed Phase 1/2 transfer payload",
 ]
 
 [tool.mypy]

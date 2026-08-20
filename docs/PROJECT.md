@@ -69,6 +69,13 @@ transformation, geocoding, selection, validation, or reconciliation. When
 uncertain, use Goethe-NHR. See `docs/EXECUTION_POLICY.md` for the permanent
 definition and fail-closed enforcement contract.
 
+GitHub `origin` is the shared source of truth for code and documentation.
+Coherent reviewed changes are committed and pushed from the Mac to an
+appropriate branch; Goethe-NHR obtains code with Git and executes an exact
+reviewed commit. Source files and Git metadata are not copied to the cluster by
+rsync, and jobs never pull code after submission. Large controlled data and
+generated outputs remain outside Git.
+
 On Goethe-NHR, home is for small files and personal `/work` is for high-volume
 project data and outputs but is not backed up. Heavy computation must not run on
 login nodes. `/scratch` is retired, `/work/footprint/public` is not modified,
