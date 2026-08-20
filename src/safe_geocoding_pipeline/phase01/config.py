@@ -7,6 +7,7 @@ from typing import Literal
 from .constants import DEFAULT_PLACEHOLDER_CANDIDATES
 
 RunScope = Literal["TEST", "SMOKE_TEST", "FULL_INVENTORY"]
+DEFAULT_PARSER_FIELD_LIMIT_CHARS = 64 * 1024 * 1024
 
 
 @dataclass(frozen=True, slots=True)
@@ -20,7 +21,7 @@ class InventoryConfig:
     resume_run_dir: Path | None = None
     field_warning_chars: int = 1_024
     record_warning_chars: int = 4_096
-    parser_field_limit_chars: int = 64 * 1024 * 1024
+    parser_field_limit_chars: int = DEFAULT_PARSER_FIELD_LIMIT_CHARS
     insertion_batch_size: int = 1_000
     hash_chunk_bytes: int = 1024 * 1024
     categorical_max_distinct: int = 1_000

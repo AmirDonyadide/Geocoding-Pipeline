@@ -1,4 +1,15 @@
-# Phase 0–13 workflow
+# Library-first preprocessing transition
+
+The active preprocessing redesign uses distinct library-first Stage 0–14
+terminology. Historical Phase 1 remains intact and supplies the authoritative
+source-scanning machinery for new Stage 0; Stage 0 adds only contract,
+validation, fingerprinting, privacy hardening, and adoption. Historical Phase 2
+remains reusable lossless-ingestion infrastructure, while historical Phase 3 is
+frozen as the custom-parser benchmark baseline. See `docs/STAGE00.md` and
+`docs/CUSTOM_PREPROCESSING_BASELINE.md`. New stages proceed one reviewed stage
+at a time and do not rewrite this historical workflow.
+
+# Historical Phase 0–13 workflow
 
 This is the approved conceptual workflow. It is not an implementation plan or evidence that a phase has run. Each phase requires design review, implementation approval, validation, a phase report, and an explicit stop before the next phase.
 

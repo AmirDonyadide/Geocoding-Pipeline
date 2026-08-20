@@ -4,6 +4,21 @@ This register distinguishes approved project rules from questions that require e
 
 ## Locked decisions
 
+- Library-first Stage 0 reuses historical Phase 1 as the single authoritative
+  source scanner. Stage 0 may validate, project, fingerprint, permission-harden,
+  and adopt Phase 1 output, but it does not duplicate discovery, CSV parsing,
+  source hashing, schema inspection, duplicate analysis, or profiling.
+- Stage 0 scientific identity uses the distinct domain-separated
+  `source_population_sha256_v1` and
+  `stage00_scientific_inventory_sha256_v1` binary contracts documented in
+  `docs/STAGE00.md`. Operational timestamps, mtimes, durations, host/SLURM
+  identity, Git/runtime versions, and permissions are excluded from both.
+- The completed Phase 1 bundle is adopted without reopening or rescanning the
+  source CSVs. Historical report bytes remain unchanged; owner-only hardening
+  of retained protected working state is an operational privacy action.
+- Stage 0 implementation status is `IMPLEMENTED_PENDING_FINAL_REVIEW`. This is
+  not `STAGE_0_ACCEPTED` and does not authorize Stage 1.
+
 - The research objective requires physical building/plant/branch/store/facility point locations.
 - `usable_for_analysis` is the main Boolean indicator of suitability for point-level research; diagnostic tiers remain separate.
 - An address-layer exact match without a major geographic contradiction is expected to be usable.

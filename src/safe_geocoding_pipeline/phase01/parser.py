@@ -9,7 +9,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from ..raw_csv import strict_csv_reader
+from ..raw_csv import (
+    SOURCE_TEXT_ENCODING,
+    SOURCE_TEXT_ENCODING_WITH_BOM,
+    UTF8_BOM_BYTES,
+    strict_csv_reader,
+)
 from .config import InventoryConfig
 from .constants import ANOMALY_COLUMNS, EXPECTED_COLUMNS
 from .models import (
@@ -53,7 +58,7 @@ def hash_file(path: Path, chunk_bytes: int) -> tuple[str, float]:
 
 def detect_bom(path: Path) -> str:
     with path.open("rb") as stream:
-        return "UTF8" if stream.read(3) == b"\xef\xbb\xbf" else "NONE"
+        return "UTF8" if stream.read(len(UTF8_BOM_BYTES)) == UTF8_BOM_BYTES else "NONE"
 
 
 def _schema_fingerprint(header: list[str]) -> str:
@@ -80,9 +85,11 @@ class AnomalySpool:
 
     def __post_init__(self) -> None:
         self.final_path.parent.mkdir(parents=True, exist_ok=True)
+        self.final_path.parent.chmod(0o700)
         self.temp_path = self.final_path.with_suffix(self.final_path.suffix + ".tmp")
         self.temp_path.unlink(missing_ok=True)
         self._stream = self.temp_path.open("w", encoding="utf-8", newline="")
+        self.temp_path.chmod(0o600)
         self._writer = csv.DictWriter(self._stream, fieldnames=ANOMALY_COLUMNS)
         self._writer.writeheader()
         self.count = 0
@@ -125,13 +132,16 @@ class AnomalySpool:
             "message_code": message_code or anomaly_type,
             "counts_complete": "",
         }
-        self._writer.writerow({key: "" if value is None else value for key, value in row.items()})
+        self._writer.writerow(
+            {key: "" if value is None else value for key, value in row.items()}
+        )
 
     def close(self) -> None:
         self._stream.flush()
         os.fsync(self._stream.fileno())
         self._stream.close()
         os.replace(self.temp_path, self.final_path)
+        self.final_path.chmod(0o600)
 
     def abort(self) -> None:
         if not self._stream.closed:
@@ -160,6 +170,7 @@ def append_terminal_anomaly(
     """Append a non-sensitive file-level failure found after parsing."""
     write_header = not spool_path.exists()
     with spool_path.open("a", encoding="utf-8", newline="") as stream:
+        spool_path.chmod(0o600)
         writer = csv.DictWriter(stream, fieldnames=ANOMALY_COLUMNS)
         if write_header:
             writer.writeheader()
@@ -192,7 +203,9 @@ def _build_schema_rows(header: list[str], fingerprint: str) -> list[SchemaRow]:
     width = max(len(header), len(EXPECTED_COLUMNS))
     for zero_index in range(width):
         observed = header[zero_index] if zero_index < len(header) else ""
-        expected = EXPECTED_COLUMNS[zero_index] if zero_index < len(EXPECTED_COLUMNS) else ""
+        expected = (
+            EXPECTED_COLUMNS[zero_index] if zero_index < len(EXPECTED_COLUMNS) else ""
+        )
         rows.append(
             SchemaRow(
                 column_position=zero_index + 1,
@@ -245,12 +258,18 @@ def scan_csv_file(
     try:
         csv.field_size_limit(config.parser_field_limit_chars)
         result.bom_type = detect_bom(source.path)
-        encoding = "utf-8-sig" if result.bom_type == "UTF8" else "utf-8"
+        encoding = (
+            SOURCE_TEXT_ENCODING_WITH_BOM
+            if result.bom_type == "UTF8"
+            else SOURCE_TEXT_ENCODING
+        )
 
         with AnomalySpool(run_id, source, anomaly_spool_path) as anomalies:
             parse_started = time.perf_counter()
             try:
-                with source.path.open("r", encoding=encoding, errors="strict", newline="") as stream:
+                with source.path.open(
+                    "r", encoding=encoding, errors="strict", newline=""
+                ) as stream:
                     reader = strict_csv_reader(stream)
                     result.encoding_status = "UTF8_VALID"
                     try:
@@ -278,7 +297,9 @@ def scan_csv_file(
                     result.observed_column_count = len(header)
                     result.schema_fingerprint = _schema_fingerprint(header)
                     result.schema_matches_expected = tuple(header) == EXPECTED_COLUMNS
-                    result.schema_rows = _build_schema_rows(header, result.schema_fingerprint)
+                    result.schema_rows = _build_schema_rows(
+                        header, result.schema_fingerprint
+                    )
 
                     if not result.schema_matches_expected:
                         anomalies.add(
@@ -325,7 +346,8 @@ def scan_csv_file(
                                 anomaly_type=error_code,
                                 logical_record_number=result.logical_record_count + 1,
                                 physical_line_start=physical_line_start,
-                                physical_line_end=reader.line_num or physical_line_start,
+                                physical_line_end=reader.line_num
+                                or physical_line_start,
                                 expected=(
                                     f"field <= {config.parser_field_limit_chars} characters"
                                     if error_code == "FIELD_LIMIT_EXCEEDED"
@@ -399,7 +421,9 @@ def scan_csv_file(
                             result.max_field_length_chars, max_field_length
                         )
 
-                        for column_name, value in zip(EXPECTED_COLUMNS, row, strict=True):
+                        for column_name, value in zip(
+                            EXPECTED_COLUMNS, row, strict=True
+                        ):
                             if len(value) > config.field_warning_chars:
                                 anomalies.add(
                                     severity="WARNING",
@@ -439,10 +463,20 @@ def scan_csv_file(
                                 result.id_empty_count += 1
                             else:
                                 result.id_nonempty_count += 1
-                                lexical_min = id_value if lexical_min is None else min(lexical_min, id_value)
-                                lexical_max = id_value if lexical_max is None else max(lexical_max, id_value)
+                                lexical_min = (
+                                    id_value
+                                    if lexical_min is None
+                                    else min(lexical_min, id_value)
+                                )
+                                lexical_max = (
+                                    id_value
+                                    if lexical_max is None
+                                    else max(lexical_max, id_value)
+                                )
                                 id_buffer.append(
-                                    IdObservation(id_value, source.file_id, logical_record_number)
+                                    IdObservation(
+                                        id_value, source.file_id, logical_record_number
+                                    )
                                 )
                                 if len(id_buffer) >= config.insertion_batch_size:
                                     flush_ids()

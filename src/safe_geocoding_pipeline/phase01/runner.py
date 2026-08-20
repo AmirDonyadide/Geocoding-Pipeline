@@ -13,6 +13,16 @@ from pathlib import Path
 from typing import Any
 
 from ..execution_policy import require_goethe_nhr_slurm
+from ..raw_csv import (
+    CSV_DELIMITER,
+    CSV_DOUBLEQUOTE,
+    CSV_ESCAPE_CHARACTER,
+    CSV_NEWLINE,
+    CSV_QUOTE_CHARACTER,
+    CSV_SKIP_INITIAL_SPACE,
+    CSV_STRICT,
+    SOURCE_ENCODING_POLICY,
+)
 from .config import InventoryConfig
 from .constants import INVENTORY_VERSION
 from .discovery import discover_source_files
@@ -27,6 +37,7 @@ from .reports import atomic_json, write_reports
 from .store import IdStore
 
 _RUN_ID_RE = re.compile(r"^phase01_[0-9]{8}T[0-9]{6}Z_[A-Za-z0-9._-]+$")
+TERMINAL_MARKER_TEXT = "This marker describes only the configured run scope.\n"
 
 
 @dataclass(frozen=True, slots=True)
@@ -51,7 +62,7 @@ def _iso_utc(value: datetime) -> str:
 def _git_commit() -> str:
     try:
         return subprocess.run(
-            ["git", "rev-parse", "--short=8", "HEAD"],
+            ["git", "rev-parse", "HEAD"],
             check=True,
             capture_output=True,
             text=True,
@@ -75,7 +86,7 @@ def _git_dirty() -> bool | None:
 
 def generate_run_id(now: datetime | None = None, git_commit: str | None = None) -> str:
     timestamp = (now or _utc_now()).strftime("%Y%m%dT%H%M%SZ")
-    return f"phase01_{timestamp}_{git_commit or _git_commit()}"
+    return f"phase01_{timestamp}_{(git_commit or _git_commit())[:8]}"
 
 
 def _peak_memory_bytes() -> int:
@@ -108,12 +119,18 @@ def _validate_scope(config: InventoryConfig, files: list[SourceFile]) -> None:
         if not config.include_files:
             raise ValueError("SMOKE_TEST requires explicit --include filenames")
         if len(files) > 2:
-            raise ValueError("SMOKE_TEST is limited to at most two explicitly selected files")
+            raise ValueError(
+                "SMOKE_TEST is limited to at most two explicitly selected files"
+            )
     if config.run_scope == "FULL_INVENTORY":
         if config.include_files:
-            raise ValueError("FULL_INVENTORY must discover the complete direct-child collection")
+            raise ValueError(
+                "FULL_INVENTORY must discover the complete direct-child collection"
+            )
         if len(files) != 206:
-            raise ValueError(f"FULL_INVENTORY expected 206 CSV files, discovered {len(files)}")
+            raise ValueError(
+                f"FULL_INVENTORY expected 206 CSV files, discovered {len(files)}"
+            )
         disk_probe = config.reports_root.resolve()
         while not disk_probe.exists() and disk_probe != disk_probe.parent:
             disk_probe = disk_probe.parent
@@ -130,7 +147,9 @@ def _prepare_run_directory(config: InventoryConfig) -> tuple[str, Path, bool]:
         run_dir = config.resume_run_dir.resolve()
         run_id = run_dir.name
         if not _RUN_ID_RE.fullmatch(run_id):
-            raise ValueError(f"Unsafe or invalid resumed run directory name: {run_id!r}")
+            raise ValueError(
+                f"Unsafe or invalid resumed run directory name: {run_id!r}"
+            )
         if not run_dir.is_dir():
             raise FileNotFoundError(f"Resume run directory does not exist: {run_dir}")
         return run_id, run_dir, True
@@ -141,7 +160,8 @@ def _prepare_run_directory(config: InventoryConfig) -> tuple[str, Path, bool]:
     run_dir = (config.reports_root / run_id).resolve()
     if run_dir.exists():
         raise FileExistsError(f"Run directory already exists: {run_dir}")
-    run_dir.mkdir(parents=True)
+    run_dir.mkdir(parents=True, mode=0o700)
+    run_dir.chmod(0o700)
     return run_id, run_dir, False
 
 
@@ -172,14 +192,14 @@ def _initial_payload(
         "files_discovered": len(files),
         "total_size_bytes": sum(source.path.stat().st_size for source in files),
         "parser_configuration": {
-            "encoding": "strict UTF-8 with optional UTF-8 BOM",
-            "newline": "",
-            "delimiter": ",",
-            "quotechar": '"',
-            "doublequote": True,
-            "escapechar": None,
-            "skipinitialspace": False,
-            "strict": True,
+            "encoding": SOURCE_ENCODING_POLICY,
+            "newline": CSV_NEWLINE,
+            "delimiter": CSV_DELIMITER,
+            "quotechar": CSV_QUOTE_CHARACTER,
+            "doublequote": CSV_DOUBLEQUOTE,
+            "escapechar": CSV_ESCAPE_CHARACTER,
+            "skipinitialspace": CSV_SKIP_INITIAL_SPACE,
+            "strict": CSV_STRICT,
         },
         "warning_thresholds": {
             "field_warning_chars": config.field_warning_chars,
@@ -206,7 +226,10 @@ def _verify_resumable_completed_file(
     source: SourceFile, state: dict[str, object], config: InventoryConfig
 ) -> float:
     current = file_metadata(source.path)
-    if current.size_bytes != state["size_bytes"] or current.mtime_ns != state["mtime_ns"]:
+    if (
+        current.size_bytes != state["size_bytes"]
+        or current.mtime_ns != state["mtime_ns"]
+    ):
         raise RuntimeError(
             f"Completed source changed before resume: {source.relative_path}; start a new run"
         )
@@ -225,13 +248,17 @@ def run_inventory(config: InventoryConfig) -> InventoryOutcome:
     files = discover_source_files(config)
     _validate_scope(config, files)
     run_id, run_dir, resumed = _prepare_run_directory(config)
+    run_dir.chmod(0o700)
     work_dir = run_dir / "_work"
     anomaly_dir = work_dir / "anomalies"
-    anomaly_dir.mkdir(parents=True, exist_ok=True)
+    anomaly_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+    work_dir.chmod(0o700)
+    anomaly_dir.chmod(0o700)
     marker = run_dir / "_IN_PROGRESS"
     (run_dir / "_SCOPE_PASS").unlink(missing_ok=True)
     (run_dir / "_SCOPE_FAIL").unlink(missing_ok=True)
     marker.write_text("Phase 1 inventory is in progress.\n", encoding="utf-8")
+    marker.chmod(0o600)
 
     started_at = _utc_now()
     overall_started = time.perf_counter()
@@ -389,8 +416,12 @@ def run_inventory(config: InventoryConfig) -> InventoryOutcome:
                 "phase01_completion_gate": phase_gate,
                 "completed_at_utc": _iso_utc(completed_at),
                 "error_counts": {
-                    "failed_files": sum(result.scan_status != "COMPLETE" for result in results),
-                    "parser_errors": sum(result.parser_error_count for result in results),
+                    "failed_files": sum(
+                        result.scan_status != "COMPLETE" for result in results
+                    ),
+                    "parser_errors": sum(
+                        result.parser_error_count for result in results
+                    ),
                     "wrong_column_records": sum(
                         result.wrong_column_count_record_count for result in results
                     ),
@@ -410,10 +441,11 @@ def run_inventory(config: InventoryConfig) -> InventoryOutcome:
         )
 
     marker.unlink(missing_ok=True)
-    terminal_marker = run_dir / ("_SCOPE_PASS" if scope_gate == "PASS" else "_SCOPE_FAIL")
-    terminal_marker.write_text(
-        "This marker describes only the configured run scope.\n", encoding="utf-8"
+    terminal_marker = run_dir / (
+        "_SCOPE_PASS" if scope_gate == "PASS" else "_SCOPE_FAIL"
     )
+    terminal_marker.write_text(TERMINAL_MARKER_TEXT, encoding="utf-8")
+    terminal_marker.chmod(0o600)
     return InventoryOutcome(
         run_id=run_id,
         run_dir=run_dir,

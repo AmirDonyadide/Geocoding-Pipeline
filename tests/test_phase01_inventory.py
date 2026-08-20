@@ -48,7 +48,9 @@ def _read_gzip_csv(path: Path) -> list[dict[str, str]]:
         return list(csv.DictReader(stream))
 
 
-def _write_csv(path: Path, rows: list[list[str]], *, header: tuple[str, ...] = EXPECTED_COLUMNS) -> None:
+def _write_csv(
+    path: Path, rows: list[list[str]], *, header: tuple[str, ...] = EXPECTED_COLUMNS
+) -> None:
     with path.open("w", encoding="utf-8", newline="") as stream:
         writer = csv.writer(stream, delimiter=",", quotechar='"', doublequote=True)
         writer.writerow(header)
@@ -90,8 +92,17 @@ def test_ordinary_csv_preserves_csv_semantics_unicode_and_postcodes(
 
     for name in REPORT_NAMES:
         assert (outcome.run_dir / name).is_file()
+        assert (outcome.run_dir / name).stat().st_mode & 0o777 == 0o600
+    assert outcome.run_dir.stat().st_mode & 0o777 == 0o700
+    assert (outcome.run_dir / "_work").stat().st_mode & 0o777 == 0o700
+    assert (outcome.run_dir / "_work/phase01.sqlite3").stat().st_mode & 0o777 == 0o600
+    run_payload = json.loads(
+        (outcome.run_dir / "phase01_run.json").read_text(encoding="utf-8")
+    )
+    assert len(run_payload["git_commit"]) == 40
     assert not (outcome.run_dir / "_IN_PROGRESS").exists()
     assert (outcome.run_dir / "_SCOPE_PASS").exists()
+    assert (outcome.run_dir / "_SCOPE_PASS").stat().st_mode & 0o777 == 0o600
 
 
 def test_multiline_record_tracks_logical_and_physical_lines(
@@ -104,9 +115,16 @@ def test_multiline_record_tracks_logical_and_physical_lines(
     assert result.multiline_record_count == 1
     assert result.max_physical_lines_per_record == 2
     anomalies = _read_gzip_csv(outcome.run_dir / "phase01_anomalies.csv.gz")
-    multiline = [row for row in anomalies if row["anomaly_type"] == "QUOTED_MULTILINE_RECORD"]
+    multiline = [
+        row for row in anomalies if row["anomaly_type"] == "QUOTED_MULTILINE_RECORD"
+    ]
     assert len(multiline) == 1
-    assert int(multiline[0]["physical_line_end"]) - int(multiline[0]["physical_line_start"]) + 1 == 2
+    assert (
+        int(multiline[0]["physical_line_end"])
+        - int(multiline[0]["physical_line_start"])
+        + 1
+        == 2
+    )
 
 
 @pytest.mark.parametrize(
@@ -160,7 +178,9 @@ def test_malformed_quote_stops_file_without_resynchronization(
     assert outcome.scope_gate == "FAIL"
 
 
-def test_utf8_bom_is_handled_and_invalid_utf8_fails(source_dir: Path, tmp_path: Path) -> None:
+def test_utf8_bom_is_handled_and_invalid_utf8_fails(
+    source_dir: Path, tmp_path: Path
+) -> None:
     bom_file = source_dir / "bom.csv"
     content = ",".join(EXPECTED_COLUMNS) + "\n" + ",".join(_row(id="bom")) + "\n"
     bom_file.write_bytes(b"\xef\xbb\xbf" + content.encode("utf-8"))
@@ -173,15 +193,21 @@ def test_utf8_bom_is_handled_and_invalid_utf8_fails(source_dir: Path, tmp_path: 
     (invalid_source / "invalid.csv").write_bytes(
         (",".join(EXPECTED_COLUMNS) + "\n").encode("utf-8") + b"bad,\xff\n"
     )
-    failed = run_inventory(_config(invalid_source, tmp_path, run_id_suffix="invalidutf8"))
+    failed = run_inventory(
+        _config(invalid_source, tmp_path, run_id_suffix="invalidutf8")
+    )
     assert failed.scope_gate == "FAIL"
     assert failed.file_results[0].encoding_status == "UTF8_INVALID"
     assert failed.file_results[0].error_code == "INVALID_UTF8"
 
 
-def test_warning_thresholds_report_but_do_not_reject(source_dir: Path, tmp_path: Path) -> None:
+def test_warning_thresholds_report_but_do_not_reject(
+    source_dir: Path, tmp_path: Path
+) -> None:
     long_value = "x" * 40
-    _write_csv(source_dir / "large.csv", [_row(id="large", street_address_line_1=long_value)])
+    _write_csv(
+        source_dir / "large.csv", [_row(id="large", street_address_line_1=long_value)]
+    )
     outcome = run_inventory(
         _config(
             source_dir,
@@ -223,7 +249,9 @@ def test_parser_hard_limit_fails_file_without_large_committed_fixture(
     assert result.logical_record_count == 0
 
 
-def test_missing_header_cannot_be_reported_as_complete(source_dir: Path, tmp_path: Path) -> None:
+def test_missing_header_cannot_be_reported_as_complete(
+    source_dir: Path, tmp_path: Path
+) -> None:
     _write_csv(source_dir / "no_header.csv", [_row(id="first-data-row")])
     text = (source_dir / "no_header.csv").read_text(encoding="utf-8").splitlines()
     (source_dir / "no_header.csv").write_text(text[1] + "\n", encoding="utf-8")
@@ -238,7 +266,9 @@ def test_parser_limit_in_header_stops_without_resynchronization(
     source_dir: Path, tmp_path: Path
 ) -> None:
     oversized_header = ("x" * 100,) + EXPECTED_COLUMNS[1:]
-    _write_csv(source_dir / "header_limit.csv", [_row(id="data")], header=oversized_header)
+    _write_csv(
+        source_dir / "header_limit.csv", [_row(id="data")], header=oversized_header
+    )
     outcome = run_inventory(
         _config(
             source_dir,
@@ -279,8 +309,14 @@ def test_duplicate_ids_and_duplicate_files_are_exact_and_privacy_safe(
         for row in manifest
         if row["duplicate_file_group"]
     }
-    assert groups["synthetic_duplicate_ids_a.csv"] == groups["synthetic_duplicate_file.csv"]
-    assert all(row["duplicate_verification_method"] in {"", "SIZE_AND_SHA256"} for row in manifest)
+    assert (
+        groups["synthetic_duplicate_ids_a.csv"]
+        == groups["synthetic_duplicate_file.csv"]
+    )
+    assert all(
+        row["duplicate_verification_method"] in {"", "SIZE_AND_SHA256"}
+        for row in manifest
+    )
 
 
 def test_native_relationships_and_placeholders_are_aggregate_only(
@@ -290,8 +326,18 @@ def test_native_relationships_and_placeholders_are_aggregate_only(
         _row(id="1"),
         _row(id="2", street_address_line_1_native="住所", postcode="."),
         _row(id="3", street_address_line_1="Address", postcode="-"),
-        _row(id="4", street_address_line_1="Same", street_address_line_1_native="Same", postcode="Na"),
-        _row(id="5", street_address_line_1="Latin", street_address_line_1_native="住所", postcode="Nan"),
+        _row(
+            id="4",
+            street_address_line_1="Same",
+            street_address_line_1_native="Same",
+            postcode="Na",
+        ),
+        _row(
+            id="5",
+            street_address_line_1="Latin",
+            street_address_line_1_native="住所",
+            postcode="Nan",
+        ),
         _row(id="6", postcode="Null"),
     ]
     _write_csv(source_dir / "native.csv", rows)
@@ -347,7 +393,9 @@ def test_cardinality_safeguard_suppresses_raw_categories(
     assert any(row["anomaly_type"] == "CARDINALITY_LIMIT_EXCEEDED" for row in anomalies)
 
 
-def test_durable_reports_exclude_sensitive_raw_values(source_dir: Path, tmp_path: Path) -> None:
+def test_durable_reports_exclude_sensitive_raw_values(
+    source_dir: Path, tmp_path: Path
+) -> None:
     secrets = {
         "id": "raw-duplicate-id-secret",
         "address": "Confidential Address Secret",
@@ -401,7 +449,9 @@ def test_resume_reuses_only_hash_verified_completed_files(
         )
     )
     assert resumed.scope_gate == "PASS"
-    payload = json.loads((resumed.run_dir / "phase01_run.json").read_text(encoding="utf-8"))
+    payload = json.loads(
+        (resumed.run_dir / "phase01_run.json").read_text(encoding="utf-8")
+    )
     assert payload["resume_information"]["resumed"] is True
 
     with (source_dir / "synthetic_ordinary.csv").open("a", encoding="utf-8") as stream:
@@ -430,7 +480,9 @@ def test_smoke_scope_requires_explicit_files_and_is_limited(
     )
     with pytest.raises(ValueError, match="explicit --include"):
         run_inventory(
-            _config(source_dir, tmp_path, run_id_suffix="smokenone", run_scope="SMOKE_TEST")
+            _config(
+                source_dir, tmp_path, run_id_suffix="smokenone", run_scope="SMOKE_TEST"
+            )
         )
     with pytest.raises(ValueError, match="at most two"):
         run_inventory(

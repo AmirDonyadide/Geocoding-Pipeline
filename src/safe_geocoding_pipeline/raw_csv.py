@@ -22,6 +22,18 @@ SOURCE_COLUMNS = (
     "location_information",
 )
 
+SOURCE_ENCODING_POLICY = "strict UTF-8 with optional UTF-8 BOM"
+SOURCE_TEXT_ENCODING = "utf-8"
+SOURCE_TEXT_ENCODING_WITH_BOM = "utf-8-sig"
+UTF8_BOM_BYTES = b"\xef\xbb\xbf"
+CSV_NEWLINE = ""
+CSV_DELIMITER = ","
+CSV_QUOTE_CHARACTER = '"'
+CSV_DOUBLEQUOTE = True
+CSV_ESCAPE_CHARACTER: None = None
+CSV_SKIP_INITIAL_SPACE = False
+CSV_STRICT = True
+
 
 class StrictCsvReader(Protocol, Iterator[list[str]]):
     line_num: int
@@ -33,12 +45,12 @@ def strict_csv_reader(stream: IO[str]) -> StrictCsvReader:
         StrictCsvReader,
         csv.reader(
             stream,
-            delimiter=",",
-            quotechar='"',
-            doublequote=True,
-            escapechar=None,
-            skipinitialspace=False,
-            strict=True,
+            delimiter=CSV_DELIMITER,
+            quotechar=CSV_QUOTE_CHARACTER,
+            doublequote=CSV_DOUBLEQUOTE,
+            escapechar=CSV_ESCAPE_CHARACTER,
+            skipinitialspace=CSV_SKIP_INITIAL_SPACE,
+            strict=CSV_STRICT,
         ),
     )
 

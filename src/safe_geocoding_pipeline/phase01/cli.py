@@ -4,7 +4,7 @@ import argparse
 from pathlib import Path
 from typing import Sequence
 
-from .config import InventoryConfig
+from .config import DEFAULT_PARSER_FIELD_LIMIT_CHARS, InventoryConfig
 from .runner import run_inventory
 
 
@@ -34,7 +34,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--resume-run-dir", type=Path)
     parser.add_argument("--field-warning-chars", type=int, default=1_024)
     parser.add_argument("--record-warning-chars", type=int, default=4_096)
-    parser.add_argument("--parser-field-limit-chars", type=int, default=64 * 1024 * 1024)
+    parser.add_argument(
+        "--parser-field-limit-chars",
+        type=int,
+        default=DEFAULT_PARSER_FIELD_LIMIT_CHARS,
+    )
     parser.add_argument("--insertion-batch-size", type=int, default=1_000)
     parser.add_argument("--hash-chunk-bytes", type=int, default=1024 * 1024)
     parser.add_argument("--categorical-max-distinct", type=int, default=1_000)

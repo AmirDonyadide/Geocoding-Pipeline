@@ -131,27 +131,33 @@ def _sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _atomic_csv(path: Path, columns: tuple[str, ...], rows: Iterable[dict[str, Any]]) -> None:
+def _atomic_csv(
+    path: Path, columns: tuple[str, ...], rows: Iterable[dict[str, Any]]
+) -> None:
     temporary = _temporary_path(path)
     temporary.unlink(missing_ok=True)
     with temporary.open("w", encoding="utf-8", newline="") as stream:
+        temporary.chmod(0o600)
         writer = csv.DictWriter(stream, fieldnames=columns, extrasaction="raise")
         writer.writeheader()
         writer.writerows(rows)
         stream.flush()
         os.fsync(stream.fileno())
     os.replace(temporary, path)
+    path.chmod(0o600)
 
 
 def atomic_json(path: Path, payload: dict[str, Any]) -> None:
     temporary = _temporary_path(path)
     temporary.unlink(missing_ok=True)
     with temporary.open("w", encoding="utf-8") as stream:
+        temporary.chmod(0o600)
         json.dump(payload, stream, ensure_ascii=False, indent=2, sort_keys=True)
         stream.write("\n")
         stream.flush()
         os.fsync(stream.fileno())
     os.replace(temporary, path)
+    path.chmod(0o600)
 
 
 def _manifest_rows(run_id: str, results: list[FileResult]) -> Iterable[dict[str, Any]]:
@@ -212,7 +218,9 @@ def assign_duplicate_file_groups(results: list[FileResult]) -> None:
     candidates: dict[tuple[int | None, str], list[FileResult]] = {}
     for result in results:
         if result.sha256 and not result.file_changed_during_scan:
-            candidates.setdefault((result.after_hash.size_bytes, result.sha256), []).append(result)
+            candidates.setdefault(
+                (result.after_hash.size_bytes, result.sha256), []
+            ).append(result)
     group_number = 0
     for key in sorted(candidates):
         group = candidates[key]
@@ -236,6 +244,7 @@ def _write_anomalies(
     temporary.unlink(missing_ok=True)
     result_by_file = {result.file_id: result for result in results}
     with gzip.open(temporary, "wt", encoding="utf-8", newline="") as stream:
+        temporary.chmod(0o600)
         writer = csv.DictWriter(stream, fieldnames=ANOMALY_COLUMNS)
         writer.writeheader()
         for file_id in sorted(spool_paths):
@@ -245,20 +254,25 @@ def _write_anomalies(
             with spool.open("r", encoding="utf-8", newline="") as source_stream:
                 for row in csv.DictReader(source_stream):
                     row["run_id"] = run_id
-                    row["counts_complete"] = str(result_by_file[file_id].counts_complete)
+                    row["counts_complete"] = str(
+                        result_by_file[file_id].counts_complete
+                    )
                     writer.writerow(row)
     os.replace(temporary, path)
+    path.chmod(0o600)
 
 
 def _write_duplicate_ids(path: Path, run_id: str, store: IdStore) -> None:
     temporary = _temporary_path(path)
     temporary.unlink(missing_ok=True)
     with gzip.open(temporary, "wt", encoding="utf-8", newline="") as stream:
+        temporary.chmod(0o600)
         writer = csv.writer(stream)
         writer.writerow(DUPLICATE_ID_COLUMNS)
         for row in store.duplicate_occurrence_rows():
             writer.writerow((run_id, *row))
     os.replace(temporary, path)
+    path.chmod(0o600)
 
 
 def _schema_rows(run_id: str, results: list[FileResult]) -> Iterable[dict[str, Any]]:
@@ -277,7 +291,9 @@ def _schema_rows(run_id: str, results: list[FileResult]) -> Iterable[dict[str, A
             }
 
 
-def _field_profile_rows(run_id: str, results: list[FileResult]) -> Iterable[dict[str, Any]]:
+def _field_profile_rows(
+    run_id: str, results: list[FileResult]
+) -> Iterable[dict[str, Any]]:
     for result in results:
         for row in result.field_profiles:
             denominator = row.records_eligible_for_profile
@@ -291,7 +307,9 @@ def _field_profile_rows(run_id: str, results: list[FileResult]) -> Iterable[dict
                 "nonempty_count": row.nonempty_count,
                 "empty_count": row.empty_count,
                 "whitespace_only_count": row.whitespace_only_count,
-                "nonempty_share": row.nonempty_count / denominator if denominator else 0.0,
+                "nonempty_share": row.nonempty_count / denominator
+                if denominator
+                else 0.0,
                 "max_length_chars": row.max_length_chars,
                 "max_length_logical_record_number": row.max_length_logical_record_number,
                 "contains_newline_count": row.contains_newline_count,
@@ -301,7 +319,9 @@ def _field_profile_rows(run_id: str, results: list[FileResult]) -> Iterable[dict
             }
 
 
-def _value_profile_rows(run_id: str, results: list[FileResult]) -> Iterable[dict[str, Any]]:
+def _value_profile_rows(
+    run_id: str, results: list[FileResult]
+) -> Iterable[dict[str, Any]]:
     for result in results:
         for row in result.value_profiles:
             yield {
@@ -348,16 +368,16 @@ def write_reports(
         VALUE_PROFILE_COLUMNS,
         _value_profile_rows(run_id, results),
     )
-    _write_anomalies(
-        run_dir / "phase01_anomalies.csv.gz", run_id, results, spool_paths
-    )
+    _write_anomalies(run_dir / "phase01_anomalies.csv.gz", run_id, results, spool_paths)
     _write_duplicate_ids(run_dir / "phase01_duplicate_ids.csv.gz", run_id, store)
     run_payload["metrics"]["runtime_seconds"] = time.perf_counter() - runtime_started
     summary = render_summary(run_payload, results, store)
     summary_path = run_dir / "phase01_summary.md"
     temporary = _temporary_path(summary_path)
     temporary.write_text(summary, encoding="utf-8")
+    temporary.chmod(0o600)
     os.replace(temporary, summary_path)
+    summary_path.chmod(0o600)
 
     output_files: dict[str, dict[str, Any]] = {}
     for name in REPORT_NAMES:
@@ -402,21 +422,25 @@ def render_summary(
 ) -> str:
     total_rows = sum(result.logical_record_count for result in results)
     total_multiline = sum(result.multiline_record_count for result in results)
-    total_wrong_columns = sum(result.wrong_column_count_record_count for result in results)
+    total_wrong_columns = sum(
+        result.wrong_column_count_record_count for result in results
+    )
     total_parser_errors = sum(result.parser_error_count for result in results)
     max_field = max((result.max_field_length_chars for result in results), default=0)
-    failed = [result.relative_path for result in results if result.scan_status != "COMPLETE"]
+    failed = [
+        result.relative_path for result in results if result.scan_status != "COMPLETE"
+    ]
     duplicates = store.duplicate_summary()
     approved_inputs = ", ".join(f"`{result.relative_path}`" for result in results)
     return f"""# Phase 1 inventory run summary
 
-- Run ID: `{run_payload['run_id']}`
-- Inventory version: `{run_payload['inventory_version']}`
-- Run scope: `{run_payload['run_scope']}`
-- Execution status: `{run_payload['status']}`
-- Scope gate: `{run_payload['scope_gate']}`
-- Phase 1 completion gate: `{run_payload['phase01_completion_gate']}`
-- Input files: {approved_inputs or 'none'}
+- Run ID: `{run_payload["run_id"]}`
+- Inventory version: `{run_payload["inventory_version"]}`
+- Run scope: `{run_payload["run_scope"]}`
+- Execution status: `{run_payload["status"]}`
+- Scope gate: `{run_payload["scope_gate"]}`
+- Phase 1 completion gate: `{run_payload["phase01_completion_gate"]}`
+- Input files: {approved_inputs or "none"}
 
 ## Structural results
 
@@ -431,19 +455,19 @@ def render_summary(
 
 ## Identity diagnostics
 
-- Duplicate ID groups: {duplicates['duplicate_groups']}
-- Occurrences in duplicate groups: {duplicates['duplicate_group_occurrences']}
-- Excess duplicate occurrences: {duplicates['excess_duplicate_occurrences']}
+- Duplicate ID groups: {duplicates["duplicate_groups"]}
+- Occurrences in duplicate groups: {duplicates["duplicate_group_occurrences"]}
+- Excess duplicate occurrences: {duplicates["excess_duplicate_occurrences"]}
 
 ## Performance
 
-- Total runtime: {run_payload['metrics']['runtime_seconds']:.3f} seconds
-- CSV parsing time: {run_payload['metrics']['csv_parse_seconds']:.3f} seconds
-- Raw-byte hashing time: {run_payload['metrics']['hash_seconds']:.3f} seconds
-- Peak resident memory: {run_payload['metrics']['peak_memory_bytes']} bytes
-- Temporary SQLite size: {run_payload['metrics']['sqlite_bytes']} bytes
+- Total runtime: {run_payload["metrics"]["runtime_seconds"]:.3f} seconds
+- CSV parsing time: {run_payload["metrics"]["csv_parse_seconds"]:.3f} seconds
+- Raw-byte hashing time: {run_payload["metrics"]["hash_seconds"]:.3f} seconds
+- Peak resident memory: {run_payload["metrics"]["peak_memory_bytes"]} bytes
+- Temporary SQLite size: {run_payload["metrics"]["sqlite_bytes"]} bytes
 
 ## Gate interpretation
 
-This report inventories only the configured `{run_payload['run_scope']}` scope. A successful smoke or test gate does not complete Phase 1 and does not authorize Phase 2. The complete 206-file inventory requires separate approval.
+This report inventories only the configured `{run_payload["run_scope"]}` scope. A successful smoke or test gate does not complete Phase 1 and does not authorize Phase 2. The complete 206-file inventory requires separate approval.
 """

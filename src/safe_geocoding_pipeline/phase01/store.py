@@ -64,6 +64,7 @@ class IdAddResult:
 class IdStore:
     def __init__(self, path: Path) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
+        path.parent.chmod(0o700)
         self.path = path
         self.connection = sqlite3.connect(path)
         self.connection.execute("PRAGMA journal_mode=WAL")
@@ -72,13 +73,24 @@ class IdStore:
         self.connection.execute("PRAGMA temp_store=FILE")
         self.connection.executescript(SCHEMA_SQL)
         self.connection.commit()
+        self._harden_database_files()
         self._file_transaction_active = False
+
+    def _harden_database_files(self) -> None:
+        for suffix in ("", "-wal", "-shm"):
+            candidate = Path(f"{self.path}{suffix}")
+            if candidate.exists():
+                if candidate.is_symlink() or not candidate.is_file():
+                    raise OSError("Phase 1 SQLite state is not a regular file")
+                candidate.chmod(0o600)
 
     def close(self) -> None:
         if self._file_transaction_active:
             self.connection.rollback()
             self._file_transaction_active = False
+        self._harden_database_files()
         self.connection.close()
+        self._harden_database_files()
 
     def __enter__(self) -> "IdStore":
         return self
@@ -156,7 +168,9 @@ class IdStore:
         self.connection.commit()
         self._file_transaction_active = False
 
-    def commit_file_result(self, result: FileResult, *, anomaly_spool_name: str) -> None:
+    def commit_file_result(
+        self, result: FileResult, *, anomaly_spool_name: str
+    ) -> None:
         """Atomically commit ID state and the file's COMPLETE checkpoint."""
         if not self._file_transaction_active:
             raise RuntimeError("No file transaction is active")
@@ -331,6 +345,7 @@ class IdStore:
 
     def checkpoint(self) -> None:
         self.connection.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+        self._harden_database_files()
 
     @property
     def total_disk_bytes(self) -> int:
