@@ -18,6 +18,23 @@ This register distinguishes approved project rules from questions that require e
   of retained protected working state is an operational privacy action.
 - Stage 0 status is `STAGE_0_ACCEPTED` after its final critical review. Stage 1
   remains a separate stage and was not started by the Stage 0 acceptance work.
+- Library-first Stage 1 reuses historical Phase 2 as the single authoritative
+  CSV-to-Parquet converter. Stage 1 validates and adopts the existing complete
+  Phase 2 bundle; it does not rescan source CSVs, rewrite Parquet, or duplicate
+  conversion, stable-ID, semantic-digest, schema, or reconciliation logic.
+- `stage01_logical_dataset_sha256_v1` binds Stage 0 scientific identity, the
+  exact source/schema/stable-ID/semantic-digest contracts, and the canonical
+  per-source path/SHA/count/semantic-digest projection. Physical shards,
+  compression, row groups, Parquet hashes, Git/runtime provenance, and
+  timestamps are excluded from logical scientific identity.
+- Current Stage 1 physical layout is `KEEP_CURRENT_SHARDS`: the accepted 206
+  historical Phase 2 Parquet files remain byte-immutable. One source per shard
+  is operational Phase 2 v1 history, not a permanent Stage 1 scientific rule.
+- Exact duplicate source content fails Stage 1 because
+  `stable_source_row_id_v1` intentionally excludes path and would collide at
+  matching logical ordinals. Stage 1 neither disambiguates by path nor removes
+  a source record. Stage 1 implementation status remains
+  `IMPLEMENTED_PENDING_FINAL_REVIEW` until its separate final review.
 
 - The research objective requires physical building/plant/branch/store/facility point locations.
 - `usable_for_analysis` is the main Boolean indicator of suitability for point-level research; diagnostic tiers remain separate.
