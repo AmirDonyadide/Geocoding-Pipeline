@@ -41,6 +41,13 @@ projections for every canonical source path:
 No source CSV is opened during adoption, and file count alone is never accepted
 as population evidence.
 
+For a new `FULL_CONVERSION`, the Phase 2 CLI requires both the accepted Stage 0
+adoption record and its exact SHA-256. The hash-pinned record resolves the
+Phase 1 run, canonical source paths, source hashes, logical counts, and Stage 0
+scientific identities. The source directory must match that path set exactly
+before conversion and remain unchanged through reconciliation. No default
+population count or directory-discovery fallback is permitted.
+
 ## Source-row identity
 
 Stage 1 reuses `stable_source_row_id_v1` unchanged:
@@ -154,6 +161,13 @@ scientific rule. A future source population may use benchmarked target-sized
 shards while retaining the same source provenance and logical identity. Future
 scope must derive from its accepted Stage 0 contract rather than a global
 206-file constant.
+
+Phase 2 restart state binds the Stage 0 adoption and scientific identities,
+the Phase 1 manifest identity, and every source path/hash/size/logical count. A
+run created for one accepted population cannot resume after source membership
+or identity changes. The first accepted production result remains the immutable
+historical 206-source snapshot; that observation is not a generic execution
+constraint.
 
 ## Privacy, permissions, and failures
 

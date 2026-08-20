@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import inspect
 import struct
 from pathlib import Path
 
@@ -9,9 +10,19 @@ import pyarrow.parquet as pq
 import pytest
 
 from safe_geocoding_pipeline.phase02.config import Phase02Config
-from safe_geocoding_pipeline.phase02.constants import SOURCE_SCHEMA_VERSION, STAGING_COLUMNS
-from safe_geocoding_pipeline.phase02.fingerprints import JsonValue, canonical_json_bytes, fingerprint
+from safe_geocoding_pipeline.phase02.constants import (
+    SOURCE_SCHEMA_VERSION,
+    STAGING_COLUMNS,
+)
+from safe_geocoding_pipeline.phase02.fingerprints import (
+    JsonValue,
+    canonical_json_bytes,
+    fingerprint,
+)
 from safe_geocoding_pipeline.phase02.identity import stable_source_row_id_v1
+from safe_geocoding_pipeline.phase02.manifest import load_phase01_manifest
+from safe_geocoding_pipeline.phase02.models import Phase01FileEntry
+from safe_geocoding_pipeline.phase02.runner import _select_entries
 from safe_geocoding_pipeline.phase02.schema import base_staging_schema
 from safe_geocoding_pipeline.phase02.semantic import RawSemanticDigest
 from safe_geocoding_pipeline.raw_csv import SOURCE_COLUMNS
@@ -31,7 +42,10 @@ def test_staging_schema_is_exact_ordered_and_non_null() -> None:
 def test_stable_source_row_id_golden_vector_and_boundaries() -> None:
     source_hash = bytes(range(32))
     observed = stable_source_row_id_v1(source_hash, 42)
-    assert observed.hex() == "dee6d1a0bc82e5e097e70c8f12975e371826f5f3b4f985e814ebb351f475fcbc"
+    assert (
+        observed.hex()
+        == "dee6d1a0bc82e5e097e70c8f12975e371826f5f3b4f985e814ebb351f475fcbc"
+    )
     independent = hashlib.sha256(
         b"safe_geocoding_pipeline:stable_source_row_id_v1\0"
         + source_hash
@@ -71,10 +85,18 @@ def _row(*, identifier: str = "0001", postcode: str = "01234") -> list[str]:
 def test_semantic_digest_golden_vector() -> None:
     digest = RawSemanticDigest()
     digest.update_row(_row(), 1, require_non_null=True)
-    digest.update_row(_row(identifier="0002", postcode="12-345"), 2, require_non_null=True)
-    assert digest.hexdigest() == "92d71da3eaf5ddc6ef35b41f0c8576c71164e473b0a11b1ac1f2b96cd16f2a19"
+    digest.update_row(
+        _row(identifier="0002", postcode="12-345"), 2, require_non_null=True
+    )
+    assert (
+        digest.hexdigest()
+        == "92d71da3eaf5ddc6ef35b41f0c8576c71164e473b0a11b1ac1f2b96cd16f2a19"
+    )
     assert digest.row_count == 2
-    assert digest.hexdigest() == "92d71da3eaf5ddc6ef35b41f0c8576c71164e473b0a11b1ac1f2b96cd16f2a19"
+    assert (
+        digest.hexdigest()
+        == "92d71da3eaf5ddc6ef35b41f0c8576c71164e473b0a11b1ac1f2b96cd16f2a19"
+    )
 
 
 def test_semantic_digest_distinguishes_boundaries_order_empty_and_null() -> None:
@@ -108,7 +130,10 @@ def test_configuration_fingerprint_uses_canonical_json() -> None:
     second: JsonValue = {"nested": {"a": None, "b": "東京"}, "version": 1}
     assert canonical_json_bytes(first) == canonical_json_bytes(second)
     assert fingerprint(first) == fingerprint(second)
-    assert fingerprint(first) == "9d24a425c9ea8e3263a11f729e6cdc02cff3e7f270ea43e72d06fd94adcb6929"
+    assert (
+        fingerprint(first)
+        == "9d24a425c9ea8e3263a11f729e6cdc02cff3e7f270ea43e72d06fd94adcb6929"
+    )
 
 
 def test_config_restricts_smoke_scope_and_full_acknowledgement(tmp_path: Path) -> None:
@@ -119,6 +144,59 @@ def test_config_restricts_smoke_scope_and_full_acknowledgement(tmp_path: Path) -
             run_scope="SMOKE_TEST",
             include_files=("remaining_addresses_00103.csv",),
         ).validate()
+    with pytest.raises(ValueError, match="accepted Stage 0"):
+        Phase02Config(
+            source_root=tmp_path,
+            phase01_run_dir=tmp_path,
+            run_scope="FULL_CONVERSION",
+            authorize_full_conversion=True,
+        ).validate()
+    Phase02Config(
+        source_root=tmp_path,
+        phase01_run_dir=tmp_path,
+        stage00_adoption_record=tmp_path / "stage00_adoption.json",
+        expected_stage00_adoption_sha256="a" * 64,
+        run_scope="FULL_CONVERSION",
+        authorize_full_conversion=True,
+    ).validate()
+    with pytest.raises(ValueError, match="lowercase Stage 0"):
+        Phase02Config(
+            source_root=tmp_path,
+            phase01_run_dir=tmp_path,
+            stage00_adoption_record=tmp_path / "stage00_adoption.json",
+            expected_stage00_adoption_sha256="A" * 64,
+            run_scope="FULL_CONVERSION",
+            authorize_full_conversion=True,
+        ).validate()
+
+
+def test_generic_full_selection_has_no_magic_population_size(tmp_path: Path) -> None:
+    for count in (1, 3, 7, 206):
+        files = {
+            (name := f"fictional_{index:04d}.csv"): Phase01FileEntry(
+                file_id=index,
+                relative_path=name,
+                file_name=name,
+                size_bytes=index,
+                mtime_utc="2026-01-01T00:00:00Z",
+                sha256=f"{index:064x}",
+                logical_record_count=index,
+                schema_fingerprint="f" * 64,
+                bom_type="NONE",
+            )
+            for index in range(1, count + 1)
+        }
+        config = Phase02Config(
+            source_root=tmp_path,
+            phase01_run_dir=tmp_path,
+            stage00_adoption_record=tmp_path / "stage00_adoption.json",
+            expected_stage00_adoption_sha256="a" * 64,
+            run_scope="FULL_CONVERSION",
+            authorize_full_conversion=True,
+        )
+        assert len(_select_entries(config, files)) == count
+    assert "206" not in inspect.getsource(_select_entries)
+    assert "206" not in inspect.getsource(load_phase01_manifest)
     with pytest.raises(ValueError, match="acknowledgement"):
         Phase02Config(
             source_root=tmp_path,
@@ -136,7 +214,9 @@ def test_pyarrow_preserves_placeholder_strings_without_null_inference() -> None:
 
 def test_page_checksum_verification_rejects_corruption(tmp_path: Path) -> None:
     path = tmp_path / "checksummed.parquet"
-    table = pa.table({"value": pa.array([f"fictional-{index:04d}" for index in range(500)])})
+    table = pa.table(
+        {"value": pa.array([f"fictional-{index:04d}" for index in range(500)])}
+    )
     pq.write_table(
         table,
         path,

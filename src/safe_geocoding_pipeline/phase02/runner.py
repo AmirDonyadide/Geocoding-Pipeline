@@ -8,6 +8,7 @@ import shutil
 import subprocess
 import sys
 import time
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -17,6 +18,11 @@ import pyarrow
 
 from ..execution_policy import require_goethe_nhr_slurm
 from ..phase01.parser import file_metadata, hash_file
+from ..preprocessing.stages.s00_inventory import STAGE00_CONTRACT_VERSION
+from ..preprocessing.stages.s01_ingestion import (
+    Stage00Binding,
+    resolve_stage00_binding,
+)
 from .config import Phase02Config
 from .constants import (
     PARSER_VERSION,
@@ -36,6 +42,7 @@ from .manifest import load_phase01_manifest
 from .models import (
     FileValidationResult,
     Phase01FileEntry,
+    Phase01Manifest,
     Phase02Outcome,
 )
 from .reconciliation import reconcile_completed_parquet
@@ -44,6 +51,15 @@ from .schema import base_staging_schema, schema_fingerprint
 from .state import RunState
 
 _RUN_ID_RE = re.compile(r"^phase02_[0-9]{8}T[0-9]{6}Z_[A-Za-z0-9._-]+$")
+
+
+@dataclass(frozen=True, slots=True)
+class _SourceScopeSnapshot:
+    relative_path: str
+    device: int
+    inode: int
+    size_bytes: int
+    mtime_ns: int
 
 
 def _utc_now() -> datetime:
@@ -113,7 +129,9 @@ def _prepare_run_directories(config: Phase02Config) -> tuple[str, Path, Path, bo
         staging_run = (config.staging_root / run_id).resolve()
         report_run = (config.reports_root / run_id).resolve()
         if not staging_run.is_dir() or not report_run.is_dir():
-            raise FileNotFoundError("Resume staging/report run directories must both exist")
+            raise FileNotFoundError(
+                "Resume staging/report run directories must both exist"
+            )
         return run_id, staging_run, report_run, True
     run_id = config.run_id or generate_run_id()
     if not _RUN_ID_RE.fullmatch(run_id):
@@ -128,33 +146,134 @@ def _prepare_run_directories(config: Phase02Config) -> tuple[str, Path, Path, bo
     return run_id, staging_run, report_run, False
 
 
-def _select_entries(config: Phase02Config, files: dict[str, Phase01FileEntry]) -> list[Phase01FileEntry]:
+def _select_entries(
+    config: Phase02Config, files: dict[str, Phase01FileEntry]
+) -> list[Phase01FileEntry]:
     if config.run_scope == "FULL_CONVERSION":
         selected = list(files.values())
-        if len(selected) != 206:
-            raise ValueError(f"FULL_CONVERSION requires 206 manifest files, found {len(selected)}")
     else:
         if not config.include_files:
-            raise ValueError(f"{config.run_scope} requires explicit --include filenames")
+            raise ValueError(
+                f"{config.run_scope} requires explicit --include filenames"
+            )
         missing = sorted(set(config.include_files) - set(files))
         if missing:
-            raise FileNotFoundError(f"Selected files are absent from Phase 1 manifest: {missing}")
+            raise FileNotFoundError(
+                f"Selected files are absent from Phase 1 manifest: {missing}"
+            )
         selected = [files[name] for name in config.include_files]
     return sorted(selected, key=lambda entry: entry.relative_path)
 
 
-def _validate_source_paths(source_root: Path, entries: list[Phase01FileEntry]) -> None:
+def _validate_stage00_population(
+    *, phase01: Phase01Manifest, stage00: Stage00Binding
+) -> None:
+    if (
+        phase01.run_id != stage00.phase01_bundle.run_id
+        or phase01.input_manifest_sha256 != stage00.phase01_input_manifest_sha256
+    ):
+        raise ValueError("Accepted Stage 0 and Phase 1 run identities differ")
+    expected = {
+        record.relative_path: record for record in stage00.phase01_bundle.records
+    }
+    if set(phase01.files) != set(expected):
+        raise ValueError("Phase 1 source path set differs from accepted Stage 0")
+    for relative_path, entry in phase01.files.items():
+        record = expected[relative_path]
+        if (
+            entry.file_id != record.file_id
+            or entry.size_bytes != record.file_size_bytes
+            or entry.sha256 != record.file_sha256
+            or entry.logical_record_count != record.logical_record_count
+            or entry.schema_fingerprint != record.schema_fingerprint
+            or entry.bom_type != record.bom_type
+        ):
+            raise ValueError("Phase 1 source projection differs from accepted Stage 0")
+
+
+def _validate_source_paths(
+    source_root: Path,
+    entries: list[Phase01FileEntry],
+    *,
+    require_exact_scope: bool,
+) -> tuple[_SourceScopeSnapshot, ...]:
     root = source_root.resolve()
-    if not root.is_dir():
+    if source_root.is_symlink() or not root.is_dir():
         raise FileNotFoundError(f"Source root is not a directory: {root}")
+    observed: set[str] = set()
+    with os.scandir(root) as children:
+        for child in children:
+            if not child.name.lower().endswith(".csv"):
+                continue
+            if child.is_symlink() or not child.is_file(follow_symlinks=False):
+                raise FileNotFoundError(
+                    "Source scope contains a non-regular or symlinked CSV entry"
+                )
+            observed.add(child.name)
+    expected = {entry.relative_path for entry in entries}
+    if require_exact_scope and observed != expected:
+        raise ValueError(
+            "Source directory CSV population differs from accepted Stage 0 scope"
+        )
+    snapshots: list[_SourceScopeSnapshot] = []
     for entry in entries:
         path = root / entry.relative_path
         if path.is_symlink() or not path.is_file() or path.parent != root:
-            raise FileNotFoundError(f"Source is not a direct regular file: {entry.relative_path}")
+            raise FileNotFoundError(
+                f"Source is not a direct regular file: {entry.relative_path}"
+            )
+        stat = path.stat()
+        snapshots.append(
+            _SourceScopeSnapshot(
+                relative_path=entry.relative_path,
+                device=stat.st_dev,
+                inode=stat.st_ino,
+                size_bytes=stat.st_size,
+                mtime_ns=stat.st_mtime_ns,
+            )
+        )
+    return tuple(sorted(snapshots, key=lambda item: item.relative_path))
 
 
-def _configuration_payload(config: Phase02Config) -> dict[str, Any]:
-    return {
+def _verify_source_scope_unchanged(
+    source_root: Path,
+    entries: list[Phase01FileEntry],
+    expected: tuple[_SourceScopeSnapshot, ...],
+    *,
+    require_exact_scope: bool,
+) -> None:
+    try:
+        observed = _validate_source_paths(
+            source_root, entries, require_exact_scope=require_exact_scope
+        )
+    except (OSError, ValueError) as error:
+        raise RuntimeError(
+            "Source population changed during Phase 2 execution"
+        ) from error
+    if observed != expected:
+        raise RuntimeError("Source population changed during Phase 2 execution")
+
+
+def _verify_stage00_binding_unchanged(
+    config: Phase02Config, expected: Stage00Binding
+) -> None:
+    assert config.stage00_adoption_record is not None
+    assert config.expected_stage00_adoption_sha256 is not None
+    observed = resolve_stage00_binding(
+        config.stage00_adoption_record,
+        config.phase01_run_dir,
+        expected_stage00_adoption_sha256=config.expected_stage00_adoption_sha256,
+    )
+    if observed != expected:
+        raise RuntimeError(
+            "Accepted Stage 0 population changed during Phase 2 execution"
+        )
+
+
+def _configuration_payload(
+    config: Phase02Config, stage00: Stage00Binding | None = None
+) -> dict[str, Any]:
+    payload: dict[str, Any] = {
         "staging_version": STAGING_VERSION,
         "source_schema_version": SOURCE_SCHEMA_VERSION,
         "parser_version": PARSER_VERSION,
@@ -184,6 +303,20 @@ def _configuration_payload(config: Phase02Config) -> dict[str, Any]:
         "duckdb_memory_limit": config.duckdb_memory_limit,
         "schema_fingerprint": schema_fingerprint(),
     }
+    if stage00 is not None:
+        payload["accepted_stage00_population"] = {
+            "stage00_contract_version": STAGE00_CONTRACT_VERSION,
+            "stage00_adoption_record_sha256": stage00.adoption_record.sha256,
+            "source_population_sha256_v1": stage00.source_population_sha256_v1,
+            "stage00_scientific_inventory_sha256_v1": (
+                stage00.scientific_inventory_sha256_v1
+            ),
+            "parser_contract_fingerprint": stage00.parser_contract_fingerprint,
+            "phase01_run_id": stage00.phase01_bundle.run_id,
+            "phase01_input_manifest_sha256": stage00.phase01_input_manifest_sha256,
+            "source_file_count": len(stage00.phase01_bundle.records),
+        }
+    return payload
 
 
 def _implementation_fingerprint() -> str:
@@ -249,7 +382,9 @@ def _quarantine_interrupted_attempt(
         return
     candidate = (staging_run / relative).resolve()
     if candidate.parent != in_progress.resolve():
-        raise RuntimeError("Interrupted temporary path escaped the approved .in_progress directory")
+        raise RuntimeError(
+            "Interrupted temporary path escaped the approved .in_progress directory"
+        )
     _quarantine(candidate, work_dir)
 
 
@@ -278,8 +413,13 @@ def _revalidate_complete(
     metadata: dict[str, str],
 ) -> FileValidationResult:
     final_path = staging_run / str(state_row["final_path"])
-    if not final_path.is_file() or sha256_file(final_path) != state_row["output_sha256"]:
-        raise Phase02FileError("COMPLETE_OUTPUT_IDENTITY_MISMATCH", "completed output hash changed")
+    if (
+        not final_path.is_file()
+        or sha256_file(final_path) != state_row["output_sha256"]
+    ):
+        raise Phase02FileError(
+            "COMPLETE_OUTPUT_IDENTITY_MISMATCH", "completed output hash changed"
+        )
     source_path = source_root / entry.relative_path
     before = file_metadata(source_path)
     digest, _ = hash_file(source_path, config.hash_chunk_bytes)
@@ -291,7 +431,9 @@ def _revalidate_complete(
         or before.mtime_ns != after.mtime_ns
         or digest != entry.sha256
     ):
-        raise Phase02FileError("COMPLETE_SOURCE_IDENTITY_MISMATCH", "completed source identity changed")
+        raise Phase02FileError(
+            "COMPLETE_SOURCE_IDENTITY_MISMATCH", "completed source identity changed"
+        )
     prior = json.loads(str(state_row["validation_json"]))
     source_result = _source_result_from_state(prior)
     result = validate_temporary_parquet(
@@ -314,10 +456,26 @@ def run_phase02(config: Phase02Config) -> Phase02Outcome:
     if config.run_scope == "FULL_CONVERSION":
         require_goethe_nhr_slurm("phase02.full-conversion")
     config.validate()
+    stage00: Stage00Binding | None = None
+    if config.run_scope == "FULL_CONVERSION":
+        assert config.stage00_adoption_record is not None
+        assert config.expected_stage00_adoption_sha256 is not None
+        stage00 = resolve_stage00_binding(
+            config.stage00_adoption_record,
+            config.phase01_run_dir,
+            expected_stage00_adoption_sha256=(config.expected_stage00_adoption_sha256),
+        )
     phase01 = load_phase01_manifest(config.phase01_run_dir)
+    if stage00 is not None:
+        _validate_stage00_population(phase01=phase01, stage00=stage00)
     entries = _select_entries(config, phase01.files)
-    source_root = config.source_root.resolve()
-    _validate_source_paths(source_root, entries)
+    source_root_input = config.source_root
+    source_scope_snapshot = _validate_source_paths(
+        source_root_input,
+        entries,
+        require_exact_scope=config.run_scope == "FULL_CONVERSION",
+    )
+    source_root = source_root_input.resolve()
     run_id, staging_run, report_run, resumed = _prepare_run_directories(config)
     data_dir = staging_run / "data"
     in_progress = staging_run / ".in_progress"
@@ -334,14 +492,19 @@ def run_phase02(config: Phase02Config) -> Phase02Outcome:
 
     started_at = _utc_now()
     overall_started = time.perf_counter()
-    configuration = _configuration_payload(config)
+    configuration = _configuration_payload(config, stage00)
     config_fingerprint = fingerprint(configuration)
     implementation_fingerprint = _implementation_fingerprint()
     schema_payload = {
         "schema_version": "phase02_arrow_schema_v1",
         "schema_fingerprint": schema_fingerprint(),
         "fields": [
-            {"position": index, "name": field.name, "type": str(field.type), "nullable": field.nullable}
+            {
+                "position": index,
+                "name": field.name,
+                "type": str(field.type),
+                "nullable": field.nullable,
+            }
             for index, field in enumerate(base_staging_schema(), start=1)
         ],
         "parquet_configuration": configuration["parquet"],
@@ -369,9 +532,6 @@ def run_phase02(config: Phase02Config) -> Phase02Outcome:
         "resume": resumed,
         "metrics": {},
     }
-    from ..phase01.reports import atomic_json
-
-    atomic_json(report_run / "phase02_run.json", run_payload)
     results: list[FileValidationResult] = []
     state_path = work_dir / "phase02_state.sqlite3"
     with RunState(state_path) as state:
@@ -380,11 +540,30 @@ def run_phase02(config: Phase02Config) -> Phase02Outcome:
         state.set_meta("phase01_input_manifest_sha256", phase01.input_manifest_sha256)
         state.set_meta("configuration_fingerprint", config_fingerprint)
         state.set_meta("implementation_fingerprint", implementation_fingerprint)
+        if stage00 is not None:
+            state.set_meta(
+                "stage00_adoption_record_sha256", stage00.adoption_record.sha256
+            )
+            state.set_meta(
+                "stage00_source_population_sha256",
+                stage00.source_population_sha256_v1,
+            )
+            state.set_meta(
+                "stage00_scientific_inventory_sha256",
+                stage00.scientific_inventory_sha256_v1,
+            )
+            state.set_meta(
+                "stage00_parser_contract_fingerprint",
+                stage00.parser_contract_fingerprint,
+            )
         state.prepare_files(
             entries,
             config_fingerprint=config_fingerprint,
             implementation_fingerprint=implementation_fingerprint,
         )
+        from ..phase01.reports import atomic_json
+
+        atomic_json(report_run / "phase02_run.json", run_payload)
         for entry in entries:
             metadata = _parquet_metadata(
                 run_id=run_id,
@@ -442,9 +621,12 @@ def run_phase02(config: Phase02Config) -> Phase02Outcome:
             final_relative = final.relative_to(staging_run).as_posix()
             if final.exists():
                 path_error = Phase02FileError(
-                    "IMMUTABLE_FINAL_PATH_EXISTS", "final output exists without reusable COMPLETE state"
+                    "IMMUTABLE_FINAL_PATH_EXISTS",
+                    "final output exists without reusable COMPLETE state",
                 )
-                state.mark_failed(entry.relative_path, path_error.code, path_error.detail)
+                state.mark_failed(
+                    entry.relative_path, path_error.code, path_error.detail
+                )
                 results.append(
                     FileValidationResult(
                         relative_path=entry.relative_path,
@@ -504,9 +686,20 @@ def run_phase02(config: Phase02Config) -> Phase02Outcome:
                 result.failure_code = "UNEXPECTED_FILE_FAILURE"
                 result.failure_detail = type(error).__name__
                 _quarantine(temporary, work_dir)
-                state.mark_failed(entry.relative_path, result.failure_code, result.failure_detail)
+                state.mark_failed(
+                    entry.relative_path, result.failure_code, result.failure_detail
+                )
             results.append(result)
         state_integrity = state.integrity_check()
+
+    _verify_source_scope_unchanged(
+        source_root_input,
+        entries,
+        source_scope_snapshot,
+        require_exact_scope=config.run_scope == "FULL_CONVERSION",
+    )
+    if stage00 is not None:
+        _verify_stage00_binding_unchanged(config, stage00)
 
     reconciliation = reconcile_completed_parquet(
         data_dir=data_dir,
@@ -514,8 +707,20 @@ def run_phase02(config: Phase02Config) -> Phase02Outcome:
         memory_limit=config.duckdb_memory_limit,
         spill_dir=work_dir / "duckdb_spill",
     )
-    all_files_pass = len(results) == len(entries) and all(item.status == "PASS" for item in results)
-    scope_gate = "PASS" if all_files_pass and reconciliation.status == "PASS" else "FAIL"
+    _verify_source_scope_unchanged(
+        source_root_input,
+        entries,
+        source_scope_snapshot,
+        require_exact_scope=config.run_scope == "FULL_CONVERSION",
+    )
+    if stage00 is not None:
+        _verify_stage00_binding_unchanged(config, stage00)
+    all_files_pass = len(results) == len(entries) and all(
+        item.status == "PASS" for item in results
+    )
+    scope_gate = (
+        "PASS" if all_files_pass and reconciliation.status == "PASS" else "FAIL"
+    )
     phase02_completion_gate = (
         scope_gate if config.run_scope == "FULL_CONVERSION" else "NOT_EVALUATED"
     )
@@ -541,8 +746,11 @@ def run_phase02(config: Phase02Config) -> Phase02Outcome:
         else 0.0,
         "duckdb_reconciliation_seconds": reconciliation.duckdb_seconds,
         "peak_rss_bytes": _peak_rss_bytes(),
-        "peak_temporary_bytes": max((item.peak_temporary_bytes for item in results), default=0),
-        "sqlite_bytes": _directory_size(work_dir) - _directory_size(work_dir / "duckdb_spill"),
+        "peak_temporary_bytes": max(
+            (item.peak_temporary_bytes for item in results), default=0
+        ),
+        "sqlite_bytes": _directory_size(work_dir)
+        - _directory_size(work_dir / "duckdb_spill"),
         "duckdb_spill_bytes": _directory_size(work_dir / "duckdb_spill"),
     }
     status = "COMPLETED_SCOPE_PASS" if scope_gate == "PASS" else "COMPLETED_SCOPE_FAIL"
@@ -600,7 +808,11 @@ def run_phase02(config: Phase02Config) -> Phase02Outcome:
             "staging_bytes": parquet_bytes,
             "completed_at_utc": _iso_utc(completed_at),
         }
-        marker_name = "_SUCCESS.json" if config.run_scope == "FULL_CONVERSION" else "_SCOPE_SUCCESS.json"
+        marker_name = (
+            "_SUCCESS.json"
+            if config.run_scope == "FULL_CONVERSION"
+            else "_SCOPE_SUCCESS.json"
+        )
     write_all_reports(
         report_run_dir=report_run,
         run_payload=run_payload,

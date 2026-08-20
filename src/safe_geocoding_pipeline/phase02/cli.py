@@ -16,6 +16,15 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--source-root", required=True, type=Path)
     parser.add_argument("--phase01-run-dir", required=True, type=Path)
     parser.add_argument(
+        "--stage00-adoption-record",
+        type=Path,
+        help="Accepted Stage 0 adoption record required for FULL_CONVERSION.",
+    )
+    parser.add_argument(
+        "--expected-stage00-adoption-sha256",
+        help="Exact lowercase SHA-256 of --stage00-adoption-record.",
+    )
+    parser.add_argument(
         "--staging-root", type=Path, default=Path("staging/controlled/phase02_v1/runs")
     )
     parser.add_argument(
@@ -24,11 +33,15 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--run-scope", choices=("TEST", "SMOKE_TEST", "FULL_CONVERSION"), default="TEST"
     )
-    parser.add_argument("--include", action="append", default=[], metavar="DIRECT_CHILD.csv")
+    parser.add_argument(
+        "--include", action="append", default=[], metavar="DIRECT_CHILD.csv"
+    )
     parser.add_argument("--source-root-label")
     parser.add_argument("--run-id")
     parser.add_argument("--resume-run-id")
-    parser.add_argument("--parser-field-limit-chars", type=int, default=64 * 1024 * 1024)
+    parser.add_argument(
+        "--parser-field-limit-chars", type=int, default=64 * 1024 * 1024
+    )
     parser.add_argument("--normal-batch-rows", type=int, default=25_000)
     parser.add_argument("--isolation-threshold-bytes", type=int, default=1024 * 1024)
     parser.add_argument("--hash-chunk-bytes", type=int, default=1024 * 1024)
@@ -49,6 +62,8 @@ def config_from_args(args: argparse.Namespace) -> Phase02Config:
     return Phase02Config(
         source_root=args.source_root,
         phase01_run_dir=args.phase01_run_dir,
+        stage00_adoption_record=args.stage00_adoption_record,
+        expected_stage00_adoption_sha256=args.expected_stage00_adoption_sha256,
         staging_root=args.staging_root,
         reports_root=args.reports_root,
         run_scope=args.run_scope,

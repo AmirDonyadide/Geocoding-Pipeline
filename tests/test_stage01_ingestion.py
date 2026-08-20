@@ -582,6 +582,29 @@ def _adopt(bundle: SyntheticBundle) -> s01.Stage01AdoptionOutcome:
     )
 
 
+def test_resolve_stage00_binding_uses_hash_pinned_accepted_record(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    bundle = _synthetic_bundle(tmp_path, monkeypatch)
+    binding = s01.resolve_stage00_binding(
+        bundle.stage00_record,
+        bundle.phase01_run,
+        expected_stage00_adoption_sha256=bundle.stage00_record_sha256,
+    )
+    assert binding.adoption_record.sha256 == bundle.stage00_record_sha256
+    assert binding.source_population_sha256_v1 == SOURCE_POPULATION_DIGEST
+    assert tuple(record.relative_path for record in binding.phase01_bundle.records) == (
+        "fictional_a.csv",
+        "fictional_b.csv",
+    )
+    with pytest.raises(s01.Stage01ValidationError, match="ARTIFACT_SHA256_MISMATCH"):
+        s01.resolve_stage00_binding(
+            bundle.stage00_record,
+            bundle.phase01_run,
+            expected_stage00_adoption_sha256="0" * 64,
+        )
+
+
 def _independent_logical_digest(records: list[Stage01SourceRecord]) -> str:
     def u64(value: int) -> bytes:
         return b"\x01" + struct.pack(">Q", value)
@@ -747,6 +770,21 @@ def test_logical_fingerprint_changes_with_every_source_field(
         )
 
     assert fingerprint(changed) != fingerprint(base)
+
+
+def test_logical_fingerprint_changes_with_accepted_population_size() -> None:
+    first = Stage01SourceRecord("first.csv", "a" * 64, 2, "b" * 64)
+    second = Stage01SourceRecord("second.csv", "c" * 64, 3, "d" * 64)
+
+    def fingerprint(records: list[Stage01SourceRecord]) -> str:
+        return stage01_logical_dataset_sha256_v1(
+            records,
+            stage00_source_population_sha256_v1=SOURCE_POPULATION_DIGEST,
+            stage00_scientific_inventory_sha256_v1=SCIENTIFIC_INVENTORY_DIGEST,
+            stage00_parser_contract_fingerprint=PARSER_CONTRACT_DIGEST,
+        )
+
+    assert fingerprint([first]) != fingerprint([first, second])
 
 
 @pytest.mark.parametrize(

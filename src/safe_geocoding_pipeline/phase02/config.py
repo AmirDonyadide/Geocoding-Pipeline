@@ -14,6 +14,8 @@ RunScope = Literal["TEST", "SMOKE_TEST", "FULL_CONVERSION"]
 class Phase02Config:
     source_root: Path
     phase01_run_dir: Path
+    stage00_adoption_record: Path | None = None
+    expected_stage00_adoption_sha256: str | None = None
     staging_root: Path = Path("staging/controlled/phase02_v1/runs")
     reports_root: Path = Path("reports/generated/phase02")
     run_scope: RunScope = "TEST"
@@ -53,7 +55,9 @@ class Phase02Config:
         if self.compression_level != 3:
             raise ValueError("Phase 2 smoke configuration requires ZSTD level 3")
         if self.parquet_version != "1.0" or self.data_page_version != "1.0":
-            raise ValueError("Phase 2 v1 requires conservative Parquet/data-page version 1.0")
+            raise ValueError(
+                "Phase 2 v1 requires conservative Parquet/data-page version 1.0"
+            )
         if not re.fullmatch(r"[1-9][0-9]*(?:MB|GB)", self.duckdb_memory_limit):
             raise ValueError("duckdb_memory_limit must look like 512MB or 4GB")
         for name in self.include_files:
@@ -61,7 +65,9 @@ class Phase02Config:
             if candidate.name != name or candidate.suffix.lower() != ".csv":
                 raise ValueError(f"--include must be a direct CSV filename: {name!r}")
         if self.run_scope == "SMOKE_TEST":
-            if tuple(sorted(self.include_files)) != tuple(sorted(AUTHORIZED_SMOKE_FILES)):
+            if tuple(sorted(self.include_files)) != tuple(
+                sorted(AUTHORIZED_SMOKE_FILES)
+            ):
                 raise ValueError(
                     "SMOKE_TEST is restricted to the two explicitly authorized Phase 2 files"
                 )
@@ -73,8 +79,28 @@ class Phase02Config:
                     "FULL_CONVERSION requires --authorize-full-conversion; this is an "
                     "operator acknowledgement and not project authorization"
                 )
+            if self.stage00_adoption_record is None:
+                raise ValueError(
+                    "FULL_CONVERSION requires an accepted Stage 0 adoption record"
+                )
+            if self.expected_stage00_adoption_sha256 is None or not re.fullmatch(
+                r"[0-9a-f]{64}", self.expected_stage00_adoption_sha256
+            ):
+                raise ValueError(
+                    "FULL_CONVERSION requires the exact lowercase Stage 0 adoption "
+                    "record SHA-256"
+                )
         elif self.authorize_full_conversion:
-            raise ValueError("--authorize-full-conversion is valid only for FULL_CONVERSION")
+            raise ValueError(
+                "--authorize-full-conversion is valid only for FULL_CONVERSION"
+            )
+        elif (
+            self.stage00_adoption_record is not None
+            or self.expected_stage00_adoption_sha256 is not None
+        ):
+            raise ValueError(
+                "Stage 0 adoption identity is valid only for FULL_CONVERSION"
+            )
 
     @property
     def portable_source_label(self) -> str:

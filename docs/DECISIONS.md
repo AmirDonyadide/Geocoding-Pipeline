@@ -35,6 +35,12 @@ This register distinguishes approved project rules from questions that require e
   matching logical ordinals. Stage 1 neither disambiguates by path nor removes
   a source record. Stage 1 status is `STAGE_1_ACCEPTED` after its final critical
   review; Stage 2 remains separate and has not started.
+- Future Phase 2 `FULL_CONVERSION` execution is population-generic and requires
+  an explicit hash-pinned accepted Stage 0 adoption record. Exact canonical
+  path/SHA/logical-count scope, not a global count or current directory
+  contents, controls conversion and resume. The historical 206-source result
+  remains immutable evidence and remains reproducible from its exact historical
+  commit and accepted Stage 0 snapshot.
 
 - The research objective requires physical building/plant/branch/store/facility point locations.
 - `usable_for_analysis` is the main Boolean indicator of suitability for point-level research; diagnostic tiers remain separate.

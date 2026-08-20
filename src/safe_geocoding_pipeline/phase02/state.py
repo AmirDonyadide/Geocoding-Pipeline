@@ -104,6 +104,15 @@ class RunState:
         config_fingerprint: str,
         implementation_fingerprint: str,
     ) -> None:
+        existing_rows = self.rows()
+        if existing_rows:
+            self._validate_existing_population(
+                existing_rows,
+                entries,
+                config_fingerprint=config_fingerprint,
+                implementation_fingerprint=implementation_fingerprint,
+            )
+            return
         now = _utc_now()
         with self.connection:
             for entry in entries:
@@ -124,15 +133,38 @@ class RunState:
                         now,
                     ),
                 )
-        rows = self.rows()
-        if {row["relative_path"] for row in rows} != {entry.relative_path for entry in entries}:
+        self._validate_existing_population(
+            self.rows(),
+            entries,
+            config_fingerprint=config_fingerprint,
+            implementation_fingerprint=implementation_fingerprint,
+        )
+
+    @staticmethod
+    def _validate_existing_population(
+        rows: list[dict[str, Any]],
+        entries: list[Phase01FileEntry],
+        *,
+        config_fingerprint: str,
+        implementation_fingerprint: str,
+    ) -> None:
+        if {row["relative_path"] for row in rows} != {
+            entry.relative_path for entry in entries
+        }:
             raise RuntimeError("Resumed run file scope differs from original run")
+        entries_by_path = {entry.relative_path: entry for entry in entries}
         for row in rows:
+            entry = entries_by_path[row["relative_path"]]
             if (
-                row["config_fingerprint"] != config_fingerprint
+                row["source_sha256"] != entry.sha256
+                or row["expected_size_bytes"] != entry.size_bytes
+                or row["expected_rows"] != entry.logical_record_count
+                or row["config_fingerprint"] != config_fingerprint
                 or row["implementation_fingerprint"] != implementation_fingerprint
             ):
-                raise RuntimeError("Resumed run configuration or implementation changed")
+                raise RuntimeError(
+                    "Resumed run source population, configuration, or implementation changed"
+                )
 
     def rows(self) -> list[dict[str, Any]]:
         rows = self.connection.execute(
@@ -148,11 +180,14 @@ class RunState:
             raise KeyError(relative_path)
         return dict(row)
 
-    def mark_writing(self, relative_path: str, temporary_path: str, final_path: str) -> int:
+    def mark_writing(
+        self, relative_path: str, temporary_path: str, final_path: str
+    ) -> int:
         now = _utc_now()
         with self.connection:
             row = self.connection.execute(
-                "SELECT attempt FROM file_state WHERE relative_path = ?", (relative_path,)
+                "SELECT attempt FROM file_state WHERE relative_path = ?",
+                (relative_path,),
             ).fetchone()
             if row is None:
                 raise KeyError(relative_path)

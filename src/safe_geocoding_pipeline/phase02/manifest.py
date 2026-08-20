@@ -11,7 +11,11 @@ from .models import KnownExtreme, Phase01FileEntry, Phase01Manifest
 
 def _require_direct_csv(relative_path: str) -> None:
     candidate = PurePosixPath(relative_path)
-    if candidate.is_absolute() or len(candidate.parts) != 1 or candidate.suffix.lower() != ".csv":
+    if (
+        candidate.is_absolute()
+        or len(candidate.parts) != 1
+        or candidate.suffix.lower() != ".csv"
+    ):
         raise ValueError(f"Unsafe Phase 1 relative source path: {relative_path!r}")
 
 
@@ -56,11 +60,14 @@ def load_phase01_manifest(run_dir: Path) -> Phase01Manifest:
             )
             if entry.file_name != relative or len(entry.sha256) != 64:
                 raise ValueError(f"Invalid Phase 1 file identity: {relative}")
-            if row.get("scan_status") != "COMPLETE" or row.get("counts_complete") != "True":
+            if (
+                row.get("scan_status") != "COMPLETE"
+                or row.get("counts_complete") != "True"
+            ):
                 raise ValueError(f"Phase 1 file is not complete: {relative}")
             files[relative] = entry
-    if len(files) != 206:
-        raise ValueError(f"Authoritative Phase 1 manifest must contain 206 files, found {len(files)}")
+    if not files:
+        raise ValueError("Authoritative Phase 1 manifest contains no source files")
 
     extremes: dict[str, list[KnownExtreme]] = {}
     with gzip.open(anomaly_path, "rt", encoding="utf-8", newline="") as stream:

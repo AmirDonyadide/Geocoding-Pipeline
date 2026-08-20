@@ -119,7 +119,12 @@ Git. A smoke-scope PASS creates `_SCOPE_SUCCESS.json`, never the full-run
 
 `FULL_CONVERSION` additionally requires the CLI operator acknowledgement
 `--authorize-full-conversion`. That guard never substitutes for explicit user
-authorization, which must be obtained separately before running all 206 files.
+authorization. New full conversions must also supply
+`--stage00-adoption-record` and its exact
+`--expected-stage00-adoption-sha256`; the accepted record, rather than a
+hardcoded file count or whatever files happen to be present, defines the exact
+source population. The first accepted historical conversion remains the
+immutable 206-source run.
 
 ## Phase 3 framework interface
 

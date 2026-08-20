@@ -488,6 +488,43 @@ def validate_stage00_binding(
     )
 
 
+def resolve_stage00_binding(
+    stage00_adoption_record_path: Path,
+    phase01_run_directory: Path,
+    *,
+    expected_stage00_adoption_sha256: str,
+) -> Stage00Binding:
+    """Resolve a hash-pinned accepted Stage 0 record into its exact population."""
+    _digest_bytes(expected_stage00_adoption_sha256)
+    _, snapshot = _artifact_identity(
+        stage00_adoption_record_path,
+        stage00_adoption_record_path.name,
+        expected_sha256=expected_stage00_adoption_sha256,
+    )
+    if snapshot.mode != 0o600:
+        _fail("PERMISSION_FAILURE", "Stage 0 adoption record is not owner-only")
+    record = _load_json_object(stage00_adoption_record_path, "MALFORMED_STAGE00_RECORD")
+    identity = _mapping(record.get("identity"), "MALFORMED_STAGE00_RECORD")
+    binding, _ = validate_stage00_binding(
+        stage00_adoption_record_path,
+        phase01_run_directory,
+        expected_stage00_adoption_sha256=expected_stage00_adoption_sha256,
+        expected_source_population_sha256=_canonical_text(
+            identity.get("source_population_sha256_v1"),
+            "MALFORMED_STAGE00_RECORD",
+        ),
+        expected_scientific_inventory_sha256=_canonical_text(
+            identity.get("stage00_scientific_inventory_sha256_v1"),
+            "MALFORMED_STAGE00_RECORD",
+        ),
+        expected_parser_contract_fingerprint=_canonical_text(
+            identity.get("parser_contract_fingerprint"),
+            "MALFORMED_STAGE00_RECORD",
+        ),
+    )
+    return binding
+
+
 def _verify_directory_mode(path: Path, mode: int, code: str) -> None:
     if path.is_symlink() or not path.is_dir():
         _fail(code, "Protected directory is missing or unsafe")
@@ -833,6 +870,25 @@ def _validate_phase02_reports(
         or configuration.get("schema_fingerprint") != schema_fingerprint()
     ):
         _fail("PHASE02_SCIENTIFIC_CONTRACT_MISMATCH", "Phase 2 contracts differ")
+    accepted_population = configuration.get("accepted_stage00_population")
+    if accepted_population is not None:
+        expected_population = {
+            "stage00_contract_version": STAGE00_CONTRACT_VERSION,
+            "stage00_adoption_record_sha256": stage00.adoption_record.sha256,
+            "source_population_sha256_v1": stage00.source_population_sha256_v1,
+            "stage00_scientific_inventory_sha256_v1": (
+                stage00.scientific_inventory_sha256_v1
+            ),
+            "parser_contract_fingerprint": stage00.parser_contract_fingerprint,
+            "phase01_run_id": stage00.phase01_bundle.run_id,
+            "phase01_input_manifest_sha256": stage00.phase01_input_manifest_sha256,
+            "source_file_count": len(stage00.phase01_bundle.records),
+        }
+        if accepted_population != expected_population:
+            _fail(
+                "PHASE02_POPULATION_CONTRACT_MISMATCH",
+                "Phase 2 accepted Stage 0 population identity differs",
+            )
     metrics = _mapping(run.get("metrics"), "MALFORMED_PHASE02_RUN")
     if metrics.get("parquet_bytes") != total_parquet_bytes or metrics.get(
         "source_bytes"
@@ -1544,4 +1600,5 @@ __all__ = [
     "stage01_logical_dataset_sha256_v1",
     "validate_phase02_bundle",
     "validate_stage00_binding",
+    "resolve_stage00_binding",
 ]
