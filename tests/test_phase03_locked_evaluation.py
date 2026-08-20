@@ -18,6 +18,7 @@ from phase03_helpers import (
     phase02_row,
 )
 from safe_geocoding_pipeline.execution_policy import ExecutionPolicyError
+from safe_geocoding_pipeline.phase02.fingerprints import JsonValue
 from safe_geocoding_pipeline.phase02.schema import base_staging_schema
 from safe_geocoding_pipeline.phase03.config import Phase03Config
 from safe_geocoding_pipeline.phase03.constants import (
@@ -64,6 +65,16 @@ from safe_geocoding_pipeline.phase03.writer import ShardWriteResult
 
 def _identity(number: int) -> bytes:
     return number.to_bytes(32, "big")
+
+
+def _json_list(value: JsonValue) -> list[JsonValue]:
+    assert isinstance(value, list)
+    return value
+
+
+def _json_object(value: JsonValue) -> dict[str, JsonValue]:
+    assert isinstance(value, dict)
+    return value
 
 
 def _candidate(number: int) -> LockedReviewCandidate:
@@ -287,7 +298,9 @@ def test_exact_precision_and_overreach_boundaries() -> None:
         LockedDecisionInputs(below, _passing_agreements())
     )
     assert result["status"] == "LOCKED_FAIL_REVISE"
-    assert "JOINT_STREET_HOUSE_PRECISION_BELOW_0_95" in result["hard_gate_failures"]
+    assert "JOINT_STREET_HOUSE_PRECISION_BELOW_0_95" in _json_list(
+        result["hard_gate_failures"]
+    )
     above_overreach = _passing_metrics()
     above_overreach = LockedMetricSet(
         above_overreach.joint_street_house_precision,
@@ -303,7 +316,9 @@ def test_exact_precision_and_overreach_boundaries() -> None:
     result = decide_locked_evaluation(
         LockedDecisionInputs(above_overreach, _passing_agreements())
     )
-    assert "FALSE_STRUCTURE_OVERREACH_ABOVE_0_05" in result["hard_gate_failures"]
+    assert "FALSE_STRUCTURE_OVERREACH_ABOVE_0_05" in _json_list(
+        result["hard_gate_failures"]
+    )
 
 
 @pytest.mark.parametrize(
@@ -325,7 +340,7 @@ def test_every_nonquantitative_hard_gate_fails(
     inputs = LockedDecisionInputs(_passing_metrics(), _passing_agreements(), **kwargs)
     result = decide_locked_evaluation(inputs)
     assert result["status"] == "LOCKED_FAIL_REVISE"
-    assert failure in result["hard_gate_failures"]
+    assert failure in _json_list(result["hard_gate_failures"])
     assert result["automatic_parser_promotion"] is False
 
 
@@ -548,7 +563,7 @@ def test_locked_comparison_reports_every_changed_field_without_raw_values() -> N
     baseline: list[dict[str, Any]] = []
     candidate: list[dict[str, Any]] = []
     for index in range(2):
-        base = {field: None for field in SCIENTIFIC_CORE_FIELDS}
+        base: dict[str, Any] = {field: None for field in SCIENTIFIC_CORE_FIELDS}
         base["stable_source_row_id_v1"] = _identity(index)
         base["street_clean"] = None
         base["house_number_clean"] = None
@@ -691,7 +706,9 @@ def test_score_requires_all_machine_gates_and_emits_no_protected_values(
         machine_checks=_passing_machine_checks(),
     )
     assert score["status"] == "LOCKED_PASS"
-    assert score["stratified_metrics"]["country_group"]["reconciled_rows"] == 400
+    stratified_metrics = _json_object(score["stratified_metrics"])
+    country_group = _json_object(stratified_metrics["country_group"])
+    assert country_group["reconciled_rows"] == 400
     serialized = output_path.read_text(encoding="utf-8")
     assert private_value not in serialized
     assert "fictional-provider" not in serialized

@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pyarrow as pa
 import pyarrow.parquet as pq
@@ -11,6 +11,7 @@ import pytest
 
 from phase03_helpers import engine, phase02_row
 from safe_geocoding_pipeline.execution_policy import ExecutionPolicyError
+from safe_geocoding_pipeline.phase02.fingerprints import JsonValue
 from safe_geocoding_pipeline.phase02.schema import base_staging_schema
 from safe_geocoding_pipeline.phase03.cli import build_parser
 from safe_geocoding_pipeline.phase03.constants import (
@@ -35,6 +36,11 @@ from safe_geocoding_pipeline.phase03.schema import core_schema, evidence_schema
 
 def _identity(index: int) -> bytes:
     return hashlib.sha256(f"fictional-hypothesis-profile:{index}".encode()).digest()
+
+
+def _json_object(value: JsonValue) -> dict[str, JsonValue]:
+    assert isinstance(value, dict)
+    return value
 
 
 def _staging_row(
@@ -204,10 +210,13 @@ def _run(tmp_path: Path, paths: dict[str, Path | str], name: str) -> dict[str, A
         expected_candidate_configuration=str(paths["candidate_config"]),
         production=False,
     )
-    return json.loads(
-        (
-            output / "phase03_development_hypothesis_intersection_profile.json"
-        ).read_text()
+    return cast(
+        dict[str, Any],
+        json.loads(
+            (
+                output / "phase03_development_hypothesis_intersection_profile.json"
+            ).read_text()
+        ),
     )
 
 
@@ -314,10 +323,16 @@ def test_intersection_regions_are_unique_identity_counts() -> None:
             "H3": {ids[3], ids[4], ids[5]},
         }
     )
-    assert report["matrix"]["H1"]["H2"] == 2
-    assert report["exclusive_regions"]["H1_H2_ONLY"]["rows"] == 1
-    assert report["exclusive_regions"]["H1_H2_H3"]["rows"] == 1
-    assert report["union"]["rows"] == 6
+    matrix = _json_object(report["matrix"])
+    h1_matrix = _json_object(matrix["H1"])
+    exclusive_regions = _json_object(report["exclusive_regions"])
+    h1_h2_only = _json_object(exclusive_regions["H1_H2_ONLY"])
+    h1_h2_h3 = _json_object(exclusive_regions["H1_H2_H3"])
+    union = _json_object(report["union"])
+    assert h1_matrix["H2"] == 2
+    assert h1_h2_only["rows"] == 1
+    assert h1_h2_h3["rows"] == 1
+    assert union["rows"] == 6
 
 
 @pytest.mark.parametrize(

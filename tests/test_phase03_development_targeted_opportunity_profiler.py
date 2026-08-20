@@ -16,10 +16,12 @@ from safe_geocoding_pipeline.phase02.schema import base_staging_schema
 from safe_geocoding_pipeline.phase03.cli import build_parser
 from safe_geocoding_pipeline.phase03.constants import PARSER_VERSION_V2
 from safe_geocoding_pipeline.phase03.development_targeted_opportunity_profiler import (
-    MAX_PATTERN_TOKENS,
     TARGET_PATTERN_FAMILIES,
     _numeric_position,
     profile_targeted_development_opportunities,
+)
+from safe_geocoding_pipeline.phase03.development_pattern_profiler import (
+    MAX_PATTERN_TOKENS,
 )
 from safe_geocoding_pipeline.phase03.pilot_runner import write_identity_set
 from safe_geocoding_pipeline.phase03.rules import load_rule_registry
@@ -170,10 +172,7 @@ def test_target_pattern_classification_and_numeric_position_are_closed() -> None
     )
     assert _numeric_position(("HOUSELIKE_NUM", "WORDS")) == "LEADING_NUMBER"
     assert _numeric_position(("WORDS", "HOUSELIKE_NUM")) == "TRAILING_NUMBER"
-    assert (
-        _numeric_position(("WORDS", "HOUSELIKE_NUM", "WORDS"))
-        == "EMBEDDED_NUMBER"
-    )
+    assert _numeric_position(("WORDS", "HOUSELIKE_NUM", "WORDS")) == "EMBEDDED_NUMBER"
 
 
 def test_targeted_profile_is_deterministic_private_bounded_and_read_only(
@@ -219,9 +218,7 @@ def test_targeted_profile_is_deterministic_private_bounded_and_read_only(
         "raw_values_reported": False,
         "source_spans_reported": False,
     }
-    families = {
-        row["pattern_family"]: row for row in first_report["pattern_families"]
-    }
+    families = {row["pattern_family"]: row for row in first_report["pattern_families"]}
     assert set(TARGET_PATTERN_FAMILIES) - {
         "HYPHEN_NUMBER WORDS",
         "WORDS HYPHEN_NUMBER",
@@ -240,21 +237,34 @@ def test_targeted_profile_is_deterministic_private_bounded_and_read_only(
     assert words_number["cross_tabs"]["source_line"]["named_categories"] == {
         "LINE_1": 16
     }
-    assert words_number["cross_tabs"]["native_structural_relationship"][
-        "named_categories"
-    ]["SAME_STRUCTURAL_PATTERN"] >= 2
-    assert words_number["cross_tabs"]["target_rule_presence"][
-        "named_categories"
-    ]["HOUSE_NUMBER_EDGE_CANDIDATE_V1:PRESENT"] >= 2
-    assert words_number["cross_tabs"]["target_rule_presence"][
-        "named_categories"
-    ]["STREET_EXPLICIT_DESIGNATOR_V3:PRESENT"] == 2
-    assert words_number["cross_tabs"]["conflict_type"]["named_categories"][
-        "NATIVE_NON_NATIVE_HOUSE_NUMBER_CONFLICT"
-    ] == 2
-    assert first_report["interpretation_guardrails"][
-        "parser_v3_rule_creation_authorized"
-    ] is False
+    assert (
+        words_number["cross_tabs"]["native_structural_relationship"][
+            "named_categories"
+        ]["SAME_STRUCTURAL_PATTERN"]
+        >= 2
+    )
+    assert (
+        words_number["cross_tabs"]["target_rule_presence"]["named_categories"][
+            "HOUSE_NUMBER_EDGE_CANDIDATE_V1:PRESENT"
+        ]
+        >= 2
+    )
+    assert (
+        words_number["cross_tabs"]["target_rule_presence"]["named_categories"][
+            "STREET_EXPLICIT_DESIGNATOR_V3:PRESENT"
+        ]
+        == 2
+    )
+    assert (
+        words_number["cross_tabs"]["conflict_type"]["named_categories"][
+            "NATIVE_NON_NATIVE_HOUSE_NUMBER_CONFLICT"
+        ]
+        == 2
+    )
+    assert (
+        first_report["interpretation_guardrails"]["parser_v3_rule_creation_authorized"]
+        is False
+    )
 
 
 def test_rare_target_family_is_suppressed_without_leaking_its_label(
@@ -318,7 +328,9 @@ def test_prohibited_path_and_non_development_partition_are_rejected(
         manifest_identity="fictional-phase02-manifest",
         sampling_config_fingerprint="fictional-sampling-config",
     )
-    with pytest.raises(ValueError, match="TARGETED_PROFILE_IDENTITY_PARTITION_MISMATCH"):
+    with pytest.raises(
+        ValueError, match="TARGETED_PROFILE_IDENTITY_PARTITION_MISMATCH"
+    ):
         profile_targeted_development_opportunities(
             development_payload_path=paths["payload"],
             core_path=paths["core"],

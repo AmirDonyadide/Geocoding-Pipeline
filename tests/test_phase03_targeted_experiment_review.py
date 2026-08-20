@@ -40,6 +40,7 @@ from safe_geocoding_pipeline.phase03.targeted_review_cli import (
 )
 from safe_geocoding_pipeline.phase03.targeted_review_population import (
     EXPERIMENTAL_RULE_IDS,
+    REPAIRED_POPULATION_EXPECTATION,
     ArtifactPin,
     PopulationExpectation,
     SCIENTIFIC_CORE_FIELDS,
@@ -206,7 +207,7 @@ def _use_synthetic_single_reviewer_expectation(
 ) -> None:
     from safe_geocoding_pipeline.phase03 import targeted_experiment_review as module
 
-    assert module.REPAIRED_POPULATION_EXPECTATION.union_rows == 11
+    assert REPAIRED_POPULATION_EXPECTATION.union_rows == 11
     monkeypatch.setattr(
         module,
         "REPAIRED_POPULATION_EXPECTATION",
@@ -785,7 +786,9 @@ def test_completed_r01_only_export_and_score_are_explicit_and_do_not_open_r02(
     assert payload["scientific_promotion_decision"] == "NOT_EVALUATED"
     assert payload["evaluation_implementation_commit"] == "b" * 40
     assert payload["review_input_implementation_commit"] == "b" * 40
-    assert set(payload["per_reviewer"]) == {"Targeted-R01"}
+    per_reviewer = payload["per_reviewer"]
+    assert isinstance(per_reviewer, dict)
+    assert set(per_reviewer) == {"Targeted-R01"}
     serialized_outputs = export.read_bytes() + score_path.read_bytes()
     assert protected_note.encode("utf-8") not in serialized_outputs
     assert not any(value.encode("utf-8") in serialized_outputs for value in raw_values)
