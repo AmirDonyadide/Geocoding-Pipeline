@@ -3,11 +3,14 @@ from __future__ import annotations
 import csv
 import hashlib
 import json
+import os
+import struct
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
 import pytest
+import safe_geocoding_pipeline.preprocessing.stages.s00_inventory as s00_inventory
 
 from safe_geocoding_pipeline.phase01.config import DEFAULT_PARSER_FIELD_LIMIT_CHARS
 from safe_geocoding_pipeline.phase01.constants import INVENTORY_VERSION, REPORT_NAMES
@@ -15,6 +18,7 @@ from safe_geocoding_pipeline.phase01.reports import MANIFEST_COLUMNS
 from safe_geocoding_pipeline.phase01.runner import TERMINAL_MARKER_TEXT
 from safe_geocoding_pipeline.preprocessing.stages.s00_inventory import (
     ADOPTION_RECORD_NAME,
+    STAGE00_CONTRACT_VERSION,
     Stage00InventoryRecord,
     Stage00ValidationError,
     adopt_phase01_bundle,
@@ -23,6 +27,7 @@ from safe_geocoding_pipeline.preprocessing.stages.s00_inventory import (
     source_population_sha256_v1,
     stage00_scientific_inventory_sha256_v1,
     validate_phase01_bundle,
+    verify_phase01_work_state_permissions,
 )
 from safe_geocoding_pipeline.raw_csv import (
     CSV_DELIMITER,
@@ -34,11 +39,18 @@ from safe_geocoding_pipeline.raw_csv import (
     CSV_STRICT,
     SOURCE_COLUMNS,
     SOURCE_ENCODING_POLICY,
+    SOURCE_SCHEMA_FINGERPRINT_SEPARATOR,
+    SOURCE_SCHEMA_FINGERPRINT_VERSION,
+    SOURCE_TEXT_ENCODING,
+    SOURCE_TEXT_ENCODING_WITH_BOM,
+    SOURCE_TEXT_ERRORS,
+    UTF8_BOM_BYTES,
+    source_schema_fingerprint,
 )
 
 PRODUCING_COMMIT = "a" * 40
 ADOPTING_COMMIT = "b" * 40
-SCHEMA_SHA256 = hashlib.sha256("\x1f".join(SOURCE_COLUMNS).encode()).hexdigest()
+SCHEMA_SHA256 = source_schema_fingerprint(SOURCE_COLUMNS)
 
 
 def _record(**changes: object) -> Stage00InventoryRecord:
@@ -127,6 +139,100 @@ def _manifest_row(record: Stage00InventoryRecord, run_id: str) -> dict[str, obje
 
 def _sha256_file(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _independent_golden_fingerprints(
+    records: list[Stage00InventoryRecord],
+) -> tuple[str, str, str]:
+    """Reproduce the v1 contracts without using the production encoder."""
+
+    def uint64(value: int) -> bytes:
+        return struct.pack(">Q", value)
+
+    def text(value: str) -> bytes:
+        encoded = value.encode("utf-8")
+        return uint64(len(encoded)) + encoded
+
+    def boolean(value: bool) -> bytes:
+        return b"\x01" if value else b"\x00"
+
+    def nullable_text(value: str | None) -> bytes:
+        return b"\x00" if value is None else b"\x01" + text(value)
+
+    def byte_string(value: bytes) -> bytes:
+        return uint64(len(value)) + value
+
+    ordered = sorted(records, key=lambda item: item.relative_path)
+    source_payload = b"SAFE_STAGE00_SOURCE_POPULATION_V1" + uint64(len(ordered))
+    for record in ordered:
+        source_payload += (
+            text(record.relative_path)
+            + uint64(record.file_size_bytes)
+            + bytes.fromhex(record.file_sha256)
+        )
+    source_digest = hashlib.sha256(source_payload).hexdigest()
+
+    parser_payload = (
+        b"SAFE_STAGE00_PARSER_CONTRACT_V1"
+        + text(INVENTORY_VERSION)
+        + uint64(len(SOURCE_COLUMNS))
+        + b"".join(text(column) for column in SOURCE_COLUMNS)
+        + text(SOURCE_ENCODING_POLICY)
+        + text(SOURCE_TEXT_ENCODING)
+        + text(SOURCE_TEXT_ENCODING_WITH_BOM)
+        + text(SOURCE_TEXT_ERRORS)
+        + byte_string(UTF8_BOM_BYTES)
+        + text(SOURCE_SCHEMA_FINGERPRINT_VERSION)
+        + text(SOURCE_SCHEMA_FINGERPRINT_SEPARATOR)
+        + text(CSV_NEWLINE)
+        + text(CSV_DELIMITER)
+        + text(CSV_QUOTE_CHARACTER)
+        + boolean(CSV_DOUBLEQUOTE)
+        + nullable_text(CSV_ESCAPE_CHARACTER)
+        + boolean(CSV_SKIP_INITIAL_SPACE)
+        + boolean(CSV_STRICT)
+        + uint64(DEFAULT_PARSER_FIELD_LIMIT_CHARS)
+    )
+    parser_digest = hashlib.sha256(parser_payload).hexdigest()
+
+    scientific_payload = (
+        b"SAFE_STAGE00_SCIENTIFIC_INVENTORY_V1"
+        + text(STAGE00_CONTRACT_VERSION)
+        + text(INVENTORY_VERSION)
+        + bytes.fromhex(parser_digest)
+        + bytes.fromhex(source_digest)
+        + uint64(len(ordered))
+    )
+    for record in ordered:
+        scientific_payload += (
+            uint64(record.file_id)
+            + text(record.relative_path)
+            + uint64(record.file_size_bytes)
+            + bytes.fromhex(record.file_sha256)
+            + boolean(record.source_stable_during_scan)
+            + text(record.encoding_status)
+            + text(record.bom_type)
+            + boolean(record.header_present)
+            + uint64(record.observed_column_count)
+            + bytes.fromhex(record.schema_fingerprint)
+            + boolean(record.schema_matches_contract)
+            + uint64(record.logical_record_count)
+            + uint64(record.valid_schema_record_count)
+            + uint64(record.wrong_column_count_record_count)
+            + uint64(record.parser_error_count)
+            + uint64(record.multiline_record_count)
+            + boolean(record.counts_complete)
+            + text(record.scan_status)
+            + nullable_text(record.duplicate_file_group)
+            + uint64(record.duplicate_file_group_size)
+            + uint64(record.max_record_length_chars)
+            + uint64(record.max_field_length_chars)
+        )
+    return (
+        source_digest,
+        parser_digest,
+        hashlib.sha256(scientific_payload).hexdigest(),
+    )
 
 
 def _write_manifest(
@@ -226,15 +332,15 @@ def test_source_population_and_scientific_fingerprints_have_golden_vectors() -> 
         ),
         _record(),
     ]
-    assert source_population_sha256_v1(records) == (
-        "2f0a8f71fb9c19f9bd34b3e82380b1dfa7cd3f8fb10ecae3df78009b83776a6a"
+    expected = (
+        "2f0a8f71fb9c19f9bd34b3e82380b1dfa7cd3f8fb10ecae3df78009b83776a6a",
+        "d071da05a76ca7c6ae5111894628fe8a5427f354838dbe0eb84e6cdf6ecd4b79",
+        "db7faca06ca3c223ea076e52ae770983de9e46b4e8f3ef24dd9257dc62120b23",
     )
-    assert parser_contract_fingerprint_v1() == (
-        "c68895992f58afc7ef22d45ec3df21e49ff97339641d57559d9e961333c1feb9"
-    )
-    assert stage00_scientific_inventory_sha256_v1(records) == (
-        "98527edb6f37f2cd33b51b43950f5ae62e45ee17690660c972b58c5b6c266ec4"
-    )
+    assert _independent_golden_fingerprints(records) == expected
+    assert source_population_sha256_v1(records) == expected[0]
+    assert parser_contract_fingerprint_v1() == expected[1]
+    assert stage00_scientific_inventory_sha256_v1(records) == expected[2]
     assert source_population_sha256_v1(
         list(reversed(records))
     ) == source_population_sha256_v1(records)
@@ -367,6 +473,8 @@ def test_valid_bundle_adoption_is_owner_only_and_operationally_invariant(
     )
     first_record = json.loads(first.adoption_record_path.read_text(encoding="utf-8"))
     second_record = json.loads(second.adoption_record_path.read_text(encoding="utf-8"))
+    assert first_record["status"] == "STAGE_0_ACCEPTED"
+    assert first_record["validation"]["acceptance_status"] == "STAGE_0_ACCEPTED"
     assert first_record["identity"] == second_record["identity"]
     assert first_record["provenance"] != second_record["provenance"]
     assert first.adoption_record_path.name == ADOPTION_RECORD_NAME
@@ -381,12 +489,19 @@ def test_valid_bundle_adoption_is_owner_only_and_operationally_invariant(
     [
         ("missing_artifact", "MISSING_OR_UNSAFE_ARTIFACT"),
         ("tampered_artifact", "ARTIFACT_INTEGRITY_MISMATCH"),
+        ("same_size_tamper", "ARTIFACT_INTEGRITY_MISMATCH"),
+        ("symlinked_artifact", "MISSING_OR_UNSAFE_ARTIFACT"),
         ("mismatched_size", "ARTIFACT_INTEGRITY_MISMATCH"),
+        ("malformed_sha", "INVALID_SHA256"),
         ("missing_success", "MISSING_SUCCESS_MARKER"),
         ("tampered_success", "INCONSISTENT_TERMINAL_STATE"),
         ("failure_marker", "INCONSISTENT_TERMINAL_STATE"),
         ("in_progress", "BUNDLE_IN_PROGRESS"),
         ("unsuccessful_row", "UNSUCCESSFUL_INVENTORY_ROW"),
+        ("incomplete_counts", "UNSUCCESSFUL_INVENTORY_ROW"),
+        ("population_mismatch", "SOURCE_POPULATION_MISMATCH"),
+        ("malformed_row_width", "MALFORMED_MANIFEST"),
+        ("malformed_utf8", "MALFORMED_MANIFEST"),
         ("contract_mismatch", "PARSER_CONTRACT_MISMATCH"),
     ],
 )
@@ -401,10 +516,24 @@ def test_bundle_validator_fails_closed(
             "a", encoding="utf-8"
         ) as stream:
             stream.write("tampered\n")
+    elif mutation == "same_size_tamper":
+        artifact = run_dir / "phase01_schema_report.csv"
+        content = artifact.read_bytes()
+        artifact.write_bytes(bytes([content[0] ^ 1]) + content[1:])
+    elif mutation == "symlinked_artifact":
+        artifact = run_dir / "phase01_schema_report.csv"
+        replacement = run_dir / "fictional_replacement"
+        replacement.write_bytes(artifact.read_bytes())
+        artifact.unlink()
+        artifact.symlink_to(replacement)
     elif mutation == "mismatched_size":
         run = json.loads((run_dir / "phase01_run.json").read_text(encoding="utf-8"))
         run["output_files"]["phase01_schema_report.csv"]["size_bytes"] += 1
         (run_dir / "phase01_run.json").write_text(json.dumps(run), encoding="utf-8")
+    elif mutation == "malformed_sha":
+        changed = [_record(file_sha256="A" * 64)]
+        _write_manifest(run_dir, run_dir.name, changed)
+        _refresh_run_metadata(run_dir, changed)
     elif mutation == "missing_success":
         (run_dir / "_SCOPE_PASS").unlink()
     elif mutation == "tampered_success":
@@ -417,6 +546,25 @@ def test_bundle_validator_fails_closed(
         changed = [_record(scan_status="FAILED")]
         _write_manifest(run_dir, run_dir.name, changed)
         _refresh_run_metadata(run_dir, changed)
+    elif mutation == "incomplete_counts":
+        changed = [_record(counts_complete=False)]
+        _write_manifest(run_dir, run_dir.name, changed)
+        _refresh_run_metadata(run_dir, changed)
+    elif mutation == "population_mismatch":
+        run = json.loads((run_dir / "phase01_run.json").read_text(encoding="utf-8"))
+        run["approved_input_files"] = []
+        (run_dir / "phase01_run.json").write_text(json.dumps(run), encoding="utf-8")
+    elif mutation == "malformed_row_width":
+        manifest = run_dir / "phase01_file_manifest.csv"
+        lines = manifest.read_text(encoding="utf-8").splitlines()
+        lines[1] += ",unexpected"
+        manifest.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        _refresh_run_metadata(run_dir, [_record()])
+    elif mutation == "malformed_utf8":
+        manifest = run_dir / "phase01_file_manifest.csv"
+        with manifest.open("ab") as stream:
+            stream.write(b"\xff")
+        _refresh_run_metadata(run_dir, [_record()])
     elif mutation == "contract_mismatch":
         run = json.loads((run_dir / "phase01_run.json").read_text(encoding="utf-8"))
         run["parser_configuration"]["strict"] = False
@@ -481,6 +629,58 @@ def test_adoption_output_collision_is_fail_closed(tmp_path: Path) -> None:
         )
 
 
+def test_bundle_change_between_adoption_validations_is_rejected(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    run_dir = _synthetic_bundle(tmp_path)
+    original_hardener = s00_inventory.harden_phase01_work_state
+
+    def harden_then_change_bundle(path: Path) -> object:
+        result = original_hardener(path)
+        run_path = path / "phase01_run.json"
+        payload = json.loads(run_path.read_text(encoding="utf-8"))
+        payload["completed_at_utc"] = "2026-01-01T00:00:00Z"
+        run_path.write_text(json.dumps(payload), encoding="utf-8")
+        return result
+
+    monkeypatch.setattr(
+        s00_inventory, "harden_phase01_work_state", harden_then_change_bundle
+    )
+    with pytest.raises(Stage00ValidationError, match="BUNDLE_CHANGED_DURING_ADOPTION"):
+        adopt_phase01_bundle(
+            run_dir,
+            tmp_path / "adoption",
+            expected_file_count=1,
+            expected_producing_git_commit=PRODUCING_COMMIT,
+            adopting_git_commit=ADOPTING_COMMIT,
+            adopting_git_dirty=False,
+        )
+    assert not (tmp_path / "adoption").exists()
+
+
+def test_artifact_change_during_validation_is_rejected(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    run_dir = _synthetic_bundle(tmp_path)
+    original_hasher = s00_inventory._sha256_file
+    changed = False
+
+    def hash_then_change(path: Path) -> str:
+        nonlocal changed
+        digest = original_hasher(path)
+        if path.name == "phase01_schema_report.csv" and not changed:
+            changed = True
+            with path.open("ab") as stream:
+                stream.write(b"x")
+        return digest
+
+    monkeypatch.setattr(s00_inventory, "_sha256_file", hash_then_change)
+    with pytest.raises(
+        Stage00ValidationError, match="BUNDLE_CHANGED_DURING_VALIDATION"
+    ):
+        _validate(run_dir)
+
+
 def test_permission_hardening_does_not_touch_source_and_rejects_symlinks(
     tmp_path: Path,
 ) -> None:
@@ -497,6 +697,53 @@ def test_permission_hardening_does_not_touch_source_and_rejects_symlinks(
     with pytest.raises(Stage00ValidationError, match="UNSAFE_WORK_STATE_SYMLINK"):
         harden_phase01_work_state(run_dir)
     assert (run_dir / "_work").stat().st_mode & 0o777 == 0o755
+
+
+def test_permission_hardening_rejects_broken_root_symlink_and_special_file(
+    tmp_path: Path,
+) -> None:
+    run_dir = _synthetic_bundle(tmp_path)
+    database = run_dir / "_work/phase01.sqlite3"
+    database.unlink()
+    (run_dir / "_work").rmdir()
+    (run_dir / "_work").symlink_to(tmp_path / "missing-work-state")
+    with pytest.raises(Stage00ValidationError, match="UNSAFE_WORK_STATE"):
+        harden_phase01_work_state(run_dir)
+    with pytest.raises(Stage00ValidationError, match="UNSAFE_WORK_STATE"):
+        verify_phase01_work_state_permissions(run_dir)
+
+    other_root = tmp_path / "special"
+    other_root.mkdir()
+    other_run = _synthetic_bundle(other_root)
+    os.mkfifo(other_run / "_work/unsafe-fifo")
+    with pytest.raises(Stage00ValidationError, match="UNSAFE_WORK_STATE"):
+        harden_phase01_work_state(other_run)
+
+
+def test_permission_failure_stops_adoption(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    run_dir = _synthetic_bundle(tmp_path)
+    original_chmod = Path.chmod
+
+    def deny_database_chmod(
+        path: Path, mode: int, *, follow_symlinks: bool = True
+    ) -> None:
+        if path.name == "phase01.sqlite3":
+            raise PermissionError("fictional denial")
+        original_chmod(path, mode, follow_symlinks=follow_symlinks)
+
+    monkeypatch.setattr(Path, "chmod", deny_database_chmod)
+    with pytest.raises(Stage00ValidationError, match="WORK_STATE_PERMISSION_FAILURE"):
+        adopt_phase01_bundle(
+            run_dir,
+            tmp_path / "adoption",
+            expected_file_count=1,
+            expected_producing_git_commit=PRODUCING_COMMIT,
+            adopting_git_commit=ADOPTING_COMMIT,
+            adopting_git_dirty=False,
+        )
+    assert not (tmp_path / "adoption").exists()
 
 
 def test_adoption_record_does_not_copy_fictional_protected_values(
@@ -518,3 +765,20 @@ def test_adoption_record_does_not_copy_fictional_protected_values(
     portable = outcome.adoption_record_path.read_text(encoding="utf-8")
     assert all(value not in portable for value in protected_values)
     assert not (run_dir.parent / "source").exists()
+
+
+def test_adoption_succeeds_when_source_root_is_absent(tmp_path: Path) -> None:
+    run_dir = _synthetic_bundle(tmp_path)
+    nonexistent_source_root = tmp_path / "source-csv-corpus"
+    assert not nonexistent_source_root.exists()
+
+    outcome = adopt_phase01_bundle(
+        run_dir,
+        tmp_path / "adoption-without-source",
+        expected_file_count=1,
+        expected_producing_git_commit=PRODUCING_COMMIT,
+        adopting_git_commit=ADOPTING_COMMIT,
+        adopting_git_dirty=False,
+    )
+    assert outcome.bundle.run_dir == run_dir.resolve()
+    assert not nonexistent_source_root.exists()

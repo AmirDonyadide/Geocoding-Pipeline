@@ -2,8 +2,8 @@
 
 ## Status
 
-**IMPLEMENTED_PENDING_FINAL_REVIEW.** Stage 0 has not received final acceptance,
-and Stage 1 is not authorized.
+**STAGE_0_ACCEPTED.** The Stage 0 implementation and production adoption passed
+the final critical review. Stage 1 remains a separate implementation task.
 
 ## Purpose and reuse boundary
 
@@ -47,7 +47,7 @@ owner-only `stage00_adoption.json` binds:
 - byte size and SHA-256 for `_SCOPE_PASS`, plus the required absence of
   `_SCOPE_FAIL` and `_IN_PROGRESS`;
 - operational adoption provenance and permission-hardening results;
-- explicit validation gates and `IMPLEMENTED_PENDING_FINAL_REVIEW` status.
+- explicit validation gates and `STAGE_0_ACCEPTED` status.
 
 The adoption record does not hash itself. Its external SHA-256 identifies the
 exact operational record.
@@ -67,11 +67,13 @@ SHA-256 receives the ASCII domain bytes
 ### Parser-contract fingerprint
 
 SHA-256 receives `SAFE_STAGE00_PARSER_CONTRACT_V1`, then the Phase 1 inventory
-version, ordered source-column count and names, encoding/BOM policy, newline and
-CSV dialect fields, and hard parser ceiling. Text uses an unsigned 64-bit
-big-endian UTF-8 byte-length prefix; Booleans are one byte; nullable text uses a
-one-byte null/value tag; integers are unsigned 64-bit big-endian; digests are
-raw 32-byte values.
+version, ordered source-column count and names, encoding policy, exact `utf-8`
+and `utf-8-sig` codec names, strict decoding-error policy, length-prefixed UTF-8
+BOM bytes, schema-fingerprint algorithm/version and separator, newline and CSV
+dialect fields, and hard parser ceiling. Text and byte strings use unsigned
+64-bit big-endian byte-length prefixes; Booleans are one byte; nullable text
+uses a one-byte null/value tag; integers are unsigned 64-bit big-endian; digests
+are raw 32-byte values.
 
 ### `stage00_scientific_inventory_sha256_v1`
 
@@ -79,6 +81,13 @@ SHA-256 receives `SAFE_STAGE00_SCIENTIFIC_INVENTORY_V1`, then the Stage 0 and
 Phase 1 contract versions, raw parser-contract and source-population digests,
 record count, and the declared deterministic inventory projection in sorted
 file order using the same typed encoding.
+
+The per-file projection order is: file ID, relative path, file size, file
+SHA-256, source-stability flag, encoding status, BOM type, header-present flag,
+observed column count, schema fingerprint, schema-match flag, logical-record
+count, valid-schema-record count, wrong-width count, parser-error count,
+multiline-record count, counts-complete flag, scan status, nullable duplicate
+group, duplicate-group size, maximum record length, and maximum field length.
 
 Timestamps, mtimes, durations, host, SLURM identity, Git revision, Python and
 SQLite versions, and permissions are operational provenance and never affect
@@ -117,19 +126,25 @@ passes artifact, terminal-state, parser, manifest, and population validation.
 No source CSV was opened for adoption.
 
 - parser-contract fingerprint:
-  `c68895992f58afc7ef22d45ec3df21e49ff97339641d57559d9e961333c1feb9`
+  `d071da05a76ca7c6ae5111894628fe8a5427f354838dbe0eb84e6cdf6ecd4b79`
 - source-population fingerprint:
   `bdedb3f425a337048aaf21245b76246f92a36693cdbf0e28acb16f18b14fffc3`
 - scientific-inventory fingerprint:
-  `bd56d00c06e8711bf80a9dd08eb9630959119782e81bc58c058d00aa0cdba3a2`
+  `551d893a8c6d16b799c1e38ecf4715cbe3bb0865d811eb44aaa6f46fa45b2631`
+
+The final review strengthened the previously pending parser fingerprint so it
+mechanically binds the exact codecs, BOM bytes, decoding-error policy, and
+schema-fingerprint algorithm already used by Phase 1. This intentionally
+supersedes the pending-review parser/scientific digests without changing the
+source-population digest, Phase 1 behavior, or historical artifact bytes.
 
 The historical Phase 1 artifact bytes remain unchanged. Permission changes to
 retained working state are operational privacy hardening only.
 
-## Review gate and Stage 1 boundary
+## Acceptance and Stage 1 boundary
 
-Prompt 3 must independently review the implementation, canonical encodings,
-golden vectors, bundle validation, historical artifact integrity, permissions,
-and adoption record before Stage 0 can be accepted. Until then, the status
-remains `IMPLEMENTED_PENDING_FINAL_REVIEW`. Stage 0 emits no staging rows and
-does not authorize or begin Stage 1.
+The final review independently checked the canonical encodings and golden
+vectors, strengthened the parser-contract binding, exercised hostile bundle
+and permission cases, verified historical artifact bytes, and ran the complete
+documented local-safe suite. Stage 0 emits no staging rows. No Stage 1 work is
+implemented here.

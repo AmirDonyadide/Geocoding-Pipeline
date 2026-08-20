@@ -30,11 +30,18 @@ from ...raw_csv import (
     CSV_STRICT,
     SOURCE_COLUMNS,
     SOURCE_ENCODING_POLICY,
+    SOURCE_SCHEMA_FINGERPRINT_SEPARATOR,
+    SOURCE_SCHEMA_FINGERPRINT_VERSION,
+    SOURCE_TEXT_ENCODING,
+    SOURCE_TEXT_ENCODING_WITH_BOM,
+    SOURCE_TEXT_ERRORS,
+    UTF8_BOM_BYTES,
+    source_schema_fingerprint,
 )
 
 STAGE00_CONTRACT_VERSION = "stage00_inventory_contract_v1"
 STAGE00_VALIDATION_CONTRACT_VERSION = "stage00_bundle_validation_v1"
-STAGE00_IMPLEMENTATION_STATUS = "IMPLEMENTED_PENDING_FINAL_REVIEW"
+STAGE00_IMPLEMENTATION_STATUS = "STAGE_0_ACCEPTED"
 SOURCE_POPULATION_DOMAIN = b"SAFE_STAGE00_SOURCE_POPULATION_V1"
 SCIENTIFIC_INVENTORY_DOMAIN = b"SAFE_STAGE00_SCIENTIFIC_INVENTORY_V1"
 PARSER_CONTRACT_DOMAIN = b"SAFE_STAGE00_PARSER_CONTRACT_V1"
@@ -165,6 +172,14 @@ class _CanonicalEncoder:
     def digest(self, value: str) -> None:
         self._digest.update(_digest_bytes(value))
 
+    def byte_string(self, value: bytes) -> None:
+        if not isinstance(value, bytes):
+            raise Stage00ValidationError(
+                "INVALID_BYTES", "Canonical byte string has an invalid type"
+            )
+        self.uint64(len(value))
+        self._digest.update(value)
+
 
 def _fail(code: str, message: str) -> NoReturn:
     raise Stage00ValidationError(code, message)
@@ -294,6 +309,12 @@ def parser_contract_fingerprint_v1(
     for column in SOURCE_COLUMNS:
         encoder.text(column)
     encoder.text(SOURCE_ENCODING_POLICY)
+    encoder.text(SOURCE_TEXT_ENCODING)
+    encoder.text(SOURCE_TEXT_ENCODING_WITH_BOM)
+    encoder.text(SOURCE_TEXT_ERRORS)
+    encoder.byte_string(UTF8_BOM_BYTES)
+    encoder.text(SOURCE_SCHEMA_FINGERPRINT_VERSION)
+    encoder.text(SOURCE_SCHEMA_FINGERPRINT_SEPARATOR)
     encoder.text(CSV_NEWLINE)
     encoder.text(CSV_DELIMITER)
     encoder.text(CSV_QUOTE_CHARACTER)
@@ -383,13 +404,20 @@ def _bool_from_text(value: str) -> bool:
     _fail("MALFORMED_MANIFEST", "Manifest Boolean is not canonical")
 
 
-def _load_manifest(path: Path, run_id: str) -> tuple[Stage00InventoryRecord, ...]:
+def _load_manifest_unchecked(
+    path: Path, run_id: str
+) -> tuple[Stage00InventoryRecord, ...]:
     records: list[Stage00InventoryRecord] = []
     with path.open("r", encoding="utf-8", newline="") as stream:
         reader = csv.DictReader(stream)
         if tuple(reader.fieldnames or ()) != MANIFEST_COLUMNS:
             _fail("MANIFEST_SCHEMA_MISMATCH", "Phase 1 manifest columns are not exact")
         for row in reader:
+            if None in row or any(value is None for value in row.values()):
+                _fail(
+                    "MALFORMED_MANIFEST",
+                    "Manifest row width does not match its declared schema",
+                )
             if row.get("run_id") != run_id:
                 _fail("MANIFEST_RUN_ID_MISMATCH", "Manifest row has a different run ID")
             relative_path = _required_text(row, "relative_path")
@@ -489,6 +517,17 @@ def _load_manifest(path: Path, run_id: str) -> tuple[Stage00InventoryRecord, ...
     if [record.file_id for record in records] != list(range(1, len(records) + 1)):
         _fail("FILE_ID_CONTRACT_MISMATCH", "Manifest file IDs are not sequential")
     return ordered
+
+
+def _load_manifest(path: Path, run_id: str) -> tuple[Stage00InventoryRecord, ...]:
+    try:
+        return _load_manifest_unchecked(path, run_id)
+    except Stage00ValidationError:
+        raise
+    except (OSError, UnicodeError, csv.Error, TypeError, ValueError) as error:
+        raise Stage00ValidationError(
+            "MALFORMED_MANIFEST", "Phase 1 manifest cannot be interpreted safely"
+        ) from error
 
 
 def _load_json_object(path: Path) -> dict[str, Any]:
@@ -644,9 +683,7 @@ def validate_phase01_bundle(
     if run.get("total_size_bytes") != sum(record.file_size_bytes for record in records):
         _fail("SOURCE_POPULATION_MISMATCH", "Source byte total differs from inventory")
 
-    expected_schema_fingerprint = hashlib.sha256(
-        "\x1f".join(SOURCE_COLUMNS).encode("utf-8")
-    ).hexdigest()
+    expected_schema_fingerprint = source_schema_fingerprint(SOURCE_COLUMNS)
     for record in records:
         if (
             not record.source_stable_during_scan
@@ -691,9 +728,11 @@ def harden_phase01_work_state(run_dir: Path) -> PermissionHardeningResult:
     if run_dir.is_symlink() or not run_dir.is_dir():
         _fail("INVALID_BUNDLE_DIRECTORY", "Phase 1 bundle is not a regular directory")
     work_dir = run_dir / "_work"
+    if work_dir.is_symlink():
+        _fail("UNSAFE_WORK_STATE", "Phase 1 working state is a symlink")
     if not work_dir.exists():
         return PermissionHardeningResult(False, 0, 0)
-    if work_dir.is_symlink() or not work_dir.is_dir():
+    if not work_dir.is_dir():
         _fail("UNSAFE_WORK_STATE", "Phase 1 working state is not a regular directory")
 
     directories: list[Path] = []
@@ -743,6 +782,8 @@ def harden_phase01_work_state(run_dir: Path) -> PermissionHardeningResult:
 
 def verify_phase01_work_state_permissions(run_dir: Path) -> None:
     work_dir = run_dir / "_work"
+    if work_dir.is_symlink():
+        _fail("UNSAFE_WORK_STATE", "Phase 1 working state is a symlink")
     if not work_dir.exists():
         return
     pending = [work_dir]

@@ -3,9 +3,23 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
+import pytest
+
 from safe_geocoding_pipeline.phase01.models import FileResult, IdObservation, SourceFile
 from safe_geocoding_pipeline.phase01.profiling import sha256_text
 from safe_geocoding_pipeline.phase01.store import IdStore
+
+
+def test_store_rejects_sqlite_symlink_before_opening_it(tmp_path: Path) -> None:
+    target = tmp_path / "outside.sqlite3"
+    original = b"fictional external content"
+    target.write_bytes(original)
+    link = tmp_path / "ids.sqlite3"
+    link.symlink_to(target)
+
+    with pytest.raises(OSError, match="not a regular file"):
+        IdStore(link)
+    assert target.read_bytes() == original
 
 
 def test_compact_store_tracks_within_and_cross_file_duplicates(tmp_path: Path) -> None:
@@ -53,7 +67,9 @@ def test_failed_file_transaction_rolls_back_all_id_state(tmp_path: Path) -> None
         store.begin_file()
         store.add_ids([IdObservation("rollback-me", 1, 1)])
         store.rollback_file()
-        count = store.connection.execute("SELECT COUNT(*) FROM unique_ids").fetchone()[0]
+        count = store.connection.execute("SELECT COUNT(*) FROM unique_ids").fetchone()[
+            0
+        ]
         assert count == 0
 
 
@@ -70,9 +86,14 @@ def test_sqlite_uses_binary_text_and_only_duplicate_occurrences(tmp_path: Path) 
             ]
         )
         store.commit_file()
-        assert store.connection.execute("SELECT COUNT(*) FROM unique_ids").fetchone()[0] == 4
         assert (
-            store.connection.execute("SELECT COUNT(*) FROM duplicate_occurrences").fetchone()[0]
+            store.connection.execute("SELECT COUNT(*) FROM unique_ids").fetchone()[0]
+            == 4
+        )
+        assert (
+            store.connection.execute(
+                "SELECT COUNT(*) FROM duplicate_occurrences"
+            ).fetchone()[0]
             == 0
         )
 
@@ -84,7 +105,9 @@ def test_sqlite_uses_binary_text_and_only_duplicate_occurrences(tmp_path: Path) 
     connection.close()
 
 
-def test_scanning_state_survives_interruption_without_uncommitted_ids(tmp_path: Path) -> None:
+def test_scanning_state_survives_interruption_without_uncommitted_ids(
+    tmp_path: Path,
+) -> None:
     database = tmp_path / "ids.sqlite3"
     source = SourceFile(1, tmp_path / "a.csv", "a.csv", "a.csv")
     store = IdStore(database)
@@ -96,7 +119,10 @@ def test_scanning_state_survives_interruption_without_uncommitted_ids(tmp_path: 
 
     with IdStore(database) as reopened:
         assert reopened.file_states()[1]["status"] == "SCANNING"
-        assert reopened.connection.execute("SELECT COUNT(*) FROM unique_ids").fetchone()[0] == 0
+        assert (
+            reopened.connection.execute("SELECT COUNT(*) FROM unique_ids").fetchone()[0]
+            == 0
+        )
 
 
 def test_complete_checkpoint_and_ids_commit_atomically(tmp_path: Path) -> None:
@@ -110,4 +136,7 @@ def test_complete_checkpoint_and_ids_commit_atomically(tmp_path: Path) -> None:
         result = FileResult(1, "a.csv", "a.csv", scan_status="COMPLETE")
         store.commit_file_result(result, anomaly_spool_name="file_000001.csv")
         assert store.file_states()[1]["status"] == "COMPLETE"
-        assert store.connection.execute("SELECT COUNT(*) FROM unique_ids").fetchone()[0] == 1
+        assert (
+            store.connection.execute("SELECT COUNT(*) FROM unique_ids").fetchone()[0]
+            == 1
+        )

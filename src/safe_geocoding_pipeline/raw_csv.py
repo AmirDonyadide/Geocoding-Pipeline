@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 from contextlib import contextmanager
-from typing import IO, Iterator, Protocol, cast
+from typing import IO, Iterator, Protocol, Sequence, cast
 
 SOURCE_COLUMNS = (
     "id",
@@ -25,7 +26,10 @@ SOURCE_COLUMNS = (
 SOURCE_ENCODING_POLICY = "strict UTF-8 with optional UTF-8 BOM"
 SOURCE_TEXT_ENCODING = "utf-8"
 SOURCE_TEXT_ENCODING_WITH_BOM = "utf-8-sig"
+SOURCE_TEXT_ERRORS = "strict"
 UTF8_BOM_BYTES = b"\xef\xbb\xbf"
+SOURCE_SCHEMA_FINGERPRINT_VERSION = "sha256_utf8_unit_separator_v1"
+SOURCE_SCHEMA_FINGERPRINT_SEPARATOR = "\x1f"
 CSV_NEWLINE = ""
 CSV_DELIMITER = ","
 CSV_QUOTE_CHARACTER = '"'
@@ -33,6 +37,12 @@ CSV_DOUBLEQUOTE = True
 CSV_ESCAPE_CHARACTER: None = None
 CSV_SKIP_INITIAL_SPACE = False
 CSV_STRICT = True
+
+
+def source_schema_fingerprint(columns: Sequence[str]) -> str:
+    """Return the authoritative Phase 1 ordered-schema fingerprint."""
+    payload = SOURCE_SCHEMA_FINGERPRINT_SEPARATOR.join(columns).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
 
 
 class StrictCsvReader(Protocol, Iterator[list[str]]):

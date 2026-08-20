@@ -10,9 +10,12 @@ from pathlib import Path
 from typing import Any
 
 from ..raw_csv import (
+    CSV_NEWLINE,
     SOURCE_TEXT_ENCODING,
     SOURCE_TEXT_ENCODING_WITH_BOM,
+    SOURCE_TEXT_ERRORS,
     UTF8_BOM_BYTES,
+    source_schema_fingerprint,
     strict_csv_reader,
 )
 from .config import InventoryConfig
@@ -62,7 +65,7 @@ def detect_bom(path: Path) -> str:
 
 
 def _schema_fingerprint(header: list[str]) -> str:
-    return sha256_text("\x1f".join(header))
+    return source_schema_fingerprint(header)
 
 
 def _safe_header_value(value: str) -> str:
@@ -268,7 +271,10 @@ def scan_csv_file(
             parse_started = time.perf_counter()
             try:
                 with source.path.open(
-                    "r", encoding=encoding, errors="strict", newline=""
+                    "r",
+                    encoding=encoding,
+                    errors=SOURCE_TEXT_ERRORS,
+                    newline=CSV_NEWLINE,
                 ) as stream:
                     reader = strict_csv_reader(stream)
                     result.encoding_status = "UTF8_VALID"

@@ -16,8 +16,8 @@ This register distinguishes approved project rules from questions that require e
 - The completed Phase 1 bundle is adopted without reopening or rescanning the
   source CSVs. Historical report bytes remain unchanged; owner-only hardening
   of retained protected working state is an operational privacy action.
-- Stage 0 implementation status is `IMPLEMENTED_PENDING_FINAL_REVIEW`. This is
-  not `STAGE_0_ACCEPTED` and does not authorize Stage 1.
+- Stage 0 status is `STAGE_0_ACCEPTED` after its final critical review. Stage 1
+  remains a separate stage and was not started by the Stage 0 acceptance work.
 
 - The research objective requires physical building/plant/branch/store/facility point locations.
 - `usable_for_analysis` is the main Boolean indicator of suitability for point-level research; diagnostic tiers remain separate.
