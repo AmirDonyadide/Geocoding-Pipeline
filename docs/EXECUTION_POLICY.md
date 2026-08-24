@@ -62,6 +62,16 @@ exact reviewed Git commit/integration worktree, controlled source root,
 owner-only population-scope JSON and its SHA-256, reports root, and run ID.
 The launcher contains no population-count constant and performs no transfer.
 
+Full `BENCHMARK_SAMPLE_V1` profiling, selection, and materialization is also
+production-heavy. It runs through
+`cluster/goethe_nhr/benchmark_sample_v1.sbatch`, which requires an exact pushed
+commit, detached clean integration worktree, immutable controlled source root,
+hash-pinned Stage 0 population scope, explicit source count, and new protected
+output path. Production benchmark code calls the shared guard before opening
+the source population. Source transfer, when required, uses the separate
+scope-driven checksum-reconciling controlled transfer script; it performs no
+processing on an external service.
+
 Future full-production commands in Phases 4, 5, 8, 9, 10, 11, 12, and 13 must
 reuse the shared guard for full diagnostics, address-key/deduplication,
 geocoding orchestration, candidate selection, usability classification,

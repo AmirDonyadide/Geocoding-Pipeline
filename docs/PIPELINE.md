@@ -11,6 +11,13 @@ benchmark baseline. See `docs/STAGE00.md`, `docs/STAGE01.md`, and
 `docs/CUSTOM_PREPROCESSING_BASELINE.md`. New stages proceed one reviewed stage
 at a time and do not rewrite this historical workflow.
 
+`BENCHMARK_SAMPLE_V1` is a separate fixed selection product used to evaluate
+Stages 3–14; it is not Stage 2. It freezes 35,000 protected DEVELOPMENT rows and
+15,000 separately protected HOLDOUT rows from the explicitly authorized
+1,405-file development population. Sampling uses only immutable provenance and
+privacy-safe raw structural features, never later pipeline output. See
+`docs/BENCHMARK_SAMPLE.md`.
+
 Future `FULL_INVENTORY` execution is population-size independent. It requires a
 hash-pinned `stage00_population_scope_v1` artifact containing the exact sorted
 direct-child CSV path set. The historical Phase 1 description below remains a

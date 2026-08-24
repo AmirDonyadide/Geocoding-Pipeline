@@ -48,6 +48,14 @@ This register distinguishes approved project rules from questions that require e
   contents, controls conversion and resume. The historical 206-source result
   remains immutable evidence and remains reproducible from its exact historical
   commit and accepted Stage 0 snapshot.
+- `BENCHMARK_SAMPLE_V1` is a fixed 50,000-source-row evaluation product from
+  the explicitly authorized 1,405-file development population: 35,000
+  DEVELOPMENT and 15,000 physically separate HOLDOUT rows. The six missing
+  delivery files are not silently added later. Selection is deterministic,
+  uses immutable source provenance plus raw structural strata, and performs no
+  address transformation or deduplication. HOLDOUT is excluded from tuning and
+  may be used only under an explicit final-evaluation protocol. See
+  `docs/BENCHMARK_SAMPLE.md`.
 
 - The research objective requires physical building/plant/branch/store/facility point locations.
 - `usable_for_analysis` is the main Boolean indicator of suitability for point-level research; diagnostic tiers remain separate.
