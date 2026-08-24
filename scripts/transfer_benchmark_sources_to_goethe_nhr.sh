@@ -10,6 +10,7 @@ umask 077
 
 readonly REMOTE_HOST="${GOETHE_NHR_HOST:-goethe}"
 readonly REMOTE_REPOSITORY="${GOETHE_NHR_REPO:-/work/footprint/donyadidegan/safe_geocoding_pipeline}"
+readonly RSYNC_REMOTE_SHELL="ssh -o ServerAliveInterval=30 -o ServerAliveCountMax=120"
 readonly REPOSITORY_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 readonly TEMPORARY_DIRECTORY="$(mktemp -d)"
 trap 'rm -rf -- "${TEMPORARY_DIRECTORY}"' EXIT
@@ -17,6 +18,10 @@ readonly FILE_LIST="${TEMPORARY_DIRECTORY}/authorized-files.nul"
 
 [[ "${REMOTE_HOST}" =~ ^[A-Za-z0-9._@-]+$ ]] || {
   echo "UNSAFE_REMOTE_HOST" >&2
+  exit 2
+}
+[[ "${BENCHMARK_POPULATION_SCOPE_SHA256}" =~ ^[0-9a-f]{64}$ ]] || {
+  echo "INVALID_POPULATION_SCOPE_SHA256" >&2
   exit 2
 }
 [[ "${BENCHMARK_REMOTE_SOURCE_ROOT}" =~ ^/work/footprint/donyadidegan/safe_geocoding_pipeline/source_snapshots/[A-Za-z0-9._/-]+$ ]] || {
@@ -88,24 +93,34 @@ with Path(sys.argv[4]).open("wb") as stream:
 print(f"authorized_source_files={len(scope.relative_paths)}")
 PY
 
-ssh "${REMOTE_HOST}" "set -eu; umask 077; \
-  test ! -e '${BENCHMARK_REMOTE_SOURCE_ROOT}' || { echo REMOTE_SOURCE_COLLISION >&2; exit 1; }; \
-  test ! -e '${BENCHMARK_REMOTE_SCOPE_PATH}' || { echo REMOTE_SCOPE_COLLISION >&2; exit 1; }; \
+ssh -o ServerAliveInterval=30 -o ServerAliveCountMax=120 "${REMOTE_HOST}" "set -eu; umask 077; \
   mkdir -p '$(dirname "${BENCHMARK_REMOTE_SOURCE_ROOT}")' '$(dirname "${BENCHMARK_REMOTE_SCOPE_PATH}")'; \
-  mkdir -m 700 '${BENCHMARK_REMOTE_SOURCE_ROOT}'; \
-  install -m 600 /dev/null '${BENCHMARK_REMOTE_SOURCE_ROOT}/.TRANSFER_IN_PROGRESS'"
+  if test -e '${BENCHMARK_REMOTE_SOURCE_ROOT}'; then \
+    test -d '${BENCHMARK_REMOTE_SOURCE_ROOT}' || { echo REMOTE_SOURCE_UNSAFE >&2; exit 1; }; \
+    test -f '${BENCHMARK_REMOTE_SOURCE_ROOT}/.TRANSFER_IN_PROGRESS' || { echo REMOTE_SOURCE_COLLISION >&2; exit 1; }; \
+    test ! -e '${BENCHMARK_REMOTE_SOURCE_ROOT}/_TRANSFER_COMPLETE' || { echo REMOTE_SOURCE_ALREADY_COMPLETE >&2; exit 1; }; \
+  else \
+    mkdir -m 700 '${BENCHMARK_REMOTE_SOURCE_ROOT}'; \
+    install -m 600 /dev/null '${BENCHMARK_REMOTE_SOURCE_ROOT}/.TRANSFER_IN_PROGRESS'; \
+  fi; \
+  chmod 700 '${BENCHMARK_REMOTE_SOURCE_ROOT}'; \
+  if test -e '${BENCHMARK_REMOTE_SCOPE_PATH}'; then \
+    test -f '${BENCHMARK_REMOTE_SCOPE_PATH}' || { echo REMOTE_SCOPE_UNSAFE >&2; exit 1; }; \
+    test \"\$(sha256sum '${BENCHMARK_REMOTE_SCOPE_PATH}' | awk '{print \$1}')\" = '${BENCHMARK_POPULATION_SCOPE_SHA256}' || { echo REMOTE_SCOPE_COLLISION >&2; exit 1; }; \
+  fi"
 
-"${RSYNC}" -a --checksum --protect-args --from0 \
+"${RSYNC}" -a --checksum --protect-args --from0 -e "${RSYNC_REMOTE_SHELL}" \
   --files-from="${FILE_LIST}" --chmod=D700,F600 \
   "${BENCHMARK_SOURCE_ROOT}/" \
   "${REMOTE_HOST}:${BENCHMARK_REMOTE_SOURCE_ROOT}/"
 
-"${RSYNC}" -a --checksum --protect-args --chmod=F600 \
+"${RSYNC}" -a --checksum --protect-args --chmod=F600 -e "${RSYNC_REMOTE_SHELL}" \
   "${BENCHMARK_POPULATION_SCOPE}" \
   "${REMOTE_HOST}:${BENCHMARK_REMOTE_SCOPE_PATH}"
 
 verification="$("${RSYNC}" -a --checksum --protect-args --from0 \
   --files-from="${FILE_LIST}" --chmod=D700,F600 --dry-run --itemize-changes \
+  -e "${RSYNC_REMOTE_SHELL}" \
   "${BENCHMARK_SOURCE_ROOT}/" \
   "${REMOTE_HOST}:${BENCHMARK_REMOTE_SOURCE_ROOT}/")"
 [[ -z "${verification}" ]] || {
@@ -113,7 +128,7 @@ verification="$("${RSYNC}" -a --checksum --protect-args --from0 \
   exit 1
 }
 
-ssh "${REMOTE_HOST}" "set -eu; \
+ssh -o ServerAliveInterval=30 -o ServerAliveCountMax=120 "${REMOTE_HOST}" "set -eu; \
   chmod 700 '${BENCHMARK_REMOTE_SOURCE_ROOT}'; \
   chmod 600 '${BENCHMARK_REMOTE_SCOPE_PATH}'; \
   rm '${BENCHMARK_REMOTE_SOURCE_ROOT}/.TRANSFER_IN_PROGRESS'; \

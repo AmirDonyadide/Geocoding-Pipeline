@@ -658,6 +658,9 @@ def test_cluster_and_transfer_assets_enforce_controlled_execution() -> None:
     assert "safe-geocoding-benchmark-sample" in sbatch
     assert "--checksum" in transfer
     assert "--files-from" in transfer
+    assert "ServerAliveInterval=30" in transfer
+    assert ".TRANSFER_IN_PROGRESS" in transfer
+    assert "REMOTE_SOURCE_ALREADY_COMPLETE" in transfer
     assert "SOURCE_SCOPE_MEMBERSHIP_MISMATCH" in transfer
     assert "_TRANSFER_COMPLETE" in transfer
     for forbidden in ("1405", "1411", "2822", "csv_files"):
