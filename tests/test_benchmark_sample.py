@@ -655,7 +655,7 @@ def test_cluster_and_transfer_assets_enforce_controlled_execution() -> None:
     assert "SLURM_JOB_ID:?SLURM_JOB_ID is required" in sbatch
     assert "BENCHMARK_POPULATION_SCOPE_SHA256" in sbatch
     assert "BENCHMARK_EXPECTED_SOURCE_COUNT" in sbatch
-    assert "safe-geocoding-benchmark-sample" in sbatch
+    assert "python -m safe_geocoding_pipeline.preprocessing.benchmark_cli" in sbatch
     assert "--checksum" in transfer
     assert "--files-from" in transfer
     assert "ServerAliveInterval=30" in transfer

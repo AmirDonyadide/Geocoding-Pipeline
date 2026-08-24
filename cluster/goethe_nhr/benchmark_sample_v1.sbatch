@@ -52,7 +52,7 @@ echo "git_commit=${ACTUAL_COMMIT}"
 echo "benchmark_contract=benchmark_sample_contract_v1"
 echo "holdout_access_policy=PROGRAMMATIC_MATERIALIZATION_ONLY_NO_DISPLAY"
 
-safe-geocoding-benchmark-sample \
+python -m safe_geocoding_pipeline.preprocessing.benchmark_cli \
   --source-root "${SOURCE_ROOT}" \
   --population-scope-file "${POPULATION_SCOPE}" \
   --expected-population-scope-sha256 "${BENCHMARK_POPULATION_SCOPE_SHA256}" \
