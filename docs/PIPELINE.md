@@ -11,6 +11,13 @@ benchmark baseline. See `docs/STAGE00.md`, `docs/STAGE01.md`, and
 `docs/CUSTOM_PREPROCESSING_BASELINE.md`. New stages proceed one reviewed stage
 at a time and do not rewrite this historical workflow.
 
+Library-first Stage 2 defines the stable internal source-row schema used by
+later preprocessing. It preserves the exact Stage 1 raw/provenance columns and
+adds only four raw-emptiness representation fields. Standard and native address
+lines remain independent alternatives. Stage 2 performs no text transformation
+and may consume the fixed benchmark's DEVELOPMENT artifact without opening
+HOLDOUT. See `docs/STAGE02.md`.
+
 `BENCHMARK_SAMPLE_V1` is a separate fixed selection product used to evaluate
 Stages 3–14; it is not Stage 2. It freezes 35,000 protected DEVELOPMENT rows and
 15,000 separately protected HOLDOUT rows from the explicitly authorized

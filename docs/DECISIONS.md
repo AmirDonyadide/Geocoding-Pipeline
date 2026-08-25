@@ -56,6 +56,19 @@ This register distinguishes approved project rules from questions that require e
   address transformation or deduplication. HOLDOUT is excluded from tuning and
   may be used only under an explicit final-evaluation protocol. See
   `docs/BENCHMARK_SAMPLE.md`.
+- Library-first Stage 2 uses
+  `stage02_schema_provenance_harmonization_contract_v1`. It preserves the exact
+  15 source strings and immutable source provenance, leaves
+  `stable_source_row_id_v1` unchanged, keeps standard and native address lines
+  separate, and adds only raw non-empty-line presence/count fields. Empty means
+  exact source `""`; no trim, normalization, comparison, language/script
+  classification, parsing, or candidate construction occurs.
+- A SHA-pinned `stage02_input_binding_v1` binds an exact accepted Stage 1 or
+  benchmark DEVELOPMENT input. The benchmark interface rejects HOLDOUT paths
+  and non-DEVELOPMENT rows and does not read HOLDOUT. Stage 2 logical identity
+  binds upstream scientific identity, schema/derivation contracts, and row
+  count while excluding physical layout and operational provenance. Protected
+  execution remains Goethe/SLURM-only; real DEVELOPMENT validation is pending.
 
 - The research objective requires physical building/plant/branch/store/facility point locations.
 - `usable_for_analysis` is the main Boolean indicator of suitability for point-level research; diagnostic tiers remain separate.
