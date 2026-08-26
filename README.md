@@ -22,6 +22,27 @@ retained for scientific provenance and benchmark comparison at
 architecture. Stage 2 is implemented and awaits DEVELOPMENT validation. Stage
 3 has not started.
 
+## Current accepted development state
+
+- Stage 0 has accepted and frozen a 1,405-file, 140,448,582-row source
+  snapshot. Six files arrived later and are preserved in a separate
+  1,411-file source snapshot; they do not retroactively change the accepted
+  1,405-file identity. Formal Stage 0 acceptance for 1,411 remains pending.
+- Stage 1's lossless CSV-to-Parquet contract and population-generic
+  implementation are accepted. The historical 206-source execution remains
+  reproducible; full 1,411-source execution must wait for an accepted 1,411
+  Stage 0 snapshot.
+- `BENCHMARK_SAMPLE_V1` is accepted and permanently bound to the frozen 1,405
+  population: 35,000 DEVELOPMENT rows and a physically separate, sealed 15,000
+  HOLDOUT rows. HOLDOUT is not used for tuning.
+- Stage 2 contract `stage02_schema_provenance_harmonization_contract_v1` is
+  implemented. It preserves the exact 22 Stage 1 fields and adds four raw
+  standard/native structural fields; protected 35,000-row DEVELOPMENT
+  validation is the next scientific execution.
+
+See `docs/PIPELINE.md`, `docs/BENCHMARK_SAMPLE.md`, and `docs/STAGE02.md` for
+the complete stage boundaries and current status.
+
 ## Development and cluster workflow
 
 GitHub is the shared source of truth. Development, review, lightweight tests,

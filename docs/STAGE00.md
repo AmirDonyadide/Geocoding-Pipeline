@@ -6,6 +6,28 @@
 the final critical review. Stage 1 was subsequently accepted as a separate
 stage; this document continues to define only the Stage 0 boundary.
 
+## Accepted source snapshots
+
+The historical accepted snapshot contains 206 files. A separate current Stage
+0 run accepted and froze 1,405 files with 140,448,582 logical rows. That
+1,405-file population remains immutable and is the permanent source of
+`BENCHMARK_SAMPLE_V1`.
+
+Its accepted identities are:
+
+- population-scope SHA-256:
+  `72cda9aefd680be77f150dc3e1a561a095c076585f91f8076ec01ca8bb1f18a3`;
+- `source_population_sha256_v1`:
+  `c20b800c87039357c484d9a6eb119476028df01c323300aadf35158efdef6ae7`;
+- `stage00_scientific_inventory_sha256_v1`:
+  `f63c3f0c8c1728f7d68e5e2f59dbe760b482ef3bf48481ccd2201ee6f66a7e2b`.
+
+Six additional files later became available. They are copied only into a new,
+independent 1,411-file protected source snapshot. Copy completion is not Stage
+0 acceptance: formal inventory, fingerprinting, and adoption for 1,411 remain
+pending. Future Stage 1 production for 1,411 must bind to that future accepted
+Stage 0 record. The accepted 1,405 run is never relabeled or rewritten.
+
 ## Purpose and reuse boundary
 
 Stage 0 answers “what exactly did we receive?” before any cleaning, address

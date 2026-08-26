@@ -34,10 +34,18 @@ Confidence is supporting evidence, not a standalone acceptance rule. A successfu
 ## Source-snapshot scope
 
 The first accepted historical source snapshot is 206 CSV files totaling
-approximately 3.29 GB. A later delivery becomes authoritative only after its
-exact direct-child path population is explicitly frozen in a versioned Stage 0
-scope and passes Stage 0. Directory contents or an approximate delivery count
-are not an accepted scientific snapshot.
+approximately 3.29 GB. The current accepted development snapshot is a separate,
+frozen population of 1,405 CSV files and 140,448,582 logical rows. Six files
+became available only after that freeze. They may be copied into a separate
+1,411-file protected source snapshot, but that population is not authoritative
+until its own exact direct-child scope passes a new Stage 0 run. Neither the
+accepted 1,405 Stage 0 result nor `BENCHMARK_SAMPLE_V1` is reinterpreted as a
+1,411-file product.
+
+A later delivery becomes authoritative only after its exact direct-child path
+population is explicitly frozen in a versioned Stage 0 scope and passes Stage
+0. Directory contents or an approximate delivery count are not an accepted
+scientific snapshot.
 
 The compressed/on-disk size understates possible parsed memory use: quoted multiline records and multi-million-character fields have been observed. Processing should therefore remain CSV-aware, reproducible, and bounded-memory where useful, without introducing distributed technology solely on scale grounds.
 

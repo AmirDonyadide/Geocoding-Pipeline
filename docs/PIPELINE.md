@@ -34,6 +34,92 @@ protected DEVELOPMENT rows and
 privacy-safe raw structural features, never later pipeline output. See
 `docs/BENCHMARK_SAMPLE.md`.
 
+## Current library-first state
+
+- **Stage 0 — Source inventory:** the accepted 1,405-file snapshot contains
+  140,448,582 logical rows and is immutable. Six later files belong only to a
+  separately prepared 1,411-file source snapshot. Formal Stage 0 for 1,411 has
+  not run, so the accepted 1,405 scientific identities remain exactly as
+  recorded and cannot be reinterpreted.
+- **Stage 1 — Lossless ingestion:** the scientific contract and
+  population-generic implementation are accepted. The historical 206-file
+  Parquet execution is preserved. A final 1,411-file conversion has not run and
+  must bind to a future accepted 1,411 Stage 0 snapshot.
+- **Benchmark Sample V1:** accepted under `benchmark_sample_contract_v1` and
+  permanently tied to the 1,405-file snapshot. It contains 35,000 DEVELOPMENT
+  and 15,000 sealed HOLDOUT source rows, with zero overlap and zero duplicate
+  selected identities. All 1,405 sources are represented. Its fingerprint is
+  `014a7d2a9935bb098711e62b89df2eb93dfdd0dd1ce5ac70853f010d118acedf`.
+- **Stage 2 — Schema and provenance harmonization:** implemented under
+  `stage02_schema_provenance_harmonization_contract_v1`. The 26-column output
+  preserves the exact 22 Stage 1 fields and adds four raw-emptiness
+  standard/native fields. It performs no address transformation. Protected
+  validation on the 35,000-row DEVELOPMENT artifact is next.
+
+## Planned library-first preprocessing sequence
+
+The following stages are plans, not implemented or accepted results. Every
+stage requires its own design, implementation, DEVELOPMENT evidence, and
+freeze. Raw and derived values remain separate throughout.
+
+| Stage | Boundary and intended mature tools |
+|---|---|
+| 3 — Safe text cleaning | Derived Unicode/encoding repair, whitespace, and safe punctuation using `unicodedata`, `ftfy`, `regex`, and Polars; no aggressive linguistic transformation. |
+| 4 — Lowercase canonical forms | Derived lowercase fields only; raw values remain unchanged. |
+| 5 — Address reconstruction | Build standard and native Orbis candidates separately; never concatenate all eight source lines blindly. |
+| 6 — Early exact deduplication | Deduplicate address candidates, not source rows, and preserve complete map-back. |
+| 7 — libpostal parsing | Parse standard and native candidates independently with libpostal/pypostal. |
+| 8 — Internal component mapping | Map libpostal labels into a stable SAFE component schema. |
+| 9 — Component-aware linguistic normalization | Normalize only after parsing, with component/country/language/script awareness. Blind English rules on native representations are prohibited; transliteration, if used, is a separate derived representation. |
+| 10 — Country/subdivision normalization | Use pinned `pycountry` semantics. |
+| 11 — Country-specific syntax | Apply `google-i18n-address` plus conservative country-specific address/postcode rules. |
+| 12 — Normalized/component deduplication | Deduplicate versioned normalized candidates while preserving all source mappings. |
+| 13 — Geographic cross-validation | Use pinned direct GeoNames postal data for postcode/country, postcode/locality, postcode/region, locality/region, and meaningful multi-field checks. `pgeocode` may support a proof of concept but is not the planned production engine. |
+| 14 — Street/house-number validation | Use Overture Maps Addresses for positive street/postcode, street/locality, and house/street/postcode evidence. Absence is not invalidity; OSM/osmium is an optional fallback. |
+| 15 — Constrained fuzzy matching | Use RapidFuzz only inside geographically blocked candidate sets, never for global fuzzy correction. |
+| 16 — Conservative correction | Prefer high precision and preserve original, proposal, reference/version, evidence, and decision status. |
+| 17 — Geocoding component selection | Remove or downweight recipient, person, floor, and unit noise only when justified while retaining useful physical-location evidence. |
+| 18 — Query generation | Generate standard and native queries independently, with versioned evidence-based alternatives. |
+| 19 — Query deduplication and final QA | Execute identical SAFE Pelias calls once and map results back to every relevant source row. |
+
+SAFE Pelias geocoding begins only after Stage 19 acceptance.
+
+## Validation semantics and independent evidence
+
+Pre-geocoding validation uses the closed result vocabulary `CONFIRMED`,
+`MISMATCH`, `NOT_FOUND`, `AMBIGUOUS`, `UNSUPPORTED`, and `INVALID_FORMAT`.
+Missing from an open reference dataset does **not** mean invalid.
+
+Independent component validation remains necessary even where Pelias contains
+overlapping sources such as OSM, GeoNames, or OpenAddresses. It supplies
+diagnostics Pelias failure alone cannot explain: format support, postcode and
+country consistency, postcode/locality or region mismatch, street evidence,
+house-number evidence, ambiguity, and correction provenance.
+
+## Standard/native representations and development method
+
+Colleagues confirmed that both representations originate from Orbis. Some
+standard forms are English translations; native is likely the more
+authoritative original form, and prior Nominatim processing used native names.
+The pipeline therefore evaluates standard and native independently, including
+by country, and may geocode both where useful. Priority groups 0 and 1 are the
+most useful initial regeocoding groups. Interpolation describes coordinate or
+location estimation from postcode or region; it does not necessarily mean
+source address text was filled or changed. Remaining country-specific
+authority and query-policy questions stay explicitly unresolved until tested.
+
+For every address-changing stage, the development cycle is:
+
+```text
+design -> implement -> synthetic tests -> run on 35k DEVELOPMENT
+       -> inspect metrics/examples -> tune -> accept/freeze -> next stage
+```
+
+After the complete pipeline is frozen, the untouched 15,000-row HOLDOUT is
+used once for unbiased final evaluation. It is not repeatedly opened or used
+for tuning. A satisfactory result then permits separately authorized full
+production execution.
+
 Future `FULL_INVENTORY` execution is population-size independent. It requires a
 hash-pinned `stage00_population_scope_v1` artifact containing the exact sorted
 direct-child CSV path set. The historical Phase 1 description below remains a

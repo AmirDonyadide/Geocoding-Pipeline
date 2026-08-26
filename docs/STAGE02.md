@@ -2,8 +2,11 @@
 
 ## Status and purpose
 
-Stage 2 is implemented and awaits validation on the protected DEVELOPMENT
-benchmark. It converts an accepted Stage 1 representation, or the separately
+Stage 2 status is **IMPLEMENTED_AWAITING_DEVELOPMENT_VALIDATION**. Its
+implementation ancestry includes commit
+`8e4020a02d5d2ed3833f8c8f3fef9a777d568a20`. The next scientific execution is
+validation on the protected 35,000-row DEVELOPMENT benchmark; it has not
+started. Stage 2 converts an accepted Stage 1 representation, or the separately
 accepted `BENCHMARK_SAMPLE_V1` DEVELOPMENT representation, into one stable
 internal source-row schema. It is a lossless projection plus four raw structural
 fields. It performs no cleaning, parsing, normalization, reconstruction,
@@ -46,7 +49,7 @@ representations with relationship `ALTERNATIVE_SOURCE_REPRESENTATIONS`. This
 dataset-level provenance is part of the Stage 2 scientific contract; it does
 not choose either representation or combine them.
 
-Four non-null structural fields follow:
+Four non-null structural fields follow, producing exactly 26 columns in total:
 
 | Field | Type | Exact v1 meaning |
 |---|---|---|

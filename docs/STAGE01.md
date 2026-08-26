@@ -6,6 +6,11 @@
 local-safe validation. Stage 2 was subsequently implemented as a separate
 contract and awaits protected DEVELOPMENT validation.
 
+The accepted scientific implementation is population-generic. The completed
+206-file Phase 2 execution remains immutable historical evidence. No final
+1,411-file Stage 1 production conversion exists yet; it requires a separately
+accepted 1,411-file Stage 0 scope and adoption record first.
+
 ## Purpose and reuse boundary
 
 Stage 1 represents every source record from the exact accepted Stage 0 snapshot

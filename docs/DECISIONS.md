@@ -78,6 +78,37 @@ This register distinguishes approved project rules from questions that require e
   binds upstream scientific identity, schema/derivation contracts, and row
   count while excluding physical layout and operational provenance. Protected
   execution remains Goethe/SLURM-only; real DEVELOPMENT validation is pending.
+- The accepted current Stage 0 development snapshot contains 1,405 files and
+  140,448,582 logical rows. It remains frozen. Six files became available only
+  later and may form an independent 1,411-file source snapshot, but that
+  population requires its own Stage 0 run before Stage 1 production. Neither
+  the 1,405 Stage 0 result nor Benchmark V1 is retroactively redefined.
+- `BENCHMARK_SAMPLE_V1` is accepted with fingerprint
+  `014a7d2a9935bb098711e62b89df2eb93dfdd0dd1ce5ac70853f010d118acedf`.
+  Its 35,000 DEVELOPMENT and 15,000 HOLDOUT rows are disjoint, have no
+  duplicate selected identities, and cover all 1,405 source files. It remains
+  permanently tied to that population; HOLDOUT is sealed until one explicitly
+  authorized final evaluation after the complete pipeline is frozen.
+- Both standard and native address representations originate from Orbis. Some
+  standard representations are English translations; native is likely the
+  more authoritative original form, and prior Nominatim work used native
+  names. They are evaluated independently, including by country, and may both
+  be geocoded where useful. Priority 0/1 are the most useful initial
+  regeocoding groups. Interpolation describes location estimation from
+  postcode or region and does not imply that source address text was filled or
+  changed. Remaining authority and query-policy questions require evidence.
+- Pre-geocoding component validation retains the closed outcomes `CONFIRMED`,
+  `MISMATCH`, `NOT_FOUND`, `AMBIGUOUS`, `UNSUPPORTED`, and `INVALID_FORMAT`.
+  Absence from an open reference dataset is not invalidity. Independent checks
+  remain required even when Pelias uses overlapping sources because they
+  provide component-level format, consistency, ambiguity, and correction
+  evidence that a Pelias failure alone cannot explain.
+- Each address-changing library-first stage follows the frozen-development
+  discipline: design, implementation, synthetic tests, 35,000-row DEVELOPMENT
+  execution, protected metrics/example review, tuning, acceptance/freeze, then
+  the next stage. Once the entire pipeline is frozen, the untouched 15,000-row
+  HOLDOUT is used once for unbiased evaluation before full production. Repeated
+  HOLDOUT tuning is prohibited.
 
 - The research objective requires physical building/plant/branch/store/facility point locations.
 - `usable_for_analysis` is the main Boolean indicator of suitability for point-level research; diagnostic tiers remain separate.

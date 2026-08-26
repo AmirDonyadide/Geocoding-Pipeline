@@ -1,15 +1,24 @@
 # Benchmark Sample V1
 
+## Status
+
+**BENCHMARK_SAMPLE_V1_ACCEPTED.** The accepted product uses
+`benchmark_sample_contract_v1` and is permanently bound to the frozen 1,405-file
+Stage 0 population. It contains exactly 50,000 source rows: 35,000 DEVELOPMENT
+and 15,000 HOLDOUT, with zero overlap and zero duplicate selected identities.
+All 1,405 source files are represented. The benchmark fingerprint is
+`014a7d2a9935bb098711e62b89df2eb93dfdd0dd1ce5ac70853f010d118acedf`.
+
 ## Purpose and boundary
 
 `BENCHMARK_SAMPLE_V1` is the fixed protected real-data benchmark for comparing
-library-first preprocessing Stages 3–14. It is a selection product, not Stage 2
+library-first preprocessing Stages 3–19. It is a selection product, not Stage 2
 and not an address transformation. The selected rows retain all 15 decoded
 source strings byte-for-byte in their Python/Arrow UTF-8 representation. The
 workflow performs no cleaning, Unicode normalization, whitespace repair,
 reconstruction, deduplication, parsing, correction, or geocoding.
 
-The authorized V1 sampling population is the current 1,405-file DEVELOPMENT
+The authorized V1 sampling population is the frozen 1,405-file DEVELOPMENT
 delivery. The six files absent when V1 was frozen are outside this benchmark
 forever; their later arrival does not change V1. A different population would
 require a new benchmark contract/version. The population is supplied by an
@@ -107,8 +116,18 @@ The manifest and Parquet data are protected, not portable. Portable reporting
 must never include raw values, selected IDs, source filenames, or HOLDOUT
 feature distributions. Future work normally reads DEVELOPMENT only.
 
+The Mac development copy, when explicitly needed, lives only at the ignored
+owner-only path
+`data/controlled/benchmark_sample_v1/development/development_view.parquet`.
+HOLDOUT is not copied to the Mac.
+
 **DO NOT USE HOLDOUT FOR PIPELINE TUNING.** Opening or running evaluation on
 HOLDOUT requires an explicit final-evaluation authorization.
+
+Address-changing stages use DEVELOPMENT for metrics, protected example review,
+and tuning. After every pipeline stage is frozen, HOLDOUT is opened once under
+an explicitly authorized unbiased final-evaluation protocol. A later 1,411-file
+production snapshot does not authorize rebuilding or modifying Benchmark V1.
 
 ## Execution and acceptance
 
