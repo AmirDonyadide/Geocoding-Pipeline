@@ -10,7 +10,7 @@ gate. It contains no source rows, protected identities, or address values.
 | Stage 1 | SCIENTIFIC IMPLEMENTATION ACCEPTED | historical 206 execution; final 1,411 execution pending | lossless CSV-to-Parquet ingestion and stable source-row provenance | population-generic implementation; final production requires a new accepted 1,411 Stage 0 |
 | Stage 2 | ACCEPTED ON DEVELOPMENT | 35,000 DEVELOPMENT rows | lossless schema and provenance harmonization | 35,000 → 35,000; exact 22 incoming fields preserved; four structural fields added; no raw transformation |
 | DEVELOPMENT reporting | READY | fixed 500-row DEVELOPMENT-only protected review subset + full 35,000-row summaries | same-row qualitative comparison and sanitized progress reporting | fingerprint `014f7c…1dd52`; all 269 observed country strata represented; zero quota shortfalls |
-| Stage 3 | DEVELOPMENT CANDIDATE — READY FOR INDEPENDENT REVIEW | 35,000 DEVELOPMENT rows | conservative derived safe text cleaning | v2 job `1759269`: exact v1/v2 scientific equality, bounded-memory validation, corrected punctuation metrics, and 24.2× faster materialization; not accepted |
+| Stage 3 | ACCEPTED ON DEVELOPMENT | 35,000 DEVELOPMENT rows | conservative derived safe text cleaning | v2 job `1759269` and independent review job `1759272`: exact v1/v2 scientific equality, bounded-memory validation, corrected punctuation metrics, and 24.2× faster materialization |
 
 The rejected Stage 3 v1 candidate ran as Goethe SLURM job `1759109` from pushed commit
 `8446190d1153aeb507678d0de18d027f89f0ec8d`. Its logical fingerprint is
@@ -25,8 +25,11 @@ profile while replacing total-row identity sets and repeated cleaning with
 bounded streaming validation. Goethe job `1759269` produced a new immutable
 35,000-row artifact, corrected punctuation evidence, and exact clean-value and
 reason-code equality to v1. It processed 420,000 fields in 36.605 seconds with
-1,067,884-KiB process peak RSS. Stage 3 is ready for a new independent review,
-remains unaccepted, and Stage 4 has not started.
+1,067,884-KiB process peak RSS. Independent review of evidence commit
+`82e945a2f41b61e4deff4c28fff4a02ef2af047a` reproduced the scientific results,
+bounded-memory properties, fixed-review equality, and protected-artifact
+fingerprints in Goethe job `1759272`, and returned `STAGE_3_ACCEPTED`. Stage 3
+is frozen on DEVELOPMENT. Stage 4 and production Stage 2 have not started.
 
 ## Planned sequence after Stage 3
 

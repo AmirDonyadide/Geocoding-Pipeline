@@ -78,15 +78,18 @@ privacy-safe raw structural features, never later pipeline output. See
   `278414573fd465e261f3b9131c45fb564b93622d` completed the same 35,000-row
   DEVELOPMENT population as job `1759269`: all v1/v2 clean values and reasons
   are equal, materialization is 24.2 times faster, and peak process RSS is
-  1,067,884 KiB. V2 is a DEVELOPMENT candidate ready for independent review,
-  not an accepted result.
+  1,067,884 KiB. Independent review of exact evidence commit
+  `82e945a2f41b61e4deff4c28fff4a02ef2af047a` reproduced the complete scientific
+  output, fingerprints, v1/v2 and frozen-500 equality, bounded-memory design,
+  and adversarial safety evidence, and returned `STAGE_3_ACCEPTED`. The Stage 3
+  DEVELOPMENT result is frozen. This does not authorize Stage 4 or production
+  Stage 2.
   See
   `docs/STAGE03.md` and the sanitized reports under `reports/development/`.
 
 ## Current and planned library-first preprocessing sequence
 
-Stage 3 v1 was not accepted; v2 is a DEVELOPMENT candidate ready for
-independent review and is not an accepted result.
+Stage 3 v1 was not accepted; v2 is accepted and frozen on DEVELOPMENT.
 Stages 4–19 remain plans and have not started. Every stage requires its own
 design, implementation, DEVELOPMENT evidence, and freeze. Raw and derived
 values remain separate throughout.

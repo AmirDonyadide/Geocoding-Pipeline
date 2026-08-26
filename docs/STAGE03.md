@@ -6,9 +6,11 @@ Stage 3 v1 was **NOT ACCEPTED** by independent review. Its scientific cleaning
 behavior was found conservative and correct on DEVELOPMENT, but its production
 implementation and punctuation reporting were not acceptable. The v2 fix
 iteration has completed a new immutable 35,000-row execution and is a
-**DEVELOPMENT CANDIDATE — READY FOR INDEPENDENT REVIEW**. Stage 3 is not
-scientifically accepted, does not authorize Stage 4, and does not change Stage
-0, Stage 1, or Stage 2.
+**SCIENTIFICALLY ACCEPTED DEVELOPMENT RESULT**. Independent review returned
+`STAGE_3_ACCEPTED` for exact evidence commit
+`82e945a2f41b61e4deff4c28fff4a02ef2af047a`. Acceptance freezes Stage 3 on
+DEVELOPMENT; it does not authorize Stage 4 or production Stage 2 and does not
+change Stage 0, Stage 1, or Stage 2.
 The governing transformation contract is
 `stage03_safe_text_cleaning_contract_v1`; its executable policy is
 `stage03_safe_text_cleaning_profile_v1`.
@@ -392,12 +394,32 @@ review artifact is byte-identical to v1 with SHA-256
 `e2233bad584662d4b9881b1fe14f3f4bc58a0f893b33d8fc3ed41a0bda70d987`.
 The scientific cleaning rules, contract, and profile did not change.
 
-The next independent reviewer should specifically inspect the accepted-upstream
-identity-invariant binding, bounded digest proof, ftfy no-op preflight, Arrow
-punctuation-category supplement, changed-value idempotence checks, exact BOM
-fixed-point regression, huge-string behavior, corrected punctuation semantics,
-v1/v2 comparator, and the assumptions behind the 41-hour projection and
-72-hour resource request.
+## Independent v2 acceptance review
+
+The independent review inspected the exact post-run diff from implementation
+commit `278414573fd465e261f3b9131c45fb564b93622d` through evidence commit
+`82e945a2f41b61e4deff4c28fff4a02ef2af047a`. That diff contained no unexecuted
+change to scientific values, materialization, validation semantics, or schema.
+The rejected v1 implementation and evidence commits remain unsquashed ancestors.
+
+Goethe review job `1759272` independently streamed the immutable Stage 2, v1,
+v2, and frozen-review artifacts. It reproduced all reported counts and hashes;
+proved exact equality of the 26 incoming columns, all 420,000 v1/v2 clean
+values, row-changed flags, and ordered reason evidence; and verified the 500-row
+review artifact was byte-identical. It also passed adversarial identity-stream,
+ASCII fast-path, idempotence, BOM, ftfy, punctuation, adaptive-batch, and
+multi-million-character no-truncation checks without accumulating identities
+for the total population. The supplied v1 manifest string in the review brief
+had two extra trailing characters; hashing the immutable artifact established
+the 64-character value recorded below.
+
+The 41-hour production projection remains an estimate. The reviewed core is
+bounded and operationally plausible within 16 GiB and 72 hours, but the
+DEVELOPMENT evidence launcher also invokes fixed-review and v1-comparison
+steps. It must not be reused unchanged as a future production launcher. A
+separate materialization-only invocation must be reviewed after production
+Stage 2 is accepted. No production Stage 2 or Stage 3 work, and no Stage 4 work,
+was started by this acceptance.
 
 ## Rejected v1 DEVELOPMENT evidence preserved
 
@@ -445,5 +467,5 @@ encode the actual edge-ordering regression. Commit
 `9ed24cea8626b9cd674377636fe1d51e3cd6b456` preserves that rejected candidate
 and its evidence. V2 must create a new immutable output and review path and
 prove exact v1/v2 scientific equality; that requirement is now satisfied. V2
-is ready to be returned for a new independent review, but remains unaccepted.
-Stage 4 remains unstarted.
+was independently accepted at evidence commit
+`82e945a2f41b61e4deff4c28fff4a02ef2af047a`. Stage 4 remains unstarted.

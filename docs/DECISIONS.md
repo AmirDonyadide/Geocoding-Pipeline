@@ -116,9 +116,19 @@ This register distinguishes approved project rules from questions that require e
   punctuation normalizations. Its 36.605-second materialization and
   1,067,884-KiB process peak RSS support a 2-CPU, 16-GiB, 72-hour Goethe
   production request. The row-linear 141,048,582-row projection is about 41
-  hours and is an estimate, not a runtime guarantee. This evidence makes v2 a
-  DEVELOPMENT candidate ready for independent review; it does not accept Stage
-  3 or authorize Stage 4.
+  hours and is an estimate, not a runtime guarantee.
+- An independent Stage 3 v2 review accepted candidate evidence commit
+  `82e945a2f41b61e4deff4c28fff4a02ef2af047a` and its authoritative
+  implementation commit `278414573fd465e261f3b9131c45fb564b93622d` as
+  `STAGE_3_ACCEPTED`. Review job `1759272` independently reproduced the
+  complete DEVELOPMENT aggregates, exact preservation of all 26 incoming
+  columns, v1/v2 scientific and ordered-reason equality, frozen-500 equality,
+  identity-stream adversarial checks, huge-value safety, punctuation evidence,
+  and bounded-memory behavior. The accepted Stage 3 result is frozen and does
+  not authorize Stage 4 or production Stage 2. The DEVELOPMENT evidence
+  launcher is not itself a future production launcher; a production
+  materialization wrapper must be reviewed separately after an accepted
+  production Stage 2 exists.
 - The accepted current Stage 0 development snapshot contains 1,405 files and
   140,448,582 logical rows. It remains frozen. Six files became available only
   later and may form an independent 1,411-file source snapshot, but that
