@@ -1,7 +1,7 @@
 # Library-first preprocessing transition
 
-The active preprocessing redesign uses distinct library-first Stage 0–14
-terminology. Historical Phase 1 remains intact and supplies the authoritative
+The active preprocessing redesign uses a distinct, versioned library-first
+Stage sequence. Historical Phase 1 remains intact and supplies the authoritative
 source-scanning machinery for new Stage 0; Stage 0 adds only contract,
 validation, fingerprinting, privacy hardening, and adoption. Historical Phase 2
 remains the single authoritative CSV-to-Parquet converter used by new Stage 1;
@@ -11,6 +11,14 @@ benchmark baseline. See `docs/STAGE00.md`, `docs/STAGE01.md`, and
 `docs/CUSTOM_PREPROCESSING_BASELINE.md`. New stages proceed one reviewed stage
 at a time and do not rewrite this historical workflow.
 
+Mature offline libraries and pinned reference datasets are preferred wherever
+they meet the accepted scientific, privacy, licensing, and reproducibility
+requirements. Custom SAFE code focuses on orchestration, provenance,
+deterministic evidence aggregation, conservative policy and correction,
+validation semantics, and genuine library/data gaps. The historical custom
+parser remains recoverable for controlled comparison; it is not extended as
+the active production path.
+
 Library-first Stage 2 defines the stable internal source-row schema used by
 later preprocessing. It preserves the exact Stage 1 raw/provenance columns and
 adds only four raw-emptiness representation fields. Standard and native address
@@ -19,7 +27,8 @@ and may consume the fixed benchmark's DEVELOPMENT artifact without opening
 HOLDOUT. See `docs/STAGE02.md`.
 
 `BENCHMARK_SAMPLE_V1` is a separate fixed selection product used to evaluate
-Stages 3–14; it is not Stage 2. It freezes 35,000 protected DEVELOPMENT rows and
+subsequent address-changing stages; it is not Stage 2. It freezes 35,000
+protected DEVELOPMENT rows and
 15,000 separately protected HOLDOUT rows from the explicitly authorized
 1,405-file development population. Sampling uses only immutable provenance and
 privacy-safe raw structural features, never later pipeline output. See

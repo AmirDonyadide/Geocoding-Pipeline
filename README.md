@@ -3,6 +3,25 @@
 The repository implements the reviewed project workflow documented under `docs/`.
 Work proceeds one phase at a time.
 
+## Active preprocessing direction
+
+The active architecture is **library-first preprocessing**. Mature offline
+libraries and pinned reference datasets are preferred where they satisfy the
+scientific and privacy contracts; likely stage-specific tools include PyArrow,
+Polars, DuckDB, libpostal/pypostal, pycountry, google-i18n-address, direct
+GeoNames data, Overture Maps Addresses, RapidFuzz, and an optional OSM/osmium
+fallback. Each dependency and dataset still requires stage-specific review,
+versioning, licensing, and validation before production use.
+
+Custom SAFE code is reserved primarily for orchestration, deterministic
+identity and provenance, evidence aggregation, conservative correction policy,
+validation semantics, privacy/execution guards, and verified gaps not solved
+adequately by mature libraries. The historical custom/from-scratch parser is
+retained for scientific provenance and benchmark comparison at
+`baseline/custom-preprocessing-2026-08`; it is not the active production
+architecture. Stage 2 is implemented and awaits DEVELOPMENT validation. Stage
+3 has not started.
+
 ## Development and cluster workflow
 
 GitHub is the shared source of truth. Development, review, lightweight tests,

@@ -3,7 +3,8 @@
 ## Status
 
 **STAGE_1_ACCEPTED.** Stage 1 passed its final critical review and complete
-local-safe validation. Stage 2 has not started.
+local-safe validation. Stage 2 was subsequently implemented as a separate
+contract and awaits protected DEVELOPMENT validation.
 
 ## Purpose and reuse boundary
 
@@ -190,3 +191,6 @@ logical identity; complete physical integrity, read-back evidence,
 reconciliation, terminal state, and permissions; privacy-safe portable
 metadata; adoption of the existing complete Phase 2 dataset without source
 rescan or Parquet rewrite; and an explicit stop before Stage 2.
+
+That stop was honored. Stage 2 was later designed and implemented separately;
+its real DEVELOPMENT execution remains pending and does not alter Stage 1.

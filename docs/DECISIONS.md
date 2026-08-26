@@ -4,6 +4,14 @@ This register distinguishes approved project rules from questions that require e
 
 ## Locked decisions
 
+- The active preprocessing architecture is library-first. Mature offline
+  libraries and pinned reference datasets are preferred when they satisfy the
+  scientific, privacy, licensing, and reproducibility contracts. Custom SAFE
+  code primarily supplies orchestration, provenance, deterministic evidence
+  aggregation, conservative policy, validation semantics, and verified gaps.
+  The historical custom/from-scratch parser remains exactly recoverable at
+  `baseline/custom-preprocessing-2026-08` for provenance and comparison; it is
+  not the active production path.
 - Library-first Stage 0 reuses historical Phase 1 as the single authoritative
   source scanner. Stage 0 may validate, project, fingerprint, permission-harden,
   and adopt Phase 1 output, but it does not duplicate discovery, CSV parsing,
@@ -41,7 +49,8 @@ This register distinguishes approved project rules from questions that require e
   `stable_source_row_id_v1` intentionally excludes path and would collide at
   matching logical ordinals. Stage 1 neither disambiguates by path nor removes
   a source record. Stage 1 status is `STAGE_1_ACCEPTED` after its final critical
-  review; Stage 2 remains separate and has not started.
+  review. Stage 2 was subsequently implemented as a separate contract and
+  awaits protected DEVELOPMENT validation.
 - Future Phase 2 `FULL_CONVERSION` execution is population-generic and requires
   an explicit hash-pinned accepted Stage 0 adoption record. Exact canonical
   path/SHA/logical-count scope, not a global count or current directory
