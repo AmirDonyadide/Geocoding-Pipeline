@@ -10,20 +10,23 @@ gate. It contains no source rows, protected identities, or address values.
 | Stage 1 | SCIENTIFIC IMPLEMENTATION ACCEPTED | historical 206 execution; final 1,411 execution pending | lossless CSV-to-Parquet ingestion and stable source-row provenance | population-generic implementation; final production requires a new accepted 1,411 Stage 0 |
 | Stage 2 | ACCEPTED ON DEVELOPMENT | 35,000 DEVELOPMENT rows | lossless schema and provenance harmonization | 35,000 → 35,000; exact 22 incoming fields preserved; four structural fields added; no raw transformation |
 | DEVELOPMENT reporting | READY | fixed 500-row DEVELOPMENT-only protected review subset + full 35,000-row summaries | same-row qualitative comparison and sanitized progress reporting | fingerprint `014f7c…1dd52`; all 269 observed country strata represented; zero quota shortfalls |
-| Stage 3 | V1 NOT ACCEPTED; V2 FIX ITERATION IN DEVELOPMENT | 35,000 DEVELOPMENT rows | conservative derived safe text cleaning | v1 science reproduced without semantic damage, but production scalability and punctuation evidence blocked acceptance; v2 bounded-memory implementation awaits a new authoritative run |
+| Stage 3 | DEVELOPMENT CANDIDATE — READY FOR INDEPENDENT REVIEW | 35,000 DEVELOPMENT rows | conservative derived safe text cleaning | v2 job `1759269`: exact v1/v2 scientific equality, bounded-memory validation, corrected punctuation metrics, and 24.2× faster materialization; not accepted |
 
 The rejected Stage 3 v1 candidate ran as Goethe SLURM job `1759109` from pushed commit
 `8446190d1153aeb507678d0de18d027f89f0ec8d`. Its logical fingerprint is
 `38df499bfaf61883832a9c718adf4cf92cfcea753337df68fa2e89afb6051bdb` and
 its schema fingerprint is
 `fc991ef63bd80a754114ecae6a9d3c4cf1f33a35a28581fea997edd2e4565c9b`.
-Its historical Git-safe evidence remains in `reports/development/stage03_summary.json` and
-`reports/development/stage03_summary.md`; the protected qualitative artifact
-reuses exactly the fixed 500 identities. V2 preserves the cleaning contract and
+Its historical Git-safe evidence remains reconstructable at rejected candidate
+commit `9ed24cea8626b9cd674377636fe1d51e3cd6b456`; the current sanitized reports
+record v2. V2 implementation commit
+`278414573fd465e261f3b9131c45fb564b93622d` preserves the cleaning contract and
 profile while replacing total-row identity sets and repeated cleaning with
-bounded streaming validation. It must produce a new immutable 35,000-row
-artifact, corrected sanitized evidence, exact v1/v2 scientific equality, and a
-new independent review. Stage 3 remains unaccepted and Stage 4 has not started.
+bounded streaming validation. Goethe job `1759269` produced a new immutable
+35,000-row artifact, corrected punctuation evidence, and exact clean-value and
+reason-code equality to v1. It processed 420,000 fields in 36.605 seconds with
+1,067,884-KiB process peak RSS. Stage 3 is ready for a new independent review,
+remains unaccepted, and Stage 4 has not started.
 
 ## Planned sequence after Stage 3
 

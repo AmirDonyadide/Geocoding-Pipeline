@@ -74,15 +74,19 @@ privacy-safe raw structural features, never later pipeline output. See
   ambiguously. A v2 DEVELOPMENT fix iteration now uses bounded Arrow batches,
   ordered identity fingerprints, changed-value-only idempotence rechecks,
   no validation/reporting cleaner calls, and computed punctuation-codepoint
-  metrics. It is not a new candidate until its exact pushed implementation is
-  materialized on the same 35,000 DEVELOPMENT rows and independently reviewed.
+  metrics. Exact pushed implementation
+  `278414573fd465e261f3b9131c45fb564b93622d` completed the same 35,000-row
+  DEVELOPMENT population as job `1759269`: all v1/v2 clean values and reasons
+  are equal, materialization is 24.2 times faster, and peak process RSS is
+  1,067,884 KiB. V2 is a DEVELOPMENT candidate ready for independent review,
+  not an accepted result.
   See
   `docs/STAGE03.md` and the sanitized reports under `reports/development/`.
 
 ## Current and planned library-first preprocessing sequence
 
-Stage 3 v1 was not accepted; the v2 fix iteration is in DEVELOPMENT and is not
-an accepted result.
+Stage 3 v1 was not accepted; v2 is a DEVELOPMENT candidate ready for
+independent review and is not an accepted result.
 Stages 4–19 remain plans and have not started. Every stage requires its own
 design, implementation, DEVELOPMENT evidence, and freeze. Raw and derived
 values remain separate throughout.

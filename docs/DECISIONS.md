@@ -107,6 +107,18 @@ This register distinguishes approved project rules from questions that require e
   v1/v2 comparison do not invoke the cleaner. Literal punctuation-codepoint
   changes are measured separately from the fixed zero count for semantic
   punctuation normalization.
+- Stage 3 v2 implementation
+  `278414573fd465e261f3b9131c45fb564b93622d` completed its immutable 35,000-row
+  DEVELOPMENT run as job `1759269`. It proved exact v1/v2 clean-value and
+  reason-code equality, preserved all incoming Stage 2 values, measured zero
+  identity/idempotence failures, and corrected the punctuation evidence to 9
+  literal codepoint changes in encoding-repaired fields and zero semantic
+  punctuation normalizations. Its 36.605-second materialization and
+  1,067,884-KiB process peak RSS support a 2-CPU, 16-GiB, 72-hour Goethe
+  production request. The row-linear 141,048,582-row projection is about 41
+  hours and is an estimate, not a runtime guarantee. This evidence makes v2 a
+  DEVELOPMENT candidate ready for independent review; it does not accept Stage
+  3 or authorize Stage 4.
 - The accepted current Stage 0 development snapshot contains 1,405 files and
   140,448,582 logical rows. It remains frozen. Six files became available only
   later and may form an independent 1,411-file source snapshot, but that

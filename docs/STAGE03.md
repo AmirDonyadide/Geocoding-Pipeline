@@ -5,9 +5,10 @@
 Stage 3 v1 was **NOT ACCEPTED** by independent review. Its scientific cleaning
 behavior was found conservative and correct on DEVELOPMENT, but its production
 implementation and punctuation reporting were not acceptable. The v2 fix
-iteration remains in DEVELOPMENT until a new immutable 35,000-row execution
-and independent review. Stage 3 is not scientifically accepted, does not
-authorize Stage 4, and does not change Stage 0, Stage 1, or Stage 2.
+iteration has completed a new immutable 35,000-row execution and is a
+**DEVELOPMENT CANDIDATE — READY FOR INDEPENDENT REVIEW**. Stage 3 is not
+scientifically accepted, does not authorize Stage 4, and does not change Stage
+0, Stage 1, or Stage 2.
 The governing transformation contract is
 `stage03_safe_text_cleaning_contract_v1`; its executable policy is
 `stage03_safe_text_cleaning_profile_v1`.
@@ -285,8 +286,8 @@ Two 100,000-row synthetic Arrow projection benchmarks used 2,048-row batches:
 The conservative transformation-only linear projection for 141,048,582 rows
 is about 29 minutes. This excludes Parquet I/O, repeated artifact hashing,
 checksum readback, terminal validation, and filesystem differences, so it is
-not a production-runtime claim. The exact 35,000-row Goethe v2 run and MaxRSS
-must supply the authoritative end-to-end basis before final resource guidance.
+not a production-runtime claim. The authoritative Goethe result below is the
+end-to-end basis for production resource guidance.
 
 Nulls, non-string cleaning inputs, wrong Stage 2 schema/fingerprint/manifest,
 malformed binding metadata, partial outputs, or any path containing `holdout`
@@ -333,6 +334,71 @@ a sample of unchanged multilingual rows, each observed reason family, encoding
 repairs, empty-result cases, maximum length changes, standard/native behavior,
 and any unexpected aggregate concentration before considering acceptance.
 
+## V2 authoritative DEVELOPMENT evidence
+
+Pushed implementation commit
+`278414573fd465e261f3b9131c45fb564b93622d` ran unchanged on Goethe as SLURM
+job `1759269` with `SAFE_EXECUTION_SITE=goethe-nhr` and a non-empty job ID. It
+completed with exit code `0:0` and produced a new immutable v2 output and review
+artifact. The run consumed the same accepted Stage 2 manifest, logical
+fingerprint, and benchmark fingerprint as v1.
+
+The authoritative materialization processed 35,000 rows and 420,000 fields in
+36.605 seconds: 956.154 rows/s and 11,473.842 fields/s. It used 34.985 seconds
+of user CPU and 1.524 seconds of system CPU. Process `getrusage` measured peak
+RSS of 1,067,884 KiB; SLURM's sampled batch-step MaxRSS was 601,296 KiB. V1's
+same-size materialization took 886.000 seconds, so v2 is 24.2 times faster.
+The complete binding, materialization, terminal validation, protected review,
+and v1/v2 comparison job elapsed 56 seconds with 48.901 seconds TotalCPU.
+
+A deliberately transparent row-linear projection from the measured
+materialization rate is 147,517 seconds, or about 40 hours 59 minutes, for
+141,048,582 rows. It assumes DEVELOPMENT per-row work and storage throughput
+are representative and does not claim an exact future duration. The launcher
+therefore requests 2 CPUs, 16 GiB, and 72 hours. The observed run and synthetic
+benchmarks indicate roughly 1–2 GiB working memory for representative batches;
+the 16-GiB request provides headroom for libraries, compression, filesystem
+variation, and unusually large accepted values. Memory is bounded by the
+2,048-row/256-MiB adaptive batch and largest individual value, not total rows.
+This makes the production path operationally plausible on Goethe without a
+total-row Python identity set or an arbitrary large-memory request.
+
+The recomputed scientific evidence is exactly 35,000 input and output rows,
+zero dropped or added rows, zero duplicate identities, 1,281 changed rows, and
+1,795 changed fields. All 26 incoming Stage 2 columns are exactly preserved.
+There are zero idempotence failures. Reason-affected field counts are: 9
+encoding repairs, 2 control removals, 58 line-break normalizations, 272 tab
+normalizations, 5 NFC normalizations, 4 Unicode-whitespace normalizations, 480
+whitespace collapses, 2 whitespace-only-to-empty changes, 1,130 trims, and zero
+BOM or terminal-escape removals. Computed punctuation evidence is 9 literal
+punctuation-codepoint changes, all 9 in encoding-repaired fields, zero without
+encoding repair, and zero semantic punctuation normalizations.
+
+The v2 logical fingerprint remains
+`38df499bfaf61883832a9c718adf4cf92cfcea753337df68fa2e89afb6051bdb` and
+the schema fingerprint remains
+`fc991ef63bd80a754114ecae6a9d3c4cf1f33a35a28581fea997edd2e4565c9b`.
+The input binding SHA-256 is
+`6a2a28d276884511f5b8f63f40d14d6b7f4bf4397aa09289c53acdb92a661e6f`,
+the v2 manifest SHA-256 is
+`8f70745e31185abce52fdc1685c2b767f90874c21596152ea0463ec6677478d4`,
+and the ordered stable-identity digest is
+`fe2a4758582c1880d2b5c62dfc5c587d865e05d13033af9f5e8208b58e2a0487`.
+
+The bounded comparator proved exact v1/v2 equality for row identity, all
+incoming Stage 2 values, all 12 clean values, row-changed flags, and ordered
+reason codes. The same frozen 500 identities were used, and the v2 protected
+review artifact is byte-identical to v1 with SHA-256
+`e2233bad584662d4b9881b1fe14f3f4bc58a0f893b33d8fc3ed41a0bda70d987`.
+The scientific cleaning rules, contract, and profile did not change.
+
+The next independent reviewer should specifically inspect the accepted-upstream
+identity-invariant binding, bounded digest proof, ftfy no-op preflight, Arrow
+punctuation-category supplement, changed-value idempotence checks, exact BOM
+fixed-point regression, huge-string behavior, corrected punctuation semantics,
+v1/v2 comparator, and the assumptions behind the 41-hour projection and
+72-hour resource request.
+
 ## Rejected v1 DEVELOPMENT evidence preserved
 
 V1 implementation commit
@@ -369,14 +435,15 @@ and its downstream scalability implications.
 The v1 Stage 3 protected review artifact has exactly the frozen 500 ordered
 identities and SHA-256
 `e2233bad584662d4b9881b1fe14f3f4bc58a0f893b33d8fc3ed41a0bda70d987`.
-The historical v1 sanitized quantitative evidence is
-`reports/development/stage03_summary.json` and
-`reports/development/stage03_summary.md`. Independent review reproduced its
-scientific output and found no semantic damage, but returned
+The historical v1 sanitized quantitative evidence remains reconstructable from
+commit `9ed24cea8626b9cd674377636fe1d51e3cd6b456`; the current reports contain the
+new v2 evidence. Independent review reproduced v1's scientific output and found
+no semantic damage, but returned
 `STAGE_3_NOT_ACCEPTED` because the implementation was not production-scalable,
 the punctuation metric was inaccurate, and the committed BOM test did not
 encode the actual edge-ordering regression. Commit
 `9ed24cea8626b9cd674377636fe1d51e3cd6b456` preserves that rejected candidate
 and its evidence. V2 must create a new immutable output and review path and
-must prove exact v1/v2 scientific equality before it can be returned for a new
-independent review. Stage 4 remains unstarted.
+prove exact v1/v2 scientific equality; that requirement is now satisfied. V2
+is ready to be returned for a new independent review, but remains unaccepted.
+Stage 4 remains unstarted.
