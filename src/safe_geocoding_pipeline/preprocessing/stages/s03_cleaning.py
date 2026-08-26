@@ -20,7 +20,7 @@ import ftfy
 import pyarrow as pa
 import pyarrow.compute as pc
 import pyarrow.parquet as pq
-from ftfy import TextFixerConfig, fix_encoding_and_explain
+from ftfy import TextFixerConfig, chardata, fix_encoding_and_explain
 from ftfy.fixes import remove_terminal_escapes
 
 from ...execution_policy import require_goethe_nhr_slurm
@@ -106,6 +106,38 @@ _GIT_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 _MULTIPLE_SPACES_RE = re.compile(r" {2,}")
 _ASCII_DIRTY_RE = re.compile(r"[\x00-\x1f\x7f]|^ | $| {2}")
 _ASCII_DIRTY_ARROW_PATTERN = r"[\x00-\x1f\x7f]|^ | $| {2}"
+_REMOVABLE_CONTROLS_RE = re.compile(r"[\x00-\x08\x0e-\x1f\x7f-\x84\x86-\x9f]")
+_LINEBREAK_RE = re.compile(r"[\x0a-\x0d\x85\u2028\u2029]")
+_OTHER_UNICODE_WHITESPACE_RE = re.compile(
+    r"[\u00a0\u1680\u2000-\u200a\u202f\u205f\u3000]"
+)
+_UNICODE_WHITESPACE_ONLY_RE = re.compile(
+    r"[\x09-\x0d\x20\x85\u00a0\u1680\u2000-\u200a\u2028"
+    r"\u2029\u202f\u205f\u3000]+"
+)
+_UNICODE_16_PUNCTUATION_ABSENT_FROM_ARROW_25 = (
+    0x1B4E,
+    0x1B4F,
+    0x1B7F,
+    0x10D6E,
+    0x113D4,
+    0x113D5,
+    0x113D7,
+    0x113D8,
+    0x11BE1,
+    0x16D6D,
+    0x16D6E,
+    0x16D6F,
+    0x1E5FF,
+)
+_NON_PUNCTUATION_ARROW_PATTERN = (
+    r"[^\p{P}"
+    + "".join(
+        rf"\x{{{codepoint:x}}}"
+        for codepoint in _UNICODE_16_PUNCTUATION_ABSENT_FROM_ARROW_25
+    )
+    + r"]+"
+)
 _TYPE_UINT64 = b"\x01"
 _TYPE_TEXT = b"\x02"
 _TYPE_DIGEST = b"\x03"
@@ -332,6 +364,7 @@ class Stage03Metrics:
         raw: str,
         clean: str,
         reasons: Sequence[str],
+        punctuation_codepoints_changed: bool,
     ) -> None:
         if column not in CLEAN_SOURCE_COLUMNS or raw == clean or not reasons:
             _fail("INTERNAL_METRIC_ERROR", "Changed-field metrics are invalid")
@@ -344,7 +377,7 @@ class Stage03Metrics:
         delta = len(clean) - len(raw)
         self.max_length_increase = max(self.max_length_increase, delta)
         self.max_length_decrease = max(self.max_length_decrease, -delta)
-        if not _punctuation_codepoints_equal(raw, clean):
+        if punctuation_codepoints_changed:
             self.punctuation_codepoint_changed_fields += 1
             if "ENCODING_REPAIRED" in reasons:
                 self.punctuation_codepoint_changed_in_encoding_repaired_fields += 1
@@ -590,24 +623,17 @@ def _clean_ascii_fast_path_mask(values: pa.Array) -> pa.Array:
     return cast(pa.Array, pc.and_(ascii_values, pc.invert(dirty_values)))
 
 
-def _punctuation_codepoints_equal(left: str, right: str) -> bool:
-    """Compare literal Unicode punctuation subsequences without materializing them."""
-    sentinel = object()
-    left_values = (
-        character
-        for character in left
-        if unicodedata.category(character).startswith("P")
-    )
-    right_values = (
-        character
-        for character in right
-        if unicodedata.category(character).startswith("P")
-    )
-    return all(
-        left_character == right_character
-        for left_character, right_character in zip_longest(
-            left_values, right_values, fillvalue=sentinel
-        )
+def _ftfy_encoding_is_proven_noop(value: str) -> bool:
+    """Skip ftfy only where its pinned encoding decision graph cannot change text."""
+    if value.isascii():
+        return True
+    if len(value) <= FTFY_CONFIG.max_decode_length:
+        return False
+    if chardata.C1_CONTROL_RE.search(value) is not None:
+        return False
+    return not any(
+        chardata.possible_encoding(value, encoding)
+        for encoding in chardata.CHARMAP_ENCODINGS
     )
 
 
@@ -626,59 +652,50 @@ def clean_stage03_text(value: str) -> CleanTextResult:
         return CleanTextResult(value, ())
 
     reasons: list[str] = []
-    try:
-        encoding_result = fix_encoding_and_explain(value, config=FTFY_CONFIG)
-    except (UnicodeError, ValueError) as error:
-        raise Stage03ValidationError(
-            "ENCODING_REPAIR_FAILURE", "Conservative encoding repair failed"
-        ) from error
-    current = encoding_result.text
-    if current != value:
-        if not encoding_result.explanation:
-            _fail("FTFY_AUDIT_FAILURE", "ftfy changed text without an explanation")
-        reasons.append("ENCODING_REPAIRED")
+    if _ftfy_encoding_is_proven_noop(value):
+        current = value
+    else:
+        try:
+            encoding_result = fix_encoding_and_explain(value, config=FTFY_CONFIG)
+        except (UnicodeError, ValueError) as error:
+            raise Stage03ValidationError(
+                "ENCODING_REPAIR_FAILURE", "Conservative encoding repair failed"
+            ) from error
+        current = encoding_result.text
+        if current != value:
+            if not encoding_result.explanation:
+                _fail("FTFY_AUDIT_FAILURE", "ftfy changed text without an explanation")
+            reasons.append("ENCODING_REPAIRED")
 
     updated = remove_terminal_escapes(current)
     if updated != current:
         reasons.append("TERMINAL_ESCAPE_REMOVED")
         current = updated
 
-    control_removed = False
-    tab_normalized = False
-    linebreak_normalized = False
-    unicode_whitespace_normalized = False
-    retained_characters = 0
-    retained_all_whitespace = True
-    for character in current:
-        codepoint = ord(character)
-        if codepoint in _REMOVABLE_CONTROLS:
-            control_removed = True
-            continue
-        retained_characters += 1
-        if codepoint not in _UNICODE_WHITE_SPACE:
-            retained_all_whitespace = False
-        if codepoint == 0x0009:
-            tab_normalized = True
-        elif codepoint in _LINEBREAKS:
-            linebreak_normalized = True
-        elif codepoint in _OTHER_UNICODE_WHITE_SPACE:
-            unicode_whitespace_normalized = True
+    control_removed = _REMOVABLE_CONTROLS_RE.search(current) is not None
+    without_controls = (
+        _REMOVABLE_CONTROLS_RE.sub("", current) if control_removed else current
+    )
+    whitespace_only = (
+        _UNICODE_WHITESPACE_ONLY_RE.fullmatch(without_controls) is not None
+    )
+    tab_normalized = "\t" in without_controls
+    linebreak_normalized = _LINEBREAK_RE.search(without_controls) is not None
+    unicode_whitespace_normalized = (
+        _OTHER_UNICODE_WHITESPACE_RE.search(without_controls) is not None
+    )
     if control_removed:
         reasons.append("CONTROL_CHARACTER_REMOVED")
-    whitespace_only = retained_characters > 0 and retained_all_whitespace
     if tab_normalized:
         reasons.append("TAB_NORMALIZED")
     if linebreak_normalized:
         reasons.append("LINEBREAK_NORMALIZED")
     if unicode_whitespace_normalized:
         reasons.append("UNICODE_WHITESPACE_NORMALIZED")
-    if (
-        control_removed
-        or tab_normalized
-        or linebreak_normalized
-        or unicode_whitespace_normalized
-    ):
-        current = current.translate(_CLEAN_TRANSLATION)
+    if tab_normalized or linebreak_normalized or unicode_whitespace_normalized:
+        current = without_controls.translate(_CLEAN_TRANSLATION)
+    elif control_removed:
+        current = without_controls
 
     updated = _MULTIPLE_SPACES_RE.sub(" ", current)
     if updated != current:
@@ -1081,6 +1098,7 @@ def _validate_output_batch(batch: pa.RecordBatch, *, metrics: Stage03Metrics) ->
     ascii_fast_path_values = 0
     raw_arrays: dict[str, pa.Array] = {}
     clean_arrays: dict[str, pa.Array] = {}
+    punctuation_changed_rows: dict[str, set[int]] = {}
     for source_name, derived_name in zip(
         CLEAN_SOURCE_COLUMNS, CLEAN_DERIVED_COLUMNS, strict=True
     ):
@@ -1093,6 +1111,27 @@ def _validate_output_batch(batch: pa.RecordBatch, *, metrics: Stage03Metrics) ->
         )
         ascii_fast_path_values += cast(int, safe_count_scalar.as_py() or 0)
         changed_indices = pc.indices_nonzero(pc.not_equal(raw_values, clean_values))
+        punctuation_changed_rows[source_name] = set()
+        if len(changed_indices):
+            changed_raw = pc.take(raw_values, changed_indices)
+            changed_clean = pc.take(clean_values, changed_indices)
+            raw_punctuation = pc.replace_substring_regex(
+                changed_raw,
+                pattern=_NON_PUNCTUATION_ARROW_PATTERN,
+                replacement="",
+            )
+            clean_punctuation = pc.replace_substring_regex(
+                changed_clean,
+                pattern=_NON_PUNCTUATION_ARROW_PATTERN,
+                replacement="",
+            )
+            punctuation_changed_positions = pc.indices_nonzero(
+                pc.not_equal(raw_punctuation, clean_punctuation)
+            )
+            punctuation_changed_rows[source_name] = {
+                cast(int, changed_indices[cast(int, position.as_py())].as_py())
+                for position in punctuation_changed_positions
+            }
         for index_scalar in changed_indices:
             row_index = cast(int, index_scalar.as_py())
             changed_fields_by_row[row_index].append(source_name)
@@ -1149,6 +1188,9 @@ def _validate_output_batch(batch: pa.RecordBatch, *, metrics: Stage03Metrics) ->
                 raw=raw,
                 clean=clean,
                 reasons=reasons,
+                punctuation_codepoints_changed=(
+                    row_index in punctuation_changed_rows[field_name]
+                ),
             )
             row_reasons.update(reasons)
             row_groups.add(FIELD_GROUP_BY_COLUMN[field_name])

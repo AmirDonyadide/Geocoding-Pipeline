@@ -256,23 +256,34 @@ validation, or review path grows with total row count. Artifact inventories
 grow only with shard count, and the fixed review index is capped at 500.
 
 The cleaner's control/whitespace implementation was also made scientifically
-neutral but more memory efficient: one scan records the same ordered reasons,
-then `str.translate` performs the fixed control removal and whitespace mapping.
-This avoids two generator-based full-string reconstructions. A synthetic
-21,750,004-code-point multiline value completed cleaning plus changed-value
-idempotence in 7.29 seconds with 659,505,152-byte peak RSS on the development
-Mac, preserved its complete non-whitespace core, and was not truncated.
+neutral but more memory efficient: compiled exact-codepoint predicates record
+the same ordered reasons, then `str.translate` performs the fixed whitespace
+mapping only when required. This avoids Python per-codepoint classification and
+two generator-based full-string reconstructions. Punctuation evidence is
+computed for changed cells with Arrow's Unicode-category engine instead of a
+Python codepoint loop; the 13 Unicode 16 punctuation additions absent from
+Arrow 25's category table are explicitly supplemented and exhaustively tested
+against Python Unicode 16. Before invoking ftfy on an oversized value, a pinned
+ftfy decision-graph preflight skips the call only when ASCII or exact supported
+charmap/C1 evidence proves that ftfy cannot change the value. A 50,007-value
+differential, including oversized cases, reproduced the prior v2 values and
+reasons exactly. A synthetic 21,750,004-code-point multiline value completed
+cleaning plus changed-value idempotence in 0.76 seconds with 473,497,600-byte
+peak RSS on the development Mac; its Arrow punctuation comparison took 0.13
+seconds, preserved the complete non-whitespace core, and did not truncate the
+value.
 
 Two 100,000-row synthetic Arrow projection benchmarks used 2,048-row batches:
 
 - a mixed case with one populated native field processed 1,200,000 fields in
-  0.513 seconds (195,114 rows/s; 2,341,373 fields/s; 92,831,744-byte MaxRSS);
+  0.361 seconds (276,721 rows/s; 3,320,657 fields/s; 152,125,440-byte process
+  peak including synthetic input construction);
 - a conservative case with all four native lines populated processed the same
-  field count in 1.616 seconds (61,882 rows/s; 742,579 fields/s;
-  93,814,784-byte MaxRSS).
+  field count in 1.218 seconds (82,077 rows/s; 984,930 fields/s;
+  161,480,704-byte process peak including synthetic input construction).
 
 The conservative transformation-only linear projection for 141,048,582 rows
-is about 38 minutes. This excludes Parquet I/O, repeated artifact hashing,
+is about 29 minutes. This excludes Parquet I/O, repeated artifact hashing,
 checksum readback, terminal validation, and filesystem differences, so it is
 not a production-runtime claim. The exact 35,000-row Goethe v2 run and MaxRSS
 must supply the authoritative end-to-end basis before final resource guidance.

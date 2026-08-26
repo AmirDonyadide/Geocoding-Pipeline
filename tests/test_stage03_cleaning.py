@@ -8,8 +8,10 @@ import subprocess
 import unicodedata
 from dataclasses import replace
 from pathlib import Path
+from typing import Any
 import ftfy
 import pyarrow as pa
+import pyarrow.compute as pc
 import pyarrow.parquet as pq
 import pytest
 import safe_geocoding_pipeline.preprocessing.stages.s03_cleaning as stage03_module
@@ -231,6 +233,25 @@ def test_encoding_repair_can_change_literal_punctuation_without_punctuation_poli
     assert not any(
         unicodedata.category(character).startswith("P") for character in result.value
     )
+
+
+def test_arrow_punctuation_pattern_exactly_matches_pinned_unicode_16() -> None:
+    all_valid_codepoints = "".join(
+        chr(codepoint)
+        for codepoint in range(0x110000)
+        if not 0xD800 <= codepoint <= 0xDFFF
+    )
+    observed = pc.replace_substring_regex(
+        pa.array([all_valid_codepoints]),
+        pattern=stage03_module._NON_PUNCTUATION_ARROW_PATTERN,
+        replacement="",
+    )[0].as_py()
+    expected = "".join(
+        character
+        for character in all_valid_codepoints
+        if unicodedata.category(character).startswith("P")
+    )
+    assert observed == expected
 
 
 def test_deterministic_property_style_idempotence_over_adversarial_unicode() -> None:
@@ -877,6 +898,32 @@ def test_arrow_ascii_fast_path_exactly_matches_scalar_predicate() -> None:
     assert [scalar.as_py() for scalar in arrow_mask] == [
         stage03_module._is_clean_ascii_fast_path(value) for value in values
     ]
+
+
+def test_ftfy_noop_preflight_is_exact_and_avoids_redundant_calls(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = 0
+    original = ftfy.fix_encoding_and_explain
+
+    def counted(value: str, *, config: Any) -> Any:
+        nonlocal calls
+        calls += 1
+        return original(value, config=config)
+
+    monkeypatch.setattr(stage03_module, "fix_encoding_and_explain", counted)
+    assert clean_stage03_text("Alpha\tBeta") == CleanTextResult(
+        "Alpha Beta", ("TAB_NORMALIZED",)
+    )
+    huge_mixed = "A" * 1_000_001 + "東京\t"
+    assert clean_stage03_text(huge_mixed) == CleanTextResult(
+        "A" * 1_000_001 + "東京",
+        ("TAB_NORMALIZED", "WHITESPACE_TRIMMED"),
+    )
+    assert calls == 0
+    repaired = clean_stage03_text("FranÃ§ois")
+    assert repaired == CleanTextResult("François", ("ENCODING_REPAIRED",))
+    assert calls == 1
 
 
 def test_parquet_batches_adapt_to_uncompressed_row_group_size(tmp_path: Path) -> None:
