@@ -12,7 +12,15 @@ The fixed review subset contains exactly 500 rows selected only from the
 accepted 35,000-row `BENCHMARK_SAMPLE_V1` DEVELOPMENT artifact. Selection uses
 accepted immutable provenance and benchmark structural strata plus a
 domain-separated SHA-256 rank. Address text does not enter the rank. HOLDOUT
-paths and non-DEVELOPMENT split values fail closed.
+paths containing `holdout` and non-DEVELOPMENT split values fail closed.
+
+The accepted materialization is Goethe job `1758910`, bound to benchmark
+fingerprint
+`014a7d2a9935bb098711e62b89df2eb93dfdd0dd1ce5ac70853f010d118acedf`.
+Its fixed subset fingerprint is
+`014f7c1373380b265f34e2ecb76614161b320e2bb972befb8f53994cc5a1dd52`.
+All 269 observed country strata are represented, 243 source files contribute
+rows, and no deterministic quota has a shortfall.
 
 ## Why one fixed subset exists
 

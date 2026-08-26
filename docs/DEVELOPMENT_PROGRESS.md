@@ -9,7 +9,7 @@ gate. It contains no source rows, protected identities, or address values.
 | Benchmark Sample V1 | ACCEPTED | 35,000 DEVELOPMENT + 15,000 sealed HOLDOUT | fixed evaluation population | zero overlap and duplicate selected identities; all 1,405 source files represented |
 | Stage 1 | SCIENTIFIC IMPLEMENTATION ACCEPTED | historical 206 execution; final 1,411 execution pending | lossless CSV-to-Parquet ingestion and stable source-row provenance | population-generic implementation; final production requires a new accepted 1,411 Stage 0 |
 | Stage 2 | ACCEPTED ON DEVELOPMENT | 35,000 DEVELOPMENT rows | lossless schema and provenance harmonization | 35,000 → 35,000; exact 22 incoming fields preserved; four structural fields added; no raw transformation |
-| DEVELOPMENT reporting | READY | fixed 500-row DEVELOPMENT-only protected review subset + full 35,000-row summaries | same-row qualitative comparison and sanitized progress reporting | passive, fingerprinted, owner-only, and HOLDOUT-excluding |
+| DEVELOPMENT reporting | READY | fixed 500-row DEVELOPMENT-only protected review subset + full 35,000-row summaries | same-row qualitative comparison and sanitized progress reporting | fingerprint `014f7c…1dd52`; all 269 observed country strata represented; zero quota shortfalls |
 | Stage 3 | NEXT — NOT STARTED | future 35,000-row DEVELOPMENT run | safe text cleaning | requires separate design/review; no Stage 3 output exists |
 
 ## Planned sequence after Stage 3
