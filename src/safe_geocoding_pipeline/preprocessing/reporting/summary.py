@@ -183,13 +183,44 @@ _ALLOWED_METRICS: Mapping[str, frozenset[str]] = {
             "CONTROL_CHARACTER_REMOVED_FIELDS",
         }
     ),
-    "PUNCTUATION": frozenset({"PUNCTUATION_CHANGED_FIELDS"}),
+    "PUNCTUATION": frozenset(
+        {
+            "PUNCTUATION_CHANGED_FIELDS",
+            "SEMANTIC_PUNCTUATION_NORMALIZATION_FIELDS",
+            "PUNCTUATION_CODEPOINT_CHANGED_FIELDS",
+            "PUNCTUATION_CODEPOINT_CHANGED_IN_ENCODING_REPAIRED_FIELDS",
+            "PUNCTUATION_CODEPOINT_CHANGED_WITHOUT_ENCODING_REPAIR_FIELDS",
+        }
+    ),
+    "CLEANER_EFFICIENCY": frozenset(
+        {
+            "TOTAL_FIELD_VALUES",
+            "ASCII_FAST_PATH_VALUES",
+            "FULL_PROFILE_INVOCATIONS",
+            "IDEMPOTENCE_RECHECK_INVOCATIONS",
+            "READBACK_CLEANER_INVOCATIONS",
+            "TERMINAL_VALIDATION_CLEANER_INVOCATIONS",
+            "REPORTING_CLEANER_INVOCATIONS",
+        }
+    ),
     "OUTPUT_EFFECTS": frozenset(
         {
             "CLEAN_VALUES_BECAME_EMPTY",
             "MAX_LENGTH_INCREASE_CODEPOINTS",
             "MAX_LENGTH_DECREASE_CODEPOINTS",
             "IDEMPOTENCE_FAILURES",
+        }
+    ),
+    "PERFORMANCE": frozenset(
+        {
+            "ELAPSED_MILLISECONDS",
+            "USER_CPU_MILLISECONDS",
+            "SYSTEM_CPU_MILLISECONDS",
+            "MAX_RSS_KIB",
+            "ROWS_PER_SECOND_MILLI",
+            "FIELDS_PER_SECOND_MILLI",
+            "LINEAR_PROJECTED_141048582_ROWS_SECONDS",
+            "V1_ELAPSED_MILLISECONDS",
         }
     ),
 }
@@ -211,6 +242,12 @@ _OPTIONAL_CHECKS = frozenset(
         "SAME_FIXED_REVIEW_IDENTITIES",
         "SOURCE_PROVENANCE_UNCHANGED",
         "PUNCTUATION_UNCHANGED",
+        "NO_SEMANTIC_PUNCTUATION_NORMALIZATION",
+        "PUNCTUATION_CODEPOINT_CHANGES_ACCOUNTED",
+        "BOUNDED_MEMORY_VALIDATION",
+        "NO_TOTAL_ROW_PYTHON_IDENTITY_SET",
+        "V1_V2_SCIENTIFIC_OUTPUT_EQUAL",
+        "V1_V2_REASON_CODES_EQUAL",
         "STANDARD_NATIVE_INDEPENDENT",
     }
 )
@@ -222,6 +259,7 @@ _ALLOWED_EXTRA_FINGERPRINTS = frozenset(
         "input_stage02_manifest",
         "review_subset",
         "review_artifact",
+        "ordered_stable_identity",
     }
 )
 

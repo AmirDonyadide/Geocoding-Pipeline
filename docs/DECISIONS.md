@@ -88,6 +88,25 @@ This register distinguishes approved project rules from questions that require e
   change stage outputs or acceptance; portable summaries use a strict
   aggregate allowlist, full 35,000-row metrics remain quantitative evidence,
   and HOLDOUT is rejected and remains sealed.
+- Stage 3 v1 under `stage03_safe_text_cleaning_contract_v1` and
+  `stage03_safe_text_cleaning_profile_v1` was not accepted. Independent review
+  reproduced the complete 35,000-row scientific output, found no questionable
+  change or semantic damage, and accepted all observed encoding/control/
+  whitespace behavior, but rejected the production implementation's total-row
+  identity sets, repeated cleaning lifecycle, ambiguous zero-punctuation
+  metric, and incomplete BOM regression evidence. V2 may change
+  implementation, validation, manifest, performance, and reporting evidence
+  only; the scientific cleaning rules remain unchanged and exact v1/v2 clean
+  values are a required new gate.
+- Stage 3 v2 identity integrity uses exact batch/shard equality to the accepted
+  Stage 2 arrays plus domain-separated ordered stable-ID fingerprints and row
+  counts. This binds the accepted upstream duplicate-free invariant without
+  accumulating stable IDs in a total-row Python set. Idempotence re-cleans all
+  changed results; unchanged results are already exact fixed points of the
+  deterministic pinned cleaner. Readback, terminal validation, reporting, and
+  v1/v2 comparison do not invoke the cleaner. Literal punctuation-codepoint
+  changes are measured separately from the fixed zero count for semantic
+  punctuation normalization.
 - The accepted current Stage 0 development snapshot contains 1,405 files and
   140,448,582 logical rows. It remains frozen. Six files became available only
   later and may form an independent 1,411-file source snapshot, but that

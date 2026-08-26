@@ -12,6 +12,7 @@ import ftfy
 import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
+import safe_geocoding_pipeline.preprocessing.stages.s03_cleaning as stage03_module
 
 from safe_geocoding_pipeline.execution_policy import ExecutionPolicyError
 from safe_geocoding_pipeline.phase02.identity import stable_source_row_id_v1
@@ -73,7 +74,9 @@ from safe_geocoding_pipeline.preprocessing.stages.s03_cleaning import (
     Stage03RunConfig,
     Stage03ValidationError,
     clean_stage03_text,
+    compare_stage03_scientific_outputs,
     materialize_stage03,
+    ordered_stable_identity_sha256_v1,
     stage03_logical_dataset_sha256_v1,
     stage03_schema,
     stage03_schema_fingerprint,
@@ -183,6 +186,13 @@ def test_bom_controls_and_terminal_escape_handling() -> None:
     )
 
 
+def test_edge_bom_whitespace_ordering_regression_reaches_exact_fixed_point() -> None:
+    value = "\ufeff Alpha \ufeff"
+    first = clean_stage03_text(value)
+    assert first == CleanTextResult("Alpha", ("WHITESPACE_TRIMMED", "BOM_REMOVED"))
+    assert clean_stage03_text(first.value) == CleanTextResult("Alpha", ())
+
+
 def test_conservative_ftfy_encoding_repair_only() -> None:
     repaired = clean_stage03_text("FranÃ§ois")
     assert repaired == CleanTextResult("François", ("ENCODING_REPAIRED",))
@@ -207,6 +217,20 @@ def test_conservative_ftfy_encoding_repair_only() -> None:
     assert FTFY_CONFIG.fix_character_width is False
     assert FTFY_CONFIG.uncurl_quotes is False
     assert FTFY_CONFIG.normalization is None
+
+
+def test_encoding_repair_can_change_literal_punctuation_without_punctuation_policy() -> (
+    None
+):
+    mojibake = "서울특별시".encode("utf-8").decode("windows-1252")
+    result = clean_stage03_text(mojibake)
+    assert result == CleanTextResult("서울특별시", ("ENCODING_REPAIRED",))
+    assert any(
+        unicodedata.category(character).startswith("P") for character in mojibake
+    )
+    assert not any(
+        unicodedata.category(character).startswith("P") for character in result.value
+    )
 
 
 def test_deterministic_property_style_idempotence_over_adversarial_unicode() -> None:
@@ -279,6 +303,10 @@ def _source_row(index: int) -> dict[str, str]:
         row["region_in_country"] = "Fictional\x00Region"
     elif index == 5:
         row["postcode"] = "\u00a0"
+    elif index == 6:
+        row["street_address_line_1_native"] = "서울특별시".encode("utf-8").decode(
+            "windows-1252"
+        )
     return row
 
 
@@ -478,7 +506,7 @@ def test_materialization_preserves_raw_stage02_and_audits_every_change(
         False,
         True,
         True,
-        False,
+        True,
         False,
     ]
     assert outcome.row_count == 8
@@ -492,7 +520,31 @@ def test_materialization_preserves_raw_stage02_and_audits_every_change(
         "DUPLICATE_IDENTITIES": 0,
     }
     assert outcome.metrics["OUTPUT_EFFECTS"]["IDEMPOTENCE_FAILURES"] == 0
-    assert outcome.metrics["PUNCTUATION"]["PUNCTUATION_CHANGED_FIELDS"] == 0
+    assert outcome.metrics["PUNCTUATION"] == {
+        "SEMANTIC_PUNCTUATION_NORMALIZATION_FIELDS": 0,
+        "PUNCTUATION_CODEPOINT_CHANGED_FIELDS": 1,
+        "PUNCTUATION_CODEPOINT_CHANGED_IN_ENCODING_REPAIRED_FIELDS": 1,
+        "PUNCTUATION_CODEPOINT_CHANGED_WITHOUT_ENCODING_REPAIR_FIELDS": 0,
+    }
+    efficiency = outcome.metrics["CLEANER_EFFICIENCY"]
+    assert (
+        efficiency["IDEMPOTENCE_RECHECK_INVOCATIONS"]
+        == outcome.metrics["FIELD_CHANGES"]["CHANGED_FIELDS"]
+    )
+    assert efficiency["READBACK_CLEANER_INVOCATIONS"] == 0
+    assert efficiency["TERMINAL_VALIDATION_CLEANER_INVOCATIONS"] == 0
+    assert efficiency["REPORTING_CLEANER_INVOCATIONS"] == 0
+    manifest = json.loads(
+        (stage03_root / "stage03_manifest.json").read_text(encoding="utf-8")
+    )
+    bounded = manifest["physical_identity"]["bounded_memory_architecture"]
+    ordered = manifest["physical_identity"]["ordered_identity_validation"]
+    assert bounded["memory_scales_with_total_row_count"] is False
+    assert ordered["total_row_python_identity_set_used"] is False
+    assert (
+        ordered["input_ordered_stable_identity_sha256_v1"]
+        == ordered["output_ordered_stable_identity_sha256_v1"]
+    )
     assert stat.S_IMODE(stage03_root.stat().st_mode) == 0o700
     assert all(
         stat.S_IMODE(path.stat().st_mode) == 0o600
@@ -521,6 +573,31 @@ def test_logical_fingerprint_is_layout_independent_and_science_sensitive() -> No
         replace(base, input_benchmark_fingerprint="ee" * 32)
     )
     assert len(stage03_schema_fingerprint()) == 64
+
+
+def test_v2_preserves_v1_development_scientific_fingerprints() -> None:
+    binding = Stage03InputBinding(
+        upstream_contract_version=STAGE02_CONTRACT_VERSION,
+        upstream_logical_identity_sha256=(
+            "ff95021bd2f4b2994e9e2a766f32e792e29797a128dc64fa3aef100ff9f5ca72"
+        ),
+        upstream_schema_fingerprint=(
+            "3c4a2d616ab6dacf57f42fff7e84175a48fbd50c6a060046434593c5aefa74d4"
+        ),
+        upstream_manifest_sha256=(
+            "260b77fea50bc2db1bfb10dca8339cb33bcb2e2aad7de9c07ed55a71dec0d419"
+        ),
+        input_benchmark_fingerprint=(
+            "014a7d2a9935bb098711e62b89df2eb93dfdd0dd1ce5ac70853f010d118acedf"
+        ),
+        expected_row_count=35_000,
+    )
+    assert stage03_logical_dataset_sha256_v1(binding) == (
+        "38df499bfaf61883832a9c718adf4cf92cfcea753337df68fa2e89afb6051bdb"
+    )
+    assert stage03_schema_fingerprint() == (
+        "fc991ef63bd80a754114ecae6a9d3c4cf1f33a35a28581fea997edd2e4565c9b"
+    )
 
 
 def test_binding_schema_fingerprint_holdout_and_partial_fail_closed(
@@ -651,6 +728,14 @@ def test_fixed_500_review_artifact_and_sanitized_summary(
             expected_stage02_logical_fingerprint=stage02_logical,
             output_directory=output,
             execution_git_sha=EXECUTION_GIT_SHA,
+            v1_stage03_output_directory=stage03_root,
+            expected_v1_stage03_manifest_sha256=stage03_manifest,
+            performance_metrics={
+                "ELAPSED_MILLISECONDS": 1_000,
+                "USER_CPU_MILLISECONDS": 500,
+                "SYSTEM_CPU_MILLISECONDS": 100,
+                "MAX_RSS_KIB": 12_345,
+            },
             production=False,
             operational_metadata={"slurm_job_id": "12345"},
         )
@@ -687,6 +772,12 @@ def test_fixed_500_review_artifact_and_sanitized_summary(
     assert summary.extra_fingerprints["review_artifact"] == (
         outcome.review_artifact_sha256
     )
+    assert summary.checks["V1_V2_SCIENTIFIC_OUTPUT_EQUAL"] is True
+    assert summary.checks["V1_V2_REASON_CODES_EQUAL"] is True
+    assert summary.metric_groups["PERFORMANCE"]["ROWS_PER_SECOND_MILLI"] == (500_000)
+    assert summary.metric_groups["PERFORMANCE"]["FIELDS_PER_SECOND_MILLI"] == (
+        6_000_000
+    )
     assert stat.S_IMODE(output.stat().st_mode) == 0o700
     assert all(
         stat.S_IMODE(path.stat().st_mode) == 0o600
@@ -707,6 +798,9 @@ def test_stage03_cluster_launcher_and_git_ignore_guards() -> None:
     assert "stage03_safe_text_cleaning_contract_v1" in launcher
     assert "stage03_safe_text_cleaning_profile_v1" in launcher
     assert "materialize-review" in launcher
+    assert "STAGE03_V1_OUTPUT_DIRECTORY" in launcher
+    assert "STAGE03_V1_MANIFEST_SHA256" in launcher
+    assert "/usr/bin/time -v" in launcher
     protected = (
         "data/controlled/development_review_subset_v1/stages/stage03/"
         "stage03_review.parquet"
@@ -741,3 +835,157 @@ def test_stage03_contract_versions_are_distinct_and_no_stage4_surface() -> None:
         tuple(stage03_schema().names[stage02_field_count - 4 : stage02_field_count])
         == STAGE02_STRUCTURAL_COLUMNS
     )
+
+
+def test_ordered_identity_fingerprint_is_chunk_independent_and_order_sensitive() -> (
+    None
+):
+    first = bytes.fromhex("01" * 32)
+    second = bytes.fromhex("02" * 32)
+    together = pa.array([first, second], type=pa.binary(32))
+    split = (
+        pa.array([first], type=pa.binary(32)),
+        pa.array([second], type=pa.binary(32)),
+    )
+    assert ordered_stable_identity_sha256_v1((together,)) == (
+        ordered_stable_identity_sha256_v1(split)
+    )
+    assert ordered_stable_identity_sha256_v1((together,)) != (
+        ordered_stable_identity_sha256_v1(
+            (pa.array([second, first], type=pa.binary(32)),)
+        )
+    )
+
+
+def test_arrow_ascii_fast_path_exactly_matches_scalar_predicate() -> None:
+    values = [
+        "",
+        "Alpha",
+        "Alpha Beta",
+        " Alpha",
+        "Alpha ",
+        "Alpha  Beta",
+        "Alpha\tBeta",
+        "Alpha\nBeta",
+        "Alpha\x7fBeta",
+        "François",
+        "東京",
+        "\ufeffAlpha",
+    ]
+    arrow_mask = stage03_module._clean_ascii_fast_path_mask(pa.array(values))
+    assert [scalar.as_py() for scalar in arrow_mask] == [
+        stage03_module._is_clean_ascii_fast_path(value) for value in values
+    ]
+
+
+def test_parquet_batches_adapt_to_uncompressed_row_group_size(tmp_path: Path) -> None:
+    path = tmp_path / "large_rows.parquet"
+    pq.write_table(
+        pa.table({"value": [f"{index:02d}" + "x" * 20_000 for index in range(10)]}),
+        path,
+        row_group_size=10,
+        compression=None,
+        use_dictionary=False,
+    )
+    parquet = pq.ParquetFile(path)
+    batches = list(
+        stage03_module._iter_bounded_batches(
+            parquet,
+            batch_rows=100,
+            target_batch_bytes=25_000,
+        )
+    )
+    assert sum(batch.num_rows for batch in batches) == 10
+    assert max(batch.num_rows for batch in batches) == 1
+
+
+def test_materialization_has_no_total_row_identity_set_and_no_validation_reclean(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = Path(stage03_module.__file__).read_text(encoding="utf-8")
+    assert "seen_stable_ids" not in source
+    assert "set[bytes]" not in source
+
+    benchmark_root = tmp_path / "benchmark" / "development"
+    benchmark_root.mkdir(parents=True, mode=0o700)
+    benchmark_path = benchmark_root / "development_view.parquet"
+    _write_benchmark_development(benchmark_path, row_count=8)
+    stage02_root, stage02_manifest, stage02_logical = _stage02_bundle(
+        tmp_path, benchmark_path, row_count=8
+    )
+    calls = 0
+    original_cleaner = stage03_module.clean_stage03_text
+
+    def counted_cleaner(value: str) -> CleanTextResult:
+        nonlocal calls
+        calls += 1
+        return original_cleaner(value)
+
+    monkeypatch.setattr(stage03_module, "clean_stage03_text", counted_cleaner)
+    stage03_root, stage03_manifest, _logical, _binding = _stage03_bundle(
+        tmp_path, stage02_root, stage02_manifest, stage02_logical, row_count=8
+    )
+    outcome = validate_stage03_bundle(
+        stage03_root, expected_manifest_sha256=stage03_manifest
+    )
+    efficiency = outcome.metrics["CLEANER_EFFICIENCY"]
+    assert calls == (
+        efficiency["FULL_PROFILE_INVOCATIONS"]
+        + efficiency["IDEMPOTENCE_RECHECK_INVOCATIONS"]
+    )
+
+
+@pytest.mark.slow
+def test_very_large_multiline_value_is_not_truncated_and_remains_idempotent() -> None:
+    unit = "Fictional\tColumn\r\nNative 東京  "
+    value = "\ufeff " + unit * 75_000 + " \ufeff"
+    result = clean_stage03_text(value)
+    assert len(value) > 2_000_000
+    assert result.value.startswith("Fictional Column Native 東京")
+    assert result.value.endswith("Fictional Column Native 東京")
+    assert "".join(value.replace("\ufeff", "").split()) == "".join(result.value.split())
+    assert clean_stage03_text(result.value) == CleanTextResult(result.value, ())
+
+
+def test_streaming_v1_v2_equivalence_validator_on_exact_candidate(
+    tmp_path: Path,
+) -> None:
+    benchmark_root = tmp_path / "benchmark" / "development"
+    benchmark_root.mkdir(parents=True, mode=0o700)
+    benchmark_path = benchmark_root / "development_view.parquet"
+    _write_benchmark_development(benchmark_path, row_count=8)
+    stage02_root, stage02_manifest, stage02_logical = _stage02_bundle(
+        tmp_path, benchmark_path, row_count=8
+    )
+    stage03_root, stage03_manifest, _logical, _binding = _stage03_bundle(
+        tmp_path, stage02_root, stage02_manifest, stage02_logical, row_count=8
+    )
+    result = compare_stage03_scientific_outputs(
+        stage03_root,
+        expected_v1_manifest_sha256=stage03_manifest,
+        v2_output_directory=stage03_root,
+        expected_v2_manifest_sha256=stage03_manifest,
+        batch_rows=3,
+    )
+    assert result.row_count == 8
+    assert result.cleaned_field_count == 96
+    assert result.row_identity_equal
+    assert result.incoming_stage02_equal
+    assert result.clean_values_equal
+    assert result.row_changed_equal
+    assert result.reason_codes_equal
+
+
+def test_v1_v2_stream_alignment_is_independent_of_batch_boundaries() -> None:
+    schema = pa.schema((pa.field("value", pa.int64(), nullable=False),))
+    left = (
+        pa.RecordBatch.from_arrays([pa.array([1, 2, 3])], schema=schema),
+        pa.RecordBatch.from_arrays([pa.array([4, 5])], schema=schema),
+    )
+    right = (
+        pa.RecordBatch.from_arrays([pa.array([1])], schema=schema),
+        pa.RecordBatch.from_arrays([pa.array([2, 3, 4, 5])], schema=schema),
+    )
+    aligned = list(stage03_module._iter_aligned_batch_slices(left, right))
+    assert [batch.num_rows for batch, _ in aligned] == [1, 2, 2]
+    assert all(left_batch.equals(right_batch) for left_batch, right_batch in aligned)

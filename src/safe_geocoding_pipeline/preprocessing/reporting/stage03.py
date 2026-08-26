@@ -25,7 +25,9 @@ from ..stages.s03_cleaning import (
     STAGE03_MANIFEST_NAME,
     STAGE03_PROFILE_VERSION,
     Stage03MaterializationOutcome,
+    Stage03ScientificEquivalenceOutcome,
     Stage03ValidationError,
+    compare_stage03_scientific_outputs,
     stage03_schema,
     stage03_schema_fingerprint,
     validate_stage03_bundle,
@@ -51,8 +53,8 @@ from .summary import (
 
 STAGE03_REVIEW_CONTRACT_VERSION = "development_stage03_review_contract_v1"
 STAGE03_REVIEW_SCHEMA_VERSION = "development_stage03_review_view_schema_v1"
-STAGE03_REVIEW_MANIFEST_VERSION = "development_stage03_review_manifest_v1"
-STAGE03_REVIEW_VALIDATION_VERSION = "development_stage03_review_validation_v1"
+STAGE03_REVIEW_MANIFEST_VERSION = "development_stage03_review_manifest_v2"
+STAGE03_REVIEW_VALIDATION_VERSION = "development_stage03_review_validation_v2"
 STAGE03_REVIEW_PATH = "stage03_review.parquet"
 STAGE03_REVIEW_MANIFEST_NAME = "stage03_review_manifest.json"
 STAGE03_REVIEW_SUCCESS_MARKER = "_SUCCESS.json"
@@ -63,6 +65,16 @@ STAGE03_SUMMARY_MD_PATH = "stage03_summary.md"
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 _GIT_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 _EXPECTED_REVIEW_ROWS = 500
+_PRODUCTION_PROJECTION_ROWS = 141_048_582
+_V1_DEVELOPMENT_ELAPSED_MILLISECONDS = 886_000
+_PERFORMANCE_KEYS = frozenset(
+    {
+        "ELAPSED_MILLISECONDS",
+        "USER_CPU_MILLISECONDS",
+        "SYSTEM_CPU_MILLISECONDS",
+        "MAX_RSS_KIB",
+    }
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -76,6 +88,9 @@ class Stage03ReviewRunConfig:
     expected_stage02_logical_fingerprint: str
     output_directory: Path
     execution_git_sha: str
+    v1_stage03_output_directory: Path | None = None
+    expected_v1_stage03_manifest_sha256: str | None = None
+    performance_metrics: Mapping[str, int] | None = None
     production: bool = True
     operational_metadata: Mapping[str, str] | None = None
 
@@ -88,12 +103,41 @@ class Stage03ReviewRunConfig:
             self.expected_stage02_logical_fingerprint,
         ):
             _digest_bytes(digest)
+        if (self.v1_stage03_output_directory is None) != (
+            self.expected_v1_stage03_manifest_sha256 is None
+        ):
+            _fail("INVALID_V1_COMPARISON", "v1 comparison inputs must be paired")
+        if self.expected_v1_stage03_manifest_sha256 is not None:
+            _digest_bytes(self.expected_v1_stage03_manifest_sha256)
+        if self.production and self.v1_stage03_output_directory is None:
+            _fail(
+                "V1_COMPARISON_REQUIRED",
+                "Authoritative DEVELOPMENT review requires v1/v2 comparison",
+            )
+        if self.performance_metrics is not None:
+            if set(self.performance_metrics) != _PERFORMANCE_KEYS or any(
+                isinstance(value, bool) or not isinstance(value, int) or value < 0
+                for value in self.performance_metrics.values()
+            ):
+                _fail("INVALID_PERFORMANCE_METRICS", "Performance metrics are invalid")
+            if self.performance_metrics["ELAPSED_MILLISECONDS"] < 1:
+                _fail("INVALID_PERFORMANCE_METRICS", "Elapsed time must be positive")
+        if self.production and self.performance_metrics is None:
+            _fail(
+                "PERFORMANCE_METRICS_REQUIRED",
+                "Authoritative DEVELOPMENT review requires performance metrics",
+            )
         if _GIT_SHA_RE.fullmatch(self.execution_git_sha) is None:
             _fail("INVALID_GIT_COMMIT", "Execution Git SHA must be a full SHA")
         _reject_holdout_paths(
             self.stage03_output_directory,
             self.development_review_bundle_directory,
             self.output_directory,
+            *(
+                (self.v1_stage03_output_directory,)
+                if self.v1_stage03_output_directory is not None
+                else ()
+            ),
         )
         for key, value in (self.operational_metadata or {}).items():
             if (
@@ -341,8 +385,9 @@ def _fixed_review_identities(
     return table, identity_sha
 
 
-def _stage03_table_and_manifest(
+def _stage03_selected_table_and_manifest(
     config: Stage03ReviewRunConfig,
+    identity_table: pa.Table,
 ) -> tuple[pa.Table, Stage03MaterializationOutcome, dict[str, Any]]:
     try:
         outcome = validate_stage03_bundle(
@@ -370,7 +415,25 @@ def _stage03_table_and_manifest(
     artifacts = physical.get("output_artifacts")
     if not isinstance(artifacts, list) or not artifacts:
         _fail("STAGE03_MANIFEST_INVALID", "Stage 3 artifacts are absent")
+    selected_columns = (
+        "stable_source_row_id_v1",
+        *CLEAN_SOURCE_COLUMNS,
+        *CLEAN_DERIVED_COLUMNS,
+        "stage03_change_details",
+        "stage03_row_changed",
+        *STAGE02_STRUCTURAL_COLUMNS,
+    )
+    target_identities: set[bytes] = set()
+    for scalar in identity_table.column("stable_source_row_id_v1").combine_chunks():
+        identity = scalar.as_py()
+        if not isinstance(identity, bytes) or len(identity) != 32:
+            _fail("REVIEW_IDENTITY_MISMATCH", "Fixed review identity is malformed")
+        target_identities.add(identity)
+    if len(target_identities) != _EXPECTED_REVIEW_ROWS:
+        _fail("REVIEW_IDENTITY_MISMATCH", "Fixed review identities are not unique")
+
     tables: list[pa.Table] = []
+    found_identities: set[bytes] = set()
     try:
         for raw in artifacts:
             if not isinstance(raw, dict) or not isinstance(
@@ -379,7 +442,43 @@ def _stage03_table_and_manifest(
                 _fail("STAGE03_MANIFEST_INVALID", "Stage 3 artifact is malformed")
             path = config.stage03_output_directory / raw["relative_path"]
             parquet = pq.ParquetFile(path, page_checksum_verification=True)
-            tables.append(parquet.read(use_threads=False))
+            selected_by_row_group: dict[int, list[int]] = {}
+            for row_group_index in range(parquet.metadata.num_row_groups):
+                row_group_offset = 0
+                for identity_batch in parquet.iter_batches(
+                    batch_size=2_048,
+                    row_groups=[row_group_index],
+                    columns=["stable_source_row_id_v1"],
+                    use_threads=False,
+                ):
+                    stable_ids = identity_batch.column(0)
+                    for index, scalar in enumerate(stable_ids):
+                        identity = scalar.as_py()
+                        if identity in target_identities:
+                            if (
+                                not isinstance(identity, bytes)
+                                or identity in found_identities
+                            ):
+                                _fail(
+                                    "STAGE03_IDENTITY_INVALID",
+                                    "A fixed Stage 3 review identity is duplicated",
+                                )
+                            found_identities.add(identity)
+                            selected_by_row_group.setdefault(
+                                row_group_index, []
+                            ).append(row_group_offset + index)
+                    row_group_offset += identity_batch.num_rows
+            for row_group_index, selected_indices in selected_by_row_group.items():
+                selected_row_group = parquet.read_row_group(
+                    row_group_index,
+                    columns=list(selected_columns),
+                    use_threads=False,
+                )
+                tables.append(
+                    selected_row_group.take(
+                        pa.array(selected_indices, type=pa.uint32())
+                    )
+                )
         table = pa.concat_tables(tables)
     except ReviewSubsetError:
         raise
@@ -387,10 +486,17 @@ def _stage03_table_and_manifest(
         raise ReviewSubsetError(
             "STAGE03_READ_FAILURE", "Stage 3 DEVELOPMENT output could not be read"
         ) from error
-    if table.num_rows != outcome.row_count or not table.schema.remove_metadata().equals(
-        stage03_schema(), check_metadata=False
+    expected_schema = pa.schema(
+        stage03_schema().field(name) for name in selected_columns
+    )
+    if (
+        table.num_rows != _EXPECTED_REVIEW_ROWS
+        or found_identities != target_identities
+        or not table.schema.remove_metadata().equals(
+            expected_schema, check_metadata=False
+        )
     ):
-        _fail("STAGE03_SCHEMA_MISMATCH", "Stage 3 DEVELOPMENT table differs")
+        _fail("STAGE03_SCHEMA_MISMATCH", "Stage 3 selected review rows differ")
     return table, outcome, manifest
 
 
@@ -400,17 +506,22 @@ def _selected_review_table(
     *,
     metadata: Mapping[bytes, bytes],
 ) -> pa.Table:
-    stage_ids = stage03_table.column("stable_source_row_id_v1").to_pylist()
+    stage_ids = stage03_table.column("stable_source_row_id_v1").combine_chunks()
     index_by_id: dict[bytes, int] = {}
-    for index, identity in enumerate(stage_ids):
+    for index, scalar in enumerate(stage_ids):
+        identity = scalar.as_py()
         if not isinstance(identity, bytes) or len(identity) != 32:
             _fail("STAGE03_IDENTITY_INVALID", "Stage 3 stable identity is malformed")
         if identity in index_by_id:
             _fail("STAGE03_IDENTITY_INVALID", "Stage 3 stable identity is duplicated")
         index_by_id[identity] = index
-    selected_ids = identity_table.column("stable_source_row_id_v1").to_pylist()
     try:
-        indices = [index_by_id[cast(bytes, identity)] for identity in selected_ids]
+        indices = [
+            index_by_id[cast(bytes, scalar.as_py())]
+            for scalar in identity_table.column(
+                "stable_source_row_id_v1"
+            ).combine_chunks()
+        ]
     except KeyError as error:
         raise ReviewSubsetError(
             "REVIEW_IDENTITY_MISMATCH", "A fixed review identity is absent from Stage 3"
@@ -479,17 +590,72 @@ def _summary(
     stage03_outcome: Stage03MaterializationOutcome,
     stage03_manifest: Mapping[str, Any],
     review_artifact_sha256: str,
+    equivalence: Stage03ScientificEquivalenceOutcome | None,
 ) -> SanitizedStageSummary:
     physical = stage03_manifest.get("physical_identity")
     if not isinstance(physical, dict):
         _fail("STAGE03_MANIFEST_INVALID", "Stage 3 physical identity is malformed")
     input_binding_sha = physical.get("stage03_input_binding_sha256")
     stage02_manifest_sha = physical.get("upstream_stage02_manifest_sha256")
-    if not isinstance(input_binding_sha, str) or not isinstance(
-        stage02_manifest_sha, str
+    ordered_identity = physical.get("ordered_identity_validation")
+    if (
+        not isinstance(input_binding_sha, str)
+        or not isinstance(stage02_manifest_sha, str)
+        or not isinstance(ordered_identity, dict)
     ):
         _fail("STAGE03_MANIFEST_INVALID", "Stage 3 fingerprints are malformed")
+    ordered_identity_sha = ordered_identity.get(
+        "output_ordered_stable_identity_sha256_v1"
+    )
+    if not isinstance(ordered_identity_sha, str):
+        _fail("STAGE03_MANIFEST_INVALID", "Ordered identity fingerprint is absent")
     slurm_job_id = str((config.operational_metadata or {}).get("slurm_job_id", "0"))
+    checks = {
+        "STABLE_IDENTITIES_PRESERVED": True,
+        "RAW_FIELDS_UNCHANGED": True,
+        "HOLDOUT_UNTOUCHED": True,
+        "OWNER_ONLY_PERMISSIONS": True,
+        "PROTECTED_REVIEW_ARTIFACT": True,
+        "ATOMIC_PUBLICATION": True,
+        "INPUT_IDENTITY_BOUND": True,
+        "IDEMPOTENCE_VERIFIED": True,
+        "SAME_FIXED_REVIEW_IDENTITIES": True,
+        "SOURCE_PROVENANCE_UNCHANGED": True,
+        "NO_SEMANTIC_PUNCTUATION_NORMALIZATION": True,
+        "PUNCTUATION_CODEPOINT_CHANGES_ACCOUNTED": True,
+        "BOUNDED_MEMORY_VALIDATION": True,
+        "NO_TOTAL_ROW_PYTHON_IDENTITY_SET": True,
+        "STANDARD_NATIVE_INDEPENDENT": True,
+    }
+    if equivalence is not None:
+        checks["V1_V2_SCIENTIFIC_OUTPUT_EQUAL"] = (
+            equivalence.row_identity_equal
+            and equivalence.incoming_stage02_equal
+            and equivalence.clean_values_equal
+            and equivalence.row_changed_equal
+        )
+        checks["V1_V2_REASON_CODES_EQUAL"] = equivalence.reason_codes_equal
+    metric_groups = dict(stage03_outcome.metrics)
+    if config.performance_metrics is not None:
+        elapsed_milliseconds = config.performance_metrics["ELAPSED_MILLISECONDS"]
+        row_count = stage03_outcome.row_count
+        cleaned_field_count = row_count * len(CLEAN_SOURCE_COLUMNS)
+        projected_numerator = _PRODUCTION_PROJECTION_ROWS * elapsed_milliseconds
+        projected_denominator = row_count * 1_000
+        metric_groups["PERFORMANCE"] = {
+            **dict(config.performance_metrics),
+            "ROWS_PER_SECOND_MILLI": (row_count * 1_000_000 + elapsed_milliseconds // 2)
+            // elapsed_milliseconds,
+            "FIELDS_PER_SECOND_MILLI": (
+                cleaned_field_count * 1_000_000 + elapsed_milliseconds // 2
+            )
+            // elapsed_milliseconds,
+            "LINEAR_PROJECTED_141048582_ROWS_SECONDS": (
+                projected_numerator + projected_denominator - 1
+            )
+            // projected_denominator,
+            "V1_ELAPSED_MILLISECONDS": _V1_DEVELOPMENT_ELAPSED_MILLISECONDS,
+        }
     return SanitizedStageSummary(
         status="STAGE_3_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REVIEW",
         stage="STAGE_3",
@@ -507,22 +673,10 @@ def _summary(
             "input_stage02_manifest": stage02_manifest_sha,
             "review_subset": config.expected_review_subset_fingerprint,
             "review_artifact": review_artifact_sha256,
+            "ordered_stable_identity": ordered_identity_sha,
         },
-        metric_groups=stage03_outcome.metrics,
-        checks={
-            "STABLE_IDENTITIES_PRESERVED": True,
-            "RAW_FIELDS_UNCHANGED": True,
-            "HOLDOUT_UNTOUCHED": True,
-            "OWNER_ONLY_PERMISSIONS": True,
-            "PROTECTED_REVIEW_ARTIFACT": True,
-            "ATOMIC_PUBLICATION": True,
-            "INPUT_IDENTITY_BOUND": True,
-            "IDEMPOTENCE_VERIFIED": True,
-            "SAME_FIXED_REVIEW_IDENTITIES": True,
-            "SOURCE_PROVENANCE_UNCHANGED": True,
-            "PUNCTUATION_UNCHANGED": True,
-            "STANDARD_NATIVE_INDEPENDENT": True,
-        },
+        metric_groups=metric_groups,
+        checks=checks,
         interpretation_code="STAGE03_CONSERVATIVE_CLEANING_CANDIDATE",
     )
 
@@ -537,9 +691,21 @@ def materialize_stage03_development_review(
     if config.output_directory.exists() or config.output_directory.is_symlink():
         _fail("OUTPUT_COLLISION", "Stage 3 review output already exists")
     identity_table, identity_artifact_sha = _fixed_review_identities(config)
-    stage03_table, stage03_outcome, stage03_manifest = _stage03_table_and_manifest(
-        config
+    stage03_table, stage03_outcome, stage03_manifest = (
+        _stage03_selected_table_and_manifest(
+            config,
+            identity_table,
+        )
     )
+    equivalence: Stage03ScientificEquivalenceOutcome | None = None
+    if config.v1_stage03_output_directory is not None:
+        assert config.expected_v1_stage03_manifest_sha256 is not None
+        equivalence = compare_stage03_scientific_outputs(
+            config.v1_stage03_output_directory,
+            expected_v1_manifest_sha256=(config.expected_v1_stage03_manifest_sha256),
+            v2_output_directory=config.stage03_output_directory,
+            expected_v2_manifest_sha256=config.expected_stage03_manifest_sha256,
+        )
     metadata = {
         b"development_reporting_contract_version": (
             DEVELOPMENT_REPORTING_CONTRACT_VERSION.encode()
@@ -583,6 +749,7 @@ def materialize_stage03_development_review(
         stage03_outcome=stage03_outcome,
         stage03_manifest=stage03_manifest,
         review_artifact_sha256=review_artifact.sha256,
+        equivalence=equivalence,
     )
     _write_private(
         temporary / STAGE03_SUMMARY_JSON_PATH,
@@ -617,6 +784,14 @@ def materialize_stage03_development_review(
             "stage03_logical_fingerprint": (stage03_outcome.logical_dataset_sha256_v1),
             "stage03_schema_fingerprint": stage03_schema_fingerprint(),
             "selected_row_count": _EXPECTED_REVIEW_ROWS,
+            **(
+                {
+                    "v1_v2_scientific_output_equal": True,
+                    "v1_v2_reason_codes_equal": True,
+                }
+                if equivalence is not None
+                else {}
+            ),
         },
         "physical_identity": {
             "accepted_development_review_manifest_sha256": (
@@ -624,6 +799,15 @@ def materialize_stage03_development_review(
             ),
             "accepted_review_identity_artifact_sha256": identity_artifact_sha,
             "stage03_manifest_sha256": stage03_outcome.manifest_sha256,
+            **(
+                {
+                    "v1_stage03_manifest_sha256": (
+                        config.expected_v1_stage03_manifest_sha256
+                    )
+                }
+                if equivalence is not None
+                else {}
+            ),
             "artifacts": [
                 review_artifact.to_dict(),
                 summary_json.to_dict(),
@@ -636,6 +820,14 @@ def materialize_stage03_development_review(
             "accepted_fixed_subset_validated": "PASS",
             "same_ordered_500_identities": "PASS",
             "stage03_bundle_validated": "PASS",
+            **(
+                {
+                    "v1_v2_scientific_output_equal": "PASS",
+                    "v1_v2_reason_codes_equal": "PASS",
+                }
+                if equivalence is not None
+                else {}
+            ),
             "stage03_review_schema_exact": "PASS",
             "protected_parquet_checksum_readback": "PASS",
             "sanitized_summary_allowlist": "PASS",

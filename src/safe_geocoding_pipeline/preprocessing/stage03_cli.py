@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import argparse
 import os
+import resource
 import sys
+import time
 from pathlib import Path
 
 from ..execution_policy import ExecutionPolicyError, require_goethe_nhr_slurm
@@ -48,6 +50,9 @@ def build_parser() -> argparse.ArgumentParser:
     materialize.add_argument("--output-directory", required=True, type=Path)
     materialize.add_argument("--execution-git-sha", required=True)
     materialize.add_argument("--batch-rows", type=int, default=2_048)
+    materialize.add_argument(
+        "--target-batch-bytes", type=int, default=256 * 1024 * 1024
+    )
 
     review = subparsers.add_parser(
         "materialize-review",
@@ -64,6 +69,12 @@ def build_parser() -> argparse.ArgumentParser:
     review.add_argument("--expected-stage02-logical-fingerprint", required=True)
     review.add_argument("--output-directory", required=True, type=Path)
     review.add_argument("--execution-git-sha", required=True)
+    review.add_argument("--v1-stage03-output-directory", required=True, type=Path)
+    review.add_argument("--expected-v1-stage03-manifest-sha256", required=True)
+    review.add_argument("--stage03-elapsed-milliseconds", required=True, type=int)
+    review.add_argument("--stage03-user-cpu-milliseconds", required=True, type=int)
+    review.add_argument("--stage03-system-cpu-milliseconds", required=True, type=int)
+    review.add_argument("--stage03-max-rss-kib", required=True, type=int)
     return parser
 
 
@@ -90,6 +101,8 @@ def _create_binding(args: argparse.Namespace) -> None:
 
 
 def _materialize(args: argparse.Namespace) -> None:
+    started = time.perf_counter()
+    usage_before = resource.getrusage(resource.RUSAGE_SELF)
     outcome = materialize_stage03(
         Stage03RunConfig(
             stage02_output_directory=args.stage02_output_directory,
@@ -98,9 +111,18 @@ def _materialize(args: argparse.Namespace) -> None:
             output_directory=args.output_directory,
             execution_git_sha=args.execution_git_sha,
             batch_rows=args.batch_rows,
+            target_batch_bytes=args.target_batch_bytes,
             production=True,
             operational_metadata=_operational_metadata(),
         )
+    )
+    usage_after = resource.getrusage(resource.RUSAGE_SELF)
+    elapsed_milliseconds = round((time.perf_counter() - started) * 1_000)
+    user_cpu_milliseconds = round(
+        (usage_after.ru_utime - usage_before.ru_utime) * 1_000
+    )
+    system_cpu_milliseconds = round(
+        (usage_after.ru_stime - usage_before.ru_stime) * 1_000
     )
     print("status=STAGE_3_DEVELOPMENT_CANDIDATE_MATERIALIZED")
     print(f"rows={outcome.row_count}")
@@ -109,6 +131,10 @@ def _materialize(args: argparse.Namespace) -> None:
     print(f"stage03_schema_fingerprint={outcome.schema_fingerprint}")
     print(f"stage03_input_binding_sha256={outcome.input_binding_sha256}")
     print(f"stage03_manifest_sha256={outcome.manifest_sha256}")
+    print(f"stage03_elapsed_milliseconds={elapsed_milliseconds}")
+    print(f"stage03_user_cpu_milliseconds={user_cpu_milliseconds}")
+    print(f"stage03_system_cpu_milliseconds={system_cpu_milliseconds}")
+    print(f"stage03_max_rss_kib={usage_after.ru_maxrss}")
 
 
 def _materialize_review(args: argparse.Namespace) -> None:
@@ -131,6 +157,16 @@ def _materialize_review(args: argparse.Namespace) -> None:
             ),
             output_directory=args.output_directory,
             execution_git_sha=args.execution_git_sha,
+            v1_stage03_output_directory=args.v1_stage03_output_directory,
+            expected_v1_stage03_manifest_sha256=(
+                args.expected_v1_stage03_manifest_sha256
+            ),
+            performance_metrics={
+                "ELAPSED_MILLISECONDS": args.stage03_elapsed_milliseconds,
+                "USER_CPU_MILLISECONDS": args.stage03_user_cpu_milliseconds,
+                "SYSTEM_CPU_MILLISECONDS": args.stage03_system_cpu_milliseconds,
+                "MAX_RSS_KIB": args.stage03_max_rss_kib,
+            },
             production=True,
             operational_metadata=_operational_metadata(),
         )

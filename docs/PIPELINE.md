@@ -62,26 +62,34 @@ privacy-safe raw structural features, never later pipeline output. See
   500-row DEVELOPMENT-only protected subset for same-row qualitative review.
   Git-safe reports contain allowlisted aggregates only. Full 35,000-row metrics
   remain authoritative for development evaluation; HOLDOUT remains sealed.
-- **Stage 3 — Safe text cleaning:** a complete DEVELOPMENT candidate was
-  materialized from the accepted Stage 2 artifact under
+- **Stage 3 — Safe text cleaning:** the v1 DEVELOPMENT candidate materialized
+  from the accepted Stage 2 artifact under
   `stage03_safe_text_cleaning_contract_v1` and
   `stage03_safe_text_cleaning_profile_v1`. It adds conservative derived clean
   strings and compact reason evidence while preserving every Stage 2 field.
-  The candidate has 35,000 output rows, zero dropped/added/duplicate identities,
-  1,281 changed rows, 1,795 changed fields, and zero idempotence failures. It is
-  ready for separate independent review but is not accepted. See
+  Independent review confirmed its 35,000-row scientific output was
+  conservative and correct, but returned `STAGE_3_NOT_ACCEPTED` because the v1
+  production implementation retained total-row Python identity sets, repeated
+  cleaning approximately six times per field, and reported punctuation
+  ambiguously. A v2 DEVELOPMENT fix iteration now uses bounded Arrow batches,
+  ordered identity fingerprints, changed-value-only idempotence rechecks,
+  no validation/reporting cleaner calls, and computed punctuation-codepoint
+  metrics. It is not a new candidate until its exact pushed implementation is
+  materialized on the same 35,000 DEVELOPMENT rows and independently reviewed.
+  See
   `docs/STAGE03.md` and the sanitized reports under `reports/development/`.
 
 ## Current and planned library-first preprocessing sequence
 
-Stage 3 is an implemented DEVELOPMENT candidate, not an accepted result.
+Stage 3 v1 was not accepted; the v2 fix iteration is in DEVELOPMENT and is not
+an accepted result.
 Stages 4–19 remain plans and have not started. Every stage requires its own
 design, implementation, DEVELOPMENT evidence, and freeze. Raw and derived
 values remain separate throughout.
 
 | Stage | Boundary and intended mature tools |
 |---|---|
-| 3 — Safe text cleaning | DEVELOPMENT candidate under independent review: derived NFC, conservative ftfy encoding repair, explicit whitespace/control cleanup, and no punctuation transformation; Python Unicode and PyArrow provide the auditable batch implementation. |
+| 3 — Safe text cleaning | V2 DEVELOPMENT fix iteration: unchanged derived NFC, conservative ftfy encoding repair, and explicit whitespace/control cleanup; no semantic punctuation-normalization rule; bounded PyArrow batches and ordered identity fingerprints replace v1 total-row Python state. |
 | 4 — Lowercase canonical forms | Derived lowercase fields only; raw values remain unchanged. |
 | 5 — Address reconstruction | Build standard and native Orbis candidates separately; never concatenate all eight source lines blindly. |
 | 6 — Early exact deduplication | Deduplicate address candidates, not source rows, and preserve complete map-back. |

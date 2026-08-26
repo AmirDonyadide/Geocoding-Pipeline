@@ -2,8 +2,12 @@
 
 ## Status and boundary
 
-Stage 3 is a **DEVELOPMENT CANDIDATE** only. It is not scientifically accepted,
-does not authorize Stage 4, and does not change Stage 0, Stage 1, or Stage 2.
+Stage 3 v1 was **NOT ACCEPTED** by independent review. Its scientific cleaning
+behavior was found conservative and correct on DEVELOPMENT, but its production
+implementation and punctuation reporting were not acceptable. The v2 fix
+iteration remains in DEVELOPMENT until a new immutable 35,000-row execution
+and independent review. Stage 3 is not scientifically accepted, does not
+authorize Stage 4, and does not change Stage 0, Stage 1, or Stage 2.
 The governing transformation contract is
 `stage03_safe_text_cleaning_contract_v1`; its executable policy is
 `stage03_safe_text_cleaning_profile_v1`.
@@ -154,10 +158,23 @@ PyArrow is exactly 25.0.0.
 
 Stage 3 implements no punctuation-spacing or punctuation replacement rule.
 Apostrophes, hyphens, periods, commas, colons, semicolons, slashes, backslashes,
-fractions, dashes, and other punctuation remain untouched except when bytes
-that visibly form mojibake are repaired by the constrained encoding step.
-Consequently the Stage 3 punctuation-change metric is always zero and no
-punctuation reason code exists.
+fractions, dashes, and other punctuation remain untouched by any semantic
+punctuation-normalization policy. Valid constrained encoding repair can still
+change literal Unicode punctuation code points that were artifacts of
+mojibake. No punctuation reason code exists because Stage 3 has no punctuation
+rule.
+
+V2 therefore reports four separate computed metrics:
+
+- `SEMANTIC_PUNCTUATION_NORMALIZATION_FIELDS`, fixed at zero by policy;
+- `PUNCTUATION_CODEPOINT_CHANGED_FIELDS`, comparing the ordered literal
+  punctuation-codepoint subsequence before and after cleaning;
+- `PUNCTUATION_CODEPOINT_CHANGED_IN_ENCODING_REPAIRED_FIELDS`;
+- `PUNCTUATION_CODEPOINT_CHANGED_WITHOUT_ENCODING_REPAIR_FIELDS`.
+
+This replaces the ambiguous v1 `PUNCTUATION_CHANGED_FIELDS = 0` claim. Counts
+are computed from output values and reason evidence; no expected count is
+hardcoded.
 
 NFKC/NFKD, accent stripping, ASCII folding, lowercasing, casefolding,
 transliteration, abbreviation expansion, missing-marker interpretation,
@@ -170,8 +187,17 @@ query generation, and geocoding are forbidden.
 For every valid string `x`, the required property is
 `clean(clean(x)).value == clean(x).value`. The second application must also
 emit no change reasons. Synthetic property-style tests cover arbitrary Unicode
-plus adversarial examples. The authoritative DEVELOPMENT run repeats cleaning
-over all 420,000 derived values and requires zero idempotence failures.
+plus adversarial examples. V2 applies the full scalar profile only where an
+Arrow-native predicate cannot prove that a value is already canonical ASCII.
+Every changed result is cleaned a second time and must be a fixed point. An
+unchanged result is already an exact fixed point because the deterministic
+pinned cleaner returned its input unchanged. This verifies idempotence for all
+values while avoiding a redundant second invocation for unchanged values.
+
+Readback, terminal validation, reporting, and v1/v2 comparison never invoke the
+cleaner. They validate exact raw/clean equality relationships, ordered reason
+evidence, metrics, page checksums, artifact hashes, and deterministic identity
+digests from the materialized values.
 
 Publication additionally requires:
 
@@ -185,6 +211,71 @@ Publication additionally requires:
 - exact independent page-checksum read-back;
 - owner-only `0700` directories and `0600` files;
 - atomic publication with no partial-success topology.
+
+## V2 bounded-memory production redesign
+
+V1 converted all 12 cleaning columns to Python lists for each batch, invoked
+the cleaner twice during transformation, twice during immediate readback, and
+twice again during terminal validation, and accumulated two independent
+Python sets containing every stable identity. Independent review estimated the
+two identity sets alone could require about 25.8 GiB at production cardinality,
+before Arrow buffers, Python strings, cleaning intermediates, or Parquet state.
+
+V2 replaces that lifecycle as follows:
+
+1. Bind the exact accepted Stage 2 manifest and immutable artifact SHA-256
+   values. Stage 2's already-accepted provenance, canonical-order, stable-ID,
+   and duplicate-free validations are not reimplemented as row objects.
+2. Stream each Stage 2 Parquet row group. Batch row count is capped and is
+   reduced using row-group uncompressed bytes toward a configurable 256 MiB
+   target. Memory depends on a bounded batch and the largest accepted value,
+   never total row count.
+3. Use Arrow `string_is_ascii` plus an exact dirty-text predicate to reuse
+   already-canonical printable ASCII arrays. Materialize only non-fast-path
+   cells individually for the unchanged conservative scalar cleaner.
+4. Clean once. Re-clean only changed results for exact idempotence. A field's
+   clean value and ordered reasons are recorded during that one projection.
+5. Write one bounded output row group per projected input batch. Immediate
+   checksum readback requires exact Arrow equality for all 26 incoming Stage 2
+   arrays in every paired batch and validates derived audit consistency without
+   cleaning again.
+6. Compute per-shard and global ordered stable-ID SHA-256 fingerprints directly
+   from fixed-size Arrow buffers. Input and output fingerprints, row counts, and
+   shard evidence must match. Because output identities are exact ordered
+   copies of the accepted duplicate-free Stage 2 identities, this proves no
+   identity was changed, added, dropped, reordered, or duplicated without a
+   total-row set.
+7. Terminal validation recomputes the ordered output fingerprint and all
+   metrics in bounded batches. The 500-row reporting workflow holds only the
+   frozen 500-key identity set, scans only the stable-ID column to locate those
+   rows, and reads text columns only from matching bounded row groups; it no
+   longer loads or indexes the full Stage 3 table.
+
+No Python collection in the authoritative Stage 3 materialization,
+validation, or review path grows with total row count. Artifact inventories
+grow only with shard count, and the fixed review index is capped at 500.
+
+The cleaner's control/whitespace implementation was also made scientifically
+neutral but more memory efficient: one scan records the same ordered reasons,
+then `str.translate` performs the fixed control removal and whitespace mapping.
+This avoids two generator-based full-string reconstructions. A synthetic
+21,750,004-code-point multiline value completed cleaning plus changed-value
+idempotence in 7.29 seconds with 659,505,152-byte peak RSS on the development
+Mac, preserved its complete non-whitespace core, and was not truncated.
+
+Two 100,000-row synthetic Arrow projection benchmarks used 2,048-row batches:
+
+- a mixed case with one populated native field processed 1,200,000 fields in
+  0.513 seconds (195,114 rows/s; 2,341,373 fields/s; 92,831,744-byte MaxRSS);
+- a conservative case with all four native lines populated processed the same
+  field count in 1.616 seconds (61,882 rows/s; 742,579 fields/s;
+  93,814,784-byte MaxRSS).
+
+The conservative transformation-only linear projection for 141,048,582 rows
+is about 38 minutes. This excludes Parquet I/O, repeated artifact hashing,
+checksum readback, terminal validation, and filesystem differences, so it is
+not a production-runtime claim. The exact 35,000-row Goethe v2 run and MaxRSS
+must supply the authoritative end-to-end basis before final resource guidance.
 
 Nulls, non-string cleaning inputs, wrong Stage 2 schema/fingerprint/manifest,
 malformed binding metadata, partial outputs, or any path containing `holdout`
@@ -231,9 +322,9 @@ a sample of unchanged multilingual rows, each observed reason family, encoding
 repairs, empty-result cases, maximum length changes, standard/native behavior,
 and any unexpected aggregate concentration before considering acceptance.
 
-## Authoritative DEVELOPMENT candidate evidence
+## Rejected v1 DEVELOPMENT evidence preserved
 
-Candidate implementation commit
+V1 implementation commit
 `8446190d1153aeb507678d0de18d027f89f0ec8d` ran unchanged on Goethe as SLURM
 job `1759109`. The job completed with exit code `0:0`. It consumed the exact
 accepted Stage 2 and benchmark identities declared above and produced:
@@ -243,7 +334,10 @@ accepted Stage 2 and benchmark identities declared above and produced:
 - exact preservation of all 26 incoming Stage 2 fields and source provenance;
 - 1,281 changed rows (3.66%) and 1,795 changed fields out of 420,000;
 - zero idempotence failures across all applicable DEVELOPMENT values;
-- zero punctuation changes, zero BOM changes, and zero terminal-escape changes;
+- an ambiguous reported punctuation count of zero, later corrected by
+  independent review: nine literal punctuation-codepoint changes all occurred
+  in the nine scientifically valid ftfy encoding repairs; zero BOM changes and
+  zero terminal-escape changes;
 - nine encoding repairs, five NFC-normalized fields, two control-character
   removals, and two whitespace-only values becoming empty;
 - logical fingerprint
@@ -261,11 +355,17 @@ remained. The magnitude is therefore not evidence of an additional Stage 3
 operation, but the independent reviewer should scrutinize the outlier class
 and its downstream scalability implications.
 
-The Stage 3 protected review artifact has exactly the frozen 500 ordered
+The v1 Stage 3 protected review artifact has exactly the frozen 500 ordered
 identities and SHA-256
 `e2233bad584662d4b9881b1fe14f3f4bc58a0f893b33d8fc3ed41a0bda70d987`.
-The sanitized quantitative evidence is
+The historical v1 sanitized quantitative evidence is
 `reports/development/stage03_summary.json` and
-`reports/development/stage03_summary.md`. This state is a DEVELOPMENT candidate
-ready for independent review, not scientific acceptance; Stage 4 remains
-unstarted.
+`reports/development/stage03_summary.md`. Independent review reproduced its
+scientific output and found no semantic damage, but returned
+`STAGE_3_NOT_ACCEPTED` because the implementation was not production-scalable,
+the punctuation metric was inaccurate, and the committed BOM test did not
+encode the actual edge-ordering regression. Commit
+`9ed24cea8626b9cd674377636fe1d51e3cd6b456` preserves that rejected candidate
+and its evidence. V2 must create a new immutable output and review path and
+must prove exact v1/v2 scientific equality before it can be returned for a new
+independent review. Stage 4 remains unstarted.
