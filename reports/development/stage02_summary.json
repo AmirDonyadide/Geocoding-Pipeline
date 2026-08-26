@@ -1,0 +1,66 @@
+{
+  "checks": {
+    "ATOMIC_PUBLICATION": true,
+    "HOLDOUT_UNTOUCHED": true,
+    "INPUT_IDENTITY_BOUND": true,
+    "OWNER_ONLY_PERMISSIONS": true,
+    "PROTECTED_REVIEW_ARTIFACT": true,
+    "RAW_FIELDS_UNCHANGED": true,
+    "STABLE_IDENTITIES_PRESERVED": true
+  },
+  "dataset": {
+    "development_fingerprint": "ff95021bd2f4b2994e9e2a766f32e792e29797a128dc64fa3aef100ff9f5ca72",
+    "input_benchmark_fingerprint": "014a7d2a9935bb098711e62b89df2eb93dfdd0dd1ce5ac70853f010d118acedf",
+    "name": "BENCHMARK_SAMPLE_V1_DEVELOPMENT"
+  },
+  "development_reporting_contract_version": "development_reporting_contract_v1",
+  "execution": {
+    "git_sha": "6432c72ca496852551d3f9d4e9084632cf2766af",
+    "slurm_job_id": "1758833"
+  },
+  "fingerprints": {
+    "logical": "ff95021bd2f4b2994e9e2a766f32e792e29797a128dc64fa3aef100ff9f5ca72",
+    "schema": "3c4a2d616ab6dacf57f42fff7e84175a48fbd50c6a060046434593c5aefa74d4"
+  },
+  "interpretation": "Stage 2 introduced the stable internal schema and standard/native structural metadata while preserving all 35,000 DEVELOPMENT records and every incoming field exactly.",
+  "interpretation_code": "STAGE02_LOSSLESS_HARMONIZATION",
+  "metrics": {
+    "ANOMALIES": {
+      "IMPOSSIBLE_STRUCTURAL_VALUES": 0,
+      "INVARIANT_VIOLATIONS": 0,
+      "SCHEMA_ANOMALIES": 0,
+      "UNEXPECTED_NULLS": 0
+    },
+    "NATIVE_LINE_COUNTS": {
+      "0": 75,
+      "1": 15032,
+      "2": 16912,
+      "3": 2700,
+      "4": 281
+    },
+    "ROW_INTEGRITY": {
+      "ADDED_ROWS": 0,
+      "DROPPED_ROWS": 0,
+      "DUPLICATE_IDENTITIES": 0,
+      "INPUT_ROWS": 35000,
+      "OUTPUT_ROWS": 35000
+    },
+    "STANDARD_LINE_COUNTS": {
+      "0": 178,
+      "1": 14991,
+      "2": 16889,
+      "3": 2698,
+      "4": 244
+    },
+    "STANDARD_NATIVE_AVAILABILITY": {
+      "BOTH": 34747,
+      "NATIVE_ONLY": 178,
+      "NEITHER": 0,
+      "STANDARD_ONLY": 75
+    }
+  },
+  "sanitized_summary_contract_version": "development_sanitized_summary_v1",
+  "stage": "STAGE_2",
+  "stage_contract_version": "stage02_schema_provenance_harmonization_contract_v1",
+  "status": "STAGE_2_ACCEPTED"
+}

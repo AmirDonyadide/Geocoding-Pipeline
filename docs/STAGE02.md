@@ -2,17 +2,25 @@
 
 ## Status and purpose
 
-Stage 2 status is **IMPLEMENTED_AWAITING_DEVELOPMENT_VALIDATION**. Its
-implementation ancestry includes commit
-`8e4020a02d5d2ed3833f8c8f3fef9a777d568a20`. The next scientific execution is
-validation on the protected 35,000-row DEVELOPMENT benchmark; it has not
-started. Stage 2 converts an accepted Stage 1 representation, or the separately
+Stage 2 status is **STAGE_2_ACCEPTED**. Its implementation ancestry includes
+commit `8e4020a02d5d2ed3833f8c8f3fef9a777d568a20`; accepted DEVELOPMENT execution
+job `1758833` used Git SHA
+`6432c72ca496852551d3f9d4e9084632cf2766af`. All 35,000 input rows produced
+exactly 35,000 output rows with unchanged incoming fields and stable
+identities. Stage 2 converts an accepted Stage 1 representation, or the separately
 accepted `BENCHMARK_SAMPLE_V1` DEVELOPMENT representation, into one stable
 internal source-row schema. It is a lossless projection plus four raw structural
 fields. It performs no cleaning, parsing, normalization, reconstruction,
 transliteration, correction, deduplication, or geocoding.
 
 Contract: `stage02_schema_provenance_harmonization_contract_v1`.
+
+Accepted DEVELOPMENT identities:
+
+- logical fingerprint:
+  `ff95021bd2f4b2994e9e2a766f32e792e29797a128dc64fa3aef100ff9f5ca72`;
+- schema fingerprint:
+  `3c4a2d616ab6dacf57f42fff7e84175a48fbd50c6a060046434593c5aefa74d4`.
 
 ## Input contract
 
@@ -106,5 +114,7 @@ uses `safe-geocoding-stage02` through
 runs before input access. A future DEVELOPMENT run supplies only the accepted
 development artifact and a reviewed binding. It does not inspect HOLDOUT.
 
-Stage 2 stops at schema/provenance harmonization. Stage 3 minimal text cleaning
-is separate and has not started.
+Stage 2 stops at schema/provenance harmonization. Its sanitized evidence and
+protected fixed-row qualitative interface use the separate passive reporting
+framework in `docs/DEVELOPMENT_REPORTING.md`; reporting does not alter Stage 2
+science. Stage 3 minimal text cleaning is separate and has not started.

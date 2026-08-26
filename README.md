@@ -19,8 +19,8 @@ validation semantics, privacy/execution guards, and verified gaps not solved
 adequately by mature libraries. The historical custom/from-scratch parser is
 retained for scientific provenance and benchmark comparison at
 `baseline/custom-preprocessing-2026-08`; it is not the active production
-architecture. Stage 2 is implemented and awaits DEVELOPMENT validation. Stage
-3 has not started.
+architecture. Stage 2 is accepted on the complete 35,000-row DEVELOPMENT
+sample. Stage 3 has not started.
 
 ## Current accepted development state
 
@@ -36,12 +36,17 @@ architecture. Stage 2 is implemented and awaits DEVELOPMENT validation. Stage
   population: 35,000 DEVELOPMENT rows and a physically separate, sealed 15,000
   HOLDOUT rows. HOLDOUT is not used for tuning.
 - Stage 2 contract `stage02_schema_provenance_harmonization_contract_v1` is
-  implemented. It preserves the exact 22 Stage 1 fields and adds four raw
-  standard/native structural fields; protected 35,000-row DEVELOPMENT
-  validation is the next scientific execution.
+  accepted on all 35,000 DEVELOPMENT rows. It preserves the exact 22 Stage 1
+  fields and adds four raw standard/native structural fields with no raw-value
+  transformation.
+- The passive DEVELOPMENT reporting framework follows one fixed protected
+  500-row DEVELOPMENT-only subset through later stages while Git-safe reports
+  retain only allowlisted aggregate metrics. It supplements rather than
+  replaces full 35,000-row evaluation and never opens HOLDOUT.
 
-See `docs/PIPELINE.md`, `docs/BENCHMARK_SAMPLE.md`, and `docs/STAGE02.md` for
-the complete stage boundaries and current status.
+See `docs/PIPELINE.md`, `docs/BENCHMARK_SAMPLE.md`, `docs/STAGE02.md`,
+`docs/DEVELOPMENT_REPORTING.md`, and `docs/DEVELOPMENT_PROGRESS.md` for the
+complete boundaries and current status.
 
 ## Development and cluster workflow
 

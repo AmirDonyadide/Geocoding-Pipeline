@@ -49,8 +49,8 @@ This register distinguishes approved project rules from questions that require e
   `stable_source_row_id_v1` intentionally excludes path and would collide at
   matching logical ordinals. Stage 1 neither disambiguates by path nor removes
   a source record. Stage 1 status is `STAGE_1_ACCEPTED` after its final critical
-  review. Stage 2 was subsequently implemented as a separate contract and
-  awaits protected DEVELOPMENT validation.
+  review. Stage 2 was subsequently implemented and accepted on the complete
+  protected 35,000-row DEVELOPMENT population.
 - Future Phase 2 `FULL_CONVERSION` execution is population-generic and requires
   an explicit hash-pinned accepted Stage 0 adoption record. Exact canonical
   path/SHA/logical-count scope, not a global count or current directory
@@ -77,7 +77,17 @@ This register distinguishes approved project rules from questions that require e
   and non-DEVELOPMENT rows and does not read HOLDOUT. Stage 2 logical identity
   binds upstream scientific identity, schema/derivation contracts, and row
   count while excluding physical layout and operational provenance. Protected
-  execution remains Goethe/SLURM-only; real DEVELOPMENT validation is pending.
+  execution remains Goethe/SLURM-only. DEVELOPMENT job `1758833` accepted the
+  exact 35,000-to-35,000 result without changing incoming values or identities.
+- DEVELOPMENT reporting uses the scientifically passive
+  `development_reporting_contract_v1` and fixed
+  `development_review_subset_contract_v1`. Exactly 500 DEVELOPMENT identities
+  are selected from accepted benchmark structural metadata with
+  domain-separated deterministic provenance hashes. The same identities are
+  used by immutable per-stage protected review artifacts. Reporting does not
+  change stage outputs or acceptance; portable summaries use a strict
+  aggregate allowlist, full 35,000-row metrics remain quantitative evidence,
+  and HOLDOUT is rejected and remains sealed.
 - The accepted current Stage 0 development snapshot contains 1,405 files and
   140,448,582 logical rows. It remains frozen. Six files became available only
   later and may form an independent 1,411-file source snapshot, but that

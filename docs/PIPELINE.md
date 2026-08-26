@@ -50,11 +50,18 @@ privacy-safe raw structural features, never later pipeline output. See
   and 15,000 sealed HOLDOUT source rows, with zero overlap and zero duplicate
   selected identities. All 1,405 sources are represented. Its fingerprint is
   `014a7d2a9935bb098711e62b89df2eb93dfdd0dd1ce5ac70853f010d118acedf`.
-- **Stage 2 — Schema and provenance harmonization:** implemented under
+- **Stage 2 — Schema and provenance harmonization:** accepted on the complete
+  35,000-row DEVELOPMENT artifact under
   `stage02_schema_provenance_harmonization_contract_v1`. The 26-column output
   preserves the exact 22 Stage 1 fields and adds four raw-emptiness
-  standard/native fields. It performs no address transformation. Protected
-  validation on the 35,000-row DEVELOPMENT artifact is next.
+  standard/native fields. It performs no address transformation: 35,000 input
+  rows produced 35,000 output rows with no dropped, added, or duplicated stable
+  identities.
+- **DEVELOPMENT reporting:** the passive
+  `development_reporting_contract_v1` framework uses one deterministic fixed
+  500-row DEVELOPMENT-only protected subset for same-row qualitative review.
+  Git-safe reports contain allowlisted aggregates only. Full 35,000-row metrics
+  remain authoritative for development evaluation; HOLDOUT remains sealed.
 
 ## Planned library-first preprocessing sequence
 
@@ -119,6 +126,10 @@ After the complete pipeline is frozen, the untouched 15,000-row HOLDOUT is
 used once for unbiased final evaluation. It is not repeatedly opened or used
 for tuning. A satisfactory result then permits separately authorized full
 production execution.
+
+The fixed qualitative review subset and reusable sanitized summaries are
+documented in `docs/DEVELOPMENT_REPORTING.md`; current status is summarized in
+`docs/DEVELOPMENT_PROGRESS.md`.
 
 Future `FULL_INVENTORY` execution is population-size independent. It requires a
 hash-pinned `stage00_population_scope_v1` artifact containing the exact sorted

@@ -72,6 +72,14 @@ the source population. Source transfer, when required, uses the separate
 scope-driven checksum-reconciling controlled transfer script; it performs no
 processing on an external service.
 
+Protected DEVELOPMENT review-subset materialization uses
+`cluster/goethe_nhr/development_reporting.sbatch`. The launcher requires an
+exact detached pushed commit, SHA-pinned DEVELOPMENT-only benchmark artifact,
+accepted Stage 2 bundle/manifest identities, and a new controlled output path.
+It rejects HOLDOUT-named paths before Python input access and calls the shared
+Goethe/SLURM execution guard. The resulting 500-row artifact is a small review
+product, but cluster execution preserves the accepted-data and runtime boundary.
+
 Future full-production commands in Phases 4, 5, 8, 9, 10, 11, 12, and 13 must
 reuse the shared guard for full diagnostics, address-key/deduplication,
 geocoding orchestration, candidate selection, usability classification,
