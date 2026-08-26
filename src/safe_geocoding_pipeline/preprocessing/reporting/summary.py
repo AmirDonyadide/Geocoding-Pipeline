@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import os
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Mapping, cast
 
@@ -94,9 +94,107 @@ _ALLOWED_METRICS: Mapping[str, frozenset[str]] = {
     ),
     "COUNTRY_COVERAGE": frozenset({"AVAILABLE_COUNTRIES", "REPRESENTED_COUNTRIES"}),
     "QUOTA_SHORTFALLS": frozenset({"SHORTFALL_CATEGORY_COUNT", "SHORTFALL_TOTAL"}),
+    "CHANGE_RATE": frozenset(
+        {
+            "ROWS_CHANGED",
+            "ROWS_UNCHANGED",
+            "ROWS_CHANGED_PERCENT_BASIS_POINTS",
+        }
+    ),
+    "FIELD_CHANGES": frozenset(
+        {"TOTAL_CLEANED_FIELDS", "CHANGED_FIELDS", "UNCHANGED_FIELDS"}
+    ),
+    "REASON_AFFECTED_ROWS": frozenset(
+        {
+            "ENCODING_REPAIRED",
+            "TERMINAL_ESCAPE_REMOVED",
+            "BOM_REMOVED",
+            "CONTROL_CHARACTER_REMOVED",
+            "TAB_NORMALIZED",
+            "LINEBREAK_NORMALIZED",
+            "UNICODE_WHITESPACE_NORMALIZED",
+            "WHITESPACE_COLLAPSED",
+            "WHITESPACE_TRIMMED",
+            "WHITESPACE_ONLY_TO_EMPTY",
+            "UNICODE_NFC_NORMALIZED",
+        }
+    ),
+    "REASON_AFFECTED_FIELDS": frozenset(
+        {
+            "ENCODING_REPAIRED",
+            "TERMINAL_ESCAPE_REMOVED",
+            "BOM_REMOVED",
+            "CONTROL_CHARACTER_REMOVED",
+            "TAB_NORMALIZED",
+            "LINEBREAK_NORMALIZED",
+            "UNICODE_WHITESPACE_NORMALIZED",
+            "WHITESPACE_COLLAPSED",
+            "WHITESPACE_TRIMMED",
+            "WHITESPACE_ONLY_TO_EMPTY",
+            "UNICODE_NFC_NORMALIZED",
+        }
+    ),
+    "FIELD_GROUP_AFFECTED_ROWS": frozenset(
+        {
+            "STANDARD_ADDRESS_LINES",
+            "NATIVE_ADDRESS_LINES",
+            "POSTCODE",
+            "CITY_LOCALITY",
+            "REGION",
+            "COUNTRY_SOURCE_GEOGRAPHY",
+        }
+    ),
+    "FIELD_GROUP_CHANGED_FIELDS": frozenset(
+        {
+            "STANDARD_ADDRESS_LINES",
+            "NATIVE_ADDRESS_LINES",
+            "POSTCODE",
+            "CITY_LOCALITY",
+            "REGION",
+            "COUNTRY_SOURCE_GEOGRAPHY",
+        }
+    ),
+    "FIELD_GROUP_TOTAL_FIELDS": frozenset(
+        {
+            "STANDARD_ADDRESS_LINES",
+            "NATIVE_ADDRESS_LINES",
+            "POSTCODE",
+            "CITY_LOCALITY",
+            "REGION",
+            "COUNTRY_SOURCE_GEOGRAPHY",
+        }
+    ),
+    "WHITESPACE": frozenset(
+        {
+            "TAB_NORMALIZED_FIELDS",
+            "LINEBREAK_NORMALIZED_FIELDS",
+            "UNICODE_WHITESPACE_NORMALIZED_FIELDS",
+            "WHITESPACE_COLLAPSED_FIELDS",
+            "WHITESPACE_TRIMMED_FIELDS",
+            "WHITESPACE_ONLY_TO_EMPTY_FIELDS",
+        }
+    ),
+    "UNICODE_ENCODING": frozenset(
+        {
+            "UNICODE_NFC_NORMALIZED_FIELDS",
+            "ENCODING_REPAIRED_FIELDS",
+            "TERMINAL_ESCAPE_REMOVED_FIELDS",
+            "BOM_REMOVED_FIELDS",
+            "CONTROL_CHARACTER_REMOVED_FIELDS",
+        }
+    ),
+    "PUNCTUATION": frozenset({"PUNCTUATION_CHANGED_FIELDS"}),
+    "OUTPUT_EFFECTS": frozenset(
+        {
+            "CLEAN_VALUES_BECAME_EMPTY",
+            "MAX_LENGTH_INCREASE_CODEPOINTS",
+            "MAX_LENGTH_DECREASE_CODEPOINTS",
+            "IDEMPOTENCE_FAILURES",
+        }
+    ),
 }
 
-_ALLOWED_CHECKS = frozenset(
+_REQUIRED_CHECKS = frozenset(
     {
         "STABLE_IDENTITIES_PRESERVED",
         "RAW_FIELDS_UNCHANGED",
@@ -105,6 +203,25 @@ _ALLOWED_CHECKS = frozenset(
         "PROTECTED_REVIEW_ARTIFACT",
         "ATOMIC_PUBLICATION",
         "INPUT_IDENTITY_BOUND",
+    }
+)
+_OPTIONAL_CHECKS = frozenset(
+    {
+        "IDEMPOTENCE_VERIFIED",
+        "SAME_FIXED_REVIEW_IDENTITIES",
+        "SOURCE_PROVENANCE_UNCHANGED",
+        "PUNCTUATION_UNCHANGED",
+        "STANDARD_NATIVE_INDEPENDENT",
+    }
+)
+
+_ALLOWED_EXTRA_FINGERPRINTS = frozenset(
+    {
+        "input_binding",
+        "manifest",
+        "input_stage02_manifest",
+        "review_subset",
+        "review_artifact",
     }
 )
 
@@ -118,6 +235,11 @@ _INTERPRETATIONS = {
         "The fixed DEVELOPMENT review subset provides protected qualitative "
         "follow-through on the same source rows; full 35,000-row metrics remain "
         "the quantitative development evidence."
+    ),
+    "STAGE03_CONSERVATIVE_CLEANING_CANDIDATE": (
+        "Stage 3 created conservative derived clean text for the complete "
+        "35,000-row DEVELOPMENT set while preserving every Stage 2 field; it "
+        "remains a candidate pending independent scientific review."
     ),
 }
 
@@ -137,6 +259,7 @@ class SanitizedStageSummary:
     metric_groups: Mapping[str, Mapping[str, int]]
     checks: Mapping[str, bool]
     interpretation_code: str
+    extra_fingerprints: Mapping[str, str] = field(default_factory=dict)
 
     def validate(self) -> None:
         if _SAFE_TOKEN_RE.fullmatch(self.status) is None:
@@ -165,6 +288,17 @@ class SanitizedStageSummary:
         ):
             if _SHA256_RE.fullmatch(digest) is None:
                 raise ReviewSubsetError("UNSAFE_SUMMARY", "Summary digest is malformed")
+        if set(self.extra_fingerprints) - _ALLOWED_EXTRA_FINGERPRINTS:
+            raise ReviewSubsetError(
+                "UNSAFE_SUMMARY", "Additional fingerprint is not allowlisted"
+            )
+        if any(
+            _SHA256_RE.fullmatch(value) is None
+            for value in self.extra_fingerprints.values()
+        ):
+            raise ReviewSubsetError(
+                "UNSAFE_SUMMARY", "Additional fingerprint is malformed"
+            )
         if set(self.metric_groups) - set(_ALLOWED_METRICS):
             raise ReviewSubsetError("UNSAFE_SUMMARY", "Metric group is not allowlisted")
         for group, metrics in self.metric_groups.items():
@@ -174,8 +308,10 @@ class SanitizedStageSummary:
                 )
             if any(isinstance(value, bool) or value < 0 for value in metrics.values()):
                 raise ReviewSubsetError("UNSAFE_SUMMARY", "Metric value is invalid")
-        if set(self.checks) != _ALLOWED_CHECKS or any(
-            not isinstance(value, bool) for value in self.checks.values()
+        if (
+            not _REQUIRED_CHECKS <= set(self.checks)
+            or set(self.checks) - (_REQUIRED_CHECKS | _OPTIONAL_CHECKS)
+            or any(not isinstance(value, bool) for value in self.checks.values())
         ):
             raise ReviewSubsetError("UNSAFE_SUMMARY", "Summary checks are incomplete")
         if self.interpretation_code not in _INTERPRETATIONS:
@@ -205,6 +341,7 @@ class SanitizedStageSummary:
             "fingerprints": {
                 "logical": self.logical_fingerprint,
                 "schema": self.schema_fingerprint,
+                **dict(sorted(self.extra_fingerprints.items())),
             },
             "metrics": {
                 group: dict(sorted(values.items()))
@@ -253,11 +390,17 @@ def render_summary_markdown(summary: SanitizedStageSummary) -> str:
         f"- Logical fingerprint: `{summary.logical_fingerprint}`",
         f"- Schema fingerprint: `{summary.schema_fingerprint}`",
     ]
+    for name, digest in sorted(summary.extra_fingerprints.items()):
+        lines.append(f"- {name.replace('_', ' ').title()}: `{digest}`")
     for group, values in metrics.items():
         assert isinstance(group, str) and isinstance(values, dict)
         lines.extend(("", f"## {group.replace('_', ' ').title()}", ""))
         for name, count in values.items():
-            lines.append(f"- {str(name).replace('_', ' ').lower()}: {count}")
+            label = str(name).replace("_", " ").lower()
+            if str(name).endswith("PERCENT_BASIS_POINTS"):
+                lines.append(f"- {label}: {count / 100:.2f}% ({count} basis points)")
+            else:
+                lines.append(f"- {label}: {count}")
     lines.extend(("", "## Provenance and privacy", ""))
     for name, passed in sorted(summary.checks.items()):
         lines.append(
@@ -303,6 +446,11 @@ def validate_sanitized_summary_payload(
     assert isinstance(metrics, dict)
     assert isinstance(checks, dict)
     try:
+        extra_fingerprints = {
+            str(name): str(digest)
+            for name, digest in fingerprints.items()
+            if name not in {"logical", "schema"}
+        }
         summary = SanitizedStageSummary(
             status=str(value["status"]),
             stage=str(value["stage"]),
@@ -317,6 +465,7 @@ def validate_sanitized_summary_payload(
             metric_groups=cast(Mapping[str, Mapping[str, int]], metrics),
             checks=cast(Mapping[str, bool], checks),
             interpretation_code=str(value["interpretation_code"]),
+            extra_fingerprints=extra_fingerprints,
         )
     except (KeyError, TypeError, ValueError) as error:
         raise ReviewSubsetError(

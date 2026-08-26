@@ -7,7 +7,7 @@ name = "safe-geocoding-pipeline"
 version = "0.2.0"
 description = "Reproducible inventory and geocoding pipeline for SAFE research data"
 requires-python = ">=3.11"
-dependencies = ["duckdb==1.5.5", "pyarrow==25.0.0"]
+dependencies = ["duckdb==1.5.5", "ftfy==6.3.1", "pyarrow==25.0.0"]
 
 [project.optional-dependencies]
 dev = ["mypy==1.20.2", "pytest==8.4.2", "ruff==0.15.14"]
@@ -21,6 +21,7 @@ safe-geocoding-phase03-targeted-review = "safe_geocoding_pipeline.phase03.target
 safe-geocoding-phase03-locked-evaluation = "safe_geocoding_pipeline.phase03.locked_evaluation_cli:main"
 safe-geocoding-benchmark-sample = "safe_geocoding_pipeline.preprocessing.benchmark_cli:main"
 safe-geocoding-stage02 = "safe_geocoding_pipeline.preprocessing.stage02_cli:main"
+safe-geocoding-stage03 = "safe_geocoding_pipeline.preprocessing.stage03_cli:main"
 safe-geocoding-development-reporting = "safe_geocoding_pipeline.preprocessing.development_reporting_cli:main"
 
 [tool.setuptools.packages.find]
