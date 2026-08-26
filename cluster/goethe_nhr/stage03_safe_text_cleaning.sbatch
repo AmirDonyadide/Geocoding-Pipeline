@@ -83,7 +83,7 @@ echo "git_commit=${ACTUAL_COMMIT}"
 echo "stage03_contract=stage03_safe_text_cleaning_contract_v1"
 echo "stage03_profile=stage03_safe_text_cleaning_profile_v1"
 
-readonly BINDING_OUTPUT="$(${PYTHON} -m safe_geocoding_pipeline.preprocessing.stage03_cli \
+readonly BINDING_OUTPUT="$("${PYTHON}" -m safe_geocoding_pipeline.preprocessing.stage03_cli \
   create-input-binding \
   --output "${INPUT_BINDING}" \
   --stage02-logical-fingerprint "${STAGE03_STAGE02_LOGICAL_FINGERPRINT}" \
@@ -99,8 +99,8 @@ readonly INPUT_BINDING_SHA256="${BINDING_OUTPUT#stage03_input_binding_sha256=}"
 }
 
 echo "stage03_materialization_timing_begin"
-readonly MATERIALIZE_OUTPUT="$(/usr/bin/time -v \
-  ${PYTHON} -m safe_geocoding_pipeline.preprocessing.stage03_cli \
+readonly MATERIALIZE_OUTPUT="$("${PYTHON}" \
+  -m safe_geocoding_pipeline.preprocessing.stage03_cli \
   materialize \
   --stage02-output-directory "${STAGE02_ROOT}" \
   --input-binding "${INPUT_BINDING}" \
@@ -135,7 +135,7 @@ for performance_value in \
 done
 
 echo "stage03_review_timing_begin"
-/usr/bin/time -v ${PYTHON} -m safe_geocoding_pipeline.preprocessing.stage03_cli \
+"${PYTHON}" -m safe_geocoding_pipeline.preprocessing.stage03_cli \
   materialize-review \
   --stage03-output-directory "${OUTPUT_DIRECTORY}" \
   --expected-stage03-manifest-sha256 "${STAGE03_MANIFEST_SHA256}" \

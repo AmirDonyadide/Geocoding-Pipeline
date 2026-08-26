@@ -800,7 +800,8 @@ def test_stage03_cluster_launcher_and_git_ignore_guards() -> None:
     assert "materialize-review" in launcher
     assert "STAGE03_V1_OUTPUT_DIRECTORY" in launcher
     assert "STAGE03_V1_MANIFEST_SHA256" in launcher
-    assert "/usr/bin/time -v" in launcher
+    assert "/usr/bin/time" not in launcher
+    assert "stage03_max_rss_kib" in launcher
     protected = (
         "data/controlled/development_review_subset_v1/stages/stage03/"
         "stage03_review.parquet"
