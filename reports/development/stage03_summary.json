@@ -1,0 +1,134 @@
+{
+  "checks": {
+    "ATOMIC_PUBLICATION": true,
+    "HOLDOUT_UNTOUCHED": true,
+    "IDEMPOTENCE_VERIFIED": true,
+    "INPUT_IDENTITY_BOUND": true,
+    "OWNER_ONLY_PERMISSIONS": true,
+    "PROTECTED_REVIEW_ARTIFACT": true,
+    "PUNCTUATION_UNCHANGED": true,
+    "RAW_FIELDS_UNCHANGED": true,
+    "SAME_FIXED_REVIEW_IDENTITIES": true,
+    "SOURCE_PROVENANCE_UNCHANGED": true,
+    "STABLE_IDENTITIES_PRESERVED": true,
+    "STANDARD_NATIVE_INDEPENDENT": true
+  },
+  "dataset": {
+    "development_fingerprint": "38df499bfaf61883832a9c718adf4cf92cfcea753337df68fa2e89afb6051bdb",
+    "input_benchmark_fingerprint": "014a7d2a9935bb098711e62b89df2eb93dfdd0dd1ce5ac70853f010d118acedf",
+    "name": "BENCHMARK_SAMPLE_V1_DEVELOPMENT"
+  },
+  "development_reporting_contract_version": "development_reporting_contract_v1",
+  "execution": {
+    "git_sha": "8446190d1153aeb507678d0de18d027f89f0ec8d",
+    "slurm_job_id": "1759109"
+  },
+  "fingerprints": {
+    "input_binding": "6a2a28d276884511f5b8f63f40d14d6b7f4bf4397aa09289c53acdb92a661e6f",
+    "input_stage02_manifest": "260b77fea50bc2db1bfb10dca8339cb33bcb2e2aad7de9c07ed55a71dec0d419",
+    "logical": "38df499bfaf61883832a9c718adf4cf92cfcea753337df68fa2e89afb6051bdb",
+    "manifest": "ef57c0ae62cb5466bc1067221370f5b40c7379f3d881aa4837e653dd5855ddd6",
+    "review_artifact": "e2233bad584662d4b9881b1fe14f3f4bc58a0f893b33d8fc3ed41a0bda70d987",
+    "review_subset": "014f7c1373380b265f34e2ecb76614161b320e2bb972befb8f53994cc5a1dd52",
+    "schema": "fc991ef63bd80a754114ecae6a9d3c4cf1f33a35a28581fea997edd2e4565c9b"
+  },
+  "interpretation": "Stage 3 created conservative derived clean text for the complete 35,000-row DEVELOPMENT set while preserving every Stage 2 field; it remains a candidate pending independent scientific review.",
+  "interpretation_code": "STAGE03_CONSERVATIVE_CLEANING_CANDIDATE",
+  "metrics": {
+    "CHANGE_RATE": {
+      "ROWS_CHANGED": 1281,
+      "ROWS_CHANGED_PERCENT_BASIS_POINTS": 366,
+      "ROWS_UNCHANGED": 33719
+    },
+    "FIELD_CHANGES": {
+      "CHANGED_FIELDS": 1795,
+      "TOTAL_CLEANED_FIELDS": 420000,
+      "UNCHANGED_FIELDS": 418205
+    },
+    "FIELD_GROUP_AFFECTED_ROWS": {
+      "CITY_LOCALITY": 422,
+      "COUNTRY_SOURCE_GEOGRAPHY": 0,
+      "NATIVE_ADDRESS_LINES": 452,
+      "POSTCODE": 8,
+      "REGION": 5,
+      "STANDARD_ADDRESS_LINES": 858
+    },
+    "FIELD_GROUP_CHANGED_FIELDS": {
+      "CITY_LOCALITY": 422,
+      "COUNTRY_SOURCE_GEOGRAPHY": 0,
+      "NATIVE_ADDRESS_LINES": 477,
+      "POSTCODE": 8,
+      "REGION": 5,
+      "STANDARD_ADDRESS_LINES": 883
+    },
+    "FIELD_GROUP_TOTAL_FIELDS": {
+      "CITY_LOCALITY": 35000,
+      "COUNTRY_SOURCE_GEOGRAPHY": 35000,
+      "NATIVE_ADDRESS_LINES": 140000,
+      "POSTCODE": 35000,
+      "REGION": 35000,
+      "STANDARD_ADDRESS_LINES": 140000
+    },
+    "OUTPUT_EFFECTS": {
+      "CLEAN_VALUES_BECAME_EMPTY": 2,
+      "IDEMPOTENCE_FAILURES": 0,
+      "MAX_LENGTH_DECREASE_CODEPOINTS": 1379388,
+      "MAX_LENGTH_INCREASE_CODEPOINTS": 0
+    },
+    "PUNCTUATION": {
+      "PUNCTUATION_CHANGED_FIELDS": 0
+    },
+    "REASON_AFFECTED_FIELDS": {
+      "BOM_REMOVED": 0,
+      "CONTROL_CHARACTER_REMOVED": 2,
+      "ENCODING_REPAIRED": 9,
+      "LINEBREAK_NORMALIZED": 58,
+      "TAB_NORMALIZED": 272,
+      "TERMINAL_ESCAPE_REMOVED": 0,
+      "UNICODE_NFC_NORMALIZED": 5,
+      "UNICODE_WHITESPACE_NORMALIZED": 4,
+      "WHITESPACE_COLLAPSED": 480,
+      "WHITESPACE_ONLY_TO_EMPTY": 2,
+      "WHITESPACE_TRIMMED": 1130
+    },
+    "REASON_AFFECTED_ROWS": {
+      "BOM_REMOVED": 0,
+      "CONTROL_CHARACTER_REMOVED": 2,
+      "ENCODING_REPAIRED": 9,
+      "LINEBREAK_NORMALIZED": 58,
+      "TAB_NORMALIZED": 264,
+      "TERMINAL_ESCAPE_REMOVED": 0,
+      "UNICODE_NFC_NORMALIZED": 4,
+      "UNICODE_WHITESPACE_NORMALIZED": 4,
+      "WHITESPACE_COLLAPSED": 334,
+      "WHITESPACE_ONLY_TO_EMPTY": 2,
+      "WHITESPACE_TRIMMED": 807
+    },
+    "ROW_INTEGRITY": {
+      "ADDED_ROWS": 0,
+      "DROPPED_ROWS": 0,
+      "DUPLICATE_IDENTITIES": 0,
+      "INPUT_ROWS": 35000,
+      "OUTPUT_ROWS": 35000
+    },
+    "UNICODE_ENCODING": {
+      "BOM_REMOVED_FIELDS": 0,
+      "CONTROL_CHARACTER_REMOVED_FIELDS": 2,
+      "ENCODING_REPAIRED_FIELDS": 9,
+      "TERMINAL_ESCAPE_REMOVED_FIELDS": 0,
+      "UNICODE_NFC_NORMALIZED_FIELDS": 5
+    },
+    "WHITESPACE": {
+      "LINEBREAK_NORMALIZED_FIELDS": 58,
+      "TAB_NORMALIZED_FIELDS": 272,
+      "UNICODE_WHITESPACE_NORMALIZED_FIELDS": 4,
+      "WHITESPACE_COLLAPSED_FIELDS": 480,
+      "WHITESPACE_ONLY_TO_EMPTY_FIELDS": 2,
+      "WHITESPACE_TRIMMED_FIELDS": 1130
+    }
+  },
+  "sanitized_summary_contract_version": "development_sanitized_summary_v1",
+  "stage": "STAGE_3",
+  "stage_contract_version": "stage03_safe_text_cleaning_contract_v1",
+  "status": "STAGE_3_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REVIEW"
+}

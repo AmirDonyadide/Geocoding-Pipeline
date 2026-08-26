@@ -62,16 +62,26 @@ privacy-safe raw structural features, never later pipeline output. See
   500-row DEVELOPMENT-only protected subset for same-row qualitative review.
   Git-safe reports contain allowlisted aggregates only. Full 35,000-row metrics
   remain authoritative for development evaluation; HOLDOUT remains sealed.
+- **Stage 3 — Safe text cleaning:** a complete DEVELOPMENT candidate was
+  materialized from the accepted Stage 2 artifact under
+  `stage03_safe_text_cleaning_contract_v1` and
+  `stage03_safe_text_cleaning_profile_v1`. It adds conservative derived clean
+  strings and compact reason evidence while preserving every Stage 2 field.
+  The candidate has 35,000 output rows, zero dropped/added/duplicate identities,
+  1,281 changed rows, 1,795 changed fields, and zero idempotence failures. It is
+  ready for separate independent review but is not accepted. See
+  `docs/STAGE03.md` and the sanitized reports under `reports/development/`.
 
-## Planned library-first preprocessing sequence
+## Current and planned library-first preprocessing sequence
 
-The following stages are plans, not implemented or accepted results. Every
-stage requires its own design, implementation, DEVELOPMENT evidence, and
-freeze. Raw and derived values remain separate throughout.
+Stage 3 is an implemented DEVELOPMENT candidate, not an accepted result.
+Stages 4–19 remain plans and have not started. Every stage requires its own
+design, implementation, DEVELOPMENT evidence, and freeze. Raw and derived
+values remain separate throughout.
 
 | Stage | Boundary and intended mature tools |
 |---|---|
-| 3 — Safe text cleaning | Derived Unicode/encoding repair, whitespace, and safe punctuation using `unicodedata`, `ftfy`, `regex`, and Polars; no aggressive linguistic transformation. |
+| 3 — Safe text cleaning | DEVELOPMENT candidate under independent review: derived NFC, conservative ftfy encoding repair, explicit whitespace/control cleanup, and no punctuation transformation; Python Unicode and PyArrow provide the auditable batch implementation. |
 | 4 — Lowercase canonical forms | Derived lowercase fields only; raw values remain unchanged. |
 | 5 — Address reconstruction | Build standard and native Orbis candidates separately; never concatenate all eight source lines blindly. |
 | 6 — Early exact deduplication | Deduplicate address candidates, not source rows, and preserve complete map-back. |

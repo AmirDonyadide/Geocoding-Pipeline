@@ -230,3 +230,42 @@ The independent review session should examine every changed fixed-subset row,
 a sample of unchanged multilingual rows, each observed reason family, encoding
 repairs, empty-result cases, maximum length changes, standard/native behavior,
 and any unexpected aggregate concentration before considering acceptance.
+
+## Authoritative DEVELOPMENT candidate evidence
+
+Candidate implementation commit
+`8446190d1153aeb507678d0de18d027f89f0ec8d` ran unchanged on Goethe as SLURM
+job `1759109`. The job completed with exit code `0:0`. It consumed the exact
+accepted Stage 2 and benchmark identities declared above and produced:
+
+- 35,000 input and output rows, zero dropped/added rows, and zero duplicate
+  stable identities;
+- exact preservation of all 26 incoming Stage 2 fields and source provenance;
+- 1,281 changed rows (3.66%) and 1,795 changed fields out of 420,000;
+- zero idempotence failures across all applicable DEVELOPMENT values;
+- zero punctuation changes, zero BOM changes, and zero terminal-escape changes;
+- nine encoding repairs, five NFC-normalized fields, two control-character
+  removals, and two whitespace-only values becoming empty;
+- logical fingerprint
+  `38df499bfaf61883832a9c718adf4cf92cfcea753337df68fa2e89afb6051bdb`;
+- schema fingerprint
+  `fc991ef63bd80a754114ecae6a9d3c4cf1f33a35a28581fea997edd2e4565c9b`;
+- manifest fingerprint
+  `ef57c0ae62cb5466bc1067221370f5b40c7379f3d881aa4837e653dd5855ddd6`.
+
+The maximum decrease was 1,379,388 code points. A separate privacy-safe SLURM
+diagnostic (`1759110`) attributed the largest decreases to the previously known
+oversized multiline-field class: only tab/linebreak normalization and repeated
+whitespace collapse contributed to the maximum, while non-whitespace content
+remained. The magnitude is therefore not evidence of an additional Stage 3
+operation, but the independent reviewer should scrutinize the outlier class
+and its downstream scalability implications.
+
+The Stage 3 protected review artifact has exactly the frozen 500 ordered
+identities and SHA-256
+`e2233bad584662d4b9881b1fe14f3f4bc58a0f893b33d8fc3ed41a0bda70d987`.
+The sanitized quantitative evidence is
+`reports/development/stage03_summary.json` and
+`reports/development/stage03_summary.md`. This state is a DEVELOPMENT candidate
+ready for independent review, not scientific acceptance; Stage 4 remains
+unstarted.

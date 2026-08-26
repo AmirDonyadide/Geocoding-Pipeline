@@ -10,7 +10,17 @@ gate. It contains no source rows, protected identities, or address values.
 | Stage 1 | SCIENTIFIC IMPLEMENTATION ACCEPTED | historical 206 execution; final 1,411 execution pending | lossless CSV-to-Parquet ingestion and stable source-row provenance | population-generic implementation; final production requires a new accepted 1,411 Stage 0 |
 | Stage 2 | ACCEPTED ON DEVELOPMENT | 35,000 DEVELOPMENT rows | lossless schema and provenance harmonization | 35,000 → 35,000; exact 22 incoming fields preserved; four structural fields added; no raw transformation |
 | DEVELOPMENT reporting | READY | fixed 500-row DEVELOPMENT-only protected review subset + full 35,000-row summaries | same-row qualitative comparison and sanitized progress reporting | fingerprint `014f7c…1dd52`; all 269 observed country strata represented; zero quota shortfalls |
-| Stage 3 | NEXT — NOT STARTED | future 35,000-row DEVELOPMENT run | safe text cleaning | requires separate design/review; no Stage 3 output exists |
+| Stage 3 | DEVELOPMENT CANDIDATE — READY FOR INDEPENDENT REVIEW | 35,000 DEVELOPMENT rows | conservative derived safe text cleaning | 35,000 → 35,000; 1,281 rows (3.66%) and 1,795/420,000 fields changed; raw Stage 2 values preserved; zero idempotence failures |
+
+The Stage 3 candidate ran as Goethe SLURM job `1759109` from pushed commit
+`8446190d1153aeb507678d0de18d027f89f0ec8d`. Its logical fingerprint is
+`38df499bfaf61883832a9c718adf4cf92cfcea753337df68fa2e89afb6051bdb` and
+its schema fingerprint is
+`fc991ef63bd80a754114ecae6a9d3c4cf1f33a35a28581fea997edd2e4565c9b`.
+The Git-safe evidence is in `reports/development/stage03_summary.json` and
+`reports/development/stage03_summary.md`; the protected qualitative artifact
+reuses exactly the fixed 500 identities. Stage 3 remains unaccepted pending a
+separate independent review. Stage 4 has not started.
 
 ## Planned sequence after Stage 3
 
