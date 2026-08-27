@@ -219,9 +219,10 @@ to change a decision or start a stage.
   cases. A space preserves upstream punctuation and fixes the general issue
   without inspecting characters, parsing, or using country rules. Non-left-
   packed and repeated-line evidence remains unchanged.
-- **Status:** v2 correction locked for authoritative DEVELOPMENT re-evaluation.
-  The immutable v1 job `1759565` is retained as a scientifically unsuccessful
-  first candidate attempt; independent acceptance remains pending.
+- **Status:** v2 DEVELOPMENT candidate is ready for independent review after
+  authoritative job `1759603`. The immutable v1 job `1759565` is retained as a
+  scientifically unsuccessful first candidate attempt; independent acceptance
+  remains pending.
 
 ### D021 — Stage 5 defers address-format metadata
 

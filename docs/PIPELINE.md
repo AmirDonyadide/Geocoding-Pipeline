@@ -12,8 +12,8 @@ stage.
 - **PLANNED — NOT STARTED:** conceptual placement and likely technology only.
   No accepted design or implementation exists.
 
-Stages 0–4 are accepted on DEVELOPMENT. Stage 5 is implemented for its
-authorized DEVELOPMENT evaluation but is not accepted.
+Stages 0–4 are accepted on DEVELOPMENT. Stage 5 is a DEVELOPMENT candidate
+ready for independent review but is not accepted.
 Production Stage 0 and Stage 1 are accepted for the 1,411-file population;
 production Stage 2 through Stage 5 have not started. Stages 6–19 have not
 started in either track.
@@ -151,7 +151,7 @@ stage consumes an accepted predecessor and must stop at its own review gate.
 - **Primary libraries:** Small SAFE reconstruction logic within bounded
   PyArrow/Parquet processing. Address-format metadata is intentionally deferred.
 - **Data effect:** Appends ten derived fields; no source or upstream overwrite.
-- **Status:** **DEVELOPMENT v2 CORRECTION — AUTHORITATIVE RE-EVALUATION PENDING**.
+- **Status:** **DEVELOPMENT CANDIDATE — READY FOR INDEPENDENT REVIEW**.
 - **Acceptance requirement:** Approved reconstruction rules, country/script
   coverage evidence, no blind concatenation, complete lineage, DEVELOPMENT and
   fixed-500 review, and independent acceptance. The exact rule and boundary are

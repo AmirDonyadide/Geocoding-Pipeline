@@ -246,5 +246,6 @@ Durable decisions are in [DECISIONS.md](DECISIONS.md); current status is in
 
 ## 11. Current next action
 
-Stage 5 — Address reconstruction — NOT STARTED. Production Stage 2 through
-Stage 4 also remain not started.
+Stage 5 — Address reconstruction — DEVELOPMENT CANDIDATE READY FOR INDEPENDENT
+REVIEW. Production Stage 2 through Stage 5 remain not started. Stage 6 has not
+started.

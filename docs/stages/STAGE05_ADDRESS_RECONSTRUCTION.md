@@ -2,7 +2,7 @@
 
 ## Status
 
-**DEVELOPMENT v2 CORRECTION — AUTHORITATIVE RE-EVALUATION PENDING.**
+**DEVELOPMENT CANDIDATE — READY FOR INDEPENDENT REVIEW.**
 
 Stage 5 is authorized only for the 35,000-row Benchmark V1 DEVELOPMENT split.
 It is not accepted, is not merged to `main`, and does not authorize Stage 6,
@@ -150,10 +150,29 @@ source cases, four questionable boundaries, zero questionable orders, and zero
 semantic-damage cases. The automatic 499/1 bookkeeping split was not an
 independent qualitative assessment and is superseded by that human evidence.
 
-The v2 implementation identity, replacement authoritative job, full metrics,
-targeted review of the four affected orders, fingerprints, performance, and
-candidate verdict will be recorded after immutable DEVELOPMENT re-execution
-and independent readback complete.
+The v2 implementation is
+`cd0a5ae91c3602ec20e34f7c419f1ac76f0b9160`. Authoritative job `1759603`
+completed 35,000 to 35,000 with zero dropped, added, or duplicate identities;
+exact identity/order and exact preservation of every Stage 4 column; and zero
+reconstruction, audit, clean/lower-consistency, or idempotence mismatches. The
+candidate fingerprints are:
+
+- schema:
+  `63d4cdb3707eda65c67cc5196891fa5005adce2b12eb7109554793c48c5303c3`;
+- logical:
+  `ba5829621fc15347d7cd4e168a48587bab896cd0be98924627876ae853dfaff2`;
+- input binding:
+  `7e68c33f7daa482b442eca82c00c6904ec5e38bec1b3fc598d5be4d52a6bcb9f`;
+- manifest:
+  `fd945163e3be0242c43b98972350904631279cb99f366baadb0a3094ab6a1fc5`.
+
+The v2 fixed-500 artifact preserves the exact accepted 500 identity/order and
+fingerprint. Targeted controlled inspection of review orders 59, 116, 257, and
+322 verified exact space-join semantics and zero Stage 5-inserted punctuation;
+all four v1 boundary defects are resolved. No protected row text appears in
+Git-safe evidence. Full aggregate metrics, performance, the complete human
+classification attestation, attempt history, and privacy gates are in the
+[sanitized Stage 5 report](../../reports/development/stage05_summary.md).
 
 This session cannot mark Stage 5 accepted. A fresh independent-review session
 must decide acceptance.

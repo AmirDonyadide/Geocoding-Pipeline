@@ -36,7 +36,7 @@ Stage 4: lowercase canonical forms (accepted on DEVELOPMENT)
   + ordered changed-field and row-changed audit
         |
         v
-Stage 5: address reconstruction (DEVELOPMENT evaluation pending)
+Stage 5: address reconstruction (DEVELOPMENT candidate ready for independent review)
   all Stage 4 fields unchanged
   + separate clean and lowercase standard/native candidates
   + availability, line count, and occupancy-mask evidence
