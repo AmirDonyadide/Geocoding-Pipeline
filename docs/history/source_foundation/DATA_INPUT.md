@@ -8,7 +8,11 @@ This document records what has been learned from filesystem metadata and read-on
 
 The current source directory is:
 
-`/Users/amir/Library/CloudStorage/OneDrive-Leibniz-InstitutfürFinanzmarktforschungSAFE/01 Remote sensing biodiversity/csv_files/`
+`<CONTROLLED_SOURCE_ROOT>/`
+
+The original run used an environment-specific protected local path. The exact
+personal absolute path is intentionally omitted from current portable
+documentation; accepted manifests and Git history preserve run identity.
 
 Filesystem metadata showed:
 

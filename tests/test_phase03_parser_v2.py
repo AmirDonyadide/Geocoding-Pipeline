@@ -608,7 +608,8 @@ def test_goethe_v2_workflow_reuses_development_and_preserves_locked_firewall() -
 
 def test_goethe_v2_documented_inputs_use_repaired_read_only_artifacts() -> None:
     documentation = (
-        Path(__file__).parents[1] / "docs/PHASE03_PARSER_V2.md"
+        Path(__file__).parents[1]
+        / "docs/history/custom_preprocessing/PHASE03_PARSER_V2.md"
     ).read_text(encoding="utf-8")
     assert (
         "${PHASE03_SOURCE_RUN_ROOT}/development/repair_validation_f9699cbc/"

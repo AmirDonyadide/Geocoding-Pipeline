@@ -40,7 +40,7 @@ configured immutable source root
     -> one separate sequential raw-byte SHA-256 pass
     -> duplicate-file and duplicate-ID analysis
     -> durable generated reports
-    -> sanitized docs/PHASE01.md after review
+    -> sanitized docs/history/source_foundation/PHASE01.md after review
     -> STOP
 ```
 
@@ -383,7 +383,7 @@ file_id, relative_path, logical_record_number
 
 A human-readable summary of source scope, parsing/schema findings, row counts, content anomalies, field profiles, ID uniqueness, duplicate files, test/benchmark results, failures, and the Phase 1 gate. It contains no raw IDs or address content.
 
-After successful review, a sanitized version becomes `docs/PHASE01.md`.
+After successful review, a sanitized version becomes `docs/history/source_foundation/PHASE01.md`.
 
 ## Logging and privacy
 
@@ -429,7 +429,7 @@ Phase 1 can pass only when:
 - generated outputs are complete, checksummed, and privacy-safe;
 - all required tests, smoke tests, and benchmark checks pass;
 - no file has `counts_complete=false`;
-- `docs/PHASE01.md` is reviewed;
+- `docs/history/source_foundation/PHASE01.md` is reviewed;
 - the user explicitly approves completion.
 
 The project then stops. It does not begin Phase 2 automatically.

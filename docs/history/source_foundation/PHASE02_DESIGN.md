@@ -378,7 +378,7 @@ Phase 2 passes only when:
 - all output hashes, schema fingerprints, manifests, and reports reconcile;
 - generated artifacts and metadata are privacy-safe;
 - the final dataset manifest and `_SUCCESS.json` are present;
-- a sanitized `docs/PHASE02.md` is reviewed;
+- a sanitized `docs/history/source_foundation/PHASE02.md` is reviewed;
 - the user explicitly approves Phase 2 completion.
 
 Any failed condition makes the Phase 2 gate FAIL and prevents the run from serving Phase 3. The project then stops and does not begin Phase 3 automatically.

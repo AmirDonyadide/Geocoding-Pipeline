@@ -14,7 +14,7 @@ The historical v2/v3 comparison later exposed a shared, unrelated
 `conservative_address_parser_v2_1` and
 `conservative_address_parser_v3_1_experimental` with the same unchanged v3/v4
 registries. This does not revise the V4 hypothesis. See
-`docs/PHASE03_COUNTRY_METHOD_REPAIR.md`.
+`docs/history/custom_preprocessing/PHASE03_COUNTRY_METHOD_REPAIR.md`.
 
 The experiment responds only to the sanitized targeted profile produced by
 SLURM job `1749332`, profile
@@ -132,7 +132,7 @@ conflicts. Status remains
 `EXPERIMENTAL_COMPARISON_COMPLETE_NO_PROMOTION_DECISION`.
 
 The separately versioned protected targeted-review workflow is documented in
-`docs/PHASE03_PARSER_V3_TARGETED_REVIEW.md`. It reviews the deduplicated union of
+`docs/history/custom_preprocessing/PHASE03_PARSER_V3_TARGETED_REVIEW.md`. It reviews the deduplicated union of
 changed rows and rows with experimental-rule evidence, and does not alter this
 parser or authorize promotion.
 

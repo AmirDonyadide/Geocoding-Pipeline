@@ -2,230 +2,130 @@
 
 ## Permanent rule
 
-**HEAVY PRODUCTION PROCESSING = GOETHE-NHR ONLY.**
+**HEAVY OR PROTECTED PRODUCTION PROCESSING = GOETHE-NHR SLURM ONLY.**
 
-Heavy production work must execute as a scheduled SLURM job on Goethe-NHR. It
-must not run on the MacBook or on a cluster login node. When classification is
-uncertain, default to Goethe-NHR.
-
-The MacBook is for code and documentation work, Git, unit and synthetic tests,
-small diagnostics, lightweight validation, and small controlled manual-review
-workflows. It is not the default production executor merely because the
-authoritative data is locally accessible.
+It must not run on the MacBook or a Goethe login node. When uncertain, classify
+the work as Goethe-NHR-only. Project approval of a scientific stage does not
+waive the execution-site rule.
 
 ## Heavy-process definition
 
-An operation is heavy if any one of these conditions applies:
+An operation is heavy when any one condition applies:
 
-- it scans the complete production Phase 2 snapshot;
-- it scans at least 1,000,000 production rows;
-- it processes a substantial fraction of the 20,600,000-row dataset;
-- it creates at least 2 GiB of temporary or working state;
-- it is reasonably expected to run at least 10 minutes on the MacBook;
-- it performs a production full-data join, deduplication, sort, or grouping;
-- it performs production address-key generation over the full dataset;
-- it performs full Phase 3 transformation or production geocoding;
-- it performs full-result candidate selection, coordinate validation,
-  merge-back, or reconciliation.
+- scans the complete production Stage 1 snapshot;
+- processes at least 1,000,000 production rows or a substantial fraction of
+  the 141,048,582-row production population;
+- creates at least 2 GiB of temporary/working state;
+- is expected to run at least 10 minutes locally;
+- performs full-production joins, grouping, sorting, deduplication, address
+  keys, transformations, validation, query generation, geocoding, selection,
+  merge-back, or reconciliation; or
+- performs any complete production Stage 2 or Stage 3 run.
 
-This is an OR rule. Meeting one condition is sufficient. Project authorization
-for a scientific phase does not waive this execution-site policy.
+This is an OR rule. One condition is sufficient.
 
-## Fail-closed enforcement
+## Fail-closed guard
 
-Production-heavy commands call the shared
-`safe_geocoding_pipeline.execution_policy.require_goethe_nhr_slurm` guard before
-opening production inputs. Both environment markers must be present:
+Heavy/protected production entry points invoke the common execution guard
+before opening production input. Both values are mandatory:
 
 ```text
 SAFE_EXECUTION_SITE=goethe-nhr
-SLURM_JOB_ID=<non-empty scheduler job identity>
+SLURM_JOB_ID=<non-empty>
 ```
 
-A missing or incorrect marker raises `HEAVY_PROCESS_CLUSTER_REQUIRED` with the
-message that the operation must run through SLURM on Goethe-NHR. There is no
-ordinary `--force-local` or `--allow-heavy-local` bypass. Synthetic fixtures
-remain locally testable through explicit non-production code paths.
+Missing or incorrect markers raise `HEAVY_PROCESS_CLUSTER_REQUIRED`. There is
+no ordinary local override. Synthetic fixtures use explicit non-production
+paths and remain locally testable.
 
-The completed Phase 1 `FULL_INVENTORY` and Phase 2 `FULL_CONVERSION` entry
-points also use the common guard for any future rerun. For the current real
-Phase 3 pilot, `pilot-profile`, `pilot-select`, and
-`pilot-materialize-development` are cluster-only. Validation of the complete
-production Phase 2 snapshot is also cluster-only. `pilot-plan` reads no data and
-may run locally. The 8,000-row DEVELOPMENT transformation is individually
-lightweight, but it remains in the same cluster job for one reproducible pilot
-environment.
+Future full-stage commands must reuse the shared guard instead of inventing a
+permissive check.
 
-The generic Stage 0 production launcher is
-`cluster/goethe_nhr/stage00_inventory.sbatch`. Submission must provide the
-exact reviewed Git commit/integration worktree, controlled source root,
-owner-only population-scope JSON and its SHA-256, reports root, and run ID.
-The launcher contains no population-count constant and performs no transfer.
+## Goethe-NHR operating rules
 
-Full `BENCHMARK_SAMPLE_V1` profiling, selection, and materialization is also
-production-heavy. It runs through
-`cluster/goethe_nhr/benchmark_sample_v1.sbatch`, which requires an exact pushed
-commit, detached clean integration worktree, immutable controlled source root,
-hash-pinned Stage 0 population scope, explicit source count, and new protected
-output path. Production benchmark code calls the shared guard before opening
-the source population. Source transfer, when required, uses the separate
-scope-driven checksum-reconciling controlled transfer script; it performs no
-processing on an external service.
+- The login node is for SSH, Git/light shell operations, transfer, `sbatch`,
+  `salloc`, `srun`, and scheduler/accounting inspection only.
+- Python, tests, profiling, and data processing run inside a scheduled job or
+  allocated compute-node shell.
+- Controlled directories use `0700`; controlled files use `0600`.
+- High-volume project storage uses personal `/work`.
+- `/scratch` is prohibited.
+- `/work/footprint/public` is not modified.
+- The shared Conda base is not modified.
+- Credentials and authorization headers are never printed or logged.
+- Logs contain execution identity, stage transitions, aggregate timing, and
+  validation status—not addresses, row identities, provider IDs, or secrets.
 
-Protected DEVELOPMENT review-subset materialization uses
-`cluster/goethe_nhr/development_reporting.sbatch`. The launcher requires an
-exact detached pushed commit, SHA-pinned DEVELOPMENT-only benchmark artifact,
-accepted Stage 2 bundle/manifest identities, and a new controlled output path.
-It rejects HOLDOUT-named paths before Python input access and calls the shared
-Goethe/SLURM execution guard. The resulting 500-row artifact is a small review
-product, but cluster execution preserves the accepted-data and runtime boundary.
+The canonical institutional repository root is
+`/work/footprint/donyadidegan/safe_geocoding_pipeline`. It remains in cluster
+assets because it is an explicit deployment contract, not a portable personal
+path.
 
-Future full-production commands in Phases 4, 5, 8, 9, 10, 11, 12, and 13 must
-reuse the shared guard for full diagnostics, address-key/deduplication,
-geocoding orchestration, candidate selection, usability classification,
-coordinate validation, merge-back, and reconciliation. A phase must not invent
-an independent permissive environment check.
+## Git and worktree contract
 
-## Goethe-NHR layout and operating rules
+Code reaches Goethe through GitHub, not source-file rsync. Before submission:
 
-Normal access uses the configured local SSH alias:
+- fetch `origin` and inspect status/divergence;
+- use a clean exact pushed commit;
+- use a clean tracking branch updated with fast-forward-only semantics or a new
+  detached integration worktree;
+- record the full SHA in submission arguments; and
+- create the owner-only SLURM log directory before submission.
 
-```bash
-ssh goethe
-```
+An SBATCH script never pulls code. It verifies the declared SHA against its
+worktree before protected input access. Dirty, diverged, failed-run, or audit
+worktrees are not overwritten or reused.
 
-The login node is an orchestration boundary, not a Python execution host. It is
-limited to SSH, Git and light shell inspection, file transfer, `sbatch`,
-`salloc`, `srun`, queue/accounting inspection, and similar low-impact work. Run
-Python, tests, profiling, and data processing only within a scheduled batch job
-or an allocated compute-node shell.
+## Storage and publication contract
 
-Repository root:
+Protected inputs and outputs remain under controlled storage such as
+`derived/controlled/`; generated protected reports remain under
+`reports/generated/`; logs remain under `logs/slurm/`. All are ignored by Git.
 
-```text
-/work/footprint/donyadidegan/safe_geocoding_pipeline
-```
+Run directories are immutable and collision-failing. Publication uses private
+temporary state, content/readback validation, permission validation, terminal
+markers, fsync where required, and atomic rename. Failures and partial attempts
+are preserved for diagnosis rather than silently replaced.
 
-Persistent controlled data, portable generated reports, and SLURM logs use:
+## Data transfer boundary
 
-```text
-derived/controlled/
-reports/generated/
-logs/slurm/
-```
+The repository's transfer scripts are explicit allowlist helpers for reviewed
+historical payloads or hash-pinned source scopes. They do not upload to an
+external service and do not transfer source code/Git metadata. Existing helpers
+that name an exact historical 206-shard Phase 2 payload remain historical
+reproducibility assets; they are not generic authorization for the 1,411-file
+production population.
 
-They are created owner-only. High-volume project storage uses personal `/work`,
-not home. `/scratch` is prohibited, `/work/footprint/public` is not modified,
-and the shared Conda base is not modified. Important code and documentation
-remain Git-backed because `/work` is not backed up.
+No full source collection is transferred without explicit approval. A transfer
+does not itself authorize processing.
 
-The exact Phase 3 scientific runtime remains Python 3.14.3 with
-`unicodedata.unidata_version == "16.0.0"`. A different runtime is not an
-acceptable fallback. Candidate SQLite state should use writable node-local
-storage selected from `SLURM_TMPDIR`, `TMPDIR`, then a verified local `/tmp`.
-Known network filesystem types are rejected and at least 26,843,545,600 bytes
-(25 GiB) must be free before Pass 2. If no safe location exists, the job fails
-with `NO_SAFE_CLUSTER_TEMP_STORAGE`.
+## Runtime contracts
 
-## Paused local pilot record
+The accepted Stage 3 execution runtime is Python 3.14.3 with
+`unicodedata.unidata_version == "16.0.0"`, ftfy 6.3.1, and PyArrow 25.0.0.
+Stage 3 bootstrap and preflight checks fail instead of substituting a different
+runtime. Node-local temporary storage must be validated before use; network
+filesystems and insufficient free space fail closed.
 
-Local run `phase03_pilot_20260811T082940Z_025fb0ba` is classified as
-`ABORTED_LOCAL_EXECUTION_POLICY_VIOLATION`, not a scientific sampler failure.
-Its process group was safely stopped before any DEVELOPMENT or LOCKED identity
-set or seal was finalized. No DEVELOPMENT or LOCKED payload was materialized,
-and no Phase 3 transformation occurred. Partial local SQLite state is retained
-temporarily for audit and is neither resumed nor deleted by this maintenance
-work.
+## Validation modes
 
-The Goethe-NHR pilot starts from scratch with a new cluster run ID. The partial
-`candidate_state.sqlite3` is not synchronized or resumed. This preserves a
-clean host/runtime/filesystem audit boundary without changing the frozen
-sampling methodology or its scientific version.
-
-## Cluster workflow
-
-- GitHub `origin` is the shared source of truth for code, tests, configuration,
-  and documentation. Source code and Git metadata are never deployed with
-  rsync.
-- `scripts/sync_to_goethe_nhr.sh` is a controlled-data-only helper. It uses a
-  non-destructive rsync allowlist, supports `--dry-run`, and transfers only the
-  immutable completed Phase 2 data products plus the approved sanitized Phase
-  1 anomaly artifact.
-- `cluster/goethe_nhr/bootstrap_env.sh` creates or reuses an isolated exact
-  runtime and fails `CLUSTER_RUNTIME_NOT_READY` rather than substituting Python.
-- `cluster/goethe_nhr/phase03_preflight.sh` validates the site, SLURM job,
-  commit, runtime, references, Phase 2 snapshot, Phase 1 anomaly report, and
-  node-local space before a production row-column scan.
-- `cluster/goethe_nhr/phase03_development_pilot.sbatch` runs the frozen pilot
-  stages sequentially in one single-node job. It never creates or reads a
-  LOCKED payload. Persistent results are validated and atomically promoted
-  before `DEVELOPMENT_PILOT_PASS` is reported.
-
-### GitHub-first code synchronization
-
-Develop, review, and run lightweight validation on the Mac. Before pushing,
-fetch `origin`, inspect status and upstream divergence, exclude all data,
-generated output, logs, caches, credentials, environment files, and agent-local
-state, then commit and push the coherent change to the appropriate branch.
-Never force-push or rewrite shared history without explicit approval.
-
-Before a new cluster submission, use the login node only for Git and light
-orchestration:
-
-```bash
-ssh goethe
-cd /work/footprint/donyadidegan/safe_geocoding_pipeline
-git fetch --prune origin
-git status --short --branch
-git pull --ff-only
-git rev-parse HEAD
-install -d -m 700 /work/footprint/donyadidegan/safe_geocoding_pipeline/logs/slurm
-```
-
-Run `git pull --ff-only` only on the intended clean tracking branch. If the
-checkout is dirty, diverged, or is preserved audit evidence, stop and inspect
-it; do not overwrite, reset, clean, or merge automatically. For a reviewed
-experimental or historical revision, create a new detached integration
-worktree from the exact commit already pushed to GitHub instead of advancing or
-repurposing an audit worktree. Confirm the commit is available from `origin`
-before submission.
-
-Never run `git pull` or otherwise select code dynamically inside an SBATCH
-script. A queued job may start much later; its executable worktree and declared
-commit must already be fixed. Important jobs log `git rev-parse HEAD` and fail
-closed when it differs from their submitted commit variable. The owner-only
-SLURM log directory must exist before `sbatch`, because the scheduler opens its
-stdout/stderr targets before the job body can create directories.
-
-The initial job request is one node, one task, four CPUs, 16 GiB memory, and a
-12-hour walltime. No partition or account is hardcoded; the user's permitted
-SLURM defaults apply. The runner is mostly single-process, and per-stage GNU
-`time` reports record actual CPU and memory use for later engineering review.
-
-## Repository validation modes
-
-The local-safe repository validation command is:
+Local-safe repository validation is:
 
 ```bash
 python3 -m pytest -m "not requires_production_transfer_payload"
 ```
 
-The `requires_production_transfer_payload` marker identifies four cluster-sync
-integration tests that execute the real transfer-plan script. They require the
-ignored completed Phase 1/Phase 2 transfer payload, including exactly 206 Phase
-2 Parquet shards and the approved Phase 1 anomaly artifact. Local-safe runs
-report these tests as deselected; their absence is never reported as a pass.
+Full-environment validation is `python3 -m pytest` and requires exact ignored
+controlled transfer artifacts. Missing protected prerequisites are a failure,
+not a skip. Protected data must not be accessed merely to make a cleanup or
+documentation test pass.
 
-Full-environment validation is:
+## Current authorization boundary
 
-```bash
-python3 -m pytest
-```
+- Production Stage 0: `NEW_STAGE0_1411_ACCEPTED`.
+- Production Stage 1: `NEW_STAGE1_1411_ACCEPTED`.
+- Production Stage 2: **NOT STARTED**.
+- Production Stage 3: **NOT STARTED**.
+- Stage 4: **NOT STARTED**.
 
-It runs those four integration tests only when the controlled prerequisites are
-present. If they are absent or incomplete, the full command fails rather than
-skipping or synthesizing protected artifacts.
-
-SLURM logs contain job/environment identity, stage transitions, aggregate
-timing and validation outcomes. They must not contain addresses, stable or
-provider identities, candidate values, credentials, or authorization headers.
+This policy grants no scientific-stage or production-run authorization.

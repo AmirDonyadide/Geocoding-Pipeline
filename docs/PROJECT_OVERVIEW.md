@@ -1,107 +1,149 @@
 # Project overview
 
-## Purpose
+## Research context
 
-This repository supports a SAFE research-data construction project linking firm locations to fine-grained environmental and remote-sensing measures. The target is a defensible physical point for a building, plant, branch, store, facility, or comparable business location—not merely any coordinate returned by a geocoder.
+The SAFE Geocoding Pipeline supports research that links company and facility
+locations to fine-grained environmental, remote-sensing, neighborhood, and
+other spatial measures. Those uses require a defensible physical point for a
+building, plant, branch, store, facility, or comparable establishment. A city,
+region, or country centroid is too coarse for point-level exposure analysis.
 
-City, region, and country centroids are unsuitable for the main analysis because they cannot represent building-level exposure to biodiversity, pollution, climate, land cover, satellite-derived measures, or neighborhood conditions.
+The pipeline prepares protected Orbis address records for SAFE's self-hosted
+Pelias service. It is a research-data construction system, not a general public
+geocoding client.
 
-The scientific output is therefore:
+## Goal
 
-- a selected coordinate;
-- evidence describing what was matched;
-- an explicit quality and acceptance decision;
-- enough lineage and version metadata to reproduce that decision.
+The final workflow must produce:
 
-`docs/PROJECT_BRIEF.md` remains the long-form historical and methodological reference. This file is the concise current overview, while `docs/DECISIONS.md` records decision status.
+- controlled, versioned SAFE Pelias queries;
+- candidate and query identities that map back to every source row;
+- selected coordinates with match and geographic-agreement evidence;
+- an explicit scientific usability decision; and
+- enough contracts, manifests, fingerprints, and execution provenance to
+  reproduce the result.
 
-## Analytical outcome
+A successful HTTP request or returned feature is not sufficient. Match layer,
+match type, component agreement, contradictions, ambiguity, and query lineage
+must remain available for scientific review.
 
-`usable_for_analysis` is the final Boolean decision: whether a coordinate is sufficiently precise, geographically consistent, and trustworthy for the intended point-level research.
+## Why preprocessing is separate from geocoding
 
-Diagnostic quality tiers remain separate:
+Source addresses vary strongly across countries, scripts, and completeness
+patterns. Quoted multiline fields and very large values exist. Address-line
+positions do not have fixed meanings worldwide, `id` is not assumed globally
+unique, and postal codes must remain strings. Directly concatenating raw fields
+would hide assumptions and make geocoder behavior difficult to interpret.
 
-| Tier | Diagnostic meaning | Point-analysis treatment |
-|---|---|---|
-| A | Address layer, exact match, no major geographic contradiction | Expected `usable_for_analysis = True` |
-| B | Address layer, interpolated match, no major contradiction | Acceptance remains open pending pilot evidence |
-| C | Street, venue, locality, localadmin, or otherwise too coarse | `False` |
-| D | Region, country, fallback, or major contradiction | `False` |
-| U | Unmatched, unresolved, permanently failed, or unparseable | `False` |
+The pre-geocoding pipeline therefore establishes a controlled evidence chain:
 
-Confidence is supporting evidence, not a standalone acceptance rule. A successful HTTP request or a returned first feature is not automatically a successful scientific geocode.
+1. verify and fingerprint the source population;
+2. ingest every logical CSV record without loss;
+3. preserve stable source identity and provenance;
+4. create only explicit derived values;
+5. build standard and native candidates separately;
+6. validate components conservatively using independent evidence;
+7. deduplicate candidates and queries without deleting source rows; and
+8. submit only approved, versioned queries to self-hosted SAFE Pelias.
 
-## Source-snapshot scope
+Stages 0–3 are implemented and accepted on DEVELOPMENT. Stages 4–19 remain
+planned and have not started. See [PIPELINE.md](PIPELINE.md).
 
-The first accepted historical source snapshot is 206 CSV files totaling
-approximately 3.29 GB. The current accepted development snapshot is a separate,
-frozen population of 1,405 CSV files and 140,448,582 logical rows. Six files
-became available only after that freeze. They may be copied into a separate
-1,411-file protected source snapshot, but that population is not authoritative
-until its own exact direct-child scope passes a new Stage 0 run. Neither the
-accepted 1,405 Stage 0 result nor `BENCHMARK_SAMPLE_V1` is reinterpreted as a
-1,411-file product.
+## Standard and native Orbis representations
 
-A later delivery becomes authoritative only after its exact direct-child path
-population is explicitly frozen in a versioned Stage 0 scope and passes Stage
-0. Directory contents or an approximate delivery count are not an accepted
-scientific snapshot.
+Both standard and native address representations originate from Orbis. Some
+standard representations are English translations, while native fields may
+retain the original script and local form. The pipeline treats them as
+separate candidates:
 
-The compressed/on-disk size understates possible parsed memory use: quoted multiline records and multi-million-character fields have been observed. Processing should therefore remain CSV-aware, reproducible, and bounded-memory where useful, without introducing distributed technology solely on scale grounds.
+- native values are never overwritten by a standard or English form;
+- all address lines are not blindly concatenated;
+- the two representations may be parsed, evaluated, and queried independently;
+- transliteration, if approved later, remains a third derived candidate; and
+- each candidate maps back to the same immutable source row.
 
-## Architecture
+## Conservative scientific philosophy
 
-The intended data flow is:
+The project favors high-precision evidence over aggressive correction:
+
+- raw source values are immutable;
+- transformations add derived fields instead of overwriting inputs;
+- `stable_source_row_id_v1` remains unchanged across stages;
+- source rows are never deduplicated away;
+- a missing open-reference record does not make an address invalid;
+- `MISMATCH` requires strong positive contradictory evidence;
+- uncertain interpretation stays explicit rather than being silently inferred;
+- corrections, if later accepted, retain the original value, proposal,
+  evidence, reference version, and decision; and
+- protected addresses never leave controlled infrastructure.
+
+Pre-geocoding validation uses the closed statuses `CONFIRMED`, `MISMATCH`,
+`NOT_FOUND`, `AMBIGUOUS`, `UNSUPPORTED`, and `INVALID_FORMAT`.
+
+## Library-first architecture
+
+Mature offline libraries and pinned reference datasets are preferred when they
+meet privacy, licensing, reproducibility, and scientific requirements. SAFE
+code supplies conservative orchestration, provenance, deterministic identity,
+evidence aggregation, policy, fail-closed validation, and verified gaps.
+
+Accepted stages currently use Python's `csv` and `hashlib`, PyArrow/Parquet,
+DuckDB, `unicodedata`, `ftfy`, regular-expression/Arrow operations, and SAFE
+contracts. Planned libraries include libpostal/pypostal, pycountry,
+google-i18n-address, direct pinned GeoNames postal data, local Overture Maps
+Addresses GeoParquet, RapidFuzz, Polars, and optional OSM evidence. A planned
+library is not an implemented dependency; every new stage requires design and
+review before use.
+
+Pandas is limited to small DEVELOPMENT inspection and notebooks. Production
+transformations use bounded, columnar or database-oriented execution.
+
+## Development methodology
+
+Each scientific stage follows a fixed lifecycle:
 
 ```text
-immutable source CSVs
-  -> verified file manifest and parser contract
-  -> validated staging data with row lineage
-  -> conservative canonical address components and input flags
-  -> versioned address keys and unique-address table
-  -> controlled SAFE query plan and pilot
-  -> checkpointed geocoding of unique addresses
-  -> deterministic candidate selection and quality classification
-  -> geographic validation
-  -> left join back to every source row
-  -> versioned audit package and final research dataset
+design -> review -> implement -> synthetic tests -> 35k DEVELOPMENT run
+       -> aggregate evaluation -> fixed-500 review -> independent review
+       -> accept and freeze -> stop
 ```
 
-SAFE/Pelias `/v1/search/structured` is the preferred primary endpoint. Requests normally use reliable structured components and `size=1`. The production service must be accessed with protected runtime authentication and only 2–4 concurrent requests in total.
+Rejected candidates remain immutable evidence. A minimal fix produces a new
+run and new review; it does not overwrite or relabel the rejected result.
+HOLDOUT is opened once only after the complete Stage 2–19 pipeline is frozen.
 
-## Development and production environments
+## DEVELOPMENT and production separation
 
-The MacBook is the development environment for design, implementation, Git,
-unit/synthetic tests, small diagnostics, lightweight validation, and small
-controlled manual-review work. Heavy production processing is Goethe-NHR only
-and must run through SLURM. This includes a complete production Phase 2 scan,
-at least one million production rows, multi-GB state, expected local execution
-of at least ten minutes, and full-data joins, grouping, deduplication,
-transformation, geocoding, selection, validation, or reconciliation. When
-uncertain, use Goethe-NHR. See `docs/EXECUTION_POLICY.md` for the permanent
-definition and fail-closed enforcement contract.
+Benchmark V1 contains 35,000 DEVELOPMENT rows and 15,000 sealed HOLDOUT rows
+drawn from the accepted 1,405-file population. Its identity is permanent; the
+six files delivered later do not change it. A deterministic 500-row subset of
+DEVELOPMENT supports repeated qualitative before/after review while all 35,000
+rows provide quantitative evidence.
 
-GitHub `origin` is the shared source of truth for code and documentation.
-Coherent reviewed changes are committed and pushed from the Mac to an
-appropriate branch; Goethe-NHR obtains code with Git and executes an exact
-reviewed commit. Source files and Git metadata are not copied to the cluster by
-rsync, and jobs never pull code after submission. Large controlled data and
-generated outputs remain outside Git.
+The production population is `production_population_1411_v1`: 1,411 files and
+141,048,582 rows. Production Stage 0 and Stage 1 are accepted. Production
+Stage 2 and Stage 3 have not started. Heavy or protected execution runs only
+through SLURM on Goethe-NHR after separate authorization.
 
-On Goethe-NHR, home is for small files and personal `/work` is for high-volume
-project data and outputs but is not backed up. Heavy computation must not run on
-login nodes. `/scratch` is retired, `/work/footprint/public` is not modified,
-and the shared Conda base must not be modified.
+## SAFE Pelias role
 
-## Safety and reproducibility principles
+SAFE Pelias is self-hosted within the protected execution environment and is
+used only after query construction and final QA. The preferred endpoint is
+`/v1/search/structured`, normally with `size=1`. Authentication is runtime-only
+and never logged. Normal concurrency is 2–4 total requests across the complete
+process, not per worker or job.
 
-- Raw data is immutable; all transformations create explicit derived fields.
-- Preserve every original row and enough source metadata to trace it.
-- Treat IDs and postcodes as strings until proven otherwise; do not assume `id` is globally unique.
-- Preserve Unicode plus native and non-native variants independently.
-- Parse logical CSV records, not physical lines, and report malformed or oversized inputs explicitly.
-- Clean conservatively: deterministic normalization is allowed; uncertain correction or inference must be flagged.
-- Deduplicate stable geographic addresses before geocoding, while retaining a mapping to every original row.
-- Record queries, responses, selection reasons, errors, quality decisions, versions, and counts.
-- Use bounded retries, checkpoints, and restartable processing; never hide failures.
-- Work one phase at a time and stop at every review gate.
+An exact address-layer result without a major contradiction is expected to be
+usable. Acceptance of interpolated address results remains an open scientific
+policy until later evidence. Street, venue, locality, administrative, region,
+country, and fallback results are not usable for point-level research.
+
+## Documentation map
+
+The conceptual specification is [PIPELINE.md](PIPELINE.md), row evolution is
+documented in [DATA_FLOW.md](DATA_FLOW.md), durable decisions are recorded in
+[DECISIONS.md](DECISIONS.md), and exact stage status is summarized in
+[DEVELOPMENT_PROGRESS.md](DEVELOPMENT_PROGRESS.md). Privacy, execution, and
+reproduction requirements have separate guides. Historical Phase 1–3 material
+is retained under [history/](history/README.md) as provenance rather than as
+the active architecture.

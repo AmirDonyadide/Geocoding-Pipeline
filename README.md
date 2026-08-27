@@ -1,418 +1,146 @@
-# SAFE geocoding pipeline
+# SAFE Geocoding Pipeline
 
-The repository implements the reviewed project workflow documented under `docs/`.
-Work proceeds one phase at a time.
+## Purpose
 
-## Active preprocessing direction
+The SAFE Geocoding Pipeline prepares protected company and facility addresses
+for the self-hosted SAFE Pelias geocoder. It converts immutable source CSV data
+into traceable, conservatively derived address candidates, validates those
+candidates, and will eventually generate a small set of controlled Pelias
+queries. The aim is a scientifically defensible point location—not merely any
+coordinate returned by a geocoder.
 
-The active architecture is **library-first preprocessing**. Mature offline
-libraries and pinned reference datasets are preferred where they satisfy the
-scientific and privacy contracts; likely stage-specific tools include PyArrow,
-Polars, DuckDB, libpostal/pypostal, pycountry, google-i18n-address, direct
-GeoNames data, Overture Maps Addresses, RapidFuzz, and an optional OSM/osmium
-fallback. Each dependency and dataset still requires stage-specific review,
-versioning, licensing, and validation before production use.
+## Why preprocessing is needed
 
-Custom SAFE code is reserved primarily for orchestration, deterministic
-identity and provenance, evidence aggregation, conservative correction policy,
-validation semantics, privacy/execution guards, and verified gaps not solved
-adequately by mature libraries. The historical custom/from-scratch parser is
-retained for scientific provenance and benchmark comparison at
-`baseline/custom-preprocessing-2026-08`; it is not the active production
-architecture. Stage 2 is accepted on the complete 35,000-row DEVELOPMENT
-sample. Stage 3 has not started.
+Raw address records vary by country, script, completeness, encoding quality,
+and the relationship between standard and native representations. Address
+lines 1–4 have no safe global interpretation, missing-reference coverage is not
+proof that an address is invalid, and a geocoder response is not automatically
+a scientifically usable match. Preprocessing is therefore separate from
+geocoding so that every transformation, validation result, candidate, and
+query can be inspected and reproduced.
 
-## Current accepted development state
+## Current status
 
-- Stage 0 has accepted and frozen a 1,405-file, 140,448,582-row source
-  snapshot. Six files arrived later and are preserved in a separate
-  1,411-file source snapshot; they do not retroactively change the accepted
-  1,405-file identity. Formal Stage 0 acceptance for 1,411 remains pending.
-- Stage 1's lossless CSV-to-Parquet contract and population-generic
-  implementation are accepted. The historical 206-source execution remains
-  reproducible; full 1,411-source execution must wait for an accepted 1,411
-  Stage 0 snapshot.
-- `BENCHMARK_SAMPLE_V1` is accepted and permanently bound to the frozen 1,405
-  population: 35,000 DEVELOPMENT rows and a physically separate, sealed 15,000
-  HOLDOUT rows. HOLDOUT is not used for tuning.
-- Stage 2 contract `stage02_schema_provenance_harmonization_contract_v1` is
-  accepted on all 35,000 DEVELOPMENT rows. It preserves the exact 22 Stage 1
-  fields and adds four raw standard/native structural fields with no raw-value
-  transformation.
-- The passive DEVELOPMENT reporting framework follows one fixed protected
-  500-row DEVELOPMENT-only subset through later stages while Git-safe reports
-  retain only allowlisted aggregate metrics. It supplements rather than
-  replaces full 35,000-row evaluation and never opens HOLDOUT.
+The DEVELOPMENT pipeline is accepted through Stage 3. Stages 4–19 are planned
+but have not started.
 
-See `docs/PIPELINE.md`, `docs/BENCHMARK_SAMPLE.md`, `docs/STAGE02.md`,
-`docs/DEVELOPMENT_REPORTING.md`, and `docs/DEVELOPMENT_PROGRESS.md` for the
-complete boundaries and current status.
+| Stage | Name | Status | Data effect |
+|---:|---|---|---|
+| 0 | Source inventory | **ACCEPTED** | Inventories and fingerprints sources; no row transformation |
+| 1 | Lossless ingestion | **ACCEPTED** | Converts CSV to Parquet without changing source values; adds stable provenance |
+| 2 | Schema and provenance harmonization | **ACCEPTED** | Preserves incoming fields and adds four derived structural fields |
+| 3 | Safe text cleaning | **ACCEPTED** | Adds derived `*_clean` values and ordered audit reasons; raw fields remain unchanged |
+| 4–19 | Normalization, reconstruction, validation, and query preparation | **NOT STARTED** | Planned derived representations only |
 
-## Development and cluster workflow
+Production Stage 0 and Stage 1 are accepted for
+`production_population_1411_v1` (1,411 files; 141,048,582 rows). Production
+Stage 2 and Stage 3 have not started.
 
-GitHub is the shared source of truth. Development, review, lightweight tests,
-documentation, commits, and pushes happen on the Mac; production-scale work
-runs through SLURM on Goethe-NHR. Code reaches the cluster through Git, not
-manual file copying:
+## Architecture
 
 ```text
-Mac/Codex -> test/review -> commit -> push -> GitHub
-GitHub -> fetch + fast-forward-only synchronization -> exact commit -> SLURM
+immutable source CSV
+  -> Stage 0: inventory
+  -> Stage 1: lossless Parquet + stable row identity
+  -> Stage 2: schema/provenance harmonization
+  -> Stage 3: safe derived text cleaning
+  -> Stages 4–19: planned normalization, parsing, validation, and query QA
+  -> self-hosted SAFE Pelias
 ```
 
-Before a cluster submission, use `ssh goethe`, inspect the cluster worktree,
-fetch `origin`, and either fast-forward a clean tracking branch or create a
-detached integration worktree at the exact reviewed commit. Never put an
-uncontrolled `git pull` inside a job. The job must log and validate the exact
-commit it executes. `scripts/sync_to_goethe_nhr.sh` transfers only the
-explicitly approved ignored Phase 1/Phase 2 data artifacts; it never transfers
-source code or Git metadata. See `docs/EXECUTION_POLICY.md` for the complete
-pre-submission procedure.
+Raw source rows are never deduplicated away. Future deduplication applies to
+candidate or query representations and always retains a complete mapping back
+to every `stable_source_row_id_v1`.
 
-## Execution-site policy
+## Repository structure
 
-**HEAVY PRODUCTION PROCESSING = GOETHE-NHR ONLY.** The MacBook is for code,
-documentation, Git, unit/synthetic tests, small diagnostics, lightweight
-validation, and small controlled manual-review work. Complete production Phase
-2 scans, at least one million production rows, multi-GB state, work expected to
-run at least ten minutes locally, and full-data joins/grouping/deduplication/
-transformation/geocoding/selection/validation/reconciliation must run through
-SLURM on Goethe-NHR. When uncertain, default to the cluster. The exact policy,
-guard markers, paused-run record, and cluster workflow are documented in
-`docs/EXECUTION_POLICY.md`.
+| Path | Contents |
+|---|---|
+| `src/safe_geocoding_pipeline/` | Pipeline package, contracts, execution guards, accepted stages, reporting, and historical source-foundation code |
+| `tests/` | Synthetic/unit tests and guarded integration tests; no protected records |
+| `cluster/goethe_nhr/` | Reviewed SLURM and environment assets for Goethe-NHR |
+| `scripts/` | Controlled transfer and synchronization helpers |
+| `docs/` | Current project, pipeline, workflow, privacy, execution, and reproducibility documentation |
+| `docs/stages/` | Accepted Stage 0–3 scientific records |
+| `docs/history/` | Historical source-foundation and superseded custom-preprocessing records |
+| `reports/development/` | Sanitized, Git-safe aggregate DEVELOPMENT evidence |
 
-## Phase 1 interface
+The older `phase01`, `phase02`, and `phase03` package namespaces are preserved
+because accepted source-foundation work and historical custom-preprocessing
+evidence remain reproducible. The active library-first Stage 0–3 adapters live
+under `src/safe_geocoding_pipeline/preprocessing/`.
 
-Phase 1 inventories immutable raw CSV files. It does not stage, clean,
-canonicalize, deduplicate addresses, geocode, or begin Phase 2.
+## DEVELOPMENT, HOLDOUT, and production
 
-Install the local package for development:
+- **DEVELOPMENT:** 35,000 protected rows used for stage design and evaluation.
+- **Fixed DEVELOPMENT review subset:** 500 deterministic DEVELOPMENT rows used
+  for same-row qualitative inspection across stages. Fingerprint:
+  `014f7c1373380b265f34e2ecb76614161b320e2bb972befb8f53994cc5a1dd52`.
+- **HOLDOUT:** 15,000 protected rows, physically separate and sealed until one
+  explicitly authorized final evaluation after Stages 2–19 are frozen.
+- **Production population:** 1,411 files and 141,048,582 rows. Production
+  Stage 0 and Stage 1 are accepted; production Stage 2 has not started.
+
+Benchmark V1 remains permanently bound to its accepted 1,405-file population;
+the later six production files do not change or rebuild it.
+
+## Privacy
+
+> **Protected addresses and row-level artifacts must remain on controlled local
+> or Goethe-NHR infrastructure. Never send them to public APIs, external
+> geocoders, web services, LLMs, or Git.**
+
+Git contains only source code, contracts, synthetic fixtures, reproducible
+execution assets, hashes, sanitized reports, aggregate metrics, and
+documentation. See [Privacy and security](docs/PRIVACY_AND_SECURITY.md).
+
+## Quick start
+
+The package supports Python 3.11 or newer for local development. Reproducing
+the accepted Stage 3 Goethe execution requires its exact pinned Python 3.14.3
+runtime and Unicode 16.0.0 contract.
 
 ```bash
+python3 -m venv .venv
+source .venv/bin/activate
 python3 -m pip install -e '.[dev]'
-```
-
-Run tests:
-
-```bash
 python3 -m pytest -m "not requires_production_transfer_payload"
 ```
 
-This is `LOCAL_SAFE_VALIDATION`. It runs the repository suite without opening
-the ignored production-transfer payload. Four cluster-sync integration tests
-are explicitly deselected and must be reported as deselected, not passed.
-
-`FULL_ENVIRONMENT_VALIDATION` is:
+Useful local checks:
 
 ```bash
-python3 -m pytest
-```
-
-The full command includes the four cluster-sync tests. They require the exact
-ignored completed Phase 1/Phase 2 transfer artifacts, including all 206 Phase 2
-Parquet shards. Missing prerequisites are a test failure; pytest does not skip
-or fabricate them.
-
-Run an explicitly scoped smoke inventory:
-
-```bash
-python3 -m safe_geocoding_pipeline.phase01.cli \
-  --source-root /path/to/csv_files \
-  --reports-root reports/generated/phase01 \
-  --run-scope SMOKE_TEST \
-  --source-root-label csv_files \
-  --include shard_a.csv \
-  --include shard_b.csv
-```
-
-Generated reports and the temporary SQLite working database are written beneath
-`reports/generated/phase01/<run_id>/`, which is ignored by Git. Absolute source
-paths and confidential raw row values are excluded from portable reports.
-
-`FULL_INVENTORY` additionally requires a controlled owner-only
-`--population-scope-file`, its exact
-`--expected-population-scope-sha256`, free-space validation, and explicit
-operator acknowledgement. The scope's exact sorted path set—not a hardcoded
-count or whatever files happen to be present—defines the authorized
-population. Passing those guards is not project authorization. The first
-accepted 206-file run remains immutable historical evidence.
-
-## Phase 2 interface
-
-Phase 2 creates a lossless, source-aligned controlled Parquet staging dataset.
-It preserves the 15 raw CSV fields as non-null Arrow strings and adds seven
-versioned provenance fields. It does not clean, normalize, parse, deduplicate,
-canonicalize, or geocode address data.
-
-The pinned runtime dependencies are PyArrow 25.0.0 and DuckDB 1.5.5. PyArrow
-writes and independently validates Parquet; DuckDB only reconciles completed
-Parquet files and never interprets source CSV.
-
-An explicitly authorized two-file smoke conversion is invoked as follows:
-
-```bash
-python3 -m safe_geocoding_pipeline.phase02.cli \
-  --source-root /path/to/csv_files \
-  --phase01-run-dir reports/generated/phase01/<approved_run_id> \
-  --run-scope SMOKE_TEST \
-  --source-root-label csv_files \
-  --include remaining_addresses_00103.csv \
-  --include remaining_addresses_00205.csv
-```
-
-Controlled staging is written beneath
-`staging/controlled/phase02_v1/runs/<run_id>/`; portable generated diagnostics
-are written beneath `reports/generated/phase02/<run_id>/`. Both are ignored by
-Git. A smoke-scope PASS creates `_SCOPE_SUCCESS.json`, never the full-run
-`_SUCCESS.json`, and does not complete Phase 2 or authorize Phase 3.
-
-`FULL_CONVERSION` additionally requires the CLI operator acknowledgement
-`--authorize-full-conversion`. That guard never substitutes for explicit user
-authorization. New full conversions must also supply
-`--stage00-adoption-record` and its exact
-`--expected-stage00-adoption-sha256`; the accepted record, rather than a
-hardcoded file count or whatever files happen to be present, defines the exact
-source population. The first accepted historical conversion remains the
-immutable 206-source run.
-
-## Phase 3 framework interface
-
-Phase 3 includes deterministic component logic, fictional validation, schemas,
-controlled-reference interfaces, atomic-output infrastructure, and a bounded
-synthetic-tested pilot runner. The production sampling classifier contract is
-frozen as `phase03_sampling_contract_v1`; its implementation is ready for
-review. A real pilot and full Phase 3 processing still require separate
-authorization.
-
-The DEVELOPMENT-only address-pattern profiler is documented in
-`docs/PHASE03_DEVELOPMENT_PATTERN_PROFILER.md`. It reads only the fixed 8,000-row
-DEVELOPMENT payload/core/evidence in a Goethe-NHR SLURM allocation and emits
-bounded aggregate structural patterns; it never emits raw values or identities,
-creates parser rules, or accesses LOCKED_EVALUATION.
-The same document specifies the narrower targeted-opportunity command, whose
-predeclared pattern-family cross-tabs retain the same privacy and phase
-boundaries.
-
-The DEVELOPMENT hypothesis-intersection profiler is documented in
-`docs/PHASE03_DEVELOPMENT_HYPOTHESIS_INTERSECTION_PROFILE.md`. It measures the
-exact H1 span-conflict, H2 explicit-role, and H3 adjacent street/number
-populations and their identity-level intersections without exposing identities
-or changing parser output. The report is decision support for one later
-experimental hypothesis, not permission to implement it.
-
-The deterministic country-method provenance repair is documented in
-`docs/PHASE03_COUNTRY_METHOD_REPAIR.md`. Its explicit Parser-v2.1/v3.1
-DEVELOPMENT lineages reuse the unchanged v3/v4 registries and fixed 8,000-row
-payload; no pilot selection, LOCKED access, rule change, or review-gate change
-is included.
-
-The narrow parser-v3 experiment has a separate protected DEVELOPMENT review
-command and schema. It does not reuse or alter the main 800-row review stores:
-
-```bash
-safe-geocoding-phase03-targeted-review schema
-safe-geocoding-phase03-targeted-review verify-repaired-population ...
-safe-geocoding-phase03-targeted-review prepare ...
-safe-geocoding-phase03-targeted-review initialize ...
-safe-geocoding-phase03-targeted-review review ...
-safe-geocoding-phase03-targeted-review progress ...
-safe-geocoding-phase03-targeted-review export-controlled-labels ...
-safe-geocoding-phase03-targeted-review score ...
-```
-
-For this completed 11-case DEVELOPMENT review only, the explicit
-`--single-reviewer` export/score mode consumes the completed `Targeted-R01`
-database without accepting or opening Targeted-R02. It records that the second
-review and inter-reviewer agreement were not evaluated. Omitting R02 without
-the flag remains an error, and the original two-reviewer mode is unchanged.
-
-The verification-only command reads the repaired v2.1/v3.1 DEVELOPMENT
-core/evidence and fixed identities, validates the exact hash-pinned
-8,000/9/11/9/0/2/11 A-union-B contract, and emits only sanitized aggregates.
-It creates no review inputs or databases. Real preparation is blocked without
-that passing report. All real verification, preparation, and review commands
-run only on Goethe-NHR compute nodes, use the fixed 8,000 DEVELOPMENT identities,
-and reject LOCKED paths. See
-`docs/PHASE03_PARSER_V3_TARGETED_REVIEW.md`.
-
-The historical Goethe-only `development-diagnose-parser-v2-v3-changes` command
-explains the pre-repair 26/11/28 decomposition. Those counts remain audit-only
-and are not accepted by repaired targeted-review preparation. See
-`docs/PHASE03_PARSER_V3_CHANGE_DIAGNOSTIC.md`.
-
-Validate the bundled rule registry and display privacy-safe framework metadata:
-
-```bash
-python3 -m safe_geocoding_pipeline.phase03.cli validate-rule-registry
-python3 -m safe_geocoding_pipeline.phase03.cli framework-info
-```
-
-`pilot_ready=true` reports the completed technical/methodology/privacy gate;
-`real_pilot_authorized=false` preserves the separate authorization boundary.
-The command cannot select or read a pilot.
-
-Inspect the portable manual-review label schema:
-
-```bash
-python3 -m safe_geocoding_pipeline.phase03.cli manual-review-schema
-```
-
-The official Unicode 16.0.0 Script artifact and the minimum official CLDR 46.1
-country-reference inputs are bundled with their Unicode License v3 notices.
-ISO 3166 remains the normative code-system authority; CLDR is the operational
-machine-readable mapping. UNSD M49 is not an active runtime dependency.
-Validate the pinned production references without reading Phase 2 rows:
-
-```bash
-python3 -m safe_geocoding_pipeline.phase03.cli validate-production-references
-
-python3 -m safe_geocoding_pipeline.phase03.cli validate-country-reference
-
-python3 -m safe_geocoding_pipeline.phase03.cli validate-script-reference \
-  --manifest src/safe_geocoding_pipeline/phase03/resources/references/unicode_ucd_16_0_0/manifest.json \
-  --artifact src/safe_geocoding_pipeline/phase03/resources/references/unicode_ucd_16_0_0/Scripts.txt
-```
-
-The fictional-only performance harness requires an explicit scenario, row
-count, and generated-output directory. It loads only bundled references and
-never discovers Phase 2 data:
-
-```bash
-python3 -m safe_geocoding_pipeline.phase03.benchmark \
-  --scenario STRUCTURED_HEAVY \
-  --rows 30000 \
-  --output-directory reports/generated/phase03/synthetic-benchmark
-```
-
-Inspect the future production plan without opening the supplied path:
-
-```bash
-python3 -m safe_geocoding_pipeline.phase03.cli pilot-plan \
-  --input-path /explicit/phase02/run \
-  --output-path /explicit/controlled/pilot/run \
-  --git-commit "$(git rev-parse HEAD)"
-```
-
-The plan reports the frozen 16-column contract and explicit passes with
-`data_read=false`. The out-of-core sampler stores only
-32-byte identities, deterministic scores and categorical memberships in an
-owner-only SQLite database. Controlled identity files and the portable seal are
-checksummed and atomic; the seal contains counts/digests, never identity lists.
-
-The remaining production stages are deliberately separate commands:
-`pilot-profile`, `pilot-select`, `pilot-validate-identity-set`,
-`pilot-materialize-development`, `development-transform`,
-`development-review-sample`, and `pilot-validate`. Each requires explicit
-manifest/input/output arguments. None performs implicit discovery or advances
-to the next stage. Do not run them on real Phase 2 data without the separately
-recorded authorization for that exact operation.
-
-When these commands target the authoritative production snapshot,
-`pilot-profile`, `pilot-select`, complete-snapshot validation, and
-`pilot-materialize-development` fail before production input access unless both
-`SAFE_EXECUTION_SITE=goethe-nhr` and a non-empty `SLURM_JOB_ID` are present.
-There is no force-local flag. Use the reviewed workflow in
-`cluster/goethe_nhr/phase03_development_pilot.sbatch`; do not invoke individual
-production stages on the MacBook.
-
-The Phase 1 `FULL_INVENTORY` and Phase 2 `FULL_CONVERSION` scopes likewise use
-the shared cluster guard for future reruns; their historical completed runs are
-not modified.
-
-The separately authorized development join requires explicit paths and never
-discovers production data:
-
-```bash
-python3 -m safe_geocoding_pipeline.phase03.cli pilot-materialize-development \
-  --phase02-manifest /explicit/phase02/dataset_manifest.json \
-  --input-path /explicit/shard.parquet \
-  --development-identities /controlled/development.identities.bin \
-  --locked-identities /controlled/locked_evaluation.identities.bin \
-  --output-path /controlled/development_payload.parquet
-```
-
-Do not run that command against real data without explicit authorization. A
-synthetic-only bounded-state benchmark is available through:
-
-```bash
-python3 -m safe_geocoding_pipeline.phase03.pilot_benchmark \
-  --rows 100000 \
-  --output-directory reports/generated/phase03/pilot-runner-benchmark
-```
-
-The frozen declarative registry is packaged from
-`src/safe_geocoding_pipeline/phase03/resources/rule_registry_v2.json`. Its
-execution disposition is part of the registry/configuration identity;
-development-shadow rules never run in locked-evaluation or authoritative
-scope. Phase 3
-framework validation uses fictional fixtures only:
-
-```bash
-python3 -m pytest tests/test_phase03_*.py
 python3 -m ruff check .
+python3 -m ruff format --check .
 python3 -m mypy src tests
 ```
 
-The protected DEVELOPMENT review rejected the conservative parser-v1
-iteration for material street-address recall loss. The versioned revision is
-`conservative_address_parser_v2` with the explicit
-`phase03_rule_registry_v3`; details and fingerprints are in
-`docs/PHASE03_PARSER_V2.md`. The v2 registry binds the versioned
-`street_designators_v2` precision resource and combines explicit HIGH with
-language-light Unicode MEDIUM street/house rules; it does not add fuzzy,
-gazetteer, transliteration, or external-service behavior. V1 remains the CLI default so the frozen sampler
-and historical outputs cannot change silently. A v2 transform must opt in:
+Protected inputs and derived artifacts are environment-specific and ignored by
+Git. Typical controlled roots are `data/controlled/` locally and
+`derived/controlled/` on Goethe-NHR. Do not create portable configuration with
+personal absolute paths. Sanitized evidence is available under
+`reports/development/`; protected same-row inspection is explained in
+[Inspecting results](docs/INSPECTING_RESULTS.md).
 
-```bash
-python3 -m safe_geocoding_pipeline.phase03.cli development-transform \
-  --input-development-payload /controlled/existing-development.parquet \
-  --development-identities /controlled/development.identities.bin \
-  --output-directory /controlled/new-parser-v2-iteration/transformed \
-  --git-commit "$(git rev-parse HEAD)" \
-  --parser-version conservative_address_parser_v2
+## Documentation
 
-python3 -m safe_geocoding_pipeline.phase03.cli development-compare-parsers \
-  --baseline-core /controlled/parser-v1/core/development.parquet \
-  --revised-core /controlled/parser-v2/core/development.parquet \
-  --output /controlled/parser-v2/parser_v1_v2_aggregate.json
+- [Project overview](docs/PROJECT_OVERVIEW.md)
+- [Authoritative Stage 0–19 pipeline](docs/PIPELINE.md)
+- [Data flow and data model](docs/DATA_FLOW.md)
+- [Inspecting completed-stage results](docs/INSPECTING_RESULTS.md)
+- [DEVELOPMENT workflow](docs/DEVELOPMENT_WORKFLOW.md)
+- [Execution guide](docs/EXECUTION.md)
+- [Detailed execution policy](docs/EXECUTION_POLICY.md)
+- [Privacy and security](docs/PRIVACY_AND_SECURITY.md)
+- [Reproducibility](docs/REPRODUCIBILITY.md)
+- [Decision register](docs/DECISIONS.md)
+- [Current progress](docs/DEVELOPMENT_PROGRESS.md)
+- [Benchmark V1](docs/BENCHMARK_SAMPLE.md)
+- [Accepted stage records](docs/stages/README.md)
+- [Historical records](docs/history/README.md)
 
-python3 -m safe_geocoding_pipeline.phase03.benchmark \
-  --scenario PARSER_RECALL_STRESS \
-  --rows 6000 \
-  --parser-version conservative_address_parser_v2 \
-  --output-directory /tmp/phase03-parser-v2-synthetic
-```
+## Current next stage
 
-The benchmark is fictional-only and reports performance, evidence expansion,
-and known-synthetic-truth component precision/recall without declaring a
-scientific acceptance threshold.
-
-The opt-in `conservative_address_parser_v3_experimental` adds only the narrow
-paired center-integer/designator hypothesis documented in
-`docs/PHASE03_PARSER_V3_EXPERIMENT.md`. It remains DEVELOPMENT-only and
-unapproved. Its prepared Goethe job reuses the existing 8,000 DEVELOPMENT rows,
-does not rerun sampling, and compares completed v2/v3 core and evidence using
-aggregate-only diagnostics. Parser v2 and the default parser remain unchanged.
-
-The later `conservative_address_parser_v3_2_experimental` is a strictly
-narrower DEVELOPMENT-only revision of repaired v3.1. Protected R01 evidence
-supports only `STREET_NUMBER_RESIDUAL`; the reverse orientation is rejected
-before experimental candidates are emitted. It has its own V5 registry/rule
-identities and no promotion decision. See
-`docs/PHASE03_PARSER_V3_2_EXPERIMENT.md`.
-
-Production data must not be run from the Mac. The prepared, not-submitted
-Goethe workflow is
-`cluster/goethe_nhr/phase03_development_parser_v2.sbatch`; it reuses only the
-fixed 8,000-row DEVELOPMENT payload, never reruns pilot selection, and accepts
-no LOCKED payload input. Submission must come from a clean detached integration
-worktree at the exact reviewed parser-v2 commit; advancing the production data
-checkout is neither assumed nor required.
-
-The immutable generated v1 manual-review template uses the 21-column schema
-returned by `manual-review-schema`. The DEVELOPMENT human-review workflow uses
-the separate component-specific portable-v2 label schema and resumable terminal
-interface documented in `docs/PHASE03_REVIEW_INTERFACE.md`. Both bind the closed
-`manual_review_reason_codes_v1` vocabulary. Portable review outputs store hashed
-review identities and labels, never raw addresses, provider IDs, cities, or
-postcodes.
+**Stage 4 — Lowercase canonical forms — NOT STARTED.** Its design requires
+separate explicit approval before implementation. This repository cleanup does
+not authorize Stage 4 or production Stage 2.

@@ -9,7 +9,7 @@ This was the readiness decision for the preserved
 It is retained as historical gate evidence, not as scientific acceptance of
 parser v1. The later DEVELOPMENT recall revision is versioned separately as
 `conservative_address_parser_v2` / `phase03_rule_registry_v3` and is documented
-in `docs/PHASE03_PARSER_V2.md`. LOCKED_EVALUATION remains sealed and parser v2
+in `docs/history/custom_preprocessing/PHASE03_PARSER_V2.md`. LOCKED_EVALUATION remains sealed and parser v2
 must complete protected DEVELOPMENT review before any new evaluation freeze.
 The v2 registry has 16 rules, canonical SHA-256
 `a2aadae857b7d4bf7262bd37e6dacf58aae220e00b402ca971c51cea320d6f55`,
@@ -71,7 +71,7 @@ row or pilot identity is read.
   and readiness gates. Its prior legal question remains unresolved but is not
   relevant to an implementation that does not use the artifact.
 
-See `docs/PHASE03_REFERENCE_READINESS.md` for exact identities and licensing
+See `docs/history/custom_preprocessing/PHASE03_REFERENCE_READINESS.md` for exact identities and licensing
 analysis.
 
 ## Synthetic performance evidence
@@ -215,4 +215,4 @@ implemented, and synthetically validated as documented in
 This readiness result is not authority to read Phase 2 rows. A new explicit
 authorization is still required to select or process the real pilot.
 
-Phase 3 remains incomplete and `docs/PHASE03.md` must not be created.
+Phase 3 remains incomplete and `docs/history/custom_preprocessing/PHASE03.md` must not be created.

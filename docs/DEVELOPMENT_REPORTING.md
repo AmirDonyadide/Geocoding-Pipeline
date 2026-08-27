@@ -88,5 +88,7 @@ For each accepted DEVELOPMENT stage:
 5. compare the same 500 rows qualitatively while evaluating all 35,000 rows
    quantitatively.
 
-This framework is evaluation infrastructure. It does not authorize or begin
-Stage 3.
+This framework is evaluation infrastructure. Stage 3 later used the same fixed
+identities and is now accepted on DEVELOPMENT; the reporting framework did not
+itself authorize that stage. It does not authorize Stage 4 or production Stage
+2.

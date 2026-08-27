@@ -1,196 +1,86 @@
-# Stage 0 — source freeze, inventory, and reproducibility
+# Stage 0 — Source inventory
 
-## Status
+## Purpose
 
-**STAGE_0_ACCEPTED.** The Stage 0 implementation and production adoption passed
-the final critical review. Stage 1 was subsequently accepted as a separate
-stage; this document continues to define only the Stage 0 boundary.
+Freeze an exact source population and establish its parser, schema, file/hash,
+logical-record, anomaly, and identity evidence without transforming source
+rows. Stage 0 adopts the existing Phase 1 inventory as the authoritative
+scanner instead of duplicating it.
 
-## Accepted source snapshots
+## Input
 
-The historical accepted snapshot contains 206 files. A separate current Stage
-0 run accepted and froze 1,405 files with 140,448,582 logical rows. That
-1,405-file population remains immutable and is the permanent source of
-`BENCHMARK_SAMPLE_V1`.
+- an explicit owner-only `stage00_population_scope_v1` artifact containing the
+  exact sorted direct-child CSV paths;
+- the expected scope SHA-256 and population identity;
+- immutable source CSV files; and
+- completed Phase 1 inventory reports produced under the accepted parser
+  contract.
 
-Its accepted identities are:
+Directory contents never expand the authorized population implicitly.
 
-- population-scope SHA-256:
-  `72cda9aefd680be77f150dc3e1a561a095c076585f91f8076ec01ca8bb1f18a3`;
-- `source_population_sha256_v1`:
-  `c20b800c87039357c484d9a6eb119476028df01c323300aadf35158efdef6ae7`;
-- `stage00_scientific_inventory_sha256_v1`:
-  `f63c3f0c8c1728f7d68e5e2f59dbe760b482ef3bf48481ccd2201ee6f66a7e2b`.
+## Output
 
-Six additional files later became available. They are copied only into a new,
-independent 1,411-file protected source snapshot. Copy completion is not Stage
-0 acceptance: formal inventory, fingerprinting, and adoption for 1,411 remain
-pending. Future Stage 1 production for 1,411 must bind to that future accepted
-Stage 0 record. The accepted 1,405 run is never relabeled or rewritten.
+- exact source-population and scientific-inventory fingerprints;
+- an adoption record binding population scope, Phase 1 artifacts, source
+  hashes, schemas, and counts;
+- explicit file/parser/schema/anomaly results; and
+- owner-only terminal validation/publication evidence.
 
-## Purpose and reuse boundary
+Stage 0 writes no row-level transformed dataset.
 
-Stage 0 answers “what exactly did we receive?” before any cleaning, address
-reconstruction, deduplication, parsing, normalization, correction, query
-generation, or geocoding.
+## Scientific rules
 
-Historical Phase 1 remains the single authoritative source scanner. Its strict
-streaming CSV parser, source hashing, schema/count diagnostics, duplicate
-analysis, privacy-safe reports, SQLite restart state, and execution-policy guard
-are reused unchanged. The library-first module
-`safe_geocoding_pipeline.preprocessing.stages.s00_inventory` only validates,
-projects, fingerprints, and adopts a completed Phase 1 bundle. It has no source
-CSV reader and delegates any future scan to `phase01.run_inventory`.
+- Python's strict CSV-aware logical-record parser is authoritative.
+- UTF-8, delimiter, header, quoting, schema, and record counts are verified, not
+  assumed from a sample.
+- Multiline and oversized fields are diagnosed; they are not silently cleaned,
+  truncated, skipped, or null-padded.
+- The source-population fingerprint and scientific-inventory fingerprint use
+  separate domain-separated contracts.
+- Operational timestamps, mtimes, durations, host/job identity, Git/runtime
+  versions, and permissions do not alter scientific identity.
+- Raw files are read-only and immutable.
 
-## Input contract
+## Non-goals
 
-The first accepted historical snapshot contains exactly 206 regular,
-non-symlink, direct-child CSV files. Future `FULL_INVENTORY` runs are
-population-size independent and require an owner-only, hash-pinned
-`stage00_population_scope_v1` JSON artifact before discovery. Its exact schema
-is:
+Stage 0 does not ingest to Parquet, create stable row IDs, clean or normalize
+text, infer missingness, reconstruct/parse addresses, deduplicate, or geocode.
 
-```text
-population_scope_version
-population_id
-phase01_inventory_version
-source_schema_fingerprint
-parser_field_limit_chars
-expected_source_count
-relative_paths
-```
+## Libraries
 
-`relative_paths` is a nonempty, duplicate-free, canonically sorted list of
-direct CSV filenames. Its length must equal `expected_source_count`. The
-directory must contain exactly those regular CSV files: missing, extra,
-symlinked, broken-symlink, or non-regular CSV entries fail closed. The scope's
-exact byte SHA-256 and identity are bound to Phase 1 run provenance and resume
-state, and both scope and source membership are checked again before success
-publication. Directory contents never authorize new files implicitly.
+Existing Phase 1 inventory code, Python `csv`, and Python `hashlib`. DuckDB may
+be used only as an independent check, not as the authoritative CSV parser.
 
-Original files are read-only. Duplicate content is reported but no source path
-is removed. The approved parser contract is strict
-UTF-8 with an optional UTF-8 BOM, `newline=""`, comma delimiter, double-quote
-quoting, doubled quotes, no escape character, no initial-space skipping,
-`strict=True`, the exact ordered 15-column source schema, and a 64 Mi-character
-field safety ceiling.
+## Validation
 
-A changed delivery requires a new explicitly authorized scope artifact and a
-new Stage 0 snapshot. Stage 0 does not detect or substitute an alternative
-encoding or dialect.
+Acceptance requires the exact authorized path set, source hashes and sizes,
+logical row counts, parser/schema result for every file, no unnoticed source
+mutation, owner-only permissions, sanitized portable reports, immutable atomic
+publication, and independent critical review.
 
-## Output and adoption contract
+## DEVELOPMENT evidence
 
-The authoritative inventory remains the completed Phase 1 bundle. Stage 0 does
-not copy its per-file rows and does not create a redundant Parquet inventory. The
-owner-only `stage00_adoption.json` binds:
+The accepted Benchmark V1 development population is permanently tied to the
+accepted 1,405-file Stage 0 snapshot containing 140,448,582 logical rows. That
+identity remains frozen and is not retroactively changed by six later files.
+Historical source-foundation reports are retained under
+[`docs/history/source_foundation/`](../history/source_foundation/README.md).
 
-- the Stage 0, validation, Phase 1, and parser contracts;
-- the full Phase 1 producing Git commit;
-- the two scientific fingerprints;
-- byte size and SHA-256 for all eight Phase 1 artifacts, including
-  `phase01_run.json`;
-- byte size and SHA-256 for `_SCOPE_PASS`, plus the required absence of
-  `_SCOPE_FAIL` and `_IN_PROGRESS`;
-- operational adoption provenance and permission-hardening results;
-- explicit validation gates and `STAGE_0_ACCEPTED` status.
+## Production status
 
-The adoption record does not hash itself. Its external SHA-256 identifies the
-exact operational record.
+**ACCEPTED — `NEW_STAGE0_1411_ACCEPTED`.** The current production population is
+`production_population_1411_v1`: 1,411 CSV files and 141,048,582 rows.
 
-## Fingerprints
+This production acceptance does not rebuild Benchmark V1 and does not authorize
+production Stage 2.
 
-### `source_population_sha256_v1`
+## Privacy
 
-SHA-256 receives the ASCII domain bytes
-`SAFE_STAGE00_SOURCE_POPULATION_V1`, followed immediately by:
+Source scopes, raw files, detailed manifests, paths, and row-level diagnostics
+remain controlled. Directories are `0700`, files are `0600`, and Git receives
+only code, contracts, hashes, sanitized reports, metrics, and documentation.
 
-1. file count as unsigned 64-bit big-endian;
-2. for each relative-path-sorted file: UTF-8 path length as unsigned 64-bit
-   big-endian, exact path bytes, file size as unsigned 64-bit big-endian, and
-   raw 32-byte file SHA-256.
+## Acceptance status
 
-### Parser-contract fingerprint
-
-SHA-256 receives `SAFE_STAGE00_PARSER_CONTRACT_V1`, then the Phase 1 inventory
-version, ordered source-column count and names, encoding policy, exact `utf-8`
-and `utf-8-sig` codec names, strict decoding-error policy, length-prefixed UTF-8
-BOM bytes, schema-fingerprint algorithm/version and separator, newline and CSV
-dialect fields, and hard parser ceiling. Text and byte strings use unsigned
-64-bit big-endian byte-length prefixes; Booleans are one byte; nullable text
-uses a one-byte null/value tag; integers are unsigned 64-bit big-endian; digests
-are raw 32-byte values.
-
-### `stage00_scientific_inventory_sha256_v1`
-
-SHA-256 receives `SAFE_STAGE00_SCIENTIFIC_INVENTORY_V1`, then the Stage 0 and
-Phase 1 contract versions, raw parser-contract and source-population digests,
-record count, and the declared deterministic inventory projection in sorted
-file order using the same typed encoding.
-
-The per-file projection order is: file ID, relative path, file size, file
-SHA-256, source-stability flag, encoding status, BOM type, header-present flag,
-observed column count, schema fingerprint, schema-match flag, logical-record
-count, valid-schema-record count, wrong-width count, parser-error count,
-multiline-record count, counts-complete flag, scan status, nullable duplicate
-group, duplicate-group size, maximum record length, and maximum field length.
-
-Timestamps, mtimes, durations, host, SLURM identity, Git revision, Python and
-SQLite versions, and permissions are operational provenance and never affect
-either scientific fingerprint.
-
-Golden fictional vectors are frozen in `tests/test_stage00_inventory.py`.
-
-## Privacy and permissions
-
-Source CSVs and retained `_work` state are protected. `_work` directories are
-mode `0700`; retained files, especially `phase01.sqlite3`, are mode `0600`.
-Hardening rejects symlinks and special files, never traverses the source root,
-and does not change artifact bytes. New Stage 0 output directories are `0700`
-and files are `0600`.
-
-The eight Phase 1 reports and Stage 0 adoption record contain source identity,
-structural counts, hashes, and approved aggregate diagnostics, but no raw
-address, city, postcode, native-address, or raw-ID values. They remain internal
-research metadata rather than public artifacts.
-
-## Failure behavior
-
-Adoption fails closed for missing, unsafe, size-mismatched, or hash-mismatched
-artifacts; incomplete or contradictory markers; malformed manifest schema;
-duplicate paths; non-sequential file IDs; source-population mismatch;
-unapproved parser contract; unsuccessful/incomplete file rows; unsafe working
-state; permission failure; or output collision. A failed bundle is never
-partially adopted or repaired.
-
-## Existing production adoption
-
-The validator confirms that Phase 1 run
-`phase01_20260810T151626Z_7df9bc8f`, produced by
-`7df9bc8f6a43e279eb56247091a23a1d070ef475`, contains 206 complete files and
-passes artifact, terminal-state, parser, manifest, and population validation.
-No source CSV was opened for adoption.
-
-- parser-contract fingerprint:
-  `d071da05a76ca7c6ae5111894628fe8a5427f354838dbe0eb84e6cdf6ecd4b79`
-- source-population fingerprint:
-  `bdedb3f425a337048aaf21245b76246f92a36693cdbf0e28acb16f18b14fffc3`
-- scientific-inventory fingerprint:
-  `551d893a8c6d16b799c1e38ecf4715cbe3bb0865d811eb44aaa6f46fa45b2631`
-
-The final review strengthened the previously pending parser fingerprint so it
-mechanically binds the exact codecs, BOM bytes, decoding-error policy, and
-schema-fingerprint algorithm already used by Phase 1. This intentionally
-supersedes the pending-review parser/scientific digests without changing the
-source-population digest, Phase 1 behavior, or historical artifact bytes.
-
-The historical Phase 1 artifact bytes remain unchanged. Permission changes to
-retained working state are operational privacy hardening only.
-
-## Acceptance and Stage 1 boundary
-
-The final review independently checked the canonical encodings and golden
-vectors, strengthened the parser-contract binding, exercised hostile bundle
-and permission cases, verified historical artifact bytes, and ran the complete
-documented local-safe suite. Stage 0 emits no staging rows. No Stage 1 work is
-implemented here.
+**IMPLEMENTED + ACCEPTED.** Stage 1 is separately accepted. Stage 0 acceptance
+does not authorize rerunning the population or starting a later stage.

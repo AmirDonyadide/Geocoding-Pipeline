@@ -7,7 +7,7 @@ subsequent protected DEVELOPMENT review demonstrated a material street-address
 recall defect in `conservative_address_parser_v1`. The approved, versioned
 DEVELOPMENT correction is `conservative_address_parser_v2` with
 `phase03_rule_registry_v3`; its exact rules and execution plan are recorded in
-`docs/PHASE03_PARSER_V2.md`. Registry v3 contains the explicit HIGH and generic
+`docs/history/custom_preprocessing/PHASE03_PARSER_V2.md`. Registry v3 contains the explicit HIGH and generic
 Unicode MEDIUM street/house rules plus hash-bound `street_designators_v2`;
 historical v1 design text below remains the frozen baseline rather than a
 description of the v2 executable rules. This revision does not reopen pilot selection or

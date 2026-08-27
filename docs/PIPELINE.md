@@ -1,336 +1,341 @@
-# Library-first preprocessing transition
+# SAFE pre-geocoding pipeline
 
-The active preprocessing redesign uses a distinct, versioned library-first
-Stage sequence. Historical Phase 1 remains intact and supplies the authoritative
-source-scanning machinery for new Stage 0; Stage 0 adds only contract,
-validation, fingerprinting, privacy hardening, and adoption. Historical Phase 2
-remains the single authoritative CSV-to-Parquet converter used by new Stage 1;
-Stage 1 adds only Stage 0 binding, bundle validation, layout-independent logical
-identity, and adoption. Historical Phase 3 is frozen as the custom-parser
-benchmark baseline. See `docs/STAGE00.md`, `docs/STAGE01.md`, and
-`docs/CUSTOM_PREPROCESSING_BASELINE.md`. New stages proceed one reviewed stage
-at a time and do not rewrite this historical workflow.
+## Scope and status
 
-Mature offline libraries and pinned reference datasets are preferred wherever
-they meet the accepted scientific, privacy, licensing, and reproducibility
-requirements. Custom SAFE code focuses on orchestration, provenance,
-deterministic evidence aggregation, conservative policy and correction,
-validation semantics, and genuine library/data gaps. The historical custom
-parser remains recoverable for controlled comparison; it is not extended as
-the active production path.
+This is the authoritative conceptual specification for the library-first
+preprocessing pipeline before self-hosted SAFE Pelias. It states accepted
+boundaries and planned direction; it is not permission to implement or run a
+stage.
 
-Library-first Stage 2 defines the stable internal source-row schema used by
-later preprocessing. It preserves the exact Stage 1 raw/provenance columns and
-adds only four raw-emptiness representation fields. Standard and native address
-lines remain independent alternatives. Stage 2 performs no text transformation
-and may consume the fixed benchmark's DEVELOPMENT artifact without opening
-HOLDOUT. See `docs/STAGE02.md`.
+- **ACCEPTED:** implemented, evaluated, independently reviewed, and frozen on
+  DEVELOPMENT.
+- **PLANNED — NOT STARTED:** conceptual placement and likely technology only.
+  No accepted design or implementation exists.
 
-`BENCHMARK_SAMPLE_V1` is a separate fixed selection product used to evaluate
-subsequent address-changing stages; it is not Stage 2. It freezes 35,000
-protected DEVELOPMENT rows and
-15,000 separately protected HOLDOUT rows from the explicitly authorized
-1,405-file development population. Sampling uses only immutable provenance and
-privacy-safe raw structural features, never later pipeline output. See
-`docs/BENCHMARK_SAMPLE.md`.
+Stages 0–3 are accepted on DEVELOPMENT. Production Stage 0 and Stage 1 are
+accepted for the 1,411-file population; production Stage 2 and Stage 3 have not
+started. Stages 4–19 have not started in either track.
 
-## Current library-first state
+## Cross-stage scientific rules
 
-- **Stage 0 — Source inventory:** the accepted 1,405-file snapshot contains
-  140,448,582 logical rows and is immutable. Six later files belong only to a
-  separately prepared 1,411-file source snapshot. Formal Stage 0 for 1,411 has
-  not run, so the accepted 1,405 scientific identities remain exactly as
-  recorded and cannot be reinterpreted.
-- **Stage 1 — Lossless ingestion:** the scientific contract and
-  population-generic implementation are accepted. The historical 206-file
-  Parquet execution is preserved. A final 1,411-file conversion has not run and
-  must bind to a future accepted 1,411 Stage 0 snapshot.
-- **Benchmark Sample V1:** accepted under `benchmark_sample_contract_v1` and
-  permanently tied to the 1,405-file snapshot. It contains 35,000 DEVELOPMENT
-  and 15,000 sealed HOLDOUT source rows, with zero overlap and zero duplicate
-  selected identities. All 1,405 sources are represented. Its fingerprint is
-  `014a7d2a9935bb098711e62b89df2eb93dfdd0dd1ce5ac70853f010d118acedf`.
-- **Stage 2 — Schema and provenance harmonization:** accepted on the complete
-  35,000-row DEVELOPMENT artifact under
-  `stage02_schema_provenance_harmonization_contract_v1`. The 26-column output
-  preserves the exact 22 Stage 1 fields and adds four raw-emptiness
-  standard/native fields. It performs no address transformation: 35,000 input
-  rows produced 35,000 output rows with no dropped, added, or duplicated stable
-  identities.
-- **DEVELOPMENT reporting:** the passive
-  `development_reporting_contract_v1` framework uses one deterministic fixed
-  500-row DEVELOPMENT-only protected subset for same-row qualitative review.
-  Git-safe reports contain allowlisted aggregates only. Full 35,000-row metrics
-  remain authoritative for development evaluation; HOLDOUT remains sealed.
-- **Stage 3 — Safe text cleaning:** the v1 DEVELOPMENT candidate materialized
-  from the accepted Stage 2 artifact under
-  `stage03_safe_text_cleaning_contract_v1` and
-  `stage03_safe_text_cleaning_profile_v1`. It adds conservative derived clean
-  strings and compact reason evidence while preserving every Stage 2 field.
-  Independent review confirmed its 35,000-row scientific output was
-  conservative and correct, but returned `STAGE_3_NOT_ACCEPTED` because the v1
-  production implementation retained total-row Python identity sets, repeated
-  cleaning approximately six times per field, and reported punctuation
-  ambiguously. A v2 DEVELOPMENT fix iteration now uses bounded Arrow batches,
-  ordered identity fingerprints, changed-value-only idempotence rechecks,
-  no validation/reporting cleaner calls, and computed punctuation-codepoint
-  metrics. Exact pushed implementation
-  `278414573fd465e261f3b9131c45fb564b93622d` completed the same 35,000-row
-  DEVELOPMENT population as job `1759269`: all v1/v2 clean values and reasons
-  are equal, materialization is 24.2 times faster, and peak process RSS is
-  1,067,884 KiB. Independent review of exact evidence commit
-  `82e945a2f41b61e4deff4c28fff4a02ef2af047a` reproduced the complete scientific
-  output, fingerprints, v1/v2 and frozen-500 equality, bounded-memory design,
-  and adversarial safety evidence, and returned `STAGE_3_ACCEPTED`. The Stage 3
-  DEVELOPMENT result is frozen. This does not authorize Stage 4 or production
-  Stage 2.
-  See
-  `docs/STAGE03.md` and the sanitized reports under `reports/development/`.
+- Raw source values are immutable; transformations add derived fields.
+- `stable_source_row_id_v1` and source provenance persist unchanged.
+- Source rows are never deduplicated away. Candidate/query deduplication retains
+  a complete source-row map-back.
+- Postal codes remain strings; Unicode and native scripts are preserved.
+- Standard and native Orbis representations remain separate candidates.
+- All source lines are not blindly concatenated.
+- Transliteration, if later approved, is a separate derived candidate.
+- Absence from an open reference is not invalidity. `MISMATCH` requires strong
+  positive contradictory evidence.
+- Validation statuses are `CONFIRMED`, `MISMATCH`, `NOT_FOUND`, `AMBIGUOUS`,
+  `UNSUPPORTED`, and `INVALID_FORMAT`.
+- Protected address values never leave controlled infrastructure.
+- Pandas is not used for production transformations; it is permitted for small
+  DEVELOPMENT inspection.
 
-## Current and planned library-first preprocessing sequence
-
-Stage 3 v1 was not accepted; v2 is accepted and frozen on DEVELOPMENT.
-Stages 4–19 remain plans and have not started. Every stage requires its own
-design, implementation, DEVELOPMENT evidence, and freeze. Raw and derived
-values remain separate throughout.
-
-| Stage | Boundary and intended mature tools |
-|---|---|
-| 3 — Safe text cleaning | V2 DEVELOPMENT fix iteration: unchanged derived NFC, conservative ftfy encoding repair, and explicit whitespace/control cleanup; no semantic punctuation-normalization rule; bounded PyArrow batches and ordered identity fingerprints replace v1 total-row Python state. |
-| 4 — Lowercase canonical forms | Derived lowercase fields only; raw values remain unchanged. |
-| 5 — Address reconstruction | Build standard and native Orbis candidates separately; never concatenate all eight source lines blindly. |
-| 6 — Early exact deduplication | Deduplicate address candidates, not source rows, and preserve complete map-back. |
-| 7 — libpostal parsing | Parse standard and native candidates independently with libpostal/pypostal. |
-| 8 — Internal component mapping | Map libpostal labels into a stable SAFE component schema. |
-| 9 — Component-aware linguistic normalization | Normalize only after parsing, with component/country/language/script awareness. Blind English rules on native representations are prohibited; transliteration, if used, is a separate derived representation. |
-| 10 — Country/subdivision normalization | Use pinned `pycountry` semantics. |
-| 11 — Country-specific syntax | Apply `google-i18n-address` plus conservative country-specific address/postcode rules. |
-| 12 — Normalized/component deduplication | Deduplicate versioned normalized candidates while preserving all source mappings. |
-| 13 — Geographic cross-validation | Use pinned direct GeoNames postal data for postcode/country, postcode/locality, postcode/region, locality/region, and meaningful multi-field checks. `pgeocode` may support a proof of concept but is not the planned production engine. |
-| 14 — Street/house-number validation | Use Overture Maps Addresses for positive street/postcode, street/locality, and house/street/postcode evidence. Absence is not invalidity; OSM/osmium is an optional fallback. |
-| 15 — Constrained fuzzy matching | Use RapidFuzz only inside geographically blocked candidate sets, never for global fuzzy correction. |
-| 16 — Conservative correction | Prefer high precision and preserve original, proposal, reference/version, evidence, and decision status. |
-| 17 — Geocoding component selection | Remove or downweight recipient, person, floor, and unit noise only when justified while retaining useful physical-location evidence. |
-| 18 — Query generation | Generate standard and native queries independently, with versioned evidence-based alternatives. |
-| 19 — Query deduplication and final QA | Execute identical SAFE Pelias calls once and map results back to every relevant source row. |
-
-SAFE Pelias geocoding begins only after Stage 19 acceptance.
-
-## Validation semantics and independent evidence
-
-Pre-geocoding validation uses the closed result vocabulary `CONFIRMED`,
-`MISMATCH`, `NOT_FOUND`, `AMBIGUOUS`, `UNSUPPORTED`, and `INVALID_FORMAT`.
-Missing from an open reference dataset does **not** mean invalid.
-
-Independent component validation remains necessary even where Pelias contains
-overlapping sources such as OSM, GeoNames, or OpenAddresses. It supplies
-diagnostics Pelias failure alone cannot explain: format support, postcode and
-country consistency, postcode/locality or region mismatch, street evidence,
-house-number evidence, ambiguity, and correction provenance.
-
-## Standard/native representations and development method
-
-Colleagues confirmed that both representations originate from Orbis. Some
-standard forms are English translations; native is likely the more
-authoritative original form, and prior Nominatim processing used native names.
-The pipeline therefore evaluates standard and native independently, including
-by country, and may geocode both where useful. Priority groups 0 and 1 are the
-most useful initial regeocoding groups. Interpolation describes coordinate or
-location estimation from postcode or region; it does not necessarily mean
-source address text was filled or changed. Remaining country-specific
-authority and query-policy questions stay explicitly unresolved until tested.
-
-For every address-changing stage, the development cycle is:
+## Dependency flow
 
 ```text
-design -> implement -> synthetic tests -> run on 35k DEVELOPMENT
-       -> inspect metrics/examples -> tune -> accept/freeze -> next stage
+0 -> 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10 -> 11
+                                             |                 |
+                                             +---------> 12 <-+
+                                                         |
+                                                         v
+13 -> 14 -> 15 -> 16 -> 17 -> 18 -> 19 -> self-hosted SAFE Pelias
 ```
 
-After the complete pipeline is frozen, the untouched 15,000-row HOLDOUT is
-used once for unbiased final evaluation. It is not repeatedly opened or used
-for tuning. A satisfactory result then permits separately authorized full
-production execution.
+The linear stage numbers are the governing order. The diagram highlights that
+component mapping and normalization feed later normalized deduplication. Every
+stage consumes an accepted predecessor and must stop at its own review gate.
 
-The fixed qualitative review subset and reusable sanitized summaries are
-documented in `docs/DEVELOPMENT_REPORTING.md`; current status is summarized in
-`docs/DEVELOPMENT_PROGRESS.md`.
+## Stage 0 — Source inventory
 
-Future `FULL_INVENTORY` execution is population-size independent. It requires a
-hash-pinned `stage00_population_scope_v1` artifact containing the exact sorted
-direct-child CSV path set. The historical Phase 1 description below remains a
-record of the accepted 206-file snapshot rather than a generic execution rule.
+- **Purpose:** Freeze the exact source population and establish parser, schema,
+  count, anomaly, hash, and identity evidence without transforming rows.
+- **Input:** Immutable source CSV scope plus the accepted historical Phase 1
+  inventory contract.
+- **Output:** Population scope, file manifest, parser/schema evidence,
+  scientific inventory fingerprints, and explicit diagnostics.
+- **Primary libraries:** existing Phase 1 inventory, Python `hashlib`, Python
+  `csv`.
+- **Data effect:** None. It reads and reports; it does not rewrite source data.
+- **Status:** **ACCEPTED** on DEVELOPMENT and production. Production status is
+  `NEW_STAGE0_1411_ACCEPTED` for 1,411 files and 141,048,582 rows.
+- **Acceptance requirement:** Exact authorized path population, hashes, logical
+  record counts, parser/schema outcome for every file, source immutability,
+  protected permissions, sanitized reporting, and independent review.
 
-# Historical Phase 0–13 workflow
+## Stage 1 — Lossless ingestion
 
-This is the approved conceptual workflow. It is not an implementation plan or evidence that a phase has run. Each phase requires design review, implementation approval, validation, a phase report, and an explicit stop before the next phase.
+- **Purpose:** Convert logical CSV records into validated columnar storage while
+  preserving every source value and adding stable provenance.
+- **Input:** Accepted Stage 0 scope/manifest and immutable CSV files.
+- **Output:** PyArrow/Parquet shards with 15 source strings plus provenance,
+  including `stable_source_row_id_v1`; manifest, reconciliation, and logical
+  fingerprint evidence.
+- **Primary libraries:** PyArrow/Parquet and DuckDB. Python CSV behavior remains
+  bound to the accepted source contract.
+- **Data effect:** Physical representation changes from CSV to Parquet; decoded
+  source string values do not change.
+- **Status:** **ACCEPTED** on DEVELOPMENT and production. Production status is
+  `NEW_STAGE1_1411_ACCEPTED` for `production_population_1411_v1`.
+- **Acceptance requirement:** Exact row/file reconciliation, no dropped or
+  added rows, stable-ID integrity, exact source-value/semantic-digest checks,
+  validated Parquet readback, immutable publication, and independent review.
 
-## Phase 0 — Research requirement
+## Stage 2 — Schema and provenance harmonization
 
-- **Objective:** Define the research location concept and required precision.
-- **Inputs:** Scientific use case and downstream environmental/remote-sensing linkage needs.
-- **Outputs:** Point-level objective, `usable_for_analysis`, diagnostic tier concept, and coarse-result exclusion rule.
-- **Major decisions:** Building/plant/branch/store precision is required. Exact address results without major contradiction are expected usable. Interpolated acceptance remains open.
-- **STOP gate:** Phase 0 is decided; any change to the scientific objective requires explicit scientific review.
+- **Purpose:** Give the lossless Stage 1 records a stable preprocessing schema
+  and passive address-structure indicators.
+- **Input:** SHA-bound accepted Stage 1 data or Benchmark V1 DEVELOPMENT.
+- **Output:** All 22 incoming Stage 1 fields unchanged plus four derived fields:
+  standard/native non-empty-line arrays and counts.
+- **Primary libraries:** PyArrow and the SAFE schema/provenance layer.
+- **Data effect:** Adds structural/provenance columns only. It does not trim,
+  normalize, parse, compare, reconstruct, or alter source strings.
+- **Status:** **ACCEPTED** on all 35,000 DEVELOPMENT rows. Production Stage 2 is
+  **NOT STARTED**.
+- **Acceptance requirement:** Exact input binding, 35,000-to-35,000 row and
+  identity equality, exact preservation of every incoming value, correct
+  four-field derivation, protected review, sanitized evidence, and independent
+  review.
 
-## Phase 1 — Raw-file inventory
+## Stage 3 — Safe text cleaning
 
-- **Objective:** Establish the complete source manifest, parser contract, schema, row counts, anomalies, and identity properties without altering data.
-- **Inputs:** All 206 immutable source CSV files.
-- **Outputs:** File manifest, parser/schema reports, logical record counts, population/missingness metrics, malformed/oversized-record diagnostics, and ID-overlap findings.
-- **Major decisions:** Exact per-file parser rules; whether one verified contract covers all files; stable source-row identity design.
-- **STOP gate:** Do not proceed until every file has a reproducible parse outcome, understood schema, detected malformed rows, and documented counts. User approval is required.
+- **Purpose:** Repair only well-defined encoding, Unicode, control, and
+  whitespace issues into auditable derived values.
+- **Input:** Accepted Stage 2 values and identities.
+- **Output:** Twelve `*_clean` fields, row/field changed indicators, and ordered
+  cleaning-reason evidence while retaining all Stage 2 columns.
+- **Primary libraries:** Python `unicodedata`, `ftfy`, regular-expression/Arrow
+  operations, and conservative SAFE orchestration.
+- **Data effect:** Adds derived clean text. Raw and Stage 2 fields are never
+  overwritten. No lowercase, parsing, abbreviation, or semantic correction.
+- **Status:** **ACCEPTED** on all 35,000 DEVELOPMENT rows at integration commit
+  `958dddc8a9769977453ea5588e6861b62162090a`. Production Stage 3 is
+  **NOT STARTED**.
+- **Acceptance requirement:** Exact incoming-column and identity preservation,
+  exact v1/v2 clean-value and ordered-reason equality, idempotence, bounded
+  memory, huge-value safety, corrected punctuation evidence, fixed-500 review,
+  and independent review. The rejected v1 commits remain in ancestry.
 
-## Phase 2 — Controlled staging dataset
+## Stage 4 — Lowercase canonical forms
 
-- **Objective:** Convert verified CSV inputs into validated analytical staging data without information loss.
-- **Inputs:** Raw CSVs, approved Phase 1 manifest, and parser contract.
-- **Outputs:** Validated staging data, all raw columns, `source_file`, `source_row_number`, stable source-row ID, rejection diagnostics, and per-file PASS/FAIL reports.
-- **Major decisions:** Staging engine/layout, types, partition/file sizing, rejection handling, and validation thresholds.
-- **STOP gate:** Source/output counts, schema, IDs, postcodes, Unicode/native text, and sampled cells must reconcile. Failed conversions cannot advance.
+- **Purpose:** Create derived lowercase canonical text after safe cleaning.
+- **Input:** Accepted Stage 3 clean values.
+- **Output:** Planned lowercase canonical fields paired with their preserved
+  source and clean values.
+- **Primary libraries:** Python Unicode `lower()`.
+- **Data effect:** Planned derived text only; never overwrite raw or clean text.
+- **Status:** **PLANNED — NOT STARTED**.
+- **Acceptance requirement:** A separately approved design; Unicode behavior,
+  value provenance, idempotence, DEVELOPMENT metrics, fixed-500 review, and
+  independent acceptance. No implementation exists.
 
-## Phase 3 — Canonical address table
+## Stage 5 — Address reconstruction
 
-- **Objective:** Create conservative, structured derived address components while preserving raw values.
-- **Inputs:** Validated staging records and approved cleaning/parsing rules.
-- **Outputs:** Clean street, house number, unit, building, postcode, locality, region, country, native variants, parse status, completeness class, and conflict flags.
-- **DEVELOPMENT diagnostics:** A versioned, aggregate-only address-pattern
-  profiler may examine the fixed DEVELOPMENT payload and parser evidence on
-  Goethe-NHR. Its closed morphology labels and suppressed/bounded counts are
-  rule-design evidence only; they do not modify parser output or authorize a
-  new rule, and LOCKED_EVALUATION is excluded. A second-stage targeted
-  diagnostic may cross-tab only predeclared unresolved structural families
-  against existing selections, candidate/rule presence, conflicts,
-  corroborating components, representation, country, and script. It applies
-  the same five-row disclosure threshold and bounded labels; it remains
-  descriptive evidence and does not authorize Parser v3.
-- **Post-v3.2 DEVELOPMENT opportunity intersection:** A separate sanitized
-  profiler measures exact unique identity populations and intersections for
-  H1 component-span conflicts, H2 explicit role/street-house overlap, and H3
-  narrow adjacent explicit-street/house-like-line relationships. It binds only
-  approved DEVELOPMENT artifacts, reports Targeted-v3.1 R01 identity overlap
-  separately from scientific reusability, and implements no parser rule. See
-  `docs/PHASE03_DEVELOPMENT_HYPOTHESIS_INTERSECTION_PROFILE.md`.
-- **Narrow parser-v3 experiment:** The only implemented post-profile hypothesis
-  is the explicitly versioned, opt-in
-  `conservative_address_parser_v3_experimental` paired street/house rule for a
-  strictly gated subset of `WORDS HOUSELIKE_NUM WORDS`. It is evaluated only on
-  the existing 8,000 DEVELOPMENT payload, never reruns selection or accesses
-  LOCKED_EVALUATION, and cannot be promoted without aggregate comparison and
-  protected manual-review evidence. See
-  `docs/PHASE03_PARSER_V3_EXPERIMENT.md`.
-- **Country-method reproducibility repair:** The explicit Parser-v2.1/v3.1
-  lineages change no rule or selected country value. They replace
-  hash-seed-dependent method provenance with a fail-closed selected-source
-  derivation. Validation reuses only the fixed 8,000 DEVELOPMENT payload and
-  performs no pilot selection or LOCKED_EVALUATION access. See
-  `docs/PHASE03_COUNTRY_METHOD_REPAIR.md`.
-- **Targeted parser-v3 review:** A separate protected DEVELOPMENT workflow may
-  review every identity in the exact union of repaired v2.1-v3.1
-  scientific-output changes and experimental-rule evidence. A separate
-  verification-only Goethe command must first prove the hash-pinned
-  8,000/9/11/9/0/2/11 identity-set contract and creates no review inputs or
-  databases. Both pseudonymous reviewers eventually receive the full verified
-  population under deterministic independent order/blinding. Only aggregate
-  scores may leave Goethe; review evidence does not authorize promotion. See
-  `docs/PHASE03_PARSER_V3_TARGETED_REVIEW.md`.
-- **Parser-v3 change diagnostic:** Before targeted review is initialized, a
-  separate Goethe-only aggregate diagnostic reconciles the observed 26
-  scientific-change rows with 11 experimental-evidence rows (nine overlap,
-  17 change-only, two evidence-only). It reuses `CORE_COLUMNS[5:41]`, reads no
-  payload or human labels, rejects LOCKED paths, and reports only fixed-field
-  aggregates with rare combination suppression. See
-  `docs/PHASE03_PARSER_V3_CHANGE_DIAGNOSTIC.md`.
-- **Parser-v3.2 orientation narrowing:** Protected Targeted-R01 evidence
-  confirmed that the forward `STREET_NUMBER_RESIDUAL` orientation was 4/4
-  jointly correct while the reverse `RESIDUAL_NUMBER_STREET` orientation was
-  1/5. The separately versioned v3.2 DEVELOPMENT experiment rejects only the
-  reverse orientation. It reuses the fixed 8,000-row payload, never reruns
-  selection, and may reuse R01 labels only after exact identity/value/span
-  equivalence. See `docs/PHASE03_PARSER_V3_2_EXPERIMENT.md`.
-- **Major decisions:** International parsing rules, deterministic normalization, country mapping, handling of geography embedded in free-form lines, and separation of company/unit content.
-- **STOP gate:** Review country/address-family behavior, transformations, unresolved records, and evidence that raw values remain traceable and unchanged.
+- **Purpose:** Reconstruct coherent address candidates without assuming fixed
+  semantics for lines 1–4.
+- **Input:** Accepted Stage 4 standard/native canonical fields and provenance.
+- **Output:** Separate standard and native candidate representations with
+  explicit line-use evidence; optional transliteration only as a separate later
+  candidate.
+- **Primary libraries:** SAFE reconstruction logic and possibly pinned
+  address-format metadata.
+- **Data effect:** Planned derived candidates; no source overwrite.
+- **Status:** **PLANNED — NOT STARTED**.
+- **Acceptance requirement:** Approved reconstruction rules, country/script
+  coverage evidence, no blind concatenation, complete lineage, DEVELOPMENT and
+  fixed-500 review, and independent acceptance.
 
-## Phase 4 — Input constraints and quality flags
+## Stage 6 — Early exact deduplication
 
-- **Objective:** Describe whether each canonical address is suitable for a point-level geocoding attempt.
-- **Inputs:** Canonical address table.
-- **Outputs:** Presence, PO-box, historical, native-version, conflict, oversized-field, completeness, and geocoding-readiness flags.
-- **Major decisions:** Eligibility rules and completeness classes; unresolved records remain available for diagnostics.
-- **STOP gate:** Review exclusion/eligibility distributions and confirm that coarse or incomplete inputs are not being misrepresented as point-ready.
+- **Purpose:** Remove duplicate candidate work before parsing while preserving
+  every source relationship.
+- **Input:** Accepted Stage 5 candidate representations.
+- **Output:** Versioned exact candidate keys, unique candidates, repetition
+  counts, and complete candidate-to-source mappings.
+- **Primary libraries:** DuckDB, Polars, and hashing.
+- **Data effect:** Candidate tables are deduplicated; source rows are not.
+- **Status:** **PLANNED — NOT STARTED**.
+- **Acceptance requirement:** Canonical serialization and collision design,
+  deterministic keys, one-to-many map-back integrity, reconciled counts, and
+  independent review.
 
-## Phase 5 — Stable address keys and deduplication
+## Stage 7 — libpostal parsing
 
-- **Objective:** Determine the true unique-address workload and preserve mappings to all source rows.
-- **Inputs:** Canonical components and input-quality flags.
-- **Outputs:** Versioned canonical serialization/hash, row-level mapping, unique-address table, repetition counts, and deduplication metrics.
-- **Major decisions:** Exact `address_key_v1` serialization, fields included/excluded, unit treatment, collision checks, and versioning.
-- **STOP gate:** Review deterministic key behavior, mapping integrity, unique-address counts, country/completeness distributions, and projected API workload.
+- **Purpose:** Parse standard and native reconstructed candidates into address
+  components independently.
+- **Input:** Accepted unique Stage 6 candidates.
+- **Output:** Versioned libpostal labels, values, parse status, and evidence for
+  each representation.
+- **Primary libraries:** libpostal/pypostal.
+- **Data effect:** Adds derived parsed components; candidate text is preserved.
+- **Status:** **PLANNED — NOT STARTED**.
+- **Acceptance requirement:** Pinned build/resources, reproducible offline
+  execution, multilingual DEVELOPMENT evaluation, failure preservation, and
+  independent review.
 
-## Phase 6 — Controlled query strategy
+## Stage 8 — Internal component mapping
 
-- **Objective:** Define a small, deterministic SAFE query ladder rather than arbitrary address permutations.
-- **Inputs:** Unique eligible addresses, components, native/transliterated variants, and conflict flags.
-- **Outputs:** Versioned primary/rescue query definitions and query-attempt metadata contract.
-- **Major decisions:** Reliable fields for the structured primary request; controlled conditions for removing conflicting fields or using native, transliterated, or free-text rescue variants.
-- **STOP gate:** Query construction and logging must be reviewed before any pilot API use. No arbitrary permutation strategy is allowed.
+- **Purpose:** Map libpostal output to a stable SAFE component schema.
+- **Input:** Accepted Stage 7 labels and candidates.
+- **Output:** SAFE component fields plus mapping and unresolved-label evidence.
+- **Primary libraries:** libpostal output plus SAFE mapping.
+- **Data effect:** Adds derived mapped components; parsed output remains intact.
+- **Status:** **PLANNED — NOT STARTED**.
+- **Acceptance requirement:** Versioned mapping, complete/unmapped label
+  accounting, no silent component loss, DEVELOPMENT review, and acceptance.
 
-## Phase 7 — Pilot before production
+## Stage 9 — Component-aware abbreviation and linguistic normalization
 
-- **Objective:** Measure geocoder behavior, data-group differences, latency, failures, and manual-validation needs on a reproducible stratified sample.
-- **Inputs:** Approximately 1,000 unique addresses sampled across countries, completeness classes, scripts, files, priorities, and difficult cases; approved query strategy.
-- **Outputs:** Pilot responses, quality/error/latency metrics, manual-review candidates, rescue-query evidence, runtime estimate, and bias diagnostics.
-- **Major decisions:** Whether and how to run Pilot 2; Pilot 2 size/design; rescue changes; evidence relevant to interpolated-match acceptance.
-- **STOP gate:** Mandatory stop after Pilot 1. Do not launch Pilot 2 or production automatically. Parsing, queries, response parsing, quality logic, and required SAFE RDC coordination must be reviewed.
+- **Purpose:** Normalize linguistic variants only when component, country,
+  language, and script make the operation defensible.
+- **Input:** Accepted Stage 8 components and representation metadata.
+- **Output:** Derived normalized components with rule/resource evidence.
+- **Primary libraries:** libpostal resources/dictionaries and SAFE
+  component-aware policy.
+- **Data effect:** Adds derived normalized components. Blind English rules on
+  native text are prohibited.
+- **Status:** **PLANNED — NOT STARTED**.
+- **Acceptance requirement:** Pinned resources, component-scoped rules,
+  multilingual error analysis, raw/mapped preservation, and independent review.
 
-## Phase 8 — SAFE production execution
+## Stage 10 — Country and subdivision normalization
 
-- **Objective:** Geocode only unique approved addresses safely and restartably.
-- **Inputs:** Approved unique-address workload, query strategy, pilot findings, runtime secret, and production authorization.
-- **Outputs:** Durable per-attempt results/errors and checkpoints with statuses, attempts, HTTP metadata, timestamps, latency, and completion state.
-- **Major decisions:** Exact approved workload, 2–4 total concurrency, worker/checkpoint design, retry budget/backoff/jitter, resource request, and restart procedure.
-- **STOP gate:** Before launch, report call counts, rescue estimate, concurrency, runtime, resources, checkpoints, and restart plan; wait for explicit production approval. After execution, review completeness and failure metrics before selection.
+- **Purpose:** Resolve recognized country/subdivision codes and names without
+  inferring uncertain geography.
+- **Input:** Accepted Stage 9 components and source geography.
+- **Output:** Derived standardized geography plus ambiguity/unsupported status.
+- **Primary libraries:** pycountry.
+- **Data effect:** Adds derived geographic canonical forms; source values remain.
+- **Status:** **PLANNED — NOT STARTED**.
+- **Acceptance requirement:** Pinned version, code-system policy, ambiguity and
+  historical-value handling, coverage metrics, and independent review.
 
-## Phase 9 — Select the best result
+## Stage 11 — Country-specific address and postcode syntax validation
 
-- **Objective:** Select candidates deterministically using precision and geographic consistency, not confidence alone.
-- **Inputs:** All primary/rescue attempts, returned components, quality fields, and reliable input components.
-- **Outputs:** Selected query/candidate, component agreements/conflicts, selection reason, and unresolved/manual-review cases.
-- **Major decisions:** Contradiction rules, component comparisons, variant precedence, confidence tie-breaking, and ambiguity handling.
-- **STOP gate:** Review selection rules and sampled decisions. No first-feature-is-success shortcut is permitted.
+- **Purpose:** Check component format against conservative country rules.
+- **Input:** Accepted Stage 10 geography and normalized components.
+- **Output:** Format evidence using the closed validation-status vocabulary.
+- **Primary libraries:** google-i18n-address and conservative country rules.
+- **Data effect:** Adds validation evidence; it does not correct values.
+- **Status:** **PLANNED — NOT STARTED**.
+- **Acceptance requirement:** Pinned rules, supported-country declaration,
+  `INVALID_FORMAT` precision review, no absence-as-invalid inference, and
+  independent acceptance.
 
-## Phase 10 — Trust categories
+## Stage 12 — Normalized/component-level deduplication
 
-- **Objective:** Assign diagnostic tiers and the final point-analysis usability decision.
-- **Inputs:** Selected results and consistency diagnostics.
-- **Outputs:** `quality_tier`, `usable_for_analysis`, acceptance/exclusion reason, fallback flag, and manual-review flag.
-- **Major decisions:** Final interpolated-address acceptance policy, informed by pilot/manual evidence; exact version of quality rules.
-- **STOP gate:** The interpolation policy must be explicitly approved and recorded before Tier B can receive a final usability value. Tier A is expected true; C, D, and U are false.
+- **Purpose:** Collapse scientifically equivalent normalized candidates while
+  preserving all representations and source mappings.
+- **Input:** Accepted Stages 9–11 components and evidence.
+- **Output:** Versioned normalized keys, unique component candidates, and full
+  map-back tables.
+- **Primary libraries:** DuckDB, Polars, and hashing.
+- **Data effect:** Deduplicates candidate representations, never source rows.
+- **Status:** **PLANNED — NOT STARTED**.
+- **Acceptance requirement:** Key contract and collision tests, map-back and row
+  reconciliation, evidence retention, and independent acceptance.
 
-## Phase 11 — Validate geocoded coordinates
+## Stage 13 — Geographic cross-validation
 
-- **Objective:** Detect invalid coordinates, geographic contradictions, centroid/fallback patterns, repeated points, and sample-selection bias.
-- **Inputs:** Selected coordinates, input/returned geography, tiers, and any separately approved boundary/reference data.
-- **Outputs:** Coordinate-range checks, repeated-coordinate diagnostics, geographic validation flags, outlier reports, and quality rates by relevant research group.
-- **Major decisions:** Boundary-data source/license/vintage, spatial checks, repeated-coordinate thresholds, and escalation rules.
-- **STOP gate:** Investigate suspicious clusters and contradictions. Do not introduce external spatial data or exclude biased groups silently.
+- **Purpose:** Evaluate postcode/country/locality/region agreement using pinned
+  independent reference evidence.
+- **Input:** Accepted Stage 12 components and normalized geography.
+- **Output:** Component-level evidence and closed validation statuses.
+- **Primary libraries:** pinned direct GeoNames postal reference data and
+  DuckDB; pgeocode is optional proof-of-concept only.
+- **Data effect:** Adds evidence; no correction or invalidation by absence.
+- **Status:** **PLANNED — NOT STARTED**.
+- **Acceptance requirement:** Approved download/license/vintage and pinning,
+  ambiguity semantics, strong-positive-evidence definition for `MISMATCH`,
+  coverage/bias evaluation, and independent acceptance.
 
-## Phase 12 — Merge back to full data
+## Stage 14 — Street and house-number validation
 
-- **Objective:** Return selected results to every original row without row loss or join explosion.
-- **Inputs:** Validated row-to-address mapping and final unique-address results.
-- **Outputs:** Complete row-level research dataset retaining raw/derived fields, address key, selected result, quality decision, errors, endpoint/date, and pipeline version.
-- **Major decisions:** Approved `address_key_v1` left join, duplicate-key safeguards, and treatment of missing mappings.
-- **STOP gate:** Source and final row counts must reconcile; one-to-many explosions, duplicate keys, and missing mappings require explicit resolution.
+- **Purpose:** Seek positive evidence that street, house number, and geography
+  coexist plausibly.
+- **Input:** Accepted Stage 13 candidates and geographic blocking context.
+- **Output:** Street/house-number evidence with ambiguity and coverage status.
+- **Primary libraries:** Overture Maps Addresses, local GeoParquet, and DuckDB;
+  optional OSM fallback.
+- **Data effect:** Adds evidence; absence is not invalidity.
+- **Status:** **PLANNED — NOT STARTED**.
+- **Acceptance requirement:** Approved spatial source/license/vintage, local
+  protected execution, precision-focused joins, coverage caveats, and review.
 
-## Phase 13 — Reproducibility and audit
+## Stage 15 — Constrained fuzzy matching
 
-- **Objective:** Make the construction process reproducible, inspectable, and suitable for research reporting.
-- **Inputs:** All manifests, rules, versions, reports, mappings, attempts, selections, corrections, and quality outputs.
-- **Outputs:** Audit package with parser, cleaning, address-key, query, selection, quality, and pipeline versions; Git revision; service/date metadata; counts; lineage; and phase reports.
-- **Major decisions:** Retention, release, access, replication-package, and methods-note contents under institutional policy.
-- **STOP gate:** Final review must establish that decisions and outputs can be reproduced and that no essential artifact exists only in unbacked `/work` storage.
+- **Purpose:** Compare plausible variants only inside strong geographic blocks.
+- **Input:** Accepted Stage 14 candidates and blocking evidence.
+- **Output:** Similarity evidence and bounded candidate sets.
+- **Primary libraries:** RapidFuzz after geographic blocking.
+- **Data effect:** Adds comparison evidence; no global fuzzy correction.
+- **Status:** **PLANNED — NOT STARTED**.
+- **Acceptance requirement:** Approved blocking and thresholds, false-positive
+  analysis across countries/scripts, bounded candidate counts, and review.
 
-## Cross-phase rules
+## Stage 16 — Conservative correction
 
-Every phase must report inputs, outputs, counts, assumptions, tests, failures, findings, and unresolved questions. Errors that could corrupt data must fail loudly or enter explicit diagnostics. No phase may silently change raw values, drop records, expose credentials, or authorize the next phase.
+- **Purpose:** Accept only high-precision correction proposals supported by
+  multiple compatible evidence sources.
+- **Input:** Accepted validation and fuzzy evidence from Stages 11–15.
+- **Output:** Original value, proposal, evidence, reference/version, decision,
+  and corrected candidate where accepted.
+- **Primary libraries:** SAFE high-precision evidence/correction engine.
+- **Data effect:** Adds separate corrected candidates; originals remain intact.
+- **Status:** **PLANNED — NOT STARTED**.
+- **Acceptance requirement:** Explicit correction policy and abstention rules,
+  precision evaluation, contradiction safeguards, qualitative review, and
+  independent acceptance.
+
+## Stage 17 — Geocoding-component selection
+
+- **Purpose:** Choose components appropriate for point-level geocoding while
+  avoiding recipient/person/floor/unit noise unless justified.
+- **Input:** Accepted original and corrected candidate components plus evidence.
+- **Output:** Versioned selected geocoding components and exclusion reasons.
+- **Primary libraries:** SAFE geocoding-component selection.
+- **Data effect:** Creates query-ready views; it does not alter prior candidates.
+- **Status:** **PLANNED — NOT STARTED**.
+- **Acceptance requirement:** Approved inclusion/omission policy, country and
+  representation analysis, traceability, and independent review.
+
+## Stage 18 — Query generation
+
+- **Purpose:** Generate a small deterministic query plan for self-hosted SAFE
+  Pelias.
+- **Input:** Accepted Stage 17 components and representation/evidence lineage.
+- **Output:** Separate standard/native primary and controlled alternative
+  queries with versioned reasons.
+- **Primary libraries:** SAFE query generation.
+- **Data effect:** Adds query representations; source/candidate data is retained.
+- **Status:** **PLANNED — NOT STARTED**.
+- **Acceptance requirement:** Approved structured-field policy and bounded query
+  ladder, privacy/authentication review, exact logging contract, and review
+  before any geocoder workload.
+
+## Stage 19 — Query deduplication and final QA
+
+- **Purpose:** Execute identical queries once, verify final workload integrity,
+  and preserve complete result map-back.
+- **Input:** Accepted Stage 18 query plans.
+- **Output:** Unique query identities, source/candidate/query maps, final QA
+  report, and separately authorizable SAFE workload.
+- **Primary libraries:** DuckDB, Polars, PyArrow, and hashing.
+- **Data effect:** Deduplicates query representations, never source records.
+- **Status:** **PLANNED — NOT STARTED**.
+- **Acceptance requirement:** Query-key/collision contract, exact map-back and
+  counts, no protected leakage, reviewed concurrency/workload plan, and
+  explicit acceptance before geocoding.
+
+## SAFE Pelias boundary
+
+Geocoding begins only after Stage 19 acceptance and a separate production
+authorization. The preferred endpoint is `/v1/search/structured`, normally
+with `size=1`. Credentials are protected runtime configuration. Total normal
+concurrency is 2–4 requests across the entire process. A returned feature is
+evaluated using layer, match type, input/output geographic agreement, and
+contradictions; confidence alone is insufficient.

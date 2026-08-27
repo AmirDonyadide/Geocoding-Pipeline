@@ -19,7 +19,7 @@ families and raw SHA-256
 `0bfbc60f843f8ecf8c3b84cc05e7f342a3da6f5f0f18f1961623566d15dc28cf`.
 Its exact rule-by-rule precedence, marker scope, false-positive boundaries,
 native-conflict behavior, tests, and Goethe execution boundary are authoritative
-in `docs/PHASE03_PARSER_V2.md`.
+in `docs/history/custom_preprocessing/PHASE03_PARSER_V2.md`.
 
 Registry v3 is a DEVELOPMENT revision only. It does not change the frozen
 sampling contract or identity sets, and it is not authorized for the sealed

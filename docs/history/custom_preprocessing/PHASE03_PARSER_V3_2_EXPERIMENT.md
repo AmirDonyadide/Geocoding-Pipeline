@@ -114,6 +114,6 @@ deliberately DEVELOPMENT-only: `Phase03Engine` raises
 `LOCKED_EVALUATION` or `AUTHORITATIVE`, and the repository has no implemented
 LOCKED materialization/transform/review runner. Quantitative acceptance
 thresholds and several operational review details are also not yet defined.
-`docs/PHASE03_PRE_LOCKED_FREEZE.json` records the frozen identities, the
+`docs/history/custom_preprocessing/PHASE03_PRE_LOCKED_FREEZE.json` records the frozen identities, the
 available pre-unseal seal digest, the defined metric families, and every
 remaining decision. LOCKED rows read remain zero.

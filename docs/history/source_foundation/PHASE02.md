@@ -276,7 +276,7 @@ completion time. Git/dependency identities and source/staging byte totals are
 recorded in `phase02_run.json`, while implementation/configuration identities
 and all per-file hashes are recorded in `dataset_manifest.json`; they are not
 duplicated in the marker. This differs from the fuller descriptive marker field
-list in `docs/PHASE02_DESIGN.md` but does not weaken the verified manifest hash
+list in `docs/history/source_foundation/PHASE02_DESIGN.md` but does not weaken the verified manifest hash
 link. A subsequent Phase 2 maintenance change includes the Git commit and byte
 totals in success markers for future runs; this successful marker remains
 unchanged.
