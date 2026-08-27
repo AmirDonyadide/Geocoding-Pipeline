@@ -20,7 +20,9 @@ design
 ```
 
 Stages 0–5 have completed this lifecycle on DEVELOPMENT and are accepted.
-Stage 6 has not started and requires a fresh design/review session.
+Stage 6 has completed design, implementation, DEVELOPMENT execution, and
+candidate reporting; it is stopped at the fresh independent-review gate and is
+not accepted. Stage 7 has not started.
 
 ## Design and implementation
 
@@ -41,10 +43,12 @@ rows. Quantitative evidence includes exact input/output counts, incoming-field
 preservation, identity equality, derived-value distributions, reason/evidence
 counts, fingerprints, and resource observations appropriate to the stage.
 
-The same deterministic 500 DEVELOPMENT identities support human before/after
-inspection. This qualitative surface detects changes that aggregates can hide,
-but it does not replace full-DEVELOPMENT evaluation. Review uses
-`stable_source_row_id_v1` and immutable stage-specific artifacts.
+The same deterministic 500 DEVELOPMENT identities support before/after review.
+Address-changing stages use a qualitative surface to detect changes aggregates
+can hide. A non-mutating identity/map stage such as Stage 6 may instead use
+machine-verifiable exactness over the frozen identities. Neither approach
+replaces full-DEVELOPMENT evaluation. Review uses `stable_source_row_id_v1` and
+immutable stage-specific artifacts.
 
 Only allowlisted aggregate reports may be committed to Git. Row-level values,
 stable identities, source filenames, and free-text examples remain protected.

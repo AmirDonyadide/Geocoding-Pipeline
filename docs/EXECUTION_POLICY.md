@@ -130,6 +130,9 @@ documentation test pass.
 - Production Stage 4: **NOT STARTED**.
 - Stage 5 DEVELOPMENT: **`STAGE_5_ACCEPTED`**.
 - Production Stage 5: **NOT STARTED**.
-- Stage 6 DEVELOPMENT and production: **NOT STARTED**.
+- Stage 6 DEVELOPMENT: **candidate ready for independent review; not
+  accepted**.
+- Production Stage 6: **NOT STARTED**.
+- Stage 7: **NOT STARTED**.
 
 This policy grants no scientific-stage or production-run authorization.

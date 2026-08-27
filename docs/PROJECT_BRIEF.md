@@ -246,5 +246,6 @@ Durable decisions are in [DECISIONS.md](DECISIONS.md); current status is in
 
 ## 11. Current next action
 
-Stage 6 — Early exact deduplication — NOT STARTED. Stage 5 is accepted on
-DEVELOPMENT. Production Stage 2 through Stage 6 remain not started.
+Stage 6 — Early exact deduplication — has a completed DEVELOPMENT candidate at
+the independent-review gate. It is not accepted. Stage 7 and production Stage
+2 through Stage 6 remain not started and unauthorized.

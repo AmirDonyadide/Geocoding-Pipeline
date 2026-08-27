@@ -1,0 +1,324 @@
+{
+  "stage": "STAGE_6",
+  "status": "STAGE_6_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REVIEW",
+  "scientific_identity": {
+    "contract": "stage06_early_exact_deduplication_contract_v1",
+    "profile": "stage06_early_exact_deduplication_profile_v1",
+    "implementation_sha": "f39047cc825d9baef91915478f657aefecc86d4c",
+    "schema_fingerprint": "9c07b7a4c3f7a5c43ad457dcf6f7fe3fd746d54d82a731139905b30828b6c9ce",
+    "logical_fingerprint": "2f6379c0cd5dc9654c03895cae6fdd48f3a7af528158c33e44d2030c816640b6",
+    "input_binding_fingerprint": "6ba224d6d24c3631aae8aac69f4a362bb054f01d9e3d09327ec6b0fdd85a0e7d",
+    "manifest_fingerprint": "e1da7b8ef04b65b1ece8e710720b57a8536841766fcf9de641f889b42eadd241",
+    "contract_fingerprint": "d4fc73d7fabb734bb0996db4d5c02d6002131179259404eaab20699dacfba8c0",
+    "row_map_logical_fingerprint": "1ff9067c521ae93d28c300d7120a03c39681ce7830bf23b6619e2ca6129a4fe1",
+    "registry_logical_fingerprint": "6d6d937472c44661e0bff522affb0ed39b41610fa174df3bde36145f749a6c50",
+    "ordered_identity_fingerprint": "fe2a4758582c1880d2b5c62dfc5c587d865e05d13033af9f5e8208b58e2a0487",
+    "benchmark_fingerprint": "014a7d2a9935bb098711e62b89df2eb93dfdd0dd1ce5ac70853f010d118acedf",
+    "fixed_500_fingerprint": "014f7c1373380b265f34e2ecb76614161b320e2bb972befb8f53994cc5a1dd52"
+  },
+  "accepted_stage05_binding": {
+    "contract": "stage05_address_reconstruction_contract_v2",
+    "profile": "stage05_address_reconstruction_profile_v2",
+    "schema_fingerprint": "63d4cdb3707eda65c67cc5196891fa5005adce2b12eb7109554793c48c5303c3",
+    "logical_fingerprint": "ba5829621fc15347d7cd4e168a48587bab896cd0be98924627876ae853dfaff2",
+    "input_binding_fingerprint": "7e68c33f7daa482b442eca82c00c6904ec5e38bec1b3fc598d5be4d52a6bcb9f",
+    "manifest_fingerprint": "fd945163e3be0242c43b98972350904631279cb99f366baadb0a3094ab6a1fc5",
+    "ordered_identity_fingerprint": "fe2a4758582c1880d2b5c62dfc5c587d865e05d13033af9f5e8208b58e2a0487"
+  },
+  "candidate_identity": {
+    "key": "exact accepted Stage 5 lowercase reconstructed candidate Unicode string",
+    "comparison": "exact UTF-8 bytes, equivalent to exact code-point equality for accepted valid Unicode",
+    "scope": "global across STANDARD, NATIVE, all source rows, and same-row representations",
+    "digest": "SHA-256",
+    "version": "stage06_exact_candidate_id_v1",
+    "domain_utf8_with_terminal_nul": "safe_geocoding_pipeline:stage06_exact_candidate_id_v1\u0000",
+    "formula": "SHA256(domain || exact_UTF8(candidate_lower))",
+    "storage": "fixed_size_binary[32]",
+    "unavailable_rule": "null ID, no occurrence, no registry row",
+    "collision_rule": "fail closed if one digest has more than one exact candidate byte string",
+    "additional_normalization": false
+  },
+  "schemas": {
+    "row_map": {
+      "upstream": "all Stage 5 fields in exact order and value",
+      "appended_fields": [
+        "stage06_standard_exact_candidate_id: nullable fixed_size_binary[32]",
+        "stage06_native_exact_candidate_id: nullable fixed_size_binary[32]"
+      ]
+    },
+    "unique_registry": [
+      "stage06_exact_candidate_id: non-null fixed_size_binary[32]",
+      "stage06_candidate_lower: non-null string",
+      "stage06_occurrence_count: non-null uint64",
+      "stage06_standard_occurrence_count: non-null uint64",
+      "stage06_native_occurrence_count: non-null uint64"
+    ],
+    "registry_order": "ascending unsigned lexicographic candidate-ID bytes"
+  },
+  "execution": {
+    "base_main_sha": "58019837b8a9474f3e5b6d5b00e96b4210ae84cc",
+    "design_approval_sha": "9f9a5a07a2dd3825c895b23406311651e5480324",
+    "implementation_sha": "f39047cc825d9baef91915478f657aefecc86d4c",
+    "slurm_job_id": "1759819",
+    "run_id": "stage06_development_20260828T223804Z_f39047cc825d",
+    "state": "COMPLETED",
+    "exit_code": "0:0",
+    "submitted": "2026-08-28T00:38:41",
+    "started": "2026-08-28T00:38:42",
+    "ended": "2026-08-28T00:40:52",
+    "requested_resources": {
+      "partition": "general1",
+      "nodes": 1,
+      "tasks": 1,
+      "cpus_per_task": 4,
+      "memory": "16G",
+      "time_limit": "02:00:00"
+    },
+    "authoritative_attempt_count": 1,
+    "replacement_job_submitted": false
+  },
+  "row_integrity": {
+    "input_rows": 35000,
+    "output_row_map_rows": 35000,
+    "dropped_rows": 0,
+    "added_rows": 0,
+    "duplicate_source_identities": 0,
+    "order_exact": true,
+    "all_stage05_columns_exact": true,
+    "upstream_mismatches": 0,
+    "row_order_mismatches": 0
+  },
+  "candidate_occurrences": {
+    "standard_available": 34822,
+    "standard_unavailable": 178,
+    "native_available": 34925,
+    "native_unavailable": 75,
+    "total_available": 69747,
+    "same_row_standard_native_exact_equal": 17913,
+    "unavailable_occurrences_excluded": 253,
+    "empty_registry_candidates": 0
+  },
+  "exact_deduplication": {
+    "unique_exact_candidates": 51779,
+    "duplicate_occurrences": 17968,
+    "unique_to_occurrence_ratio_millionths": 742383,
+    "unique_to_occurrence_ratio_percent": 74.2383,
+    "parse_call_reduction_millionths": 257617,
+    "parse_call_reduction_percent": 25.7617,
+    "singleton_groups": 33889,
+    "duplicate_groups": 17890,
+    "duplicate_groups_spanning_multiple_source_rows": 41,
+    "maximum_group_size": 8,
+    "group_size_distribution": {
+      "1": 33889,
+      "2": 17855,
+      "3": 5,
+      "4": 24,
+      "5": 1,
+      "6": 4,
+      "8": 1
+    },
+    "all_group_nearest_rank_quantiles": {
+      "p50": 1,
+      "p90": 2,
+      "p95": 2,
+      "p99": 2
+    },
+    "duplicate_group_nearest_rank_quantiles": {
+      "p50": 2,
+      "p90": 2,
+      "p95": 2,
+      "p99": 2
+    }
+  },
+  "representation_contribution": {
+    "standard_only_candidate_groups": 16899,
+    "native_only_candidate_groups": 16998,
+    "both_representation_candidate_groups": 17882,
+    "cross_representation_duplicate_groups": 17882
+  },
+  "clean_surface_variants": {
+    "canonical_groups_with_multiple_clean_surfaces": 123,
+    "clean_surface_count_distribution": {
+      "1": 51656,
+      "2": 123
+    },
+    "included_in_key": false,
+    "source_information_preserved_upstream": true
+  },
+  "candidate_length_relationship": {
+    "1_to_24": {
+      "unique_groups": 19170,
+      "occurrences": 24853,
+      "duplicate_groups": 5619,
+      "duplicate_occurrences": 5683
+    },
+    "25_to_49": {
+      "unique_groups": 20807,
+      "occurrences": 29763,
+      "duplicate_groups": 8944,
+      "duplicate_occurrences": 8956
+    },
+    "50_to_99": {
+      "unique_groups": 10882,
+      "occurrences": 14140,
+      "duplicate_groups": 3256,
+      "duplicate_occurrences": 3258
+    },
+    "100_to_1023": {
+      "unique_groups": 862,
+      "occurrences": 933,
+      "duplicate_groups": 71,
+      "duplicate_occurrences": 71
+    },
+    "1024_to_65535": {
+      "unique_groups": 17,
+      "occurrences": 17,
+      "duplicate_groups": 0,
+      "duplicate_occurrences": 0
+    },
+    "65536_to_999999": {
+      "unique_groups": 18,
+      "occurrences": 18,
+      "duplicate_groups": 0,
+      "duplicate_occurrences": 0
+    },
+    "1000000_or_more": {
+      "unique_groups": 23,
+      "occurrences": 23,
+      "duplicate_groups": 0,
+      "duplicate_occurrences": 0
+    },
+    "accepted_stage05_max_standard_candidate_codepoints": 25920495,
+    "full_exact_hash_map_registry_validation_passed": true,
+    "truncation_detected": false
+  },
+  "collision_and_reconciliation": {
+    "digest_groups_with_multiple_occurrences": 17890,
+    "candidate_id_collision_groups": 0,
+    "distinct_text_digest_collision_groups": 0,
+    "registry_occurrence_sum": 69747,
+    "registry_standard_occurrence_sum": 34822,
+    "registry_native_occurrence_sum": 34925,
+    "occurrence_count_mismatches": 0,
+    "source_to_registry_missing": 0,
+    "source_to_registry_text_mismatches": 0,
+    "registry_count_mismatches": 0
+  },
+  "fixed_500": {
+    "selected_rows": 500,
+    "duplicate_identities": 0,
+    "available_occurrences": 937,
+    "unique_selected_candidates": 613,
+    "duplicate_selected_occurrences": 324,
+    "same_row_standard_native_exact_equal": 323,
+    "mismatches": 0,
+    "review_artifact_fingerprint": "624978c807fce7f9a76383b76d88e52eb85fa9bfbd5c41ced071d4a40c079190",
+    "review_manifest_fingerprint": "1eda47b375a432788e5f8366ce73e5364fdf97efac1742bd95981a15b87c0fb1",
+    "manual_address_review_required": false
+  },
+  "determinism_and_boundedness": {
+    "batch_size_invariance": true,
+    "record_batch_boundary_invariance": true,
+    "registry_shard_invariance": true,
+    "duckdb_thread_invariance": true,
+    "encounter_order_independent_candidate_ids": true,
+    "population_sized_python_candidate_map": false,
+    "disk_backed_duckdb_grouping": true,
+    "hash_utf8_chunk_codepoints": 1048576,
+    "duckdb_memory_limit": "8GB",
+    "duckdb_threads": 4,
+    "duckdb_spill_bytes": 0,
+    "duckdb_spill_files": 0
+  },
+  "performance": {
+    "candidate_id_derivation_milliseconds": 721,
+    "registry_dedup_aggregation_milliseconds": 6446,
+    "row_map_materialization_milliseconds": 7335,
+    "row_map_non_id_milliseconds": 6614,
+    "core_materialization_total_milliseconds": 13816,
+    "publication_validation_milliseconds": 22618,
+    "materializer_end_to_end_milliseconds": 46355,
+    "materializer_user_cpu_milliseconds": 43653,
+    "materializer_system_cpu_milliseconds": 7473,
+    "materializer_process_max_rss_kib": 2873344,
+    "slurm_elapsed_seconds": 130,
+    "slurm_total_cpu_seconds": 118.152,
+    "slurm_batch_max_rss_kib": 912692,
+    "source_rows_per_second": 755.042606,
+    "candidate_occurrences_per_second": 1504.627333,
+    "unique_candidates_per_second": 1117.010031,
+    "candidate_id_occurrences_per_second": 96736.477115,
+    "registry_unique_candidates_per_second": 8032.733478
+  },
+  "production_planning_projection": {
+    "source_rows": 141048582,
+    "linear_projected_candidate_occurrences": 281077584,
+    "linear_projected_unique_candidates": 208667272,
+    "linear_projected_stage7_parse_calls_saved": 72410312,
+    "linear_projected_stage06_end_to_end_seconds": 186809,
+    "linear_projected_stage06_end_to_end_hours": 51.8913,
+    "linear_scaling_guaranteed": false,
+    "interpretation": "planning only; production distributions, I/O, spill, scheduling, and giant-value density may differ"
+  },
+  "local_validation": {
+    "focused_stage06_tests": "18 passed",
+    "stage02_to_stage06_regression_tests": "175 passed",
+    "full_local_safe_tests": "442 passed, 4 deselected",
+    "ruff": "PASS",
+    "strict_mypy_src": "PASS",
+    "changed_file_format_check": "PASS",
+    "git_diff_check": "PASS",
+    "shell_syntax": "PASS",
+    "privacy_tracked_data_audit": "PASS"
+  },
+  "publication": {
+    "row_map_artifact": {
+      "relative_path": "row_map/data/part-000001.parquet",
+      "rows": 35000,
+      "size_bytes": 196602863,
+      "sha256": "a17a1ac8e9574ad6cb6199660dfbf33918e345b1a15168d03b254761250d8bb2"
+    },
+    "registry_artifact": {
+      "relative_path": "registry/data/part-000001.parquet",
+      "rows": 51779,
+      "size_bytes": 39462427,
+      "sha256": "fe5a36617de811cf2c0d56595e73e4189cd16ba632a88c6f8b53f9be03ecb325"
+    },
+    "stage06_success_fingerprint": "1373abafccd619b6f05aa61181bf7909e54d532ecdebc87ade9f79c1e6e35002",
+    "review_success_fingerprint": "a10808d03187667248ab28b959df219f83cc58814d6516ed7685c1896a07007c",
+    "sanitized_summary_json_fingerprint": "697b17f2b61771de6f52db4b186d659655d8c6cb5a125bd2891ad72e71d662e9",
+    "sanitized_summary_markdown_fingerprint": "894646cb264fa5e4afd0f311e9fc6cd87b4405f56a98b2e7b72449e290414770",
+    "atomic": true,
+    "directories_mode": "0700",
+    "files_mode": "0600",
+    "stderr_bytes": 0
+  },
+  "scope": {
+    "holdout_accessed": false,
+    "production_stage02_started": false,
+    "production_stage03_started": false,
+    "production_stage04_started": false,
+    "production_stage05_started": false,
+    "production_stage06_started": false,
+    "stage07_started": false,
+    "parsing_performed": false,
+    "geocoding_performed": false
+  },
+  "provenance": {
+    "design_diagnostic_job": "1759812",
+    "design_diagnostic_exit_code": "0:0",
+    "design_diagnostic_fingerprint": "606493d91f160accc9780b205810e7ee298f87defa717c9926654942d1fb4af2",
+    "authoritative_failed_attempts": 0,
+    "precommit_test_findings_fixed": [
+      "registry fingerprint validation originally rejected legitimate zero representation-specific counts",
+      "intermediate row-map and registry parent directories inherited non-private modes in a synthetic run",
+      "independent paired validation originally assumed matching record-batch boundaries"
+    ],
+    "diagnostic_log_permission_issue": "aggregate-only diagnostic logs initially 0644, immediately corrected to 0600, launcher fixed before authoritative execution",
+    "run_label_clock_note": "the immutable run label was generated by the client host; cluster SLURM and manifest timestamps are authoritative and differ from the label timestamp",
+    "independent_acceptance_performed": false
+  },
+  "privacy": "aggregate-only; no candidate text, address text, stable source identity, source filename, company name, or protected value",
+  "independent_review_required": true
+}

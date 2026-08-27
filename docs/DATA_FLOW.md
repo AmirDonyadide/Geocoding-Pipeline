@@ -42,8 +42,14 @@ Stage 5: address reconstruction (accepted on DEVELOPMENT)
   + availability, line count, and occupancy-mask evidence
         |
         v
-Future Stages 6–19 (not started)
-  candidate representations -> components -> evidence
+Stage 6: early exact deduplication (DEVELOPMENT candidate)
+  all Stage 5 fields unchanged
+  + nullable standard/native exact-candidate IDs
+  + separate exact unique-candidate registry and occurrence counts
+        |
+        v
+Future Stages 7–19 (not started)
+  unique candidates -> components -> evidence
   -> candidate/query identities -> complete source-row mappings
 ```
 
@@ -154,14 +160,31 @@ candidate.
 Postcode, city, region, and country are not appended. Stage 5 does not parse,
 deduplicate, choose between representations, or generate a geocoder query.
 
+## Stage 6 exact candidate map and registry
+
+Stage 6 preserves all 35,000 Stage 5 rows and fields, then appends nullable
+STANDARD and NATIVE content-derived IDs. Each available lowercase candidate is
+one occurrence; each unavailable representation has a null ID and no
+occurrence. Exact candidate equality spans both representations and all rows.
+Equal STANDARD/NATIVE text on one row maps twice to one registry row, preserving
+two representation occurrences.
+
+The separate registry contains one protected lowercase candidate per exact
+ID, total/STANDARD/NATIVE occurrence counts, and deterministic ID ordering.
+The ID is SHA-256 over the versioned Stage 6 domain and exact UTF-8 candidate
+bytes. Exact byte equality is checked inside every observed digest group, so a
+digest alone is never treated as equality proof. Stage 6 applies no additional
+normalization or parsing. The DEVELOPMENT candidate awaits independent review.
+
 ## Future candidate representations
 
-Stages 6–19 have not started. Their data model is constrained by these accepted
-principles:
+Stages 7–19 have not started. Their data model is constrained by these accepted
+and candidate-stage principles:
 
 - lowercase, reconstructed, parsed, normalized, transliterated, corrected, and
   query-ready values are separate derived representations;
-- standard and native candidates have separate identities and evidence;
+- standard and native occurrences retain separate mappings/evidence, while
+  exact-equal Stage 6 canonical text may share one content identity;
 - each candidate identity maps to one or more `stable_source_row_id_v1` values;
 - a source row may map to multiple scientifically justified candidates;
 - candidate and query deduplication does not delete source rows; and

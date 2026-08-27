@@ -223,9 +223,10 @@ links, and the tracked/protected-data audit passed. See the Git-safe aggregate
 
 ## Production and later-stage status
 
-Stage 5 is separately accepted on DEVELOPMENT; Stage 6 is **NOT STARTED**.
-Production Stages 2–6 are **NOT STARTED**. No production or geocoding
-authorization is implied.
+Stage 5 is separately accepted on DEVELOPMENT. Stage 6 has a completed
+DEVELOPMENT candidate awaiting independent review and is not accepted.
+Production Stages 2–6 and Stage 7 are **NOT STARTED**. No production or
+geocoding authorization is implied.
 
 ## Current status
 

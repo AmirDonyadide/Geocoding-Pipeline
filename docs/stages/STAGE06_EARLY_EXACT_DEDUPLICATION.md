@@ -2,14 +2,14 @@
 
 ## Status
 
-**DESIGN APPROVED; IMPLEMENTATION VALIDATED LOCALLY; AUTHORITATIVE DEVELOPMENT
-EXECUTION NOT YET STARTED.**
+**`STAGE_6_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REVIEW`.**
 
 The user approved the scientific design at Git commit
 `9f9a5a07a2dd3825c895b23406311651e5480324`. That approval froze the contract
 below and authorized implementation and one authoritative 35,000-row
-DEVELOPMENT execution. It was not Stage 6 acceptance. Nothing here authorizes
-HOLDOUT, production, Stage 7, libpostal, or geocoding.
+DEVELOPMENT execution. Authoritative job `1759819` completed successfully, but
+this is not Stage 6 acceptance. Nothing here authorizes HOLDOUT, production,
+Stage 7, libpostal, or geocoding.
 
 ## Purpose and boundary
 
@@ -98,8 +98,7 @@ summaries contain aggregate evidence only.
 The local-safe implementation gates completed with 18 focused Stage 6 tests,
 175 Stage 2–6 regression tests, and 442 full-suite tests with four explicitly
 excluded production-transfer tests. Ruff, strict mypy over `src`, changed-file
-format checks, shell syntax, and `git diff --check` also passed. Authoritative
-metrics and fingerprints must still come from the single Goethe SLURM run.
+format checks, shell syntax, and `git diff --check` also passed.
 
 ## Aggregate design diagnostic
 
@@ -152,6 +151,51 @@ The output bundle was owner-only. SLURM initially created its aggregate-only
 stdout/stderr files with mode `0644`; they were immediately tightened to
 `0600`, the launcher was corrected to enforce `0600`, and the successful
 diagnostic was not duplicated.
+
+## Authoritative DEVELOPMENT candidate
+
+Implementation commit `f39047cc825d9baef91915478f657aefecc86d4c` ran once
+through Goethe-NHR SLURM job `1759819` from a clean detached worktree. The job
+completed in 130 seconds with exit `0:0`, empty stderr, and owner-only logs. It
+materialized, independently reopened the publication, and created fixed-500
+machine evidence in the same allocation.
+
+The candidate scientific identity is:
+
+- schema:
+  `9c07b7a4c3f7a5c43ad457dcf6f7fe3fd746d54d82a731139905b30828b6c9ce`;
+- logical:
+  `2f6379c0cd5dc9654c03895cae6fdd48f3a7af528158c33e44d2030c816640b6`;
+- input binding:
+  `6ba224d6d24c3631aae8aac69f4a362bb054f01d9e3d09327ec6b0fdd85a0e7d`;
+- manifest:
+  `e1da7b8ef04b65b1ece8e710720b57a8536841766fcf9de641f889b42eadd241`;
+  and
+- unchanged ordered identity:
+  `fe2a4758582c1880d2b5c62dfc5c587d865e05d13033af9f5e8208b58e2a0487`.
+
+All 35,000 source rows and every Stage 5 value/order were exact. The 69,747
+available representation occurrences produced 51,779 unique candidates and
+removed 17,968 repeated downstream calls, a 25.7617% reduction. There were
+33,889 singleton groups, 17,890 duplicate groups, maximum group size 8, and
+17,882 cross-representation groups. The same-row standard/native exact-equal
+count was 17,913. STANDARD-only, NATIVE-only, and both-representation registry
+groups numbered 16,899, 16,998, and 17,882.
+
+All occurrence sums reconciled exactly. Candidate-ID collision groups,
+distinct-text digest collision groups, source-to-registry missing mappings,
+registry text/count mismatches, duplicate source identities, empty registry
+candidates, and fixed-500 mismatches were zero. The 123 clean-surface-variant
+groups were reproduced without changing the approved key. All 23 candidates
+of at least one million code points, including the accepted
+25,920,495-code-point adversarial value, passed exact preservation, hashing,
+registry, and independent readback checks without truncation.
+
+Candidate-ID derivation took 0.721 seconds, row-map materialization 7.335
+seconds, registry aggregation 6.446 seconds, core materialization 13.816
+seconds, and immediate publication validation 22.618 seconds. DuckDB reported
+no spill. The aggregate evidence and complete performance record are in the
+[sanitized Stage 6 report](../../reports/development/stage06_summary.md).
 
 ## Acceptance gate
 

@@ -14,8 +14,9 @@ stage.
 
 Stages 0–5 are accepted on DEVELOPMENT.
 Production Stage 0 and Stage 1 are accepted for the 1,411-file population;
-production Stage 2 through Stage 6 have not started. DEVELOPMENT Stages 6–19
-and production Stages 7–19 have not started.
+production Stage 2 through Stage 6 have not started. DEVELOPMENT Stage 6 is a
+completed candidate awaiting independent review; DEVELOPMENT Stages 7–19 and
+production Stages 7–19 have not started.
 
 ## Cross-stage scientific rules
 
@@ -162,14 +163,21 @@ stage consumes an accepted predecessor and must stop at its own review gate.
 - **Purpose:** Remove duplicate candidate work before parsing while preserving
   every source relationship.
 - **Input:** Accepted Stage 5 candidate representations.
-- **Output:** Versioned exact candidate keys, unique candidates, repetition
-  counts, and complete candidate-to-source mappings.
-- **Primary libraries:** DuckDB, Polars, and hashing.
-- **Data effect:** Candidate tables are deduplicated; source rows are not.
-- **Status:** **PLANNED — NOT STARTED**.
+- **Output:** A 35,000-row Stage 5-preserving row map with nullable STANDARD and
+  NATIVE exact candidate IDs, plus an exact unique lowercase candidate registry
+  with total and representation occurrence counts.
+- **Primary libraries:** PyArrow/Parquet, DuckDB, and Python `hashlib`.
+- **Data effect:** Exact candidate work is deduplicated globally across
+  representations; source rows and representation occurrences are never
+  discarded.
+- **Status:** **`STAGE_6_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REVIEW`**.
+  Authoritative job `1759819` completed 35,000 → 35,000 and 69,747 occurrences
+  → 51,779 unique candidates with zero reconciliation, map-back, collision, or
+  fixed-500 mismatches. Stage 6 is not accepted; production is not started.
 - **Acceptance requirement:** Canonical serialization and collision design,
   deterministic keys, one-to-many map-back integrity, reconciled counts, and
-  independent review.
+  independent review. See the
+  [Stage 6 record](stages/STAGE06_EARLY_EXACT_DEDUPLICATION.md).
 
 ## Stage 7 — libpostal parsing
 

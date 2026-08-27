@@ -93,8 +93,9 @@ to change a decision or start a stage.
   reconstruction layer.
 - **Rationale:** Parsing needs a reviewed candidate boundary and line-use
   provenance.
-- **Status:** LOCKED sequence. Stage 5 is accepted on DEVELOPMENT; Stages 6
-  and 7 remain future work.
+- **Status:** LOCKED sequence. Stage 5 is accepted on DEVELOPMENT; Stage 6 has
+  a completed candidate awaiting independent review; Stage 7 remains future
+  work.
 
 ### D010 — Abbreviation normalization is component-aware and post-parsing
 
@@ -140,16 +141,18 @@ to change a decision or start a stage.
 - **Scope:** Stages 0–19
 - **Decision:** Current planned choices are those in [PIPELINE.md](PIPELINE.md):
   PyArrow/Parquet and DuckDB for ingestion; `unicodedata`/ftfy/Arrow for safe
-  cleaning; Unicode `lower()` for Stage 4; DuckDB/Polars/hashing for
-  deduplication; libpostal for parsing/mapping; pycountry;
+  cleaning; Unicode `lower()` for Stage 4; PyArrow, DuckDB, and Python
+  `hashlib` for Stage 6 exact deduplication; libpostal for parsing/mapping;
+  pycountry;
   google-i18n-address; pinned direct GeoNames postal data; local Overture Maps
   Addresses GeoParquet with optional OSM fallback; RapidFuzz after blocking;
   and SAFE evidence/selection/query layers.
 - **Rationale:** Library-first offline processing under reproducible privacy
   controls.
 - **Status:** Accepted-stage choices are bound by the reviewed contracts for
-  Stages 0–5. Stages 6–19 remain planned and have no implementation approval.
-  pgeocode is proof-of-concept only. Pandas is inspection-only.
+  Stages 0–5. The Stage 6 stack is implemented in a DEVELOPMENT candidate
+  awaiting independent review. Stages 7–19 remain planned. pgeocode is
+  proof-of-concept only. Pandas is inspection-only.
 
 ### D015 — Protected data never leaves controlled infrastructure
 
@@ -239,6 +242,29 @@ to change a decision or start a stage.
   evidence justifies a country-dependent semantic transformation at this stage.
 - **Status:** LOCKED by the accepted Stage 5 DEVELOPMENT contract.
 
+### D022 — Stage 6 deduplicates exact lowercase candidates globally
+
+- **Scope:** Stage 6 DEVELOPMENT candidate
+- **Decision:** Use exact accepted Stage 5 lowercase reconstructed candidate
+  equality as the sole early deduplication key. Apply one global namespace
+  across STANDARD, NATIVE, all rows, and same-row representations. Derive a
+  fixed 32-byte SHA-256 ID from the versioned Stage 6 domain plus exact UTF-8
+  candidate bytes. Preserve every Stage 5 row and field; append nullable
+  STANDARD/NATIVE mappings and publish a separate unique registry with exact
+  total and representation occurrence counts. An unavailable representation
+  creates no occurrence or registry row. Verify exact candidate bytes within
+  every digest group and fail closed on a distinct-text collision.
+- **Rationale:** Stage 4 deliberately established lowercase canonical text and
+  Stage 5 reconstructed it without semantic interpretation. Exact global
+  deduplication avoids 17,968 of 69,747 prospective Stage 7 parse calls on
+  DEVELOPMENT while retaining complete occurrence provenance. Adding clean
+  surface text would split 123 accepted canonical groups without protecting
+  source information, because every clean form remains in the row map.
+- **Status:** LOCKED for the DEVELOPMENT candidate by approved design commit
+  `9f9a5a07a2dd3825c895b23406311651e5480324` and authoritative job `1759819`.
+  Independent review is still required; Stage 6 is not accepted. Production,
+  HOLDOUT, and Stage 7 remain unauthorized.
+
 ## Open decisions
 
 These questions require future stage designs and explicit approval:
@@ -252,5 +278,5 @@ These questions require future stage designs and explicit approval:
 - whether interpolated address-layer Pelias results are usable for the final
   point-level analysis.
 
-Nothing in this register authorizes Stage 6, HOLDOUT access, or production
-Stage 2 through Stage 6.
+Nothing in this register accepts Stage 6 or authorizes HOLDOUT, Stage 7, or
+production Stage 2 through Stage 6.
