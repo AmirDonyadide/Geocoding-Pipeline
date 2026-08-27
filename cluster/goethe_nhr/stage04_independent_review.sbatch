@@ -25,13 +25,20 @@ umask 077
 
 readonly DATA_ROOT="$(realpath -e -- "/work/footprint/donyadidegan/safe_geocoding_pipeline")"
 readonly INTEGRATION_ROOT="$(realpath -e -- "${STAGE04_REVIEW_INTEGRATION_ROOT}")"
-readonly PYTHON="$(realpath -e -- "${STAGE04_REVIEW_PYTHON}")"
+readonly PYTHON_NAME="$(basename -- "${STAGE04_REVIEW_PYTHON}")"
+readonly PYTHON_DIRECTORY="$(realpath -e -- "$(dirname -- "${STAGE04_REVIEW_PYTHON}")")"
+readonly PYTHON="${PYTHON_DIRECTORY}/${PYTHON_NAME}"
 readonly STAGE03_ROOT="$(realpath -e -- "${STAGE04_REVIEW_STAGE03_ROOT}")"
 readonly STAGE04_ROOT="$(realpath -e -- "${STAGE04_REVIEW_STAGE04_ROOT}")"
 readonly INPUT_BINDING="$(realpath -e -- "${STAGE04_REVIEW_INPUT_BINDING}")"
 readonly FIXED_BUNDLE="$(realpath -e -- "${STAGE04_REVIEW_FIXED_BUNDLE}")"
 readonly STAGE04_REVIEW_ROOT="$(realpath -e -- "${STAGE04_REVIEW_STAGE04_REVIEW_ROOT}")"
 readonly REVIEW_OUTPUT="$(realpath -m -- "${STAGE04_REVIEW_OUTPUT}")"
+
+[[ "${PYTHON_NAME}" == "python" && -x "${PYTHON}" ]] || {
+  echo "STAGE04_REVIEW_PYTHON_INVALID" >&2
+  exit 1
+}
 
 for protected_path in \
   "${INTEGRATION_ROOT}" \
