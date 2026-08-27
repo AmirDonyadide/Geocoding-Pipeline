@@ -228,8 +228,31 @@ STARTED**. No production or geocoding authorization is implied.
 
 ## Current status
 
-**DEVELOPMENT CANDIDATE — READY FOR INDEPENDENT REVIEW.**
+**`STAGE_4_ACCEPTED` on DEVELOPMENT.**
 
-This session does not independently accept Stage 4 and does not start Stage 5.
-Its terminal verdict is
-`STAGE_4_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REVIEW`.
+A fresh independent review bound candidate head
+`4b6c60c3fb07bb33043e6d31cae3e88bac23393b`, authoritative implementation
+`0d98ff6450875dfe8fb37c84729e5bbe632ef2fb`, and job `1759421`. Independent
+SLURM job `1759473` ran the review-only harness at
+`2b77aab03526a4949682cacc0d77db40b7ef9c87` under Python 3.14.3, Unicode
+16.0.0, and PyArrow 25.0.0. It independently streamed all 35,000 rows, compared
+all 40 incoming Stage 3 columns and all 420,000 derived values, reconstructed
+the ordered identity and Stage 4 fingerprints, and reproduced every reported
+aggregate with zero mismatches.
+
+The independent fixed-500 audit reconstructed the frozen fingerprint and
+identity order, then evaluated all 500 rows and 2,466 changed value pairs.
+Every change was exact Unicode lowercase casing; non-case code-point changes,
+length changes, `QUESTIONABLE`, and `SEMANTIC_DAMAGE` were all zero. A separate
+52,375-value optimized-path differential, exhaustive Unicode scalar scan, and
+2.75-million-code-point giant value test also passed. The aggregate review
+artifact SHA-256 is
+`972fb34d6084fc10aede4570bc35b594b948f85cbe5987dcdfe78812724a30c5`.
+
+Review-only jobs `1759437` and `1759438` are preserved as launcher failures.
+Both failed in one second on controlled-path canonicalization before any
+DEVELOPMENT scan and produced no review artifact; neither is a Stage 4
+candidate defect.
+
+Production Stage 2 through Stage 4 and Stage 5 remain **NOT STARTED**. This
+acceptance does not authorize them.

@@ -46,9 +46,8 @@ The pre-geocoding pipeline therefore establishes a controlled evidence chain:
 7. deduplicate candidates and queries without deleting source rows; and
 8. submit only approved, versioned queries to self-hosted SAFE Pelias.
 
-Stages 0–3 are implemented and accepted on DEVELOPMENT. Stage 4 has a complete
-DEVELOPMENT candidate ready for independent review and is not accepted. Stages
-5–19 remain planned and have not started. See
+Stages 0–4 are implemented and accepted on DEVELOPMENT. Stages 5–19 remain
+planned and have not started. See
 [PIPELINE.md](PIPELINE.md).
 
 ## Standard and native Orbis representations

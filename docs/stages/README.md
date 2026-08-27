@@ -11,7 +11,7 @@ independent review records acceptance.
 | 1 | [Lossless ingestion](STAGE01_LOSSLESS_INGESTION.md) | ACCEPTED | ACCEPTED (141,048,582 rows) |
 | 2 | [Schema/provenance harmonization](STAGE02_SCHEMA_PROVENANCE.md) | ACCEPTED | NOT STARTED |
 | 3 | [Safe text cleaning](STAGE03_SAFE_TEXT_CLEANING.md) | ACCEPTED | NOT STARTED |
-| 4 | [Lowercase canonical forms](STAGE04_LOWERCASE_CANONICAL.md) | CANDIDATE — READY FOR INDEPENDENT REVIEW | NOT STARTED |
+| 4 | [Lowercase canonical forms](STAGE04_LOWERCASE_CANONICAL.md) | `STAGE_4_ACCEPTED` | NOT STARTED |
 
 Stages 5–19 remain documented only in [the pipeline specification](../PIPELINE.md)
 because they have not started.

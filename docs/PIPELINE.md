@@ -12,8 +12,7 @@ stage.
 - **PLANNED — NOT STARTED:** conceptual placement and likely technology only.
   No accepted design or implementation exists.
 
-Stages 0–3 are accepted on DEVELOPMENT. Stage 4 has a complete DEVELOPMENT
-candidate ready for independent review; it is not independently accepted.
+Stages 0–4 are accepted on DEVELOPMENT.
 Production Stage 0 and Stage 1 are accepted for the 1,411-file population;
 production Stage 2 through Stage 4 have not started. Stages 5–19 have not
 started in either track.
@@ -133,11 +132,11 @@ stage consumes an accepted predecessor and must stop at its own review gate.
 - **Data effect:** Derived text only; never overwrite raw, Stage 2, or Stage 3
   text. Exact Python 3.14.3 / Unicode 16.0.0 `str.lower()` is authoritative;
   there is no casefold, locale-specific casing, or normalization after lower.
-- **Status:** **DEVELOPMENT CANDIDATE — READY FOR INDEPENDENT REVIEW**. Not
-  accepted. Production Stage 4 is **NOT STARTED**.
+- **Status:** **`STAGE_4_ACCEPTED`** on DEVELOPMENT. Production Stage 4 is
+  **NOT STARTED**.
 - **Acceptance requirement:** Exact accepted Stage 3 input binding, Unicode
   behavior, value provenance, idempotence, complete 35,000-row DEVELOPMENT
-  metrics, same fixed-500 review, sanitized reporting, and a fresh independent
+  metrics, same fixed-500 review, sanitized reporting, and independent
   acceptance. See the [Stage 4 record](stages/STAGE04_LOWERCASE_CANONICAL.md).
 
 ## Stage 5 — Address reconstruction

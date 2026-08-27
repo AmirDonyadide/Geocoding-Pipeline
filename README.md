@@ -21,9 +21,8 @@ query can be inspected and reproduced.
 
 ## Current status
 
-The DEVELOPMENT pipeline is accepted through Stage 3. Stage 4 has a complete
-35,000-row candidate ready for fresh independent review; it is not accepted.
-Stages 5–19 have not started.
+The DEVELOPMENT pipeline is accepted through Stage 4. Stage 5 and all later
+stages have not started.
 
 | Stage | Name | Status | Data effect |
 |---:|---|---|---|
@@ -31,12 +30,12 @@ Stages 5–19 have not started.
 | 1 | Lossless ingestion | **ACCEPTED** | Converts CSV to Parquet without changing source values; adds stable provenance |
 | 2 | Schema and provenance harmonization | **ACCEPTED** | Preserves incoming fields and adds four derived structural fields |
 | 3 | Safe text cleaning | **ACCEPTED** | Adds derived `*_clean` values and ordered audit reasons; raw fields remain unchanged |
-| 4 | Lowercase canonical forms | **DEVELOPMENT CANDIDATE — READY FOR INDEPENDENT REVIEW** | Appends exact Python Unicode lowercase representations; not accepted |
+| 4 | Lowercase canonical forms | **`STAGE_4_ACCEPTED`** | Appends exact Python Unicode lowercase representations; all upstream values remain unchanged |
 | 5–19 | Reconstruction, validation, and query preparation | **NOT STARTED** | Planned derived representations only |
 
 Production Stage 0 and Stage 1 are accepted for
 `production_population_1411_v1` (1,411 files; 141,048,582 rows). Production
-Stage 2 and Stage 3 have not started.
+Stage 2 through Stage 4 have not started.
 
 ## Architecture
 
@@ -46,7 +45,7 @@ immutable source CSV
   -> Stage 1: lossless Parquet + stable row identity
   -> Stage 2: schema/provenance harmonization
   -> Stage 3: safe derived text cleaning
-  -> Stage 4: exact derived Python Unicode lowercase (candidate)
+  -> Stage 4: exact derived Python Unicode lowercase
   -> Stages 5–19: planned reconstruction, parsing, validation, and query QA
   -> self-hosted SAFE Pelias
 ```
@@ -64,13 +63,13 @@ to every `stable_source_row_id_v1`.
 | `cluster/goethe_nhr/` | Reviewed SLURM and environment assets for Goethe-NHR |
 | `scripts/` | Controlled transfer and synchronization helpers |
 | `docs/` | Current project, pipeline, workflow, privacy, execution, and reproducibility documentation |
-| `docs/stages/` | Accepted Stage 0–3 scientific records |
+| `docs/stages/` | Accepted Stage 0–4 scientific records |
 | `docs/history/` | Accepted source-foundation records that predate the Stage terminology |
 | `reports/development/` | Sanitized, Git-safe aggregate DEVELOPMENT evidence |
 
 The older `phase01` and `phase02` package namespaces remain because accepted
 source-foundation work underpins Stage 0 and Stage 1. The active library-first
-Stage 0–3 adapters live under `src/safe_geocoding_pipeline/preprocessing/`.
+Stage 0–4 adapters live under `src/safe_geocoding_pipeline/preprocessing/`.
 
 ## DEVELOPMENT, HOLDOUT, and production
 
@@ -99,8 +98,8 @@ documentation. See [Privacy and security](docs/PRIVACY_AND_SECURITY.md).
 ## Quick start
 
 The package supports Python 3.11 or newer for local development. Reproducing
-the accepted Stage 3 Goethe execution requires its exact pinned Python 3.14.3
-runtime and Unicode 16.0.0 contract.
+the accepted Stage 3 or Stage 4 Goethe execution requires its exact pinned
+Python 3.14.3 runtime and Unicode 16.0.0 contract.
 
 ```bash
 python3 -m venv .venv
@@ -143,7 +142,6 @@ personal absolute paths. Sanitized evidence is available under
 
 ## Current next stage
 
-**Stage 4 — Lowercase canonical forms — DEVELOPMENT CANDIDATE READY FOR
-INDEPENDENT REVIEW.** The active Stage 4 session stops at this candidate
-verdict. It does not independently accept Stage 4, start Stage 5, or authorize
-production Stage 2 through Stage 4.
+**Stage 5 — Address reconstruction — NOT STARTED.** Stage 4 is accepted on
+DEVELOPMENT. This acceptance does not start Stage 5 or authorize production
+Stage 2 through Stage 4.

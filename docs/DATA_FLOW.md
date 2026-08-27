@@ -30,7 +30,7 @@ Stage 3: safe text cleaning
   + stage03_row_changed
         |
         v
-Stage 4: lowercase canonical forms (implemented candidate; not accepted)
+Stage 4: lowercase canonical forms (accepted on DEVELOPMENT)
   all Stage 3 fields unchanged
   + 12 stage04_lower_* derived fields
   + ordered changed-field and row-changed audit
@@ -127,14 +127,13 @@ stage03_change_details = [
 stage03_row_changed = true
 ```
 
-## Stage 4 lowercase candidate representation
+## Stage 4 lowercase representation
 
 Stage 4 maps each of the 12 accepted `stage03_clean_*` strings to a distinct
 `stage04_lower_*` string using exact Python Unicode `str.lower()`. It appends a
 canonical-order list of changed fields and a row-changed flag. It does not
 rewrite any Stage 3 column, casefold, apply locale-specific casing, or normalize
-after lower. The complete DEVELOPMENT candidate is ready for independent
-review and is not accepted.
+after lower. This representation is accepted on DEVELOPMENT.
 
 ## Future candidate representations
 
