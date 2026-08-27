@@ -859,6 +859,7 @@ def test_stage04_cluster_assets_and_scope_guards() -> None:
         "git symbolic-ref -q HEAD",
         "SAFE_EXECUTION_SITE=goethe-nhr",
         "HOLDOUT_ACCESS_PROHIBITED",
+        'DATA_ROOT="$(realpath -e',
         "stage04_lowercase_canonical_contract_v1",
         "stage04_lowercase_canonical_profile_v1",
         "materialize-review",

@@ -51,7 +51,8 @@ readonly ACCEPTED_REVIEW_SUBSET="014f7c1373380b265f34e2ecb76614161b320e2bb972bef
 [[ "${STAGE04_REVIEW_SUBSET_FINGERPRINT}" == "${ACCEPTED_REVIEW_SUBSET}" ]]
 [[ "${STAGE04_EXPECTED_ROWS}" == "35000" ]]
 
-readonly DATA_ROOT="/work/footprint/donyadidegan/safe_geocoding_pipeline"
+readonly DATA_ROOT="$(realpath -e -- \
+  "/work/footprint/donyadidegan/safe_geocoding_pipeline")"
 readonly INTEGRATION_ROOT="$(realpath -e -- "${STAGE04_INTEGRATION_ROOT}")"
 readonly RUNTIME_ROOT="$(realpath -m -- "${STAGE04_RUNTIME_ROOT}")"
 readonly STAGE03_ROOT="$(realpath -e -- "${STAGE04_STAGE03_ROOT}")"
