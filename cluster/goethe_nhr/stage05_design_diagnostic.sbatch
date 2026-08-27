@@ -15,16 +15,22 @@ umask 077
 : "${SLURM_JOB_ID:?SLURM_JOB_ID is required}"
 : "${STAGE05_DESIGN_GIT_COMMIT:?submit with the exact pushed diagnostic commit}"
 : "${STAGE05_DESIGN_INTEGRATION_ROOT:?submit with an exact detached worktree}"
+: "${STAGE05_DESIGN_RUNTIME_ROOT:?submit with a new owner-only runtime root}"
 : "${STAGE05_DESIGN_STAGE04_ROOT:?submit with the accepted Stage 4 DEVELOPMENT bundle}"
 : "${STAGE05_DESIGN_OUTPUT_DIRECTORY:?submit with a new protected diagnostic path}"
 
 readonly DATA_ROOT="$(realpath -e -- \
   "/work/footprint/donyadidegan/safe_geocoding_pipeline")"
 readonly INTEGRATION_ROOT="$(realpath -e -- "${STAGE05_DESIGN_INTEGRATION_ROOT}")"
+readonly RUNTIME_ROOT="$(realpath -m -- "${STAGE05_DESIGN_RUNTIME_ROOT}")"
 readonly STAGE04_ROOT="$(realpath -e -- "${STAGE05_DESIGN_STAGE04_ROOT}")"
 readonly OUTPUT_DIRECTORY="$(realpath -m -- "${STAGE05_DESIGN_OUTPUT_DIRECTORY}")"
 
-for controlled_path in "${INTEGRATION_ROOT}" "${STAGE04_ROOT}" "${OUTPUT_DIRECTORY}"; do
+for controlled_path in \
+  "${INTEGRATION_ROOT}" \
+  "${RUNTIME_ROOT}" \
+  "${STAGE04_ROOT}" \
+  "${OUTPUT_DIRECTORY}"; do
   [[ "${controlled_path}" == "${DATA_ROOT}"/* ]] || {
     echo "STAGE05_CONTROLLED_PATH_REQUIRED" >&2
     exit 1
@@ -50,11 +56,11 @@ readonly ACTUAL_COMMIT="$(git rev-parse HEAD)"
   exit 1
 }
 
-readonly PYTHON="${DATA_ROOT}/.venv-goethe-nhr/bin/python"
-[[ -x "${PYTHON}" ]] || {
-  echo "STAGE05_RUNTIME_NOT_READY" >&2
-  exit 1
-}
+STAGE05_INTEGRATION_ROOT="${INTEGRATION_ROOT}" \
+STAGE05_RUNTIME_ROOT="${RUNTIME_ROOT}" \
+  bash "${INTEGRATION_ROOT}/cluster/goethe_nhr/stage05_bootstrap_env.sh"
+
+readonly PYTHON="${RUNTIME_ROOT}/venv/bin/python"
 export PYTHONPATH="${INTEGRATION_ROOT}/src"
 export SAFE_EXECUTION_SITE=goethe-nhr
 export PYTHONDONTWRITEBYTECODE=1

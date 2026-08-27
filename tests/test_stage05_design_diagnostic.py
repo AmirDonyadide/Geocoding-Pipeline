@@ -129,6 +129,9 @@ def test_design_launcher_is_guarded_and_aggregate_only() -> None:
     launcher = (
         repository / "cluster" / "goethe_nhr" / "stage05_design_diagnostic.sbatch"
     ).read_text(encoding="utf-8")
+    bootstrap = (
+        repository / "cluster" / "goethe_nhr" / "stage05_bootstrap_env.sh"
+    ).read_text(encoding="utf-8")
     module = (
         repository
         / "src"
@@ -140,6 +143,10 @@ def test_design_launcher_is_guarded_and_aggregate_only() -> None:
     assert "SAFE_EXECUTION_SITE=goethe-nhr" in launcher
     assert "SLURM_JOB_ID" in launcher
     assert "HOLDOUT_ACCESS_PROHIBITED" in launcher
+    assert "STAGE05_DESIGN_RUNTIME_ROOT" in launcher
+    assert "pip install --quiet -e" in bootstrap
+    assert 'ftfy.__version__ == "6.3.1"' in bootstrap
+    assert 'pyarrow.__version__ == "25.0.0"' in bootstrap
     assert "STAGE05_DESIGN_DIAGNOSTIC_COMPLETE" in module
     assert "ROW_VALUES_EMITTED" in module
     assert "print(" not in module
