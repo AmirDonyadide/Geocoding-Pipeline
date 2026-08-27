@@ -122,7 +122,7 @@ rows provide quantitative evidence.
 
 The production population is `production_population_1411_v1`: 1,411 files and
 141,048,582 rows. Production Stage 0 and Stage 1 are accepted. Production
-Stage 2 and Stage 3 have not started. Heavy or protected execution runs only
+Stages 2–6 have not started. Heavy or protected execution runs only
 through SLURM on Goethe-NHR after separate authorization.
 
 ## SAFE Pelias role

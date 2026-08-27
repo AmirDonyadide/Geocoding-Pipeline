@@ -156,7 +156,9 @@ completed 35,000 to 35,000 with zero dropped, added, or duplicate identities;
 exact identity/order and exact preservation of every Stage 4 column; and zero
 reconstruction, audit, clean/lower-consistency, or idempotence mismatches. The
 exact reviewed candidate/evidence head is
-`97bd7fa74da358e81133ac4d38232931762d3e78`. The candidate fingerprints are:
+`97bd7fa74da358e81133ac4d38232931762d3e78`. The final accepted `main` before
+post-Stage-5 repository cleanup was
+`d94c715c83e4ba7233e133a7f5156e33b1ca3023`. The candidate fingerprints are:
 
 - schema:
   `63d4cdb3707eda65c67cc5196891fa5005adce2b12eb7109554793c48c5303c3`;
@@ -188,6 +190,8 @@ validation. No protected row text appears in Git-safe evidence.
 The independent harness SHA is
 `cbafa0acd20dc3fa03ccd3db8c1f62104529666a`; the qualitative-scope fingerprint
 is `801fe9820cae9ae6a9aaf03b0bffcd5c3b8c316fd32b0bc1d4470ef99fd554f5`.
+The harness remains reachable through the immutable annotated tag
+`stage05-independent-review-cbafa0a`.
 The bound protected human attestation validated successfully with SHA-256
 `5981777021e55280278270c9821d9b02ccbd3fc0fd6711f11e0b833bed24cee8`.
 Full aggregate metrics, performance, attempt history, and privacy gates are in

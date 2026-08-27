@@ -223,8 +223,9 @@ links, and the tracked/protected-data audit passed. See the Git-safe aggregate
 
 ## Production and later-stage status
 
-Production Stage 2, Stage 3, and Stage 4 are **NOT STARTED**. Stage 5 is **NOT
-STARTED**. No production or geocoding authorization is implied.
+Stage 5 is separately accepted on DEVELOPMENT; Stage 6 is **NOT STARTED**.
+Production Stages 2–6 are **NOT STARTED**. No production or geocoding
+authorization is implied.
 
 ## Current status
 
@@ -240,6 +241,9 @@ all 40 incoming Stage 3 columns and all 420,000 derived values, reconstructed
 the ordered identity and Stage 4 fingerprints, and reproduced every reported
 aggregate with zero mismatches.
 
+The exact review harness remains reachable through the immutable annotated tag
+`stage04-independent-review-2b77aab`.
+
 The independent fixed-500 audit reconstructed the frozen fingerprint and
 identity order, then evaluated all 500 rows and 2,466 changed value pairs.
 Every change was exact Unicode lowercase casing; non-case code-point changes,
@@ -254,5 +258,5 @@ Both failed in one second on controlled-path canonicalization before any
 DEVELOPMENT scan and produced no review artifact; neither is a Stage 4
 candidate defect.
 
-Production Stage 2 through Stage 4 and Stage 5 remain **NOT STARTED**. This
-acceptance does not authorize them.
+Production Stages 2–6 remain **NOT STARTED**. This acceptance does not
+authorize them.

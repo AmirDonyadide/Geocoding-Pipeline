@@ -20,7 +20,7 @@ An operation is heavy when any one condition applies:
 - performs full-production joins, grouping, sorting, deduplication, address
   keys, transformations, validation, query generation, geocoding, selection,
   merge-back, or reconciliation; or
-- performs any complete production Stage 2 or Stage 3 run.
+- performs any complete production Stage 2 or later-stage run.
 
 This is an OR rule. One condition is sufficient.
 
@@ -128,5 +128,8 @@ documentation test pass.
 - Production Stage 3: **NOT STARTED**.
 - Stage 4 DEVELOPMENT: **`STAGE_4_ACCEPTED`**.
 - Production Stage 4: **NOT STARTED**.
+- Stage 5 DEVELOPMENT: **`STAGE_5_ACCEPTED`**.
+- Production Stage 5: **NOT STARTED**.
+- Stage 6 DEVELOPMENT and production: **NOT STARTED**.
 
 This policy grants no scientific-stage or production-run authorization.

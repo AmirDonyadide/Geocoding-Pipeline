@@ -112,9 +112,9 @@ obtain or open protected artifacts merely to run documentation validation.
 ## Current production boundary
 
 Production Stage 0 and Stage 1 are accepted for
-`production_population_1411_v1`. Production Stage 2 through Stage 4 have not
+`production_population_1411_v1`. Production Stages 2–6 have not
 started. The accepted Stage 4 DEVELOPMENT launcher is separately scoped to the
 accepted 35,000-row Stage 3 artifact; no command in this guide authorizes
-production Stage 2 through Stage 4, Stage 5, or geocoding.
+production Stage 2 or any later production stage, or geocoding.
 
 The permanent detailed rules are in [EXECUTION_POLICY.md](EXECUTION_POLICY.md).

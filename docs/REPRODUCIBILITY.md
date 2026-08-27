@@ -34,6 +34,14 @@ evidence commits are
 `9ed24cea8626b9cd674377636fe1d51e3cd6b456` with implementation
 `8446190d1153aeb507678d0de18d027f89f0ec8d`.
 
+The final accepted `main` before post-Stage-5 cleanup was
+`d94c715c83e4ba7233e133a7f5156e33b1ca3023`. The Stage 5 implementation
+`cd0a5ae91c3602ec20e34f7c419f1ac76f0b9160` and reviewed evidence head
+`97bd7fa74da358e81133ac4d38232931762d3e78` are reachable from `main`.
+Review-only commits outside `main` remain reachable through immutable
+annotated tags: `stage04-independent-review-2b77aab` and
+`stage05-independent-review-cbafa0a`.
+
 ## Contracts and profiles
 
 Contracts define canonical inputs, transformations, outputs, identities,
@@ -110,7 +118,7 @@ files and 141,048,582 rows. Accepted production Stage 1 is bound by:
 - manifest SHA-256:
   `1fb6176d8eff6dfe71c3c02c1e36e00d35937c7bc662234b7620289d4b055bd7`.
 
-Production Stage 2 and Stage 3 have not started.
+Production Stages 2–6 have not started.
 
 ## Accepted and rejected evidence
 

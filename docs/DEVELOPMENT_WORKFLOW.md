@@ -19,9 +19,8 @@ design
   -> stop
 ```
 
-Stages 0–3 have completed this lifecycle on DEVELOPMENT. Stage 4 has completed
-candidate development and is ready for a fresh independent-review session; it
-is not accepted.
+Stages 0–5 have completed this lifecycle on DEVELOPMENT and are accepted.
+Stage 6 has not started and requires a fresh design/review session.
 
 ## Design and implementation
 
@@ -103,17 +102,25 @@ reason.
 
 DEVELOPMENT acceptance and production execution are different decisions.
 Production Stage 0 and Stage 1 are accepted for the 1,411-file population.
-Production Stage 2 and Stage 3 have not started. Before production Stage 2 can
+Production Stages 2–6 have not started. Before production Stage 2 can
 run, its exact launcher, commit, population binding, resources, output paths,
 and validation plan require separate review and authorization.
 
 ## Repository workflow
 
-The shared canonical branch is `main`. Work starts from the current remote
-state, uses professional scientific/project branch names when a branch is
-needed, and integrates without rewriting accepted history. Before execution or
-review, record a clean exact Git SHA. Coherent changes are committed and pushed
-so that Goethe can obtain the same code through Git.
+The shared canonical branch is `main`, and it is the only persistent
+development branch. Temporary scientific stage and independent-review branches
+or worktrees are allowed while a stage is active. After independent acceptance
+and successful integration, those temporary branches and worktrees are
+removed. An exact independent-review commit that is not reachable from `main`
+is preserved with an immutable tag before its branch is deleted.
+
+Work starts from the current remote state and uses professional
+scientific/project branch names when a temporary branch is needed. Git history
+is never rewritten merely for cleanup. Controlled scientific artifacts are not
+deleted as part of branch or worktree cleanup. Before execution or review,
+record a clean exact Git SHA. Coherent changes are committed and pushed so that
+Goethe can obtain the same code through Git.
 
 Documentation-only maintenance may update navigation and current status, but
 must still demonstrate that accepted scientific code, contracts, fingerprints,

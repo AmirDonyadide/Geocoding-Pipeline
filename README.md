@@ -32,11 +32,12 @@ started.
 | 3 | Safe text cleaning | **ACCEPTED** | Adds derived `*_clean` values and ordered audit reasons; raw fields remain unchanged |
 | 4 | Lowercase canonical forms | **`STAGE_4_ACCEPTED`** | Appends exact Python Unicode lowercase representations; all upstream values remain unchanged |
 | 5 | Address reconstruction | **`STAGE_5_ACCEPTED`** | Appends separate clean/lower standard/native line-body candidates and compact provenance |
-| 6–19 | Validation and query preparation | **NOT STARTED** | Planned derived representations only |
+| 6 | Early exact deduplication | **NOT STARTED** | Planned candidate deduplication with complete source map-back |
+| 7–19 | Parsing, validation, and query preparation | **NOT STARTED** | Planned derived representations only |
 
 Production Stage 0 and Stage 1 are accepted for
 `production_population_1411_v1` (1,411 files; 141,048,582 rows). Production
-Stage 2 through Stage 5 have not started.
+Stage 2 through Stage 6 have not started.
 
 ## Architecture
 
@@ -71,7 +72,7 @@ to every `stable_source_row_id_v1`.
 
 The older `phase01` and `phase02` package namespaces remain because accepted
 source-foundation work underpins Stage 0 and Stage 1. The active library-first
-Stage 0–4 adapters live under `src/safe_geocoding_pipeline/preprocessing/`.
+Stage 0–5 adapters live under `src/safe_geocoding_pipeline/preprocessing/`.
 
 ## DEVELOPMENT, HOLDOUT, and production
 
@@ -79,10 +80,11 @@ Stage 0–4 adapters live under `src/safe_geocoding_pipeline/preprocessing/`.
 - **Fixed DEVELOPMENT review subset:** 500 deterministic DEVELOPMENT rows used
   for same-row qualitative inspection across stages. Fingerprint:
   `014f7c1373380b265f34e2ecb76614161b320e2bb972befb8f53994cc5a1dd52`.
-- **HOLDOUT:** 15,000 protected rows, physically separate and sealed until one
+- **HOLDOUT:** 15,000 protected rows, untouched, physically separate, and
+  sealed until one
   explicitly authorized final evaluation after Stages 2–19 are frozen.
 - **Production population:** 1,411 files and 141,048,582 rows. Production
-  Stage 0 and Stage 1 are accepted; production Stage 2 has not started.
+  Stage 0 and Stage 1 are accepted; production Stages 2–6 have not started.
 
 Benchmark V1 remains permanently bound to its accepted 1,405-file population;
 the later six production files do not change or rebuild it.
@@ -146,4 +148,4 @@ personal absolute paths. Sanitized evidence is available under
 
 **Stage 6 — Early exact deduplication — NOT STARTED.** Stage 5 is accepted on
 DEVELOPMENT. This acceptance does not authorize Stage 6, HOLDOUT access, or
-production Stage 2 through Stage 5.
+production Stage 2 through Stage 6.

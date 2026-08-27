@@ -146,7 +146,7 @@ Current/planned technology choices are:
 | 2 | PyArrow, SAFE schema/provenance layer |
 | 3 | Python `unicodedata`, ftfy, regex/Arrow, SAFE orchestration |
 | 4 | Python Unicode `lower()` |
-| 5 | SAFE reconstruction; possibly address-format metadata |
+| 5 | SAFE bounded reconstruction; address-format metadata intentionally deferred |
 | 6 | DuckDB/Polars/hashing |
 | 7 | libpostal/pypostal |
 | 8 | libpostal plus SAFE component mapping |
@@ -190,11 +190,11 @@ The final pre-geocoding sequence is:
 18. query generation; and
 19. query deduplication plus final QA.
 
-Stages 0–4 are implemented and accepted on DEVELOPMENT. Stages 5–19 are
-planned and not started. Production Stage 0 and
-Stage 1 are accepted; production Stage 2 through Stage 4 are not started. The
+Stages 0–5 are implemented and accepted on DEVELOPMENT. Stage 6 — early exact
+deduplication — is not started, and Stages 7–19 are not started. Production
+Stage 0 and Stage 1 are accepted; production Stages 2–6 are not started. The
 detailed stage contracts and acceptance requirements are in
-[PIPELINE.md](PIPELINE.md).
+[PIPELINE.md](PIPELINE.md). HOLDOUT remains untouched and sealed.
 
 ## 8. DEVELOPMENT methodology
 
@@ -247,4 +247,4 @@ Durable decisions are in [DECISIONS.md](DECISIONS.md); current status is in
 ## 11. Current next action
 
 Stage 6 — Early exact deduplication — NOT STARTED. Stage 5 is accepted on
-DEVELOPMENT. Production Stage 2 through Stage 5 remain not started.
+DEVELOPMENT. Production Stage 2 through Stage 6 remain not started.

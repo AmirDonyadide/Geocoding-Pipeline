@@ -14,8 +14,8 @@ stage.
 
 Stages 0–5 are accepted on DEVELOPMENT.
 Production Stage 0 and Stage 1 are accepted for the 1,411-file population;
-production Stage 2 through Stage 5 have not started. Stages 6–19 have not
-started in either track.
+production Stage 2 through Stage 6 have not started. DEVELOPMENT Stages 6–19
+and production Stages 7–19 have not started.
 
 ## Cross-stage scientific rules
 

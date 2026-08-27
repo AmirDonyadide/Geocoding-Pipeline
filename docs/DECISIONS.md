@@ -93,7 +93,8 @@ to change a decision or start a stage.
   reconstruction layer.
 - **Rationale:** Parsing needs a reviewed candidate boundary and line-use
   provenance.
-- **Status:** LOCKED sequence; stage designs remain future work.
+- **Status:** LOCKED sequence. Stage 5 is accepted on DEVELOPMENT; Stages 6
+  and 7 remain future work.
 
 ### D010 — Abbreviation normalization is component-aware and post-parsing
 
@@ -130,9 +131,9 @@ to change a decision or start a stage.
 - **Scope:** Production Stages 0–1
 - **Decision:** `production_population_1411_v1` contains 1,411 files and
   141,048,582 rows. Production Stage 0 and Stage 1 are accepted. Production
-  Stage 2 and Stage 3 are not started.
+  Stages 2–6 are not started.
 - **Rationale:** Distinguish current production scope from frozen Benchmark V1.
-- **Status:** LOCKED current state.
+- **Status:** LOCKED current state. Production Stages 2–6 are not started.
 
 ### D014 — Planned technology sequence
 
@@ -146,8 +147,9 @@ to change a decision or start a stage.
   and SAFE evidence/selection/query layers.
 - **Rationale:** Library-first offline processing under reproducible privacy
   controls.
-- **Status:** Locked as current direction, not as implementation approval for
-  Stages 4–19. pgeocode is proof-of-concept only. Pandas is inspection-only.
+- **Status:** Accepted-stage choices are bound by the reviewed contracts for
+  Stages 0–5. Stages 6–19 remain planned and have no implementation approval.
+  pgeocode is proof-of-concept only. Pandas is inspection-only.
 
 ### D015 — Protected data never leaves controlled infrastructure
 
@@ -251,4 +253,4 @@ These questions require future stage designs and explicit approval:
   point-level analysis.
 
 Nothing in this register authorizes Stage 6, HOLDOUT access, or production
-Stage 2 through Stage 5.
+Stage 2 through Stage 6.
