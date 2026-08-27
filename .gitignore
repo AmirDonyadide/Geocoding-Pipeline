@@ -38,7 +38,15 @@ id_ed25519*
 .agents/
 skills-lock.json
 
-# Raw and generated datasets
+# Raw, protected, and generated datasets
+# These explicit controlled paths document the security boundary; the broader
+# roots below prevent accidental tracking of alternate local layouts.
+data/controlled/
+derived/controlled/
+staging/controlled/
+protected/
+review_copies/
+temporary_review_copies/
 data/
 raw/
 external_data/
@@ -113,6 +121,7 @@ tmp/
 slurm-*.out
 slurm-*.err
 logs/
+logs/slurm/
 
 # Jupyter and reference notebooks
 *.ipynb
