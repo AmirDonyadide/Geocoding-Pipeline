@@ -2,7 +2,7 @@
 
 ## Status
 
-**DEVELOPMENT IMPLEMENTATION — AUTHORITATIVE EVALUATION PENDING.**
+**DEVELOPMENT v2 CORRECTION — AUTHORITATIVE RE-EVALUATION PENDING.**
 
 Stage 5 is authorized only for the 35,000-row Benchmark V1 DEVELOPMENT split.
 It is not accepted, is not merged to `main`, and does not authorize Stage 6,
@@ -18,8 +18,8 @@ fields for later stages.
 
 The contract and profile are:
 
-- `stage05_address_reconstruction_contract_v1`;
-- `stage05_address_reconstruction_profile_v1`.
+- `stage05_address_reconstruction_contract_v2`;
+- `stage05_address_reconstruction_profile_v2`.
 
 The accepted Stage 4 DEVELOPMENT boundary is bound exactly by:
 
@@ -56,7 +56,7 @@ The fixed 500-row review subset remains
 | Gaps | Skip empty positions without an artificial empty separator; preserve relative order |
 | Duplicate lines | Preserve every contributing occurrence |
 | Order | Existing source positions 1, 2, 3, 4 |
-| Separator | Exact comma plus space, U+002C U+0020 |
+| Separator | Exact single space, U+0020 |
 | Zero lines | Candidate `""`, unavailable, count 0, mask `0000` |
 | One line | Candidate is the line unchanged |
 | Provenance | Availability, contributing-line count, and four-position occupancy mask per representation |
@@ -71,30 +71,42 @@ For either representation and either clean or lowercase input:
 
 ```text
 contributing_lines = [line for line in line_1_to_4 if line != ""]
-candidate = ", ".join(contributing_lines)
+candidate = " ".join(contributing_lines)
 ```
 
-The rule does not trim or mutate a line. Thus existing commas, semicolons,
-slashes, hyphens, parentheses, and Unicode punctuation remain exact even when
-the result contains adjacent punctuation at a source-line boundary.
+The rule does not trim or mutate a line. Existing commas, semicolons, slashes,
+hyphens, parentheses, and Unicode punctuation remain exact. The separator adds
+no punctuation of its own.
 
 The occupancy mask is four characters in line 1-to-4 order: `1` means the
 exact cleaned/lowercase value contributes and `0` means it is `""`. A gap such
 as lines 1 and 3 yields mask `1010` and joins those two values once, in that
-order. Repeated values such as lines 1 and 2 both equal to `A` yield `A, A`.
+order. Repeated values such as lines 1 and 2 both equal to `A` yield `A A`.
 
 ## Separator decision
 
-Comma plus space adds no component label, prevents token concatenation, is
-deterministic, and supplies a conventional address boundary understood by
-libpostal without invoking parsing in Stage 5. Public libpostal source and
-documentation recognize both comma and newline boundaries. A local PyArrow
-experiment was also decisive for implementation method: the available
-element-wise join kernel dropped an all-null synthetic row under skip-null
-semantics, so it could not implement the zero-line row contract exactly.
-Stage 5 therefore uses a small reviewed per-row reconstruction helper inside
-bounded Arrow batches. Newline is not used because Stage 5 outputs a scalar
-candidate for later parser input, not a source-file layout.
+A single space prevents token concatenation, is deterministic, and preserves
+all punctuation supplied by upstream lines without asserting that every line
+boundary is a component boundary. This matters because source lines 1–4 have
+no universal component semantics. It also handles a line already ending in
+punctuation without adding a second punctuation mark and permits wrapped words,
+names, or ordinals to remain a continuous phrase. The rule does not inspect
+characters, infer components, or apply country-specific behavior.
+
+The v1 comma-space rule was executed immutably in job `1759565`. Complete human
+review of the fixed 500 found four questionable boundaries (review orders 59,
+116, 257, and 322): two punctuation-adjacency cases and two unsupported
+component-like breaks. With zero universal evidence that source line breaks
+encode components, this was a general Stage 5 reconstruction defect. The v1
+run and artifacts remain preserved as the first candidate attempt; they are not
+overwritten or relabeled as ready.
+
+A local PyArrow experiment was also decisive for implementation method: the
+available element-wise join kernel dropped an all-null synthetic row under
+skip-null semantics, so it could not implement the zero-line row contract
+exactly. Stage 5 therefore uses a small reviewed per-row reconstruction helper
+inside bounded Arrow batches. Newline is not used because Stage 5 outputs a
+scalar candidate for later parser input, not a source-file layout.
 
 ## Appended schema
 
@@ -130,9 +142,17 @@ contain aggregates and fingerprints only. HOLDOUT paths fail closed.
 
 ## Development evidence
 
-The implementation, authoritative job identity, full 35,000-row results,
-fixed-500 classification counts, fingerprints, performance, and candidate
-verdict will be recorded here only after the immutable DEVELOPMENT execution
+The v1 implementation SHA was
+`e69ccaaebbaeff73d88dd43018904671ee6005dd`; job `1759565` completed 35,000 to
+35,000 with exact upstream and identity/order preservation. Human review was
+complete for all 500 rows: 453 correct reconstructions, 43 valid but redundant
+source cases, four questionable boundaries, zero questionable orders, and zero
+semantic-damage cases. The automatic 499/1 bookkeeping split was not an
+independent qualitative assessment and is superseded by that human evidence.
+
+The v2 implementation identity, replacement authoritative job, full metrics,
+targeted review of the four affected orders, fingerprints, performance, and
+candidate verdict will be recorded after immutable DEVELOPMENT re-execution
 and independent readback complete.
 
 This session cannot mark Stage 5 accepted. A fresh independent-review session

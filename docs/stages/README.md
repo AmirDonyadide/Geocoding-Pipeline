@@ -12,7 +12,7 @@ independent review records acceptance.
 | 2 | [Schema/provenance harmonization](STAGE02_SCHEMA_PROVENANCE.md) | ACCEPTED | NOT STARTED |
 | 3 | [Safe text cleaning](STAGE03_SAFE_TEXT_CLEANING.md) | ACCEPTED | NOT STARTED |
 | 4 | [Lowercase canonical forms](STAGE04_LOWERCASE_CANONICAL.md) | `STAGE_4_ACCEPTED` | NOT STARTED |
-| 5 | [Address reconstruction](STAGE05_ADDRESS_RECONSTRUCTION.md) | IMPLEMENTED — AUTHORITATIVE EVALUATION PENDING | NOT STARTED |
+| 5 | [Address reconstruction](STAGE05_ADDRESS_RECONSTRUCTION.md) | v2 CORRECTION — AUTHORITATIVE RE-EVALUATION PENDING | NOT STARTED |
 
 Stages 6–19 remain documented only in [the pipeline specification](../PIPELINE.md)
 because they have not started.

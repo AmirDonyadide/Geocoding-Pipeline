@@ -32,7 +32,7 @@ have not started.
 | 2 | Schema and provenance harmonization | **ACCEPTED** | Preserves incoming fields and adds four derived structural fields |
 | 3 | Safe text cleaning | **ACCEPTED** | Adds derived `*_clean` values and ordered audit reasons; raw fields remain unchanged |
 | 4 | Lowercase canonical forms | **`STAGE_4_ACCEPTED`** | Appends exact Python Unicode lowercase representations; all upstream values remain unchanged |
-| 5 | Address reconstruction | **IMPLEMENTED — AUTHORITATIVE EVALUATION PENDING** | Appends separate clean/lower standard/native line-body candidates and compact provenance |
+| 5 | Address reconstruction | **v2 CORRECTION — AUTHORITATIVE RE-EVALUATION PENDING** | Appends separate clean/lower standard/native line-body candidates and compact provenance |
 | 6–19 | Validation and query preparation | **NOT STARTED** | Planned derived representations only |
 
 Production Stage 0 and Stage 1 are accepted for
@@ -145,6 +145,6 @@ personal absolute paths. Sanitized evidence is available under
 
 ## Current next stage
 
-**Stage 5 — Address reconstruction — DEVELOPMENT EVALUATION IN PROGRESS.**
+**Stage 5 — Address reconstruction — DEVELOPMENT v2 RE-EVALUATION IN PROGRESS.**
 Stage 4 is accepted on DEVELOPMENT. Stage 5 remains unaccepted and does not
 authorize Stage 6, HOLDOUT access, or production Stage 2 through Stage 5.

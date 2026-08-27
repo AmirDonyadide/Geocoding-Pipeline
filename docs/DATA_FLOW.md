@@ -145,7 +145,7 @@ after lower. This representation is accepted on DEVELOPMENT.
 
 Stage 5 independently selects exact nonempty cleaned standard lines and exact
 nonempty cleaned native lines in source position order 1 through 4, then joins
-each representation with exact `", "`. It repeats the derivation from accepted
+each representation with exact `" "`. It repeats the derivation from accepted
 Stage 4 lowercase lines. Empty positions create no artificial separators;
 gaps preserve the relative order of contributing lines; duplicate line values
 remain duplicated. Zero contributing lines yield an empty unavailable

@@ -105,8 +105,8 @@ export PYTHONDONTWRITEBYTECODE=1
 
 echo "job_id=${SLURM_JOB_ID}"
 echo "git_commit=${ACTUAL_COMMIT}"
-echo "stage05_contract=stage05_address_reconstruction_contract_v1"
-echo "stage05_profile=stage05_address_reconstruction_profile_v1"
+echo "stage05_contract=stage05_address_reconstruction_contract_v2"
+echo "stage05_profile=stage05_address_reconstruction_profile_v2"
 
 readonly BINDING_OUTPUT="$("${PYTHON}" \
   -m safe_geocoding_pipeline.preprocessing.stage05_cli \

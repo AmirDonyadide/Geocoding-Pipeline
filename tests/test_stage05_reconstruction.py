@@ -58,21 +58,21 @@ BENCHMARK_FINGERPRINT = "b" * 64
         (("A", "", "", ""), "A", "1000"),
         (("", "B", "", ""), "B", "0100"),
         (("", "", "", "D"), "D", "0001"),
-        (("A", "B", "", ""), "A, B", "1100"),
-        (("A", "", "C", ""), "A, C", "1010"),
-        (("", "B", "", "D"), "B, D", "0101"),
-        (("A", "B", "C", "D"), "A, B, C, D", "1111"),
-        (("A", "A", "", ""), "A, A", "1100"),
-        (("A,", "B", "", ""), "A,, B", "1100"),
-        (("A;", "B", "", ""), "A;, B", "1100"),
-        (("A/", "B", "", ""), "A/, B", "1100"),
-        (("A-", "B", "", ""), "A-, B", "1100"),
-        (("A(", "B)", "", ""), "A(, B)", "1100"),
-        (("A،", "B", "", ""), "A،, B", "1100"),
-        (("École", "Straße", "", ""), "École, Straße", "1100"),
-        (("العربية", "خیابان آزادی", "", ""), "العربية, خیابان آزادی", "1100"),
-        (("МОСКВА", "УЛИЦА", "", ""), "МОСКВА, УЛИЦА", "1100"),
-        (("東京都", "新宿区", "", ""), "東京都, 新宿区", "1100"),
+        (("A", "B", "", ""), "A B", "1100"),
+        (("A", "", "C", ""), "A C", "1010"),
+        (("", "B", "", "D"), "B D", "0101"),
+        (("A", "B", "C", "D"), "A B C D", "1111"),
+        (("A", "A", "", ""), "A A", "1100"),
+        (("A,", "B", "", ""), "A, B", "1100"),
+        (("A;", "B", "", ""), "A; B", "1100"),
+        (("A/", "B", "", ""), "A/ B", "1100"),
+        (("A-", "B", "", ""), "A- B", "1100"),
+        (("A(", "B)", "", ""), "A( B)", "1100"),
+        (("A،", "B", "", ""), "A، B", "1100"),
+        (("École", "Straße", "", ""), "École Straße", "1100"),
+        (("العربية", "خیابان آزادی", "", ""), "العربية خیابان آزادی", "1100"),
+        (("МОСКВА", "УЛИЦА", "", ""), "МОСКВА УЛИЦА", "1100"),
+        (("東京都", "新宿区", "", ""), "東京都 新宿区", "1100"),
         (("Tokyo 東京", "", "", ""), "Tokyo 東京", "1000"),
     ),
 )
@@ -91,7 +91,17 @@ def test_separator_content_is_never_mutated() -> None:
     lines = ("A,", "B;", "C / D", "（E）")
     result = reconstruct_candidate(lines)
     assert result.candidate == STAGE05_SEPARATOR.join(lines)
-    assert result.candidate == "A,, B;, C / D, （E）"
+    assert result.candidate == "A, B; C / D （E）"
+
+
+def test_separator_does_not_add_punctuation_or_component_semantics() -> None:
+    assert reconstruct_candidate(("North,", "Quarter", "", "")).candidate == (
+        "North, Quarter"
+    )
+    assert reconstruct_candidate(("Long", "name", "", "")).candidate == "Long name"
+    assert reconstruct_candidate(("21st", "District", "", "")).candidate == (
+        "21st District"
+    )
 
 
 def test_giant_values_are_not_truncated() -> None:
@@ -183,7 +193,7 @@ def test_projected_batch_appends_only_stage05_fields_and_keeps_representations()
     assert projected.column(
         projected.schema.get_field_index(CASE_PRESERVED_OUTPUT_COLUMNS[0])
     ).to_pylist() == [
-        "A, C",
+        "A C",
         "Only standard",
         "",
         "",
@@ -192,7 +202,7 @@ def test_projected_batch_appends_only_stage05_fields_and_keeps_representations()
     assert projected.column(
         projected.schema.get_field_index(CASE_PRESERVED_OUTPUT_COLUMNS[1])
     ).to_pylist() == [
-        "甲, 乙",
+        "甲 乙",
         "",
         "فقط بومی",
         "",
@@ -201,7 +211,7 @@ def test_projected_batch_appends_only_stage05_fields_and_keeps_representations()
     assert projected.column(
         projected.schema.get_field_index(CANONICAL_OUTPUT_COLUMNS[0])
     ).to_pylist() == [
-        "a, c",
+        "a c",
         "only standard",
         "",
         "",
@@ -336,13 +346,13 @@ def test_materialization_preservation_determinism_permissions_and_readback(
         assert output_table.column(name).equals(input_table.column(name))
     assert output_table.schema.names[-10:] == list(STAGE05_DERIVED_COLUMNS)
     assert output_table.column(CANONICAL_OUTPUT_COLUMNS[0]).to_pylist() == [
-        "a, c",
-        "a,, a,",
+        "a c",
+        "a, a,",
         "",
     ]
     assert output_table.column(CANONICAL_OUTPUT_COLUMNS[1]).to_pylist() == [
         "甲",
-        "б, в",
+        "б в",
         "",
     ]
     assert stat.S_IMODE(output.stat().st_mode) == 0o700
@@ -503,8 +513,8 @@ def test_published_validation_rejects_wrong_manifest(
 
 
 def test_versions_are_explicit_and_stage6_is_absent() -> None:
-    assert STAGE05_CONTRACT_VERSION == "stage05_address_reconstruction_contract_v1"
-    assert STAGE05_PROFILE_VERSION == "stage05_address_reconstruction_profile_v1"
+    assert STAGE05_CONTRACT_VERSION == "stage05_address_reconstruction_contract_v2"
+    assert STAGE05_PROFILE_VERSION == "stage05_address_reconstruction_profile_v2"
     assert all(name.startswith("stage05_") for name in STAGE05_DERIVED_COLUMNS)
     source = Path(stage05.__file__).read_text(encoding="utf-8")
     assert "stage06" not in source.casefold()

@@ -151,7 +151,7 @@ stage consumes an accepted predecessor and must stop at its own review gate.
 - **Primary libraries:** Small SAFE reconstruction logic within bounded
   PyArrow/Parquet processing. Address-format metadata is intentionally deferred.
 - **Data effect:** Appends ten derived fields; no source or upstream overwrite.
-- **Status:** **DEVELOPMENT IMPLEMENTATION — AUTHORITATIVE EVALUATION PENDING**.
+- **Status:** **DEVELOPMENT v2 CORRECTION — AUTHORITATIVE RE-EVALUATION PENDING**.
 - **Acceptance requirement:** Approved reconstruction rules, country/script
   coverage evidence, no blind concatenation, complete lineage, DEVELOPMENT and
   fixed-500 review, and independent acceptance. The exact rule and boundary are

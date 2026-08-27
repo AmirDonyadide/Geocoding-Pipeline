@@ -34,8 +34,8 @@ from .s04_lowercase import (
     validate_stage04_bundle,
 )
 
-STAGE05_CONTRACT_VERSION = "stage05_address_reconstruction_contract_v1"
-STAGE05_PROFILE_VERSION = "stage05_address_reconstruction_profile_v1"
+STAGE05_CONTRACT_VERSION = "stage05_address_reconstruction_contract_v2"
+STAGE05_PROFILE_VERSION = "stage05_address_reconstruction_profile_v2"
 STAGE05_INPUT_BINDING_VERSION = "stage05_input_binding_v1"
 STAGE05_SCHEMA_VERSION = "stage05_address_reconstruction_schema_v1"
 STAGE05_VALIDATION_VERSION = "stage05_bundle_validation_v1"
@@ -44,7 +44,7 @@ STAGE05_LOGICAL_DATASET_DOMAIN = b"SAFE_STAGE05_LOGICAL_DATASET_V1"
 STAGE05_SCHEMA_FINGERPRINT_DOMAIN = b"SAFE_STAGE05_ARROW_SCHEMA_V1"
 STAGE05_ORDERED_IDENTITY_DOMAIN = b"SAFE_STAGE03_ORDERED_STABLE_IDENTITIES_V1"
 STAGE05_ORDERED_IDENTITY_VERSION = "stage03_ordered_stable_identity_sha256_v1"
-STAGE05_SEPARATOR = ", "
+STAGE05_SEPARATOR = " "
 STAGE05_LINE_ORDER = "SOURCE_LINE_1_TO_4_RELATIVE_ORDER"
 STAGE05_EMPTY_LINE_RULE = "EXACT_EMPTY_STRING_FILTER"
 STAGE05_GAP_RULE = "SKIP_EMPTY_WITHOUT_ARTIFICIAL_SEPARATOR"
@@ -785,7 +785,7 @@ def _output_metadata(
         "stage05_schema_version": STAGE05_SCHEMA_VERSION,
         "stage05_schema_fingerprint": stage05_schema_fingerprint(),
         "stage05_logical_dataset_sha256_v1": logical_fingerprint,
-        "separator_unicode_escape": "\\u002c\\u0020",
+        "separator_unicode_escape": "\\u0020",
         "line_order": STAGE05_LINE_ORDER,
         "empty_line_rule": STAGE05_EMPTY_LINE_RULE,
         "gap_rule": STAGE05_GAP_RULE,
@@ -1509,7 +1509,7 @@ def materialize_stage05(config: Stage05RunConfig) -> Stage05MaterializationOutco
             ],
             "lower_input_columns": [*_LOWER_STANDARD_COLUMNS, *_LOWER_NATIVE_COLUMNS],
             "derived_columns": list(STAGE05_DERIVED_COLUMNS),
-            "separator_unicode_escape": "\\u002c\\u0020",
+            "separator_unicode_escape": "\\u0020",
             "line_order": STAGE05_LINE_ORDER,
             "empty_line_rule": STAGE05_EMPTY_LINE_RULE,
             "gap_rule": STAGE05_GAP_RULE,
@@ -1762,7 +1762,7 @@ def validate_stage05_bundle(
         or scientific.get("stage05_schema_fingerprint") != stage05_schema_fingerprint()
         or scientific.get("stage05_logical_dataset_sha256_v1") != logical
         or scientific.get("derived_columns") != list(STAGE05_DERIVED_COLUMNS)
-        or scientific.get("separator_unicode_escape") != "\\u002c\\u0020"
+        or scientific.get("separator_unicode_escape") != "\\u0020"
         or scientific.get("line_order") != STAGE05_LINE_ORDER
         or scientific.get("empty_line_rule") != STAGE05_EMPTY_LINE_RULE
         or scientific.get("gap_rule") != STAGE05_GAP_RULE

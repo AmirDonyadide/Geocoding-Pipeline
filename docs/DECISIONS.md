@@ -209,16 +209,19 @@ to change a decision or start a stage.
 - **Scope:** Stage 5 DEVELOPMENT
 - **Decision:** Reconstruct standard and native representations independently
   from exact nonempty lines in source position order 1 through 4, using exact
-  separator `", "`. Append both case-preserving clean and lowercase candidates
+  separator `" "`. Append both case-preserving clean and lowercase candidates
   plus compact availability/count/mask provenance. Preserve gaps and duplicate
   line occurrences; do not append geographic fields.
 - **Rationale:** This is the narrowest representation that prevents token
-  concatenation and provides coherent parser input without inferring component
-  meanings or pre-empting Stage 6 deduplication, Stage 7 parsing, or Stage 18
-  query generation. Aggregate DEVELOPMENT structure supports ordered nonempty
-  joining and shows that non-left-packed and repeated-line evidence must remain.
-- **Status:** LOCKED for the authorized Stage 5 DEVELOPMENT candidate;
-  authoritative evaluation and independent acceptance remain pending.
+  concatenation without inserting punctuation that asserts an unsupported
+  component boundary. Full human review of v1 found four questionable comma-
+  space boundaries, including punctuation adjacency and wrapped phrase/ordinal
+  cases. A space preserves upstream punctuation and fixes the general issue
+  without inspecting characters, parsing, or using country rules. Non-left-
+  packed and repeated-line evidence remains unchanged.
+- **Status:** v2 correction locked for authoritative DEVELOPMENT re-evaluation.
+  The immutable v1 job `1759565` is retained as a scientifically unsuccessful
+  first candidate attempt; independent acceptance remains pending.
 
 ### D021 — Stage 5 defers address-format metadata
 
