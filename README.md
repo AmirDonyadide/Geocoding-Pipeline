@@ -21,9 +21,9 @@ query can be inspected and reproduced.
 
 ## Current status
 
-The DEVELOPMENT pipeline is accepted through Stage 3. Stage 4 has an
-implemented candidate whose authoritative 35,000-row run is pending; it is not
-accepted. Stages 5–19 have not started.
+The DEVELOPMENT pipeline is accepted through Stage 3. Stage 4 has a complete
+35,000-row candidate ready for fresh independent review; it is not accepted.
+Stages 5–19 have not started.
 
 | Stage | Name | Status | Data effect |
 |---:|---|---|---|
@@ -31,7 +31,7 @@ accepted. Stages 5–19 have not started.
 | 1 | Lossless ingestion | **ACCEPTED** | Converts CSV to Parquet without changing source values; adds stable provenance |
 | 2 | Schema and provenance harmonization | **ACCEPTED** | Preserves incoming fields and adds four derived structural fields |
 | 3 | Safe text cleaning | **ACCEPTED** | Adds derived `*_clean` values and ordered audit reasons; raw fields remain unchanged |
-| 4 | Lowercase canonical forms | **IMPLEMENTED CANDIDATE — RUN PENDING** | Appends exact Python Unicode lowercase representations; not accepted |
+| 4 | Lowercase canonical forms | **DEVELOPMENT CANDIDATE — READY FOR INDEPENDENT REVIEW** | Appends exact Python Unicode lowercase representations; not accepted |
 | 5–19 | Reconstruction, validation, and query preparation | **NOT STARTED** | Planned derived representations only |
 
 Production Stage 0 and Stage 1 are accepted for
@@ -143,7 +143,7 @@ personal absolute paths. Sanitized evidence is available under
 
 ## Current next stage
 
-**Stage 4 — Lowercase canonical forms — IMPLEMENTED DEVELOPMENT CANDIDATE;
-AUTHORITATIVE RUN PENDING.** The active Stage 4 session stops after its
-candidate verdict. It does not independently accept Stage 4, start Stage 5, or
-authorize production Stage 2 through Stage 4.
+**Stage 4 — Lowercase canonical forms — DEVELOPMENT CANDIDATE READY FOR
+INDEPENDENT REVIEW.** The active Stage 4 session stops at this candidate
+verdict. It does not independently accept Stage 4, start Stage 5, or authorize
+production Stage 2 through Stage 4.

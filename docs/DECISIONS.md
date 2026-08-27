@@ -201,8 +201,8 @@ to change a decision or start a stage.
   differential evidence.
 - **Rationale:** Preserve the narrow planned Stage 4 boundary and exact Unicode
   semantics without changing science for speed.
-- **Status:** DEVELOPMENT CANDIDATE. Awaiting authoritative 35k evidence and
-  fresh independent review; not accepted and not authorized for production.
+- **Status:** DEVELOPMENT CANDIDATE READY FOR INDEPENDENT REVIEW. Complete 35k
+  evidence exists; not accepted and not authorized for production.
 
 ## Open decisions
 
@@ -218,4 +218,5 @@ These questions require future stage designs and explicit approval:
 - whether interpolated address-layer Pelias results are usable for the final
   point-level analysis.
 
-Nothing in this register resolves those questions or authorizes Stage 4.
+Nothing in this register resolves those questions, authorizes Stage 5, or
+authorizes production Stage 2 through Stage 4.

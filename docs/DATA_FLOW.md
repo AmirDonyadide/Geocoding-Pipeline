@@ -133,8 +133,8 @@ Stage 4 maps each of the 12 accepted `stage03_clean_*` strings to a distinct
 `stage04_lower_*` string using exact Python Unicode `str.lower()`. It appends a
 canonical-order list of changed fields and a row-changed flag. It does not
 rewrite any Stage 3 column, casefold, apply locale-specific casing, or normalize
-after lower. The implementation awaits authoritative DEVELOPMENT evidence and
-independent review.
+after lower. The complete DEVELOPMENT candidate is ready for independent
+review and is not accepted.
 
 ## Future candidate representations
 

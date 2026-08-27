@@ -19,9 +19,9 @@ design
   -> stop
 ```
 
-Stages 0–3 have completed this lifecycle on DEVELOPMENT. Stage 4 is the single
-active DEVELOPMENT candidate; its authoritative run and candidate verdict are
-pending, and independent review remains a fresh later session.
+Stages 0–3 have completed this lifecycle on DEVELOPMENT. Stage 4 has completed
+candidate development and is ready for a fresh independent-review session; it
+is not accepted.
 
 ## Design and implementation
 

@@ -147,10 +147,79 @@ geocode, or call an external service.
 
 ## DEVELOPMENT evidence
 
-The implementation and synthetic/unit design are complete. Authoritative
-35,000-row Goethe-NHR execution and fixed-500 evidence are pending. This record
-will be updated with the exact pushed implementation SHA, SLURM job, immutable
-fingerprints, metrics, and candidate verdict after that single run completes.
+The final candidate implementation is
+`0d98ff6450875dfe8fb37c84729e5bbe632ef2fb`. Goethe-NHR SLURM job `1759421`
+executed that exact pushed SHA from a clean detached worktree and completed with
+exit code zero. Its immutable identities are:
+
+- Stage 4 logical fingerprint:
+  `054c66701f854a0108938170e1cb9bcee8a772f7fed29b82cda53c71aa9747ec`;
+- Stage 4 schema fingerprint:
+  `dafb4f78b8bfce3120b6f4f7ae8cb44883f4c3a9cfd94b3137871b83c0ed5cbc`;
+- Stage 4 input-binding SHA-256:
+  `90e0e94d4359bd5927820dfc06b2cfc1dc37485c032d95726d1260ec88a534b0`;
+- Stage 4 manifest SHA-256:
+  `17a4854cddd8929b65ea79402f1a4f12a1574b720c1921567b577f23e152d1f3`;
+- ordered identity digest:
+  `fe2a4758582c1880d2b5c62dfc5c587d865e05d13033af9f5e8208b58e2a0487`;
+- fixed-500 review artifact SHA-256:
+  `0a8fb68b2f4dfb332d3c8fde431898c2229aed42a3cd27184c5ac0f0a12fe75b`;
+  and
+- fixed-500 review manifest SHA-256:
+  `95f450948daddbbee065cf0a3742ab723549dd5ab69d00fc3186f2ce3bc2ad5c`.
+
+Independent post-publication validation reopened both the accepted Stage 3
+bundle and the immutable Stage 4 output. It confirmed 35,000 input and output
+rows, zero dropped or added rows, exact identity order, and exact equality of
+every incoming Stage 3 column. All 420,000 derived fields equalled their clean
+input's Python `str.lower()` result, with zero idempotence failures and zero
+empty/nonempty transitions.
+
+Lowercase changed 34,994 rows and 186,166 fields; 6 rows and 233,834 fields
+were unchanged. Changed-field counts were 55,388 standard address-line fields,
+36,489 native address-line fields, 31,411 city fields, 27,500 region fields,
+34,359 country-source-geography fields, and 1,019 postcode fields. There were
+181,549 ASCII case changes, 4,617 Unicode case changes, and no observed
+length-changing lowercase mapping in DEVELOPMENT. Maximum length increase and
+decrease were both zero.
+
+The aggregate Script diagnostic covered 210,274 ASCII-only, 1,927 non-ASCII
+Latin, 2,107 Cyrillic, 220 Greek, 3 Arabic/Persian, 18,501 CJK/Hangul, 1,807
+mixed, 508 other, and 184,653 empty field values. Uncased-script values were
+natural no-ops; standard and native fields were processed under the same rule.
+
+The protected fixed-500 view retained the exact frozen identities and order.
+All 500 rows were classified `EXPECTED_CASE_NORMALIZATION`; `QUESTIONABLE` and
+`SEMANTIC_DAMAGE` were both zero. The view remains a protected comparison
+surface for the independent reviewer, not acceptance evidence from an
+independent session.
+
+Materialization took 22.487 seconds, including its first complete readback,
+with 20.095 seconds user CPU, 2.194 seconds system CPU, and 1,362,428 KiB
+process peak RSS. Throughput was 1,556.455 rows/second and 18,677.458
+fields/second. The row-linear projection to 141,048,582 rows is 90,622 seconds
+(about 25.2 hours); it is a planning estimate, not a guarantee. Total job wall
+time, including isolated runtime setup, separate published validation, and
+fixed-500 review, was 76 seconds. SLURM recorded 56.640 seconds total CPU and
+1,004,468 KiB batch-step MaxRSS. Processing remained bounded by at most 2,048
+rows and a 256 MiB target uncompressed batch size.
+
+Two earlier attempts are preserved. Job `1759398` failed in zero seconds,
+before runtime setup or protected input access, because the path guard compared
+a canonical `/panfs` child to an uncanonicalized `/work` root; commit
+`1ffe46f662088b49710f367ace522e5dad956973` fixed the guard. Job `1759399`
+then produced byte-identical scientific Parquet and fixed-500 review evidence,
+but its per-character Script diagnostic made materialization take 342.997
+seconds. The final bounded code-point cache and early bucket resolution retain
+exact diagnostic classifications; deterministic differential tests and the two
+DEVELOPMENT runs produced identical aggregate-metric, Stage 4 Parquet, review
+Parquet, logical, and schema identities.
+
+The focused Stage 4 suite passed 50 tests. The policy-compliant local-safe suite
+passed 380 tests with four controlled production-transfer tests deselected.
+Ruff, mypy, changed-file formatting, `git diff --check`, shell syntax, Markdown
+links, and the tracked/protected-data audit passed. See the Git-safe aggregate
+[summary](../../reports/development/stage04_summary.md).
 
 ## Production and later-stage status
 
@@ -159,7 +228,8 @@ STARTED**. No production or geocoding authorization is implied.
 
 ## Current status
 
-**IMPLEMENTED DEVELOPMENT CANDIDATE — AUTHORITATIVE DEVELOPMENT RUN PENDING.**
+**DEVELOPMENT CANDIDATE — READY FOR INDEPENDENT REVIEW.**
 
-This session does not independently accept Stage 4. A successful candidate
-must stop at `STAGE_4_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REVIEW`.
+This session does not independently accept Stage 4 and does not start Stage 5.
+Its terminal verdict is
+`STAGE_4_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REVIEW`.
