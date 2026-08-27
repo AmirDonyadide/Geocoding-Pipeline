@@ -204,11 +204,35 @@ to change a decision or start a stage.
 - **Status:** `STAGE_4_ACCEPTED` on DEVELOPMENT. Production Stage 4 remains not
   started and is not authorized by this decision.
 
+### D020 — Stage 5 conservatively reconstructs line bodies
+
+- **Scope:** Stage 5 DEVELOPMENT
+- **Decision:** Reconstruct standard and native representations independently
+  from exact nonempty lines in source position order 1 through 4, using exact
+  separator `", "`. Append both case-preserving clean and lowercase candidates
+  plus compact availability/count/mask provenance. Preserve gaps and duplicate
+  line occurrences; do not append geographic fields.
+- **Rationale:** This is the narrowest representation that prevents token
+  concatenation and provides coherent parser input without inferring component
+  meanings or pre-empting Stage 6 deduplication, Stage 7 parsing, or Stage 18
+  query generation. Aggregate DEVELOPMENT structure supports ordered nonempty
+  joining and shows that non-left-packed and repeated-line evidence must remain.
+- **Status:** LOCKED for the authorized Stage 5 DEVELOPMENT candidate;
+  authoritative evaluation and independent acceptance remain pending.
+
+### D021 — Stage 5 defers address-format metadata
+
+- **Scope:** Stage 5 DEVELOPMENT
+- **Decision:** Do not use address-format metadata to label or reorder source
+  lines. Stage 5 uses only their existing order.
+- **Rationale:** Address lines 1–4 have no universal component meanings, and no
+  evidence justifies a country-dependent semantic transformation at this stage.
+- **Status:** LOCKED for the Stage 5 DEVELOPMENT candidate.
+
 ## Open decisions
 
 These questions require future stage designs and explicit approval:
 
-- Stage 5 reconstruction rules and whether address-format metadata is needed;
 - libpostal build/resource pinning and Stage 7 evaluation design;
 - country-specific Stage 11 coverage and syntax policy;
 - reference versions/licenses and blocking semantics for Stages 13–15;
@@ -218,5 +242,5 @@ These questions require future stage designs and explicit approval:
 - whether interpolated address-layer Pelias results are usable for the final
   point-level analysis.
 
-Nothing in this register resolves those questions, authorizes Stage 5, or
-authorizes production Stage 2 through Stage 4.
+Nothing in this register authorizes Stage 6, HOLDOUT access, or production
+Stage 2 through Stage 5.

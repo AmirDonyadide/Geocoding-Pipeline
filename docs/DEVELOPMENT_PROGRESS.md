@@ -10,12 +10,14 @@ are in the linked stage records and sanitized reports.
 | 2 | Schema/provenance harmonization | **ACCEPTED** | 35,000 → 35,000; all 22 incoming fields preserved; four structural fields added; [report](../reports/development/stage02_summary.md) | **NOT STARTED** |
 | 3 | Safe text cleaning | **`STAGE_3_ACCEPTED`** | Jobs `1759269`/`1759272`; exact v1/v2 scientific equality and bounded validation; [report](../reports/development/stage03_summary.md) | **NOT STARTED** |
 | 4 | Lowercase canonical forms | **`STAGE_4_ACCEPTED`** | Job `1759421`; independent job `1759473`; 35,000 → 35,000; exact Python `str.lower()`; [report](../reports/development/stage04_summary.md) | **NOT STARTED** |
-| 5–19 | Remaining pre-geocoding stages | **PLANNED — NOT STARTED** | No implementation or DEVELOPMENT run | **NOT STARTED** |
+| 5 | Address reconstruction | **IMPLEMENTED — AUTHORITATIVE EVALUATION PENDING** | Contract/profile v1 and bounded candidate/review workflow; [Stage 5 record](stages/STAGE05_ADDRESS_RECONSTRUCTION.md) | **NOT STARTED** |
+| 6–19 | Remaining pre-geocoding stages | **PLANNED — NOT STARTED** | No implementation or DEVELOPMENT run | **NOT STARTED** |
 
 Benchmark V1 contains 35,000 DEVELOPMENT and 15,000 sealed HOLDOUT rows from
 the permanent 1,405-file population. The fixed 500-row qualitative subset has
 fingerprint
 `014f7c1373380b265f34e2ecb76614161b320e2bb972befb8f53994cc5a1dd52`.
 
-Stage 4 is accepted on DEVELOPMENT. Production Stage 2 through Stage 4 and
-Stage 5 remain not started.
+Stage 4 is accepted on DEVELOPMENT. Stage 5 is active only for its authorized
+DEVELOPMENT evaluation. Production Stage 2 through Stage 5 and Stage 6 remain
+not started.

@@ -313,6 +313,101 @@ _ALLOWED_METRICS: Mapping[str, frozenset[str]] = {
             "FIELDS_PER_SECOND_MILLI",
             "LINEAR_PROJECTED_141048582_ROWS_SECONDS",
             "V1_ELAPSED_MILLISECONDS",
+            "CANDIDATE_VALUES_PER_SECOND_MILLI",
+        }
+    ),
+    "REPRESENTATION_AVAILABILITY": frozenset(
+        {
+            "NO_REPRESENTATION",
+            "STANDARD_ONLY",
+            "NATIVE_ONLY",
+            "BOTH",
+            "STANDARD_AVAILABLE",
+            "STANDARD_UNAVAILABLE",
+            "NATIVE_AVAILABLE",
+            "NATIVE_UNAVAILABLE",
+        }
+    ),
+    "BOTH_CANDIDATE_RELATIONSHIP": frozenset({"EXACT_EQUAL_CANONICAL", "DIFFERENT"}),
+    "BOTH_LINE_COUNT_RELATIONSHIP": frozenset(
+        {"SAME_LINE_COUNT", "DIFFERENT_LINE_COUNT"}
+    ),
+    "STANDARD_LINE_COUNT": frozenset({"0", "1", "2", "3", "4"}),
+    "NATIVE_LINE_COUNT": frozenset({"0", "1", "2", "3", "4"}),
+    "STANDARD_OCCUPANCY_MASK": frozenset({f"{value:04b}" for value in range(16)}),
+    "NATIVE_OCCUPANCY_MASK": frozenset({f"{value:04b}" for value in range(16)}),
+    "GAP_FINDINGS": frozenset({"STANDARD_GAP_ROWS", "NATIVE_GAP_ROWS"}),
+    "DUPLICATE_LINE_FINDINGS": frozenset(
+        {
+            "STANDARD_ROWS_WITH_EXACT_DUPLICATE_CLEAN_LINES",
+            "NATIVE_ROWS_WITH_EXACT_DUPLICATE_CLEAN_LINES",
+            "STANDARD_ROWS_WITH_EXACT_DUPLICATE_LOWER_LINES",
+            "NATIVE_ROWS_WITH_EXACT_DUPLICATE_LOWER_LINES",
+            "STANDARD_EXCESS_EXACT_DUPLICATE_CLEAN_VALUES",
+            "NATIVE_EXCESS_EXACT_DUPLICATE_CLEAN_VALUES",
+            "STANDARD_EXCESS_EXACT_DUPLICATE_LOWER_VALUES",
+            "NATIVE_EXCESS_EXACT_DUPLICATE_LOWER_VALUES",
+        }
+    ),
+    "SEPARATOR_BOUNDARIES": frozenset(
+        {
+            "STANDARD_INTERNAL_BOUNDARIES",
+            "NATIVE_INTERNAL_BOUNDARIES",
+            "STANDARD_PREDECESSOR_ENDS_COMMA",
+            "NATIVE_PREDECESSOR_ENDS_COMMA",
+            "STANDARD_SUCCESSOR_STARTS_PUNCTUATION",
+            "NATIVE_SUCCESSOR_STARTS_PUNCTUATION",
+            "STANDARD_SEPARATOR_OVERHEAD_CODEPOINTS",
+            "NATIVE_SEPARATOR_OVERHEAD_CODEPOINTS",
+        }
+    ),
+    "STANDARD_CANDIDATE_LENGTH_CODEPOINTS": frozenset(
+        {
+            "COUNT",
+            "MIN",
+            "MEDIAN",
+            "MEAN_MILLI",
+            "P95_NEAREST_RANK",
+            "P99_NEAREST_RANK",
+            "MAX",
+        }
+    ),
+    "NATIVE_CANDIDATE_LENGTH_CODEPOINTS": frozenset(
+        {
+            "COUNT",
+            "MIN",
+            "MEDIAN",
+            "MEAN_MILLI",
+            "P95_NEAREST_RANK",
+            "P99_NEAREST_RANK",
+            "MAX",
+        }
+    ),
+    "VERY_LARGE_CANDIDATES": frozenset(
+        {
+            "STANDARD_AT_LEAST_1024_CODEPOINTS",
+            "STANDARD_AT_LEAST_65536_CODEPOINTS",
+            "STANDARD_AT_LEAST_1000000_CODEPOINTS",
+            "NATIVE_AT_LEAST_1024_CODEPOINTS",
+            "NATIVE_AT_LEAST_65536_CODEPOINTS",
+            "NATIVE_AT_LEAST_1000000_CODEPOINTS",
+        }
+    ),
+    "RECONSTRUCTION_VALIDATION": frozenset(
+        {
+            "RECONSTRUCTION_MISMATCHES",
+            "AUDIT_MISMATCHES",
+            "CLEAN_LOWER_CONSISTENCY_MISMATCHES",
+            "IDEMPOTENCE_FAILURES",
+        }
+    ),
+    "STAGE05_QUALITATIVE_CLASSIFICATIONS": frozenset(
+        {
+            "CORRECT_RECONSTRUCTION",
+            "VALID_BUT_REDUNDANT_SOURCE_CONTENT",
+            "QUESTIONABLE_BOUNDARY",
+            "QUESTIONABLE_ORDER",
+            "SEMANTIC_DAMAGE",
         }
     ),
 }
@@ -352,6 +447,15 @@ _OPTIONAL_CHECKS = frozenset(
         "FIXED_500_QUALITATIVE_REVIEW_COMPLETE",
         "ZERO_QUESTIONABLE",
         "ZERO_SEMANTIC_DAMAGE",
+        "ALL_STAGE04_FIELDS_UNCHANGED",
+        "LINE_ONLY_RECONSTRUCTION",
+        "GEOGRAPHIC_FIELDS_EXCLUDED",
+        "DUPLICATE_LINES_PRESERVED",
+        "GAPS_PRESERVE_RELATIVE_ORDER",
+        "NO_STAGE06_DEDUPLICATION",
+        "NO_STAGE07_PARSING",
+        "ZERO_QUESTIONABLE_BOUNDARY",
+        "ZERO_QUESTIONABLE_ORDER",
     }
 )
 
@@ -361,6 +465,7 @@ _ALLOWED_EXTRA_FINGERPRINTS = frozenset(
         "manifest",
         "input_stage02_manifest",
         "input_stage03_manifest",
+        "input_stage04_manifest",
         "review_subset",
         "review_artifact",
         "ordered_stable_identity",
@@ -387,6 +492,12 @@ _INTERPRETATIONS = {
         "Stage 4 created exact Python Unicode lowercase derived text for the "
         "complete 35,000-row DEVELOPMENT set while preserving every Stage 3 "
         "field; it remains a candidate pending independent scientific review."
+    ),
+    "STAGE05_ADDRESS_RECONSTRUCTION_CANDIDATE": (
+        "Stage 5 reconstructed separate standard and native address-line bodies "
+        "for the complete 35,000-row DEVELOPMENT set from exact nonempty source "
+        "line order, while preserving every Stage 4 field; it remains a candidate "
+        "pending independent scientific review."
     ),
 }
 

@@ -12,9 +12,10 @@ stage.
 - **PLANNED — NOT STARTED:** conceptual placement and likely technology only.
   No accepted design or implementation exists.
 
-Stages 0–4 are accepted on DEVELOPMENT.
+Stages 0–4 are accepted on DEVELOPMENT. Stage 5 is implemented for its
+authorized DEVELOPMENT evaluation but is not accepted.
 Production Stage 0 and Stage 1 are accepted for the 1,411-file population;
-production Stage 2 through Stage 4 have not started. Stages 5–19 have not
+production Stage 2 through Stage 5 have not started. Stages 6–19 have not
 started in either track.
 
 ## Cross-stage scientific rules
@@ -143,17 +144,18 @@ stage consumes an accepted predecessor and must stop at its own review gate.
 
 - **Purpose:** Reconstruct coherent address candidates without assuming fixed
   semantics for lines 1–4.
-- **Input:** Accepted Stage 4 standard/native canonical fields and provenance.
-- **Output:** Separate standard and native candidate representations with
-  explicit line-use evidence; optional transliteration only as a separate later
-  candidate.
-- **Primary libraries:** SAFE reconstruction logic and possibly pinned
-  address-format metadata.
-- **Data effect:** Planned derived candidates; no source overwrite.
-- **Status:** **PLANNED — NOT STARTED**.
+- **Input:** Accepted Stage 3 clean and Stage 4 lowercase standard/native
+  address-line fields plus all preserved provenance.
+- **Output:** Separate clean and lowercase standard/native line-body candidates
+  plus availability, contributing-line count, and four-position occupancy mask.
+- **Primary libraries:** Small SAFE reconstruction logic within bounded
+  PyArrow/Parquet processing. Address-format metadata is intentionally deferred.
+- **Data effect:** Appends ten derived fields; no source or upstream overwrite.
+- **Status:** **DEVELOPMENT IMPLEMENTATION — AUTHORITATIVE EVALUATION PENDING**.
 - **Acceptance requirement:** Approved reconstruction rules, country/script
   coverage evidence, no blind concatenation, complete lineage, DEVELOPMENT and
-  fixed-500 review, and independent acceptance.
+  fixed-500 review, and independent acceptance. The exact rule and boundary are
+  in the [Stage 5 record](stages/STAGE05_ADDRESS_RECONSTRUCTION.md).
 
 ## Stage 6 — Early exact deduplication
 

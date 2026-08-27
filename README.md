@@ -21,8 +21,9 @@ query can be inspected and reproduced.
 
 ## Current status
 
-The DEVELOPMENT pipeline is accepted through Stage 4. Stage 5 and all later
-stages have not started.
+The DEVELOPMENT pipeline is accepted through Stage 4. Stage 5 is implemented
+for its authorized DEVELOPMENT evaluation but is not accepted. Later stages
+have not started.
 
 | Stage | Name | Status | Data effect |
 |---:|---|---|---|
@@ -31,11 +32,12 @@ stages have not started.
 | 2 | Schema and provenance harmonization | **ACCEPTED** | Preserves incoming fields and adds four derived structural fields |
 | 3 | Safe text cleaning | **ACCEPTED** | Adds derived `*_clean` values and ordered audit reasons; raw fields remain unchanged |
 | 4 | Lowercase canonical forms | **`STAGE_4_ACCEPTED`** | Appends exact Python Unicode lowercase representations; all upstream values remain unchanged |
-| 5–19 | Reconstruction, validation, and query preparation | **NOT STARTED** | Planned derived representations only |
+| 5 | Address reconstruction | **IMPLEMENTED — AUTHORITATIVE EVALUATION PENDING** | Appends separate clean/lower standard/native line-body candidates and compact provenance |
+| 6–19 | Validation and query preparation | **NOT STARTED** | Planned derived representations only |
 
 Production Stage 0 and Stage 1 are accepted for
 `production_population_1411_v1` (1,411 files; 141,048,582 rows). Production
-Stage 2 through Stage 4 have not started.
+Stage 2 through Stage 5 have not started.
 
 ## Architecture
 
@@ -46,7 +48,8 @@ immutable source CSV
   -> Stage 2: schema/provenance harmonization
   -> Stage 3: safe derived text cleaning
   -> Stage 4: exact derived Python Unicode lowercase
-  -> Stages 5–19: planned reconstruction, parsing, validation, and query QA
+  -> Stage 5: separate deterministic address-line body reconstruction
+  -> Stages 6–19: planned deduplication, parsing, validation, and query QA
   -> self-hosted SAFE Pelias
 ```
 
@@ -63,7 +66,7 @@ to every `stable_source_row_id_v1`.
 | `cluster/goethe_nhr/` | Reviewed SLURM and environment assets for Goethe-NHR |
 | `scripts/` | Controlled transfer and synchronization helpers |
 | `docs/` | Current project, pipeline, workflow, privacy, execution, and reproducibility documentation |
-| `docs/stages/` | Accepted Stage 0–4 scientific records |
+| `docs/stages/` | Stage 0–5 scientific records and candidate evidence |
 | `docs/history/` | Accepted source-foundation records that predate the Stage terminology |
 | `reports/development/` | Sanitized, Git-safe aggregate DEVELOPMENT evidence |
 
@@ -98,7 +101,7 @@ documentation. See [Privacy and security](docs/PRIVACY_AND_SECURITY.md).
 ## Quick start
 
 The package supports Python 3.11 or newer for local development. Reproducing
-the accepted Stage 3 or Stage 4 Goethe execution requires its exact pinned
+the accepted Stage 3/4 or Stage 5 Goethe execution requires its exact pinned
 Python 3.14.3 runtime and Unicode 16.0.0 contract.
 
 ```bash
@@ -142,6 +145,6 @@ personal absolute paths. Sanitized evidence is available under
 
 ## Current next stage
 
-**Stage 5 — Address reconstruction — NOT STARTED.** Stage 4 is accepted on
-DEVELOPMENT. This acceptance does not start Stage 5 or authorize production
-Stage 2 through Stage 4.
+**Stage 5 — Address reconstruction — DEVELOPMENT EVALUATION IN PROGRESS.**
+Stage 4 is accepted on DEVELOPMENT. Stage 5 remains unaccepted and does not
+authorize Stage 6, HOLDOUT access, or production Stage 2 through Stage 5.

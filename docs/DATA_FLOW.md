@@ -36,7 +36,13 @@ Stage 4: lowercase canonical forms (accepted on DEVELOPMENT)
   + ordered changed-field and row-changed audit
         |
         v
-Future Stages 5–19 (not started)
+Stage 5: address reconstruction (DEVELOPMENT evaluation pending)
+  all Stage 4 fields unchanged
+  + separate clean and lowercase standard/native candidates
+  + availability, line count, and occupancy-mask evidence
+        |
+        v
+Future Stages 6–19 (not started)
   candidate representations -> components -> evidence
   -> candidate/query identities -> complete source-row mappings
 ```
@@ -135,9 +141,22 @@ canonical-order list of changed fields and a row-changed flag. It does not
 rewrite any Stage 3 column, casefold, apply locale-specific casing, or normalize
 after lower. This representation is accepted on DEVELOPMENT.
 
+## Stage 5 reconstructed line-body candidates
+
+Stage 5 independently selects exact nonempty cleaned standard lines and exact
+nonempty cleaned native lines in source position order 1 through 4, then joins
+each representation with exact `", "`. It repeats the derivation from accepted
+Stage 4 lowercase lines. Empty positions create no artificial separators;
+gaps preserve the relative order of contributing lines; duplicate line values
+remain duplicated. Zero contributing lines yield an empty unavailable
+candidate.
+
+Postcode, city, region, and country are not appended. Stage 5 does not parse,
+deduplicate, choose between representations, or generate a geocoder query.
+
 ## Future candidate representations
 
-Stages 5–19 have not started. Their data model is constrained by these accepted
+Stages 6–19 have not started. Their data model is constrained by these accepted
 principles:
 
 - lowercase, reconstructed, parsed, normalized, transliterated, corrected, and
