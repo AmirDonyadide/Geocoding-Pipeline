@@ -62,13 +62,12 @@ to every `stable_source_row_id_v1`.
 | `scripts/` | Controlled transfer and synchronization helpers |
 | `docs/` | Current project, pipeline, workflow, privacy, execution, and reproducibility documentation |
 | `docs/stages/` | Accepted Stage 0–3 scientific records |
-| `docs/history/` | Historical source-foundation and superseded custom-preprocessing records |
+| `docs/history/` | Accepted source-foundation records that predate the Stage terminology |
 | `reports/development/` | Sanitized, Git-safe aggregate DEVELOPMENT evidence |
 
-The older `phase01`, `phase02`, and `phase03` package namespaces are preserved
-because accepted source-foundation work and historical custom-preprocessing
-evidence remain reproducible. The active library-first Stage 0–3 adapters live
-under `src/safe_geocoding_pipeline/preprocessing/`.
+The older `phase01` and `phase02` package namespaces remain because accepted
+source-foundation work underpins Stage 0 and Stage 1. The active library-first
+Stage 0–3 adapters live under `src/safe_geocoding_pipeline/preprocessing/`.
 
 ## DEVELOPMENT, HOLDOUT, and production
 

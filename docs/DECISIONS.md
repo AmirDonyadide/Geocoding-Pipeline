@@ -2,8 +2,7 @@
 
 This register contains durable scientific and operational decisions for the
 active library-first pipeline. Empirical reports are evidence, not permission
-to change a decision or start a stage. Superseded custom-preprocessing decisions
-remain in [`docs/history/custom_preprocessing/`](history/custom_preprocessing/README.md).
+to change a decision or start a stage.
 
 ## Locked decisions
 
@@ -34,8 +33,8 @@ remain in [`docs/history/custom_preprocessing/`](history/custom_preprocessing/RE
   validation semantics, execution guards, and verified gaps.
 - **Rationale:** Reduce custom algorithm risk while retaining SAFE-specific
   scientific control.
-- **Status:** LOCKED. Historical custom work remains recoverable at tag
-  `baseline/custom-preprocessing-2026-08` and in the history documentation.
+- **Status:** LOCKED. The current repository presents only this architecture;
+  immutable Git ancestry retains prior development provenance.
 
 ### D004 — DEVELOPMENT, HOLDOUT, and production are separate tracks
 

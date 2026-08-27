@@ -9,8 +9,8 @@ from collections import Counter
 from dataclasses import dataclass
 from typing import Iterable, Mapping, Protocol, Sequence
 
-from ..phase03.references import ScriptReference
 from ..raw_csv import SOURCE_COLUMNS
+from .script_reference import ScriptReference
 
 BENCHMARK_CONTRACT_VERSION = "benchmark_sample_contract_v1"
 FEATURE_CONTRACT_VERSION = "benchmark_sampling_features_v1"

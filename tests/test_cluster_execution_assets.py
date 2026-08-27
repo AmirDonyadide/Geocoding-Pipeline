@@ -1,9 +1,7 @@
 from __future__ import annotations
 
 import os
-import shlex
 import subprocess
-import sys
 from pathlib import Path
 
 import pytest
@@ -11,14 +9,8 @@ import pytest
 
 REPOSITORY = Path(__file__).resolve().parents[1]
 SYNC = REPOSITORY / "scripts" / "sync_to_goethe_nhr.sh"
-BOOTSTRAP = REPOSITORY / "cluster" / "goethe_nhr" / "bootstrap_env.sh"
-PREFLIGHT = REPOSITORY / "cluster" / "goethe_nhr" / "phase03_preflight.sh"
-SBATCH = REPOSITORY / "cluster" / "goethe_nhr" / "phase03_development_pilot.sbatch"
 STAGE00_INVENTORY_SBATCH = (
     REPOSITORY / "cluster" / "goethe_nhr" / "stage00_inventory.sbatch"
-)
-PATTERN_PROFILE_SBATCH = (
-    REPOSITORY / "cluster" / "goethe_nhr" / "phase03_development_pattern_profile.sbatch"
 )
 PHASE02_RUN = "staging/controlled/phase02_v1/runs/phase02_20260810T173851Z_1349152b"
 PHASE01_ANOMALY = (
@@ -120,111 +112,8 @@ def _planned_sources(arguments: bytes) -> list[str]:
 
 
 def test_cluster_shell_assets_are_syntactically_valid() -> None:
-    for path in (SYNC, BOOTSTRAP, PREFLIGHT, SBATCH, PATTERN_PROFILE_SBATCH):
+    for path in (SYNC, STAGE00_INVENTORY_SBATCH):
         subprocess.run(["bash", "-n", str(path)], check=True)
-
-
-def _run_pattern_profile_path_guard(
-    data_root: Path,
-    input_path: Path,
-    *,
-    gnu_realpath: Path,
-) -> subprocess.CompletedProcess[str]:
-    guard = r"""
-set -euo pipefail
-DATA_ROOT="$1"
-input="$2"
-RESOLVED_DATA_ROOT="$(realpath -e -- "${DATA_ROOT}")"
-CONTROLLED_PHASE03_ROOT="$(realpath -e -- "${RESOLVED_DATA_ROOT}/derived/controlled/phase03_v1")"
-resolved_input="$(realpath -e -- "${input}")"
-[[ "${resolved_input}" == "${CONTROLLED_PHASE03_ROOT}/"* ]] || exit 41
-case "${resolved_input}" in
-  *[Ll][Oo][Cc][Kk][Ee][Dd]*) exit 42 ;;
-esac
-"""
-    return subprocess.run(
-        [
-            "bash",
-            "-c",
-            guard,
-            "pattern-profile-path-guard",
-            str(data_root),
-            str(input_path),
-        ],
-        env={**os.environ, "PATH": f"{gnu_realpath.parent}:{os.environ['PATH']}"},
-        text=True,
-        capture_output=True,
-        check=False,
-    )
-
-
-def test_pattern_profile_guard_compares_canonical_root_and_input(
-    tmp_path: Path,
-) -> None:
-    gnu_realpath = tmp_path / "bin" / "realpath"
-    gnu_realpath.parent.mkdir()
-    gnu_realpath.write_text(
-        "#!/usr/bin/env bash\n"
-        "set -euo pipefail\n"
-        '[[ "${1:-}" == "-e" ]] && shift\n'
-        '[[ "${1:-}" == "--" ]] && shift\n'
-        f"exec {shlex.quote(sys.executable)} -c "
-        "'import pathlib, sys; print(pathlib.Path(sys.argv[1]).resolve(strict=True))' "
-        '"$1"\n',
-        encoding="utf-8",
-    )
-    gnu_realpath.chmod(0o755)
-
-    physical_root = tmp_path / "panfs" / "project"
-    controlled_root = physical_root / "derived" / "controlled" / "phase03_v1"
-    valid_identity = controlled_root / "selection" / "development.identities.bin"
-    valid_identity.parent.mkdir(parents=True)
-    valid_identity.touch()
-
-    work_alias = tmp_path / "work" / "project"
-    work_alias.parent.mkdir()
-    work_alias.symlink_to(physical_root, target_is_directory=True)
-
-    outside = physical_root / "derived" / "controlled" / "phase03_v1-sibling" / "input"
-    outside.parent.mkdir(parents=True)
-    outside.touch()
-    locked = controlled_root / "LoCkEd" / "input"
-    locked.parent.mkdir()
-    locked.touch()
-
-    accepted = _run_pattern_profile_path_guard(
-        work_alias,
-        work_alias
-        / "derived"
-        / "controlled"
-        / "phase03_v1"
-        / "selection"
-        / valid_identity.name,
-        gnu_realpath=gnu_realpath,
-    )
-    rejected_outside = _run_pattern_profile_path_guard(
-        work_alias,
-        outside,
-        gnu_realpath=gnu_realpath,
-    )
-    rejected_locked = _run_pattern_profile_path_guard(
-        work_alias,
-        locked,
-        gnu_realpath=gnu_realpath,
-    )
-
-    assert accepted.returncode == 0
-    assert rejected_outside.returncode == 41
-    assert rejected_locked.returncode == 42
-
-    content = PATTERN_PROFILE_SBATCH.read_text(encoding="utf-8")
-    assert 'RESOLVED_DATA_ROOT="$(realpath -e -- "${DATA_ROOT}")"' in content
-    assert (
-        'CONTROLLED_PHASE03_ROOT="$(realpath -e -- '
-        '"${RESOLVED_DATA_ROOT}/derived/controlled/phase03_v1")"'
-    ) in content
-    assert '[[ "${resolved_input}" == "${CONTROLLED_PHASE03_ROOT}/"* ]]' in content
-    assert '[[ "${resolved_input,,}" != *locked* ]]' in content
 
 
 def test_sync_is_data_only_non_destructive_and_excludes_paused_state() -> None:
@@ -241,7 +130,6 @@ def test_sync_is_data_only_non_destructive_and_excludes_paused_state() -> None:
     assert "phase02_20260810T173851Z_1349152b" in content
     assert "phase01_20260810T151626Z_7df9bc8f" in content
     assert "phase01_anomalies.csv.gz" in content
-    assert "derived/controlled/phase03" not in content
     assert ".venv" not in " ".join(
         line.strip()
         for line in content.splitlines()
@@ -326,7 +214,6 @@ def test_sync_dry_run_plan_contains_only_approved_controlled_data(
         "phase02_state.sqlite3",
         "candidate_state.sqlite3",
         "duckdb",
-        "phase03_pilot_20260811T082940Z_025fb0ba",
         "csv_files/",
         "parquet_files/",
     )
@@ -347,7 +234,6 @@ def test_sync_uses_protect_args_with_modern_rsync(tmp_path: Path) -> None:
     for forbidden in (
         b"csv_files",
         b"candidate_state.sqlite3",
-        b"phase03_pilot_20260811T082940Z_025fb0ba",
         b".venv",
         b"secrets",
         b"parquet_files",
@@ -385,56 +271,3 @@ def test_sync_prefers_homebrew_rsync_over_path_rsync(tmp_path: Path) -> None:
     assert f"rsync executable={homebrew}" in result.stdout
     assert "rsync version=rsync homebrew protocol version 31" in result.stdout
     assert arguments.count(b"--protect-args\0") == 2
-
-
-def test_preflight_requires_cluster_runtime_snapshot_and_node_local_space() -> None:
-    content = PREFLIGHT.read_text(encoding="utf-8")
-    for required in (
-        "SAFE_EXECUTION_SITE",
-        "SLURM_JOB_ID",
-        "PHASE03_GIT_COMMIT",
-        "(3, 14, 3)",
-        'unicodedata.unidata_version == "16.0.0"',
-        "phase02_20260810T173851Z_1349152b",
-        "20_600_000",
-        "26843545600",
-        "NO_SAFE_CLUSTER_TEMP_STORAGE",
-        'plan["contract_version"]',
-        'plan["contract_fingerprint"]',
-        "SLURM_TMPDIR",
-        "TMPDIR",
-    ):
-        assert required in content
-    assert "/scratch|/scratch/*) continue" in content
-
-
-def test_slurm_workflow_is_single_node_sequential_and_preserves_locked_firewall() -> (
-    None
-):
-    content = SBATCH.read_text(encoding="utf-8")
-    assert "#SBATCH --nodes=1" in content
-    assert "#SBATCH --ntasks=1" in content
-    assert "#SBATCH --cpus-per-task=16" in content
-    assert "#SBATCH --mem=64G" in content
-    assert "#SBATCH --time=24:00:00" in content
-    assert "#SBATCH --partition=general1" in content
-    assert "#SBATCH --account" not in content
-    assert "--selection-engine bounded-parallel" in content
-    assert "--worker-count 16" in content
-    stages = (
-        "pilot-plan",
-        "pilot-profile",
-        "pilot-select",
-        "pilot-validate",
-        "pilot-materialize-development",
-        "development-transform",
-        "development-review-sample",
-    )
-    positions = [content.index(stage) for stage in stages]
-    assert positions == sorted(positions)
-    assert "PHASE03_NODE_TMP_ROOT}/candidate_state.sqlite3" in content
-    assert "--input-development-payload" in content
-    assert "--locked-payload" not in content
-    assert "locked_evaluation.identities.bin" in content
-    assert "locked_evaluation.parquet" not in content
-    assert "DEVELOPMENT_PILOT_PASS" in content

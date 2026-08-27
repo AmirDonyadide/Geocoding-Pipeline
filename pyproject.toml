@@ -15,10 +15,6 @@ dev = ["mypy==1.20.2", "pytest==8.4.2", "ruff==0.15.14"]
 [project.scripts]
 safe-geocoding-phase01 = "safe_geocoding_pipeline.phase01.cli:main"
 safe-geocoding-phase02 = "safe_geocoding_pipeline.phase02.cli:main"
-safe-geocoding-phase03 = "safe_geocoding_pipeline.phase03.cli:main"
-safe-geocoding-phase03-review = "safe_geocoding_pipeline.phase03.review_cli:main"
-safe-geocoding-phase03-targeted-review = "safe_geocoding_pipeline.phase03.targeted_review_cli:main"
-safe-geocoding-phase03-locked-evaluation = "safe_geocoding_pipeline.phase03.locked_evaluation_cli:main"
 safe-geocoding-benchmark-sample = "safe_geocoding_pipeline.preprocessing.benchmark_cli:main"
 safe-geocoding-stage02 = "safe_geocoding_pipeline.preprocessing.stage02_cli:main"
 safe-geocoding-stage03 = "safe_geocoding_pipeline.preprocessing.stage03_cli:main"
@@ -28,13 +24,9 @@ safe-geocoding-development-reporting = "safe_geocoding_pipeline.preprocessing.de
 where = ["src"]
 
 [tool.setuptools.package-data]
-"safe_geocoding_pipeline.phase03" = [
-    "resources/*.json",
-    "resources/references/*.json",
+"safe_geocoding_pipeline.preprocessing" = [
     "resources/references/*/*.json",
     "resources/references/*/*.txt",
-    "resources/references/*/*.xml",
-    "resources/references/*/LICENSE",
 ]
 
 [tool.pytest.ini_options]
@@ -42,7 +34,6 @@ addopts = "-ra"
 testpaths = ["tests"]
 markers = [
     "slow: generated large-field tests",
-    "production_reference: requires controlled production reference data",
     "requires_production_transfer_payload: requires the ignored completed Phase 1/2 transfer payload",
 ]
 

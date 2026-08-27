@@ -12,7 +12,7 @@ from pathlib import Path
 import pyarrow.parquet as pq
 import pytest
 
-from phase03_helpers import fictional_script_reference
+from benchmark_helpers import fictional_script_reference
 from safe_geocoding_pipeline.execution_policy import ExecutionPolicyError
 from safe_geocoding_pipeline.phase01.config import (
     DEFAULT_PARSER_FIELD_LIMIT_CHARS,

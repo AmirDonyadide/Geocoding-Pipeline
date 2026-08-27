@@ -23,7 +23,6 @@ from ..phase01.models import FileMetadata, SourceFile
 from ..phase01.parser import detect_bom, file_metadata, hash_file
 from ..phase01.population import PopulationScope, load_population_scope
 from ..phase02.identity import stable_source_row_id_v1
-from ..phase03.references import ScriptReference, production_reference_paths
 from ..raw_csv import (
     CSV_NEWLINE,
     SOURCE_COLUMNS,
@@ -33,6 +32,7 @@ from ..raw_csv import (
     csv_field_limit,
     strict_csv_reader,
 )
+from .script_reference import ScriptReference, unicode_script_reference_paths
 from .benchmark_sample import (
     ALLOCATION_POLICY_VERSION,
     BENCHMARK_CONTRACT_VERSION,
@@ -287,7 +287,7 @@ def _same_metadata(first: FileMetadata, second: FileMetadata) -> bool:
 
 
 def _load_script_reference() -> ScriptReference:
-    paths = production_reference_paths()
+    paths = unicode_script_reference_paths()
     reference = ScriptReference.from_artifact(
         paths["unicode_manifest"], paths["unicode_artifact"]
     )

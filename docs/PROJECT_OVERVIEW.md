@@ -144,6 +144,6 @@ The conceptual specification is [PIPELINE.md](PIPELINE.md), row evolution is
 documented in [DATA_FLOW.md](DATA_FLOW.md), durable decisions are recorded in
 [DECISIONS.md](DECISIONS.md), and exact stage status is summarized in
 [DEVELOPMENT_PROGRESS.md](DEVELOPMENT_PROGRESS.md). Privacy, execution, and
-reproduction requirements have separate guides. Historical Phase 1–3 material
-is retained under [history/](history/README.md) as provenance rather than as
-the active architecture.
+reproduction requirements have separate guides. Accepted source-foundation
+records are retained under [history/](history/README.md) as provenance rather
+than as the active architecture.
