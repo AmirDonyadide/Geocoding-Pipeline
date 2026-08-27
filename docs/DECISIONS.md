@@ -219,10 +219,14 @@ to change a decision or start a stage.
   cases. A space preserves upstream punctuation and fixes the general issue
   without inspecting characters, parsing, or using country rules. Non-left-
   packed and repeated-line evidence remains unchanged.
-- **Status:** v2 DEVELOPMENT candidate is ready for independent review after
-  authoritative job `1759603`. The immutable v1 job `1759565` is retained as a
-  scientifically unsuccessful first candidate attempt; independent acceptance
-  remains pending.
+- **Status:** `STAGE_5_ACCEPTED` on DEVELOPMENT after authoritative job
+  `1759603` and independent job `1759692`. The independent risk-based human
+  review found six questionable boundaries but zero questionable orders and
+  zero semantic-damage cases. Numeric adjacency and upstream word-wrap
+  ambiguity are accepted Stage 5 limitations: U+0020 prevents literal token
+  concatenation while avoiding unsupported semantic punctuation, and repair
+  would require parsing or heuristics outside this stage. The immutable v1 job
+  `1759565` remains a scientifically unsuccessful first candidate attempt.
 
 ### D021 — Stage 5 defers address-format metadata
 
@@ -231,7 +235,7 @@ to change a decision or start a stage.
   lines. Stage 5 uses only their existing order.
 - **Rationale:** Address lines 1–4 have no universal component meanings, and no
   evidence justifies a country-dependent semantic transformation at this stage.
-- **Status:** LOCKED for the Stage 5 DEVELOPMENT candidate.
+- **Status:** LOCKED by the accepted Stage 5 DEVELOPMENT contract.
 
 ## Open decisions
 

@@ -2,11 +2,11 @@
 
 ## Status
 
-**DEVELOPMENT CANDIDATE — READY FOR INDEPENDENT REVIEW.**
+**`STAGE_5_ACCEPTED` on DEVELOPMENT.**
 
-Stage 5 is authorized only for the 35,000-row Benchmark V1 DEVELOPMENT split.
-It is not accepted, is not merged to `main`, and does not authorize Stage 6,
-HOLDOUT access, geocoding, or any production preprocessing stage.
+Acceptance is limited to the 35,000-row Benchmark V1 DEVELOPMENT split. It
+does not authorize Stage 6, HOLDOUT access, geocoding, or any production
+preprocessing stage.
 
 ## Scientific purpose and boundary
 
@@ -155,7 +155,8 @@ The v2 implementation is
 completed 35,000 to 35,000 with zero dropped, added, or duplicate identities;
 exact identity/order and exact preservation of every Stage 4 column; and zero
 reconstruction, audit, clean/lower-consistency, or idempotence mismatches. The
-candidate fingerprints are:
+exact reviewed candidate/evidence head is
+`97bd7fa74da358e81133ac4d38232931762d3e78`. The candidate fingerprints are:
 
 - schema:
   `63d4cdb3707eda65c67cc5196891fa5005adce2b12eb7109554793c48c5303c3`;
@@ -167,12 +168,27 @@ candidate fingerprints are:
   `fd945163e3be0242c43b98972350904631279cb99f366baadb0a3094ab6a1fc5`.
 
 The v2 fixed-500 artifact preserves the exact accepted 500 identity/order and
-fingerprint. Targeted controlled inspection of review orders 59, 116, 257, and
-322 verified exact space-join semantics and zero Stage 5-inserted punctuation;
-all four v1 boundary defects are resolved. No protected row text appears in
-Git-safe evidence. Full aggregate metrics, performance, the complete human
-classification attestation, attempt history, and privacy gates are in the
-[sanitized Stage 5 report](../../reports/development/stage05_summary.md).
+fingerprint. The v1 comma-space failure mechanism is removed, but independent
+human review did not treat the targeted check alone as sufficient v2 evidence.
+Independent job `1759692` selected all 170 fixed-500 rows whose multi-line
+candidate changed from v1 to v2, plus nine gap-risk rows. Human review of all
+179 selected rows classified 136 correct reconstructions, 37 valid upstream
+redundancies, six questionable boundaries, zero questionable orders, and zero
+semantic-damage cases. The questionable orders were 19, 68, 72, 116, 145, and
+169.
 
-This session cannot mark Stage 5 accepted. A fresh independent-review session
-must decide acceptance.
+The six findings cover ambiguous numeric adjacency and source line wraps that
+appear to split a word or name. They are accepted limitations, not evidence of
+content loss or reordering. A space prevents literal concatenation and adds no
+component punctuation; repairing these cases would require line semantics,
+numeric special cases, or word-joining heuristics that Stage 5 deliberately
+does not own. The original Stage 4 lines remain exact for later parsing and
+validation. No protected row text appears in Git-safe evidence.
+
+The independent harness SHA is
+`cbafa0acd20dc3fa03ccd3db8c1f62104529666a`; the qualitative-scope fingerprint
+is `801fe9820cae9ae6a9aaf03b0bffcd5c3b8c316fd32b0bc1d4470ef99fd554f5`.
+The bound protected human attestation validated successfully with SHA-256
+`5981777021e55280278270c9821d9b02ccbd3fc0fd6711f11e0b833bed24cee8`.
+Full aggregate metrics, performance, attempt history, and privacy gates are in
+the [sanitized Stage 5 report](../../reports/development/stage05_summary.md).

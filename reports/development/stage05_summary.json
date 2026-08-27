@@ -1,6 +1,6 @@
 {
   "stage": "STAGE_5",
-  "status": "STAGE_5_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REVIEW",
+  "status": "STAGE_5_ACCEPTED",
   "candidate_version": 2,
   "scientific_identity": {
     "contract": "stage05_address_reconstruction_contract_v2",
@@ -247,7 +247,9 @@
       "orders_116_322": "v1 unsupported component punctuation corrected",
       "all_four_exact_space_join": true,
       "all_four_stage05_inserted_punctuation_count": 0,
-      "all_four_resolved": true,
+      "all_four_v1_separator_mechanisms_removed": true,
+      "independent_v2_questionable_boundary_overlap": [116],
+      "all_four_unconditionally_resolved": false,
       "unresolved_systematic_damage": false
     },
     "automatic_bookkeeping_classifications": {
@@ -259,6 +261,37 @@
       "interpretation": "deterministic bookkeeping only; not independent qualitative validation"
     },
     "protected_values_in_sanitized_evidence": false
+  },
+  "independent_review": {
+    "slurm_job_id": "1759692",
+    "state": "COMPLETED",
+    "exit_code": "0:0",
+    "candidate_sha": "97bd7fa74da358e81133ac4d38232931762d3e78",
+    "implementation_sha": "cd0a5ae91c3602ec20e34f7c419f1ac76f0b9160",
+    "review_harness_sha": "cbafa0acd20dc3fa03ccd3db8c1f62104529666a",
+    "machine_verification": "PASS",
+    "aggregate_sha256": "84d4c23a3488b20a6bf90c752a80e2a579636bf0e180d33a2697fddd82009d42",
+    "template_sha256": "33448958b2fcf7664cc2095ae443750c3ed59ec0c285dcff6719aa453feeceac",
+    "qualitative_scope_fingerprint": "801fe9820cae9ae6a9aaf03b0bffcd5c3b8c316fd32b0bc1d4470ef99fd554f5",
+    "selected_rows": 179,
+    "human_review_complete": true,
+    "human_classifications_on_v2": {
+      "CORRECT_RECONSTRUCTION": 136,
+      "VALID_BUT_REDUNDANT_SOURCE_CONTENT": 37,
+      "QUESTIONABLE_BOUNDARY": 6,
+      "QUESTIONABLE_ORDER": 0,
+      "SEMANTIC_DAMAGE": 0
+    },
+    "questionable_boundary_orders": [19, 68, 72, 116, 145, 169],
+    "attestation_status": "STAGE_5_V2_HUMAN_REVIEW_ATTESTATION_VALID",
+    "attestation_sha256": "5981777021e55280278270c9821d9b02ccbd3fc0fd6711f11e0b833bed24cee8",
+    "attestation_validation_sha256": "c6e0bb10d809c76e7d317e935376f206779c2463a8593c66681877438c198513",
+    "boundary_conclusion": {
+      "numeric_adjacency": "accepted non-damaging ambiguity; U+0020 prevents literal token concatenation",
+      "upstream_word_wrap": "accepted upstream ambiguity; repair requires parsing or word-joining inference",
+      "systematic_reconstruction_damage": false,
+      "u0020_is_narrowest_neutral_separator": true
+    }
   },
   "performance": {
     "materialization_elapsed_seconds": 36.435,
@@ -319,7 +352,10 @@
     "production_stage05_started": false,
     "stage06_started": false
   },
-  "remaining_concerns": [],
-  "independent_review_required": true,
-  "accepted": false
+  "remaining_concerns": [
+    "Six independently reviewed v2 boundaries remain visually or semantically ambiguous without Stage 5 content loss, reordering, or semantic damage.",
+    "The production runtime projection is planning evidence only and is not a production authorization."
+  ],
+  "independent_review_required": false,
+  "accepted": true
 }

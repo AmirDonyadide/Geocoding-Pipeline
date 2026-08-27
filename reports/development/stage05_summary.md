@@ -2,16 +2,18 @@
 
 ## Verdict
 
-`STAGE_5_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REVIEW`
+`STAGE_5_ACCEPTED`
 
-This is a DEVELOPMENT candidate, not acceptance. Stage 6, HOLDOUT, geocoding,
-and production Stages 2–5 remain untouched.
+Acceptance is limited to DEVELOPMENT. Stage 6, HOLDOUT, geocoding, and
+production Stages 2–5 remain untouched.
 
 ## Scientific identity
 
 - Contract: `stage05_address_reconstruction_contract_v2`
 - Profile: `stage05_address_reconstruction_profile_v2`
 - Implementation: `cd0a5ae91c3602ec20e34f7c419f1ac76f0b9160`
+- Reviewed candidate/evidence head:
+  `97bd7fa74da358e81133ac4d38232931762d3e78`
 - Authoritative job: `1759603` (`COMPLETED`, exit `0:0`)
 - Schema fingerprint:
   `63d4cdb3707eda65c67cc5196891fa5005adce2b12eb7109554793c48c5303c3`
@@ -105,11 +107,9 @@ unsupported component punctuation at wrapped phrase/ordinal boundaries. This
 was a real general v1 defect, so job `1759565` and its artifacts remain
 preserved but are not the final candidate.
 
-The v2 artifact has exactly the same 500 identities and order. Targeted
-controlled inspection established that all four are exact space-joins and that
-Stage 5 inserts zero punctuation. Orders 59 and 257 preserve their upstream
-punctuation without doubling; orders 116 and 322 no longer assert a component
-break. No unresolved systematic reconstruction defect remains.
+The v2 artifact has exactly the same 500 identities and order. The targeted
+controlled check established exact space-join behavior and zero inserted
+punctuation, but it was not treated as independent qualitative validation.
 
 The 43 redundant-source review orders were:
 
@@ -125,8 +125,29 @@ evidence; Stage 6 owns candidate deduplication.
 
 The automatic bookkeeping split was 499 correct and one redundant. Its
 material discrepancy from the human 453/43/4 review demonstrates that it is
-not independent qualitative validation. The human attestation and targeted v2
-resolution are controlling evidence.
+not independent qualitative validation.
+
+Independent job `1759692`, at review-harness SHA
+`cbafa0acd20dc3fa03ccd3db8c1f62104529666a`, selected a risk-based v2 scope of
+179 fixed-500 rows: every row whose multi-line candidate changed from v1 to v2
+and nine additional gap-risk rows. The exact qualitative-scope fingerprint is
+`801fe9820cae9ae6a9aaf03b0bffcd5c3b8c316fd32b0bc1d4470ef99fd554f5`.
+Human review was complete:
+
+- `CORRECT_RECONSTRUCTION`: 136
+- `VALID_BUT_REDUNDANT_SOURCE_CONTENT`: 37
+- `QUESTIONABLE_BOUNDARY`: 6
+- `QUESTIONABLE_ORDER`: 0
+- `SEMANTIC_DAMAGE`: 0
+
+The questionable orders were 19, 68, 72, 116, 145, and 169. They concern
+ambiguous numeric adjacency and upstream source line wraps that appear to split
+a word or name. They are accepted non-damaging limitations: U+0020 prevents
+literal token concatenation, preserves content and order, and adds no semantic
+punctuation. Repair would require parsing or special-case inference outside
+Stage 5. The protected attestation validated against the exact template; its
+SHA-256 is
+`5981777021e55280278270c9821d9b02ccbd3fc0fd6711f11e0b833bed24cee8`.
 
 No protected row text, stable ID, source filename, or address appears in this
 report.
@@ -155,5 +176,5 @@ length statistics, and a 500-row cap for qualitative evidence.
 - Production Stage 2, 3, 4, or 5 started: no.
 - Stage 6 started: no.
 
-The candidate requires a fresh independent review. This session does not accept
-Stage 5 and does not authorize any later stage.
+Independent machine verification and the bound human review support
+`STAGE_5_ACCEPTED`. This does not authorize any later stage.
