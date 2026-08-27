@@ -227,6 +227,58 @@ def test_coarse_script_diagnostic(value: str, expected: str) -> None:
     assert classify_script_value(value) == expected
 
 
+def test_optimized_script_diagnostic_matches_pinned_reference() -> None:
+    reference = stage04_module._script_reference()
+
+    def expected(value: str) -> str:
+        if value == "":
+            return "EMPTY"
+        if value.isascii():
+            return "ASCII_ONLY"
+        scripts = reference.distinctive_scripts(value)
+        if scripts <= {"Latin"}:
+            return "LATIN_NON_ASCII"
+        if scripts <= {"Cyrillic"}:
+            return "CYRILLIC"
+        if scripts <= {"Greek"}:
+            return "GREEK"
+        if scripts <= {"Arabic"}:
+            return "ARABIC_PERSIAN"
+        if scripts and scripts <= {"Han", "Hiragana", "Katakana", "Hangul", "Bopomofo"}:
+            return "CJK_HANGUL"
+        if len(scripts) > 1:
+            return "MIXED"
+        return "OTHER"
+
+    rng = random.Random(20260827)
+    values = [
+        "A" * 1_000_000 + "İ",
+        "東京 서울",
+        "Latin Москва",
+        "🏢 123 —",
+    ]
+    values.extend(
+        chr(codepoint)
+        for item in reference.ranges
+        for codepoint in (item.start, item.end)
+        if not 0xD800 <= codepoint <= 0xDFFF
+    )
+    for _ in range(10_000):
+        characters: list[str] = []
+        for _ in range(rng.randrange(0, 12)):
+            while True:
+                codepoint = rng.randrange(0x110000)
+                if not 0xD800 <= codepoint <= 0xDFFF:
+                    characters.append(chr(codepoint))
+                    break
+        values.append("".join(characters))
+    assert [classify_script_value(value) for value in values] == [
+        expected(value) for value in values
+    ]
+    assert stage04_module._script_for_codepoint.cache_info().maxsize == 4_096
+    assert stage04_module._codepoint_has_case.cache_info().maxsize == 4_096
+
+
 def test_runtime_schema_and_authoritative_constants_are_exact() -> None:
     validate_stage04_runtime()
     assert stage04_schema().names[: len(stage03_schema())] == stage03_schema().names

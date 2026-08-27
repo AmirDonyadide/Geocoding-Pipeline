@@ -99,6 +99,8 @@ SCRIPT_CLASSES = (
     "MIXED",
     "OTHER",
 )
+_CJK_HANGUL_SCRIPTS = frozenset({"Han", "Hiragana", "Katakana", "Hangul", "Bopomofo"})
+_NON_DISTINCTIVE_SCRIPTS = frozenset({"Common", "Inherited", "Unknown"})
 CASE_CHANGE_CLASSES = (
     "UNCHANGED",
     "ASCII_CASE_CHANGED",
@@ -280,8 +282,7 @@ class Stage04Metrics:
             self.case_change_classes["UNCHANGED"] += 1
             self.script_unchanged_values[script_class] += 1
             if before and not any(
-                character.lower() != character or character.upper() != character
-                for character in before
+                _codepoint_has_case(ord(character)) for character in before
             ):
                 self.uncased_script_unchanged_values += 1
         if before.isascii():
@@ -476,26 +477,49 @@ def _script_reference() -> ScriptReference:
     )
 
 
+@lru_cache(maxsize=4_096)
+def _script_for_codepoint(codepoint: int) -> str:
+    return _script_reference().script_for(chr(codepoint))
+
+
+@lru_cache(maxsize=4_096)
+def _codepoint_has_case(codepoint: int) -> bool:
+    character = chr(codepoint)
+    return character.lower() != character or character.upper() != character
+
+
 def classify_script_value(value: str) -> str:
     """Return a coarse Unicode Script diagnostic, never a language inference."""
     if value == "":
         return "EMPTY"
     if value.isascii():
         return "ASCII_ONLY"
-    scripts = _script_reference().distinctive_scripts(value)
-    if scripts <= {"Latin"}:
+    observed_bucket: str | None = None
+    for character in value:
+        codepoint = ord(character)
+        if codepoint < 0x80:
+            if not (0x41 <= codepoint <= 0x5A or 0x61 <= codepoint <= 0x7A):
+                continue
+            script = "Latin"
+        else:
+            script = _script_for_codepoint(codepoint)
+            if script in _NON_DISTINCTIVE_SCRIPTS:
+                continue
+        bucket = "CJK_HANGUL" if script in _CJK_HANGUL_SCRIPTS else script
+        if observed_bucket is None:
+            observed_bucket = bucket
+        elif observed_bucket != bucket:
+            return "MIXED"
+    if observed_bucket in {None, "Latin"}:
         return "LATIN_NON_ASCII"
-    if scripts <= {"Cyrillic"}:
+    if observed_bucket == "Cyrillic":
         return "CYRILLIC"
-    if scripts <= {"Greek"}:
+    if observed_bucket == "Greek":
         return "GREEK"
-    if scripts <= {"Arabic"}:
+    if observed_bucket == "Arabic":
         return "ARABIC_PERSIAN"
-    cjk_hangul = {"Han", "Hiragana", "Katakana", "Hangul", "Bopomofo"}
-    if scripts and scripts <= cjk_hangul:
+    if observed_bucket == "CJK_HANGUL":
         return "CJK_HANGUL"
-    if len(scripts) > 1:
-        return "MIXED"
     return "OTHER"
 
 
