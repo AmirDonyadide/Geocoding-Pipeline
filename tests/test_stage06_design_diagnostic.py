@@ -193,6 +193,7 @@ def test_design_launcher_is_guarded_detached_and_aggregate_only() -> None:
     assert "SLURM_JOB_ID" in launcher
     assert "HOLDOUT_ACCESS_PROHIBITED" in launcher
     assert "STAGE06_WORKTREE_NOT_DETACHED" in launcher
+    assert 'chmod 0600 "${JOB_STDOUT}" "${JOB_STDERR}"' in launcher
     assert (
         "fd945163e3be0242c43b98972350904631279cb99f366baadb0a3094ab6a1fc5" in launcher
     )

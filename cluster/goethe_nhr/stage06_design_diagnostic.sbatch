@@ -13,6 +13,7 @@ set -euo pipefail
 umask 077
 
 : "${SLURM_JOB_ID:?SLURM_JOB_ID is required}"
+: "${SLURM_JOB_NAME:?SLURM_JOB_NAME is required}"
 : "${STAGE06_DESIGN_GIT_COMMIT:?submit with the exact pushed diagnostic commit}"
 : "${STAGE06_DESIGN_INTEGRATION_ROOT:?submit with an exact detached worktree}"
 : "${STAGE06_DESIGN_RUNTIME_ROOT:?submit with a new owner-only runtime root}"
@@ -20,6 +21,13 @@ umask 077
 : "${STAGE06_DESIGN_OUTPUT_DIRECTORY:?submit with a new protected diagnostic path}"
 
 readonly ACCEPTED_STAGE05_MANIFEST="fd945163e3be0242c43b98972350904631279cb99f366baadb0a3094ab6a1fc5"
+readonly LOG_ROOT="/work/footprint/donyadidegan/safe_geocoding_pipeline/logs/slurm"
+readonly JOB_STDOUT="${LOG_ROOT}/${SLURM_JOB_NAME}_${SLURM_JOB_ID}.out"
+readonly JOB_STDERR="${LOG_ROOT}/${SLURM_JOB_NAME}_${SLURM_JOB_ID}.err"
+chmod 0600 "${JOB_STDOUT}" "${JOB_STDERR}"
+[[ "$(stat -c %a "${JOB_STDOUT}")" == "600" ]]
+[[ "$(stat -c %a "${JOB_STDERR}")" == "600" ]]
+
 readonly DATA_ROOT="$(realpath -e -- \
   "/work/footprint/donyadidegan/safe_geocoding_pipeline")"
 readonly INTEGRATION_ROOT="$(realpath -e -- "${STAGE06_DESIGN_INTEGRATION_ROOT}")"
