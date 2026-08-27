@@ -102,7 +102,28 @@ _ALLOWED_METRICS: Mapping[str, frozenset[str]] = {
         }
     ),
     "FIELD_CHANGES": frozenset(
-        {"TOTAL_CLEANED_FIELDS", "CHANGED_FIELDS", "UNCHANGED_FIELDS"}
+        {
+            "TOTAL_CLEANED_FIELDS",
+            "TOTAL_LOWERCASE_FIELDS",
+            "CHANGED_FIELDS",
+            "UNCHANGED_FIELDS",
+        }
+    ),
+    "FIELD_CHANGED_FIELDS": frozenset(
+        {
+            "STREET_ADDRESS_LINE_1",
+            "STREET_ADDRESS_LINE_2",
+            "STREET_ADDRESS_LINE_3",
+            "STREET_ADDRESS_LINE_4",
+            "STREET_ADDRESS_LINE_1_NATIVE",
+            "STREET_ADDRESS_LINE_2_NATIVE",
+            "STREET_ADDRESS_LINE_3_NATIVE",
+            "STREET_ADDRESS_LINE_4_NATIVE",
+            "POSTCODE",
+            "CITY",
+            "REGION_IN_COUNTRY",
+            "COUNTRY_ISO_CODE",
+        }
     ),
     "REASON_AFFECTED_ROWS": frozenset(
         {
@@ -206,9 +227,80 @@ _ALLOWED_METRICS: Mapping[str, frozenset[str]] = {
     "OUTPUT_EFFECTS": frozenset(
         {
             "CLEAN_VALUES_BECAME_EMPTY",
+            "CHARACTER_COUNT_INCREASE_FIELDS",
+            "CHARACTER_COUNT_DECREASE_FIELDS",
+            "TOTAL_CHARACTER_COUNT_INCREASE_CODEPOINTS",
+            "TOTAL_CHARACTER_COUNT_DECREASE_CODEPOINTS",
             "MAX_LENGTH_INCREASE_CODEPOINTS",
             "MAX_LENGTH_DECREASE_CODEPOINTS",
+            "EMPTY_TO_NONEMPTY_FIELDS",
+            "NONEMPTY_TO_EMPTY_FIELDS",
+            "UNICODE_LENGTH_CHANGED_FIELDS",
+            "UNCASED_SCRIPT_UNCHANGED_VALUES",
             "IDEMPOTENCE_FAILURES",
+        }
+    ),
+    "CASE_CHANGE_CLASSIFICATION": frozenset(
+        {
+            "UNCHANGED",
+            "ASCII_CASE_CHANGED",
+            "UNICODE_CASE_CHANGED",
+            "UNICODE_LENGTH_CHANGED",
+        }
+    ),
+    "SCRIPT_CLASS_TOTAL_VALUES": frozenset(
+        {
+            "EMPTY",
+            "ASCII_ONLY",
+            "LATIN_NON_ASCII",
+            "CYRILLIC",
+            "GREEK",
+            "ARABIC_PERSIAN",
+            "CJK_HANGUL",
+            "MIXED",
+            "OTHER",
+        }
+    ),
+    "SCRIPT_CLASS_CHANGED_VALUES": frozenset(
+        {
+            "EMPTY",
+            "ASCII_ONLY",
+            "LATIN_NON_ASCII",
+            "CYRILLIC",
+            "GREEK",
+            "ARABIC_PERSIAN",
+            "CJK_HANGUL",
+            "MIXED",
+            "OTHER",
+        }
+    ),
+    "SCRIPT_CLASS_UNCHANGED_VALUES": frozenset(
+        {
+            "EMPTY",
+            "ASCII_ONLY",
+            "LATIN_NON_ASCII",
+            "CYRILLIC",
+            "GREEK",
+            "ARABIC_PERSIAN",
+            "CJK_HANGUL",
+            "MIXED",
+            "OTHER",
+        }
+    ),
+    "LOWERCASE_ENGINE": frozenset(
+        {
+            "ASCII_FAST_PATH_VALUES",
+            "PYTHON_LOWER_VALUES",
+            "ARROW_UTF8_LOWER_VALUES",
+        }
+    ),
+    "QUALITATIVE_CLASSIFICATIONS": frozenset(
+        {
+            "EXPECTED_CASE_NORMALIZATION",
+            "BENIGN_UNCHANGED_SCRIPT",
+            "NO_CASE_CHANGE_REQUIRED",
+            "QUESTIONABLE",
+            "SEMANTIC_DAMAGE",
         }
     ),
     "PERFORMANCE": frozenset(
@@ -249,6 +341,17 @@ _OPTIONAL_CHECKS = frozenset(
         "V1_V2_SCIENTIFIC_OUTPUT_EQUAL",
         "V1_V2_REASON_CODES_EQUAL",
         "STANDARD_NATIVE_INDEPENDENT",
+        "ALL_STAGE03_FIELDS_UNCHANGED",
+        "EXACT_PYTHON_LOWER_SEMANTICS",
+        "CASEFOLD_NOT_USED",
+        "LOCALE_SPECIFIC_CASING_NOT_USED",
+        "NORMALIZATION_AFTER_LOWER_NOT_USED",
+        "ARROW_UTF8_LOWER_NOT_USED",
+        "ASCII_FAST_PATH_EQUIVALENT",
+        "NO_UNEXPECTED_EMPTY_TRANSITIONS",
+        "FIXED_500_QUALITATIVE_REVIEW_COMPLETE",
+        "ZERO_QUESTIONABLE",
+        "ZERO_SEMANTIC_DAMAGE",
     }
 )
 
@@ -257,6 +360,7 @@ _ALLOWED_EXTRA_FINGERPRINTS = frozenset(
         "input_binding",
         "manifest",
         "input_stage02_manifest",
+        "input_stage03_manifest",
         "review_subset",
         "review_artifact",
         "ordered_stable_identity",
@@ -278,6 +382,11 @@ _INTERPRETATIONS = {
         "Stage 3 created conservative derived clean text for the complete "
         "35,000-row DEVELOPMENT set while preserving every Stage 2 field; it "
         "remains a candidate pending independent scientific review."
+    ),
+    "STAGE04_LOWERCASE_CANONICAL_CANDIDATE": (
+        "Stage 4 created exact Python Unicode lowercase derived text for the "
+        "complete 35,000-row DEVELOPMENT set while preserving every Stage 3 "
+        "field; it remains a candidate pending independent scientific review."
     ),
 }
 

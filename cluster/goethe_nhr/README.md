@@ -1,7 +1,8 @@
 # Goethe-NHR execution assets
 
 The `stage00_*` through `stage03_*` launchers are the active library-first
-accepted-stage execution assets. `benchmark_sample_v1.sbatch` and
+accepted-stage execution assets. `stage04_*` is the reviewed DEVELOPMENT
+candidate launcher and does not authorize production. `benchmark_sample_v1.sbatch` and
 `development_reporting.sbatch` support the fixed benchmark/review
 infrastructure.
 

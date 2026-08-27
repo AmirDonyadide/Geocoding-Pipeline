@@ -30,8 +30,14 @@ Stage 3: safe text cleaning
   + stage03_row_changed
         |
         v
-Future Stages 4–19 (not started)
-  canonical forms -> candidate representations -> components -> evidence
+Stage 4: lowercase canonical forms (implemented candidate; not accepted)
+  all Stage 3 fields unchanged
+  + 12 stage04_lower_* derived fields
+  + ordered changed-field and row-changed audit
+        |
+        v
+Future Stages 5–19 (not started)
+  candidate representations -> components -> evidence
   -> candidate/query identities -> complete source-row mappings
 ```
 
@@ -121,9 +127,18 @@ stage03_change_details = [
 stage03_row_changed = true
 ```
 
+## Stage 4 lowercase candidate representation
+
+Stage 4 maps each of the 12 accepted `stage03_clean_*` strings to a distinct
+`stage04_lower_*` string using exact Python Unicode `str.lower()`. It appends a
+canonical-order list of changed fields and a row-changed flag. It does not
+rewrite any Stage 3 column, casefold, apply locale-specific casing, or normalize
+after lower. The implementation awaits authoritative DEVELOPMENT evidence and
+independent review.
+
 ## Future candidate representations
 
-Stages 4–19 have not started. Their data model is constrained by these accepted
+Stages 5–19 have not started. Their data model is constrained by these accepted
 principles:
 
 - lowercase, reconstructed, parsed, normalized, transliterated, corrected, and

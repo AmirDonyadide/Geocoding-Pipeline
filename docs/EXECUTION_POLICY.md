@@ -126,6 +126,7 @@ documentation test pass.
 - Production Stage 1: `NEW_STAGE1_1411_ACCEPTED`.
 - Production Stage 2: **NOT STARTED**.
 - Production Stage 3: **NOT STARTED**.
-- Stage 4: **NOT STARTED**.
+- Stage 4 DEVELOPMENT: **IMPLEMENTED CANDIDATE — AUTHORITATIVE RUN PENDING**.
+- Production Stage 4: **NOT STARTED**.
 
 This policy grants no scientific-stage or production-run authorization.

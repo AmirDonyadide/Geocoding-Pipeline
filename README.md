@@ -21,8 +21,9 @@ query can be inspected and reproduced.
 
 ## Current status
 
-The DEVELOPMENT pipeline is accepted through Stage 3. Stages 4–19 are planned
-but have not started.
+The DEVELOPMENT pipeline is accepted through Stage 3. Stage 4 has an
+implemented candidate whose authoritative 35,000-row run is pending; it is not
+accepted. Stages 5–19 have not started.
 
 | Stage | Name | Status | Data effect |
 |---:|---|---|---|
@@ -30,7 +31,8 @@ but have not started.
 | 1 | Lossless ingestion | **ACCEPTED** | Converts CSV to Parquet without changing source values; adds stable provenance |
 | 2 | Schema and provenance harmonization | **ACCEPTED** | Preserves incoming fields and adds four derived structural fields |
 | 3 | Safe text cleaning | **ACCEPTED** | Adds derived `*_clean` values and ordered audit reasons; raw fields remain unchanged |
-| 4–19 | Normalization, reconstruction, validation, and query preparation | **NOT STARTED** | Planned derived representations only |
+| 4 | Lowercase canonical forms | **IMPLEMENTED CANDIDATE — RUN PENDING** | Appends exact Python Unicode lowercase representations; not accepted |
+| 5–19 | Reconstruction, validation, and query preparation | **NOT STARTED** | Planned derived representations only |
 
 Production Stage 0 and Stage 1 are accepted for
 `production_population_1411_v1` (1,411 files; 141,048,582 rows). Production
@@ -44,7 +46,8 @@ immutable source CSV
   -> Stage 1: lossless Parquet + stable row identity
   -> Stage 2: schema/provenance harmonization
   -> Stage 3: safe derived text cleaning
-  -> Stages 4–19: planned normalization, parsing, validation, and query QA
+  -> Stage 4: exact derived Python Unicode lowercase (candidate)
+  -> Stages 5–19: planned reconstruction, parsing, validation, and query QA
   -> self-hosted SAFE Pelias
 ```
 
@@ -140,6 +143,7 @@ personal absolute paths. Sanitized evidence is available under
 
 ## Current next stage
 
-**Stage 4 — Lowercase canonical forms — NOT STARTED.** Its design requires
-separate explicit approval before implementation. This repository cleanup does
-not authorize Stage 4 or production Stage 2.
+**Stage 4 — Lowercase canonical forms — IMPLEMENTED DEVELOPMENT CANDIDATE;
+AUTHORITATIVE RUN PENDING.** The active Stage 4 session stops after its
+candidate verdict. It does not independently accept Stage 4, start Stage 5, or
+authorize production Stage 2 through Stage 4.

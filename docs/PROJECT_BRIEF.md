@@ -190,10 +190,12 @@ The final pre-geocoding sequence is:
 18. query generation; and
 19. query deduplication plus final QA.
 
-Stages 0–3 are implemented and accepted on DEVELOPMENT. Stages 4–19 are
-planned and not started. Production Stage 0 and Stage 1 are accepted;
-production Stage 2 and Stage 3 are not started. The detailed stage contracts
-and acceptance requirements are in [PIPELINE.md](PIPELINE.md).
+Stages 0–3 are implemented and accepted on DEVELOPMENT. Stage 4 has an
+implemented DEVELOPMENT candidate whose authoritative run is pending; it is
+not accepted. Stages 5–19 are planned and not started. Production Stage 0 and
+Stage 1 are accepted; production Stage 2 through Stage 4 are not started. The
+detailed stage contracts and acceptance requirements are in
+[PIPELINE.md](PIPELINE.md).
 
 ## 8. DEVELOPMENT methodology
 
@@ -245,7 +247,7 @@ Durable decisions are in [DECISIONS.md](DECISIONS.md); current status is in
 
 ## 11. Current next action
 
-**Stage 4 — Lowercase canonical forms — NOT STARTED.** The next scientific work
-is to design Stage 4 and obtain explicit review/approval. This statement is not
-authorization to implement it. Production Stage 2 also remains not started and
-requires separate authorization.
+The active scientific work is the authorized Stage 4 DEVELOPMENT candidate
+lifecycle. The authoritative 35,000-row run and candidate verdict are pending.
+Independent review is a fresh later session; Stage 5 and production Stage 2
+through Stage 4 remain not started.

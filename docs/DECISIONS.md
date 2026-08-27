@@ -82,7 +82,8 @@ to change a decision or start a stage.
 - **Decision:** Stage 3 performs safe cleaning without lowercase. Derived
   Unicode lowercase forms belong to Stage 4.
 - **Rationale:** Isolate and audit distinct transformations.
-- **Status:** LOCKED. Stage 4 is NOT STARTED.
+- **Status:** LOCKED sequence. The Stage 4 DEVELOPMENT candidate implements
+  this boundary and awaits authoritative evidence and independent review.
 
 ### D009 — Reconstruction precedes parsing
 
@@ -189,11 +190,24 @@ to change a decision or start a stage.
   work not appropriate for production materialization.
 - **Status:** LOCKED. No production Stage 3 launcher is approved.
 
+### D019 — Stage 4 candidate uses exact Python Unicode lowercase
+
+- **Scope:** Stage 4 DEVELOPMENT candidate
+- **Decision:** Derive each `stage04_lower_*` value as exact Python 3.14.3 /
+  Unicode 16.0.0 `stage03_clean_value.lower()`. Do not casefold, use locale-
+  specific casing, or normalize after lower. PyArrow `utf8_lower` is prohibited
+  because it differs for U+0130 and context-sensitive Greek sigma. An ASCII-
+  proven `ascii_lower` fast path is permitted only under zero-mismatch
+  differential evidence.
+- **Rationale:** Preserve the narrow planned Stage 4 boundary and exact Unicode
+  semantics without changing science for speed.
+- **Status:** DEVELOPMENT CANDIDATE. Awaiting authoritative 35k evidence and
+  fresh independent review; not accepted and not authorized for production.
+
 ## Open decisions
 
 These questions require future stage designs and explicit approval:
 
-- exact Stage 4 lowercase schema, metadata, and acceptance gates;
 - Stage 5 reconstruction rules and whether address-format metadata is needed;
 - libpostal build/resource pinning and Stage 7 evaluation design;
 - country-specific Stage 11 coverage and syntax policy;
