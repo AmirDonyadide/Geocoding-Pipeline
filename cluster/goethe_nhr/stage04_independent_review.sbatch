@@ -23,6 +23,14 @@ umask 077
 : "${STAGE04_REVIEW_STAGE04_REVIEW_ROOT:?authoritative Stage 4 review required}"
 : "${STAGE04_REVIEW_OUTPUT:?new independent review output required}"
 
+readonly JOB_LOG_ROOT="/work/footprint/donyadidegan/safe_geocoding_pipeline/logs/slurm"
+secure_job_logs() {
+  chmod 600 \
+    "${JOB_LOG_ROOT}/safe-stage04-review_${SLURM_JOB_ID}.out" \
+    "${JOB_LOG_ROOT}/safe-stage04-review_${SLURM_JOB_ID}.err" 2>/dev/null || true
+}
+trap secure_job_logs EXIT
+
 readonly DATA_ROOT="$(realpath -e -- "/work/footprint/donyadidegan/safe_geocoding_pipeline")"
 readonly INTEGRATION_ROOT="$(realpath -e -- "${STAGE04_REVIEW_INTEGRATION_ROOT}")"
 readonly PYTHON_NAME="$(basename -- "${STAGE04_REVIEW_PYTHON}")"
