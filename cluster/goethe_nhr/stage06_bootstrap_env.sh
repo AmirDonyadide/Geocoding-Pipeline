@@ -48,6 +48,9 @@ import unicodedata
 from safe_geocoding_pipeline.preprocessing.stages.s05_reconstruction import (
     validate_stage05_runtime,
 )
+from safe_geocoding_pipeline.preprocessing.stages.s06_exact_deduplication import (
+    validate_stage06_runtime,
+)
 
 assert sys.version_info[:3] == (3, 14, 3), sys.version
 assert unicodedata.unidata_version == "16.0.0", unicodedata.unidata_version
@@ -55,6 +58,7 @@ assert ftfy.__version__ == "6.3.1", ftfy.__version__
 assert pyarrow.__version__ == "25.0.0", pyarrow.__version__
 assert duckdb.__version__ == "1.5.5", duckdb.__version__
 validate_stage05_runtime()
+validate_stage06_runtime()
 PY
 
 chmod 0700 "${RUNTIME_ROOT}" "${VENV_PATH}"

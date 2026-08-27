@@ -2,12 +2,14 @@
 
 ## Status
 
-**DESIGN CANDIDATE AWAITING EXPLICIT APPROVAL.**
+**DESIGN APPROVED; IMPLEMENTATION VALIDATED LOCALLY; AUTHORITATIVE DEVELOPMENT
+EXECUTION NOT YET STARTED.**
 
-The aggregate design diagnostic is complete. The Stage 6 transformation,
-contract, authoritative DEVELOPMENT materialization, fixed-500 verification,
-candidate verdict, and independent review have not started. Nothing here
-authorizes HOLDOUT, production, Stage 7, libpostal, or geocoding.
+The user approved the scientific design at Git commit
+`9f9a5a07a2dd3825c895b23406311651e5480324`. That approval froze the contract
+below and authorized implementation and one authoritative 35,000-row
+DEVELOPMENT execution. It was not Stage 6 acceptance. Nothing here authorizes
+HOLDOUT, production, Stage 7, libpostal, or geocoding.
 
 ## Purpose and boundary
 
@@ -46,9 +48,9 @@ The design binds only the accepted immutable Stage 5 DEVELOPMENT artifact:
 
 An earlier Stage 5 v1 artifact is not a valid input.
 
-## Proposed decision table
+## Approved decision table
 
-| Question | Design candidate |
+| Question | Approved contract |
 |---|---|
 | 1. Exact dedup key | Exact Unicode equality of each available `stage05_standard_candidate_lower` or `stage05_native_candidate_lower`. Because accepted values are valid Unicode, exact UTF-8 byte equality is equivalent to code-point equality. No added transformation. |
 | 2. Standard/native scope | One global namespace across both representations and all rows. Representation remains occurrence provenance, not key material. |
@@ -69,9 +71,35 @@ An earlier Stage 5 v1 artifact is not a valid input.
 | 17. Fixed-500 evidence | Reuse the frozen 500 identities and order. Machine-verify every Stage 5 field, ID/null derivation, same-key relation, registry resolution/counts, and source-row preservation. No human address review is proposed because Stage 6 does not mutate candidate text. |
 | 18. Stage 7 interface | Stage 7 later reads the unique registry once and keys parse output by `stage06_exact_candidate_id`; standard/native row mappings join parsed results back without choosing an authoritative representation. |
 
-The proposed contract/profile names are
+The frozen contract/profile names are
 `stage06_early_exact_deduplication_contract_v1` and
 `stage06_early_exact_deduplication_profile_v1`.
+
+## Implementation profile
+
+The row map retains the complete Stage 5 Arrow schema in its original order and
+appends only two nullable `fixed_size_binary[32]` mapping fields. The unique
+registry has the five fields defined in the decision table. Candidate IDs are
+derived with Python `hashlib` while candidate UTF-8 is fed in bounded
+code-point chunks. PyArrow streams source shards and publishes checksummed
+Parquet into a new private tree. DuckDB performs disk-backed exact byte
+grouping, collision detection, aggregate reconciliation, and deterministic
+candidate-ID sorting.
+
+Materialization validates accepted Stage 5 before reading candidates, checks
+every source row and mapping while writing, fails before publication on any
+distinct-text digest collision, and then independently reopens Stage 5 plus
+every row-map and registry shard. Publication uses a private temporary tree,
+manifest and terminal marker, directory fsync, and atomic rename. Fixed-500
+evidence is machine-verifiable; the protected verification artifact contains
+the frozen identities and mapping results, while its JSON and Markdown
+summaries contain aggregate evidence only.
+
+The local-safe implementation gates completed with 18 focused Stage 6 tests,
+175 Stage 2–6 regression tests, and 442 full-suite tests with four explicitly
+excluded production-transfer tests. Ruff, strict mypy over `src`, changed-file
+format checks, shell syntax, and `git diff --check` also passed. Authoritative
+metrics and fingerprints must still come from the single Goethe SLURM run.
 
 ## Aggregate design diagnostic
 
@@ -125,8 +153,7 @@ stdout/stderr files with mode `0644`; they were immediately tightened to
 `0600`, the launcher was corrected to enforce `0600`, and the successful
 diagnostic was not duplicated.
 
-## Approval gate
+## Acceptance gate
 
-Implementation may begin only after explicit approval of this design candidate.
-Approval is not Stage 6 scientific acceptance. A later independent-review
-session alone may accept or reject the completed DEVELOPMENT candidate.
+This development session may only produce a candidate for independent review.
+A later fresh independent-review session alone may accept or reject Stage 6.
