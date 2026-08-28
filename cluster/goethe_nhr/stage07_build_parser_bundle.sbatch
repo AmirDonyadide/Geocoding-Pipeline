@@ -19,7 +19,8 @@ umask 077
 : "${STAGE07_BUNDLE_BUILD_ROOT:?submit with a new owner-only build root}"
 : "${STAGE07_BUNDLE_OUTPUT_DIRECTORY:?submit with a new immutable bundle path}"
 
-readonly DATA_ROOT="/work/footprint/donyadidegan/safe_geocoding_pipeline"
+readonly DATA_ROOT="$(realpath -e -- \
+  "/work/footprint/donyadidegan/safe_geocoding_pipeline")"
 readonly BASE_PYTHON="${DATA_ROOT}/.venv-goethe-nhr/bin/python"
 readonly LIBPOSTAL_REPOSITORY="https://github.com/openvenues/libpostal.git"
 readonly LIBPOSTAL_COMMIT="25099c506612b34b23b1bfe286ca6321fcf06f35"

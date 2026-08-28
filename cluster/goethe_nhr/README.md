@@ -16,6 +16,11 @@ for the active Stage 7 DEVELOPMENT design. It compiles exact libpostal and
 pypostal commits, freezes every runtime/model artifact by content, and opens no
 protected input. Its existence does not authorize protected parsing; the later
 controlled diagnostic must require the resulting exact bundle fingerprint.
+`stage07_design_diagnostic.sbatch` and `stage07_bootstrap_env.sh` are the
+aggregate-only protected design gate. They bind accepted Stage 6, the frozen
+fixed-500 mapping, every case-variant group, every giant candidate, and the
+exact parser bundle before parsing. They do not freeze the final contract,
+materialize Stage 7, access HOLDOUT/production, map labels, or geocode.
 
 All protected/heavy jobs require an exact pushed Git SHA, a clean/exact
 worktree, `SAFE_EXECUTION_SITE=goethe-nhr`, a non-empty `SLURM_JOB_ID`, owner-only

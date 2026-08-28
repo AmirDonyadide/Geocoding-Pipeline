@@ -122,6 +122,16 @@ content-hashed, fsynced, atomic, and immutable. Later protected jobs validate
 the exact expected bundle fingerprint before opening input and make no network
 calls while parsing.
 
+The first public-only bundle submission, SLURM job `1760085` at design commit
+`f437ec0f68e37d5cde197a97e761ad57cf201361`, failed in two seconds before
+creating a build root or output. The path guard compared realpath-resolved
+`/panfs/...` paths with the unresolved `/work/...` alias and returned
+`STAGE07_CONTROLLED_PATH_REQUIRED`. Its empty stdout and 33-byte stderr remain
+owner-only at mode `0600`. No software build, model download, protected input
+access, or parser call occurred. The minimal correction resolves the controlled
+root before comparison; any replacement uses new build/output identities and
+does not overwrite this failed attempt.
+
 ## Controlled design diagnostic gate
 
 After the bundle is frozen, one protected diagnostic will run through SLURM
