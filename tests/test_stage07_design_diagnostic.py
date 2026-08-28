@@ -175,7 +175,9 @@ def test_diagnostic_selection_is_deterministic_and_includes_required_sets(
     assert len(fingerprint) == 64
 
 
-def test_clean_surface_grouping_is_disk_backed_and_exact(tmp_path: Path) -> None:
+def test_clean_surface_grouping_is_disk_backed_and_exact(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     first_id = b"a" * 32
     second_id = b"b" * 32
     table = pa.table(
@@ -200,13 +202,23 @@ def test_clean_surface_grouping_is_disk_backed_and_exact(tmp_path: Path) -> None
     work = tmp_path / "work"
     work.mkdir(mode=0o700)
     work.chmod(0o700)
+    monkeypatch.setattr(
+        "safe_geocoding_pipeline.preprocessing.stages.s07_design_diagnostic."
+        "ACCEPTED_CASE_VARIANT_GROUPS",
+        1,
+    )
+    monkeypatch.setattr(
+        "safe_geocoding_pipeline.preprocessing.stages.s07_design_diagnostic."
+        "ACCEPTED_CASE_VARIANT_SURFACES",
+        2,
+    )
 
     assert _clean_surface_groups(
         (row_map,),
         work_directory=work,
         memory_limit="256MB",
         threads=1,
-        authoritative_development=False,
+        authoritative_development=True,
     ) == {first_id: ("Synthetic Avenue", "synthetic avenue")}
 
 
