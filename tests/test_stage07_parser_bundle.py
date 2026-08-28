@@ -180,6 +180,7 @@ def test_stage07_bundle_launcher_is_exact_public_only() -> None:
     )
     assert '"${LIBTOOL_PREFIX}/bin/libtoolize" --copy --force' in launcher
     assert '"${LIBTOOL_PREFIX}/bin/libtoolize" --version' in launcher
+    assert 'PATH="${LIBTOOL_PREFIX}/bin:${PATH}" ./bootstrap.sh' in launcher
     assert "protected_inputs_opened=false" in launcher
     assert "/scratch" not in launcher
     assert "/work/footprint/public" not in launcher

@@ -113,7 +113,7 @@ make install
 
 cd "${LIBPOSTAL_SOURCE}"
 "${LIBTOOL_PREFIX}/bin/libtoolize" --copy --force
-./bootstrap.sh
+PATH="${LIBTOOL_PREFIX}/bin:${PATH}" ./bootstrap.sh
 ./configure --prefix="${LIBPOSTAL_PREFIX}" --datadir="${MODEL_PREFIX}"
 make -j "${SLURM_CPUS_PER_TASK}"
 make install

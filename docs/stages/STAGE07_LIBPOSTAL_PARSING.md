@@ -173,6 +173,16 @@ uses the public GNU mirror at `mirrors.ibiblio.org`, which serves the same
 official `libtool-2.4.6.tar.gz`; the existing required SHA-256 remains unchanged
 and therefore controls artifact identity independently of the acquisition host.
 
+Public-only bundle job `1760146` at commit
+`ff44c596e7a5d0069a92be59c55ed8b078ee09f4` reached the GNU mirror, verified
+and built libtool 2.4.6, and used the private `libtoolize` to stage libpostal's
+macros and `ltmain.sh`. It then failed after 32 seconds because upstream
+`bootstrap.sh` runs `autoreconf`, which invokes `libtoolize` again by command
+name, while the private prefix was not yet in `PATH`. No bundle output was
+published and no protected input or parser call occurred; logs and the failed
+build root remain owner-only. The bounded correction exposes only that exact
+private libtool `bin` directory to upstream bootstrap.
+
 ## Controlled design diagnostic gate
 
 After the bundle is frozen, one protected diagnostic will run through SLURM
