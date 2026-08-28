@@ -2,8 +2,7 @@
 
 ## Status
 
-**REVISED DEVELOPMENT DESIGN / SUPERVISOR DIAGNOSTIC IN PROGRESS — NOT
-ACCEPTED.**
+**`STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY`.**
 
 This branch starts from accepted `main` commit
 `76435eb7ca5cd9a47a2a77fb36278568ba3bfc29`. The owner authorized one fresh
@@ -28,7 +27,16 @@ supervisor diagnostic over the same 23 accepted giant candidates. This does
 not retroactively pass the first design, freeze the contract/profile, accept
 Stage 7, authorize independent review, or change accepted Stage 6 science.
 
-## Revised owner decisions
+That targeted diagnostic completed as job `1760182` from exact pushed commit
+`7e9abc43aee8285ac0cf47d8c56acd883c6f4cd4`. It reproduced the prior 19/4
+split under the original 48 GiB ceiling, then parsed all 23 exact giants
+successfully on their first uncapped attempt in a 180 GiB job. The four prior
+failures were therefore resource-cap dependent. Per the owner's stop rule, the
+technical-failure status and resource contract require reconsideration before
+contract freeze. The sanitized [revised diagnostic report](../../reports/development/stage07_supervisor_diagnostic_summary.md)
+records the aggregate evidence.
+
+## Owner-authorized revised proposal — not frozen
 
 The complete 123-group / 246-surface case diagnostic is controlling evidence:
 all ordered parses were exactly equal. The accepted
@@ -39,7 +47,7 @@ the key or parsed independently in the authoritative pipeline.
 Every Stage 6 candidate must receive exactly one Stage 7 row. A deterministic
 native parser-process crash is an explicit derived-information failure; it
 does not invalidate, modify, truncate, drop, or replace the Stage 6 candidate.
-The narrow approved status vocabulary is:
+The narrow owner-authorized proposed status vocabulary was:
 
 | Status | Parser outcome | Component representation |
 |---|---|---|
@@ -106,7 +114,8 @@ owner-only and is not copied into the registry.
 The proposed nested type is a nullable Arrow
 `large_list<struct<label: large_string not null, value: large_string not
 null> not null>`. A 64-bit list offset is justified by the observed 263,385
-components in one candidate and future shard scalability. `large_string`
+components in the first diagnostic and 881,338 in the uncapped giant audit,
+plus future shard scalability. `large_string`
 children avoid a 32-bit cumulative value-offset dependency within a batch.
 List order, duplicate labels, duplicate values, and exact strings remain
 authoritative. Parquet round-trip, one-row giant row groups, page sizing,
@@ -405,10 +414,66 @@ Whether the response belongs in upstream candidate construction/deduplication
 or in an explicit Stage 7 technical-failure contract must be decided before a
 new contract/profile can be frozen. This record makes no such choice.
 
-## Work unexecuted after the first stop gate
+## Targeted supervisor diagnostic result
 
-Because the design gate failed, no Stage 7 materializer, output schema, input
-binding, contract/profile, or implementation was frozen. No authoritative
+The revised implementation commit
+`7e9abc43aee8285ac0cf47d8c56acd883c6f4cd4` introduced exact-input
+acknowledgment, synchronous private IPC, a long-lived spawned parser child,
+one exact fresh retry after a native exit, privacy-safe attempt evidence, and a
+bounded one-giant-at-a-time `LargeList` Parquet audit. Before submission, 43
+focused Stage 7 tests, 218 Stage 2–7 regressions, and 485 full local-safe tests
+passed; Ruff, strict mypy over 72 source files, formatting, shell syntax, JSON,
+Markdown links, privacy checks, and `git diff --check` also passed.
+
+Job `1760182` completed with exit `0:0` in 16 minutes 3 seconds. Its immutable
+aggregate diagnostic SHA-256 is
+`a14a92feddd64dd8f2b9720e3697808d0c1164fa02b6ed72e281d5f3ae2db067`;
+the owner-only controlled evidence SHA-256 is
+`affbcdb088489f4f92b8c5972692e82f3408a0413fbf1fab0ef45c49c91cbf9c`.
+The parser bundle remained exactly
+`f3c6db7e9f11ab75b2207be773e946d531dbba763008d9f7e5036d8c923dc2ae`.
+
+The first-diagnostic code-path replay under its exact 48 GiB address-space
+ceiling reproduced 19 successes and the same four owner-only crash identities.
+The uncapped supervisor then produced 23 `PARSED_NONEMPTY` results, zero empty
+results, zero native crashes, zero restarts, zero cross-wires, and 23 exact
+input acknowledgments. All 19 prior-success ordered digests matched exactly;
+all four prior-crash candidates succeeded. The maximum accepted candidate also
+returned `PARSED_NONEMPTY` without truncation or substring parsing.
+
+The revised children reached an observed maximum 56,327,384 KiB RSS, above
+the earlier 48 GiB ceiling. This evidence establishes that the earlier cap was
+materially causal; it does not establish an intrinsic parser crash class for
+the four candidates. The contract-freeze gate is therefore
+`SCIENTIFIC_CONFLICT`, controlled by
+`PRIOR_CRASH_SUCCEEDS_WITH_REVISED_RESOURCES`.
+
+All 23 successful giant parses round-tripped exactly through the provisional
+nullable `LargeList` representation. The maximum observed component count was
+881,338, maximum output-value total was 25,187,643 code points, and the largest
+one-row Parquet audit was 7,932,166 bytes. This supports the provisional Arrow
+offset choice but does not freeze the schema.
+
+The aggregate harness stopped its optional repeat phase at the first prior
+capped-crash identity that again succeeded uncapped. Consequently its combined
+parent-survival and crash→success fields describe that cross-resource early
+stop, not a current same-resource first-crash/retry event. The complete
+uncapped first pass survived and returned valid results for all 23 candidates.
+
+The minimum scientific decision is now an explicit owner choice about both:
+
+1. the resource sufficiency contract required for exact giant parsing; and
+2. whether `PARSER_PROCESS_CRASH` remains justified as prospective resilience
+   despite no reproducible resource-sufficient DEVELOPMENT crash, or whether
+   any unexpected native crash should instead abort Stage 7 fail-closed.
+
+No such choice is made here. Accepted Stage 6 science, the lowercase parse-once
+key, exact input, and the parser bundle remain unchanged.
+
+## Work unexecuted after the targeted stop gate
+
+Because both design gates failed, no Stage 7 materializer, output schema, input
+binding, contract/profile, or materializer implementation was frozen. No authoritative
 51,779-candidate DEVELOPMENT job was submitted. Post-publication validation,
 full fixed-500 map-back verification, the risk-stratified qualitative review,
 output invariance tests, throughput projection, and output fingerprints are
@@ -421,8 +486,7 @@ production run, HOLDOUT access, Stage 8 work, or geocoding occurred.
 ## Current required stop gate
 
 The first design declared `STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY` and remains
-preserved as such. The revised attempt may eventually declare only
-`STAGE_7_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REVIEW` or
-`STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY`. It must not declare
+preserved as such. The revised attempt also declares
+`STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY`. It does not declare
 `STAGE_7_ACCEPTED`, merge to `main`, begin independent review, start Stage 8,
 access HOLDOUT, start a production stage, or geocode.

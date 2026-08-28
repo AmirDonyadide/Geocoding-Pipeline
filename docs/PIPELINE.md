@@ -13,9 +13,9 @@ stage.
   No accepted design or implementation exists.
 
 Stages 0–6 are accepted on DEVELOPMENT. Stage 7's first DEVELOPMENT design
-diagnostic correctly returned not ready. A revised owner-approved supervision
-design is now undergoing its targeted pre-contract diagnostic; it is not
-accepted and no contract/profile is frozen.
+diagnostic correctly returned not ready; its revised supervisor diagnostic
+then proved all four prior giant crashes resource-cap dependent. Stage 7
+remains not ready and no contract/profile is frozen.
 Production Stage 0 and Stage 1 are accepted for the 1,411-file population;
 production Stage 2 through Stage 6 have not started. DEVELOPMENT and production
 Stages 8–19 have not started, and production Stage 7 has not started.
@@ -190,10 +190,10 @@ stage consumes an accepted predecessor and must stop at its own review gate.
   each representation.
 - **Primary libraries:** libpostal/pypostal.
 - **Data effect:** Adds derived parsed components; candidate text is preserved.
-- **Status:** **REVISED DEVELOPMENT SUPERVISOR DIAGNOSTIC — NOT ACCEPTED**. The
-  first not-ready evidence remains immutable. The revised design preserves the
-  lowercase key and tests an explicit null-component technical-failure state
-  with one exact fresh-process retry before contract freeze.
+- **Status:** **`STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY`**. The first
+  not-ready evidence remains immutable. The revised uncapped diagnostic parsed
+  all 23 giants, so the four prior crashes were caused by the 48 GiB ceiling
+  and the technical-failure status/resource contract require reconsideration.
 - **Acceptance requirement:** Pinned build/resources, reproducible offline
   execution, multilingual DEVELOPMENT evaluation, failure preservation, and
   independent review.

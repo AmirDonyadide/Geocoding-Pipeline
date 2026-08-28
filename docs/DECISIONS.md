@@ -284,16 +284,40 @@ to change a decision or start a stage.
   reproducible technical-failure state preserves total candidate lineage
   without misrepresenting failure as a valid empty parse or changing accepted
   Stage 6 science.
-- **Status:** OWNER-APPROVED REVISED DESIGN DECISION. A targeted supervisor
-  diagnostic must pass before contract/profile freeze or implementation. This
-  is not Stage 7 acceptance and does not authorize independent review, Stage 8,
-  HOLDOUT, production, or geocoding.
+- **Status:** OWNER-APPROVED REVISED DESIGN ATTEMPT; TARGETED GATE DID NOT PASS.
+  Job `1760182` proved the four motivating crashes disappear when the prior
+  48 GiB address-space ceiling is removed. The proposed status was not frozen.
+  This is not Stage 7 acceptance and does not authorize independent review,
+  Stage 8, HOLDOUT, production, or geocoding.
+
+### D024 — Stage 7 must not encode a fixable resource ceiling as parser failure
+
+- **Date:** 2026-08-28.
+- **Scope:** Targeted revised Stage 7 DEVELOPMENT design gate only.
+- **Decision:** Do not freeze the proposed Stage 7 contract/profile after the
+  revised diagnostic. The exact prior 48 GiB path reproduced 19 successful
+  giants and four crashes, while the uncapped supervisor in a 180 GiB job
+  parsed the same 23 exact candidates successfully on their first attempt.
+  The four prior failures therefore do not justify published
+  `PARSER_PROCESS_CRASH` rows. Preserve the lowercase parse-once decision, the
+  exact candidates, the parser bundle, and both immutable not-ready evidence
+  chains. Require a new owner decision on resource sufficiency and whether a
+  prospective technical-failure state remains necessary before contract
+  freeze.
+- **Rationale:** A SAFE-imposed resource limit is not an intrinsic libpostal
+  result. Encoding it as a candidate-level parser failure would make output
+  depend on an avoidable execution configuration despite exact successful
+  parsing being demonstrated locally on Goethe compute.
+- **Status:** `STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY`. No authoritative Stage
+  7 DEVELOPMENT run, independent review, Stage 8, HOLDOUT, production, or
+  geocoding is authorized.
 
 ## Open decisions
 
 These questions require future stage designs and explicit approval:
 
-- final Stage 7 contract freeze, contingent on the targeted supervisor gate;
+- final Stage 7 resource policy, technical-failure necessity, and contract
+  freeze after the targeted supervisor conflict;
 - country-specific Stage 11 coverage and syntax policy;
 - reference versions/licenses and blocking semantics for Stages 13–15;
 - exact high-precision correction policy for Stage 16;

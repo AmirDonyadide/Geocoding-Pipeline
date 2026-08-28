@@ -132,9 +132,9 @@ documentation test pass.
 - Production Stage 5: **NOT STARTED**.
 - Stage 6 DEVELOPMENT: **`STAGE_6_ACCEPTED`**.
 - Production Stage 6: **NOT STARTED**.
-- Stage 7 DEVELOPMENT: **REVISED SUPERVISOR DIAGNOSTIC — NOT ACCEPTED**; first
-  not-ready evidence remains immutable and contract/implementation are not yet
-  frozen.
+- Stage 7 DEVELOPMENT: **`STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY`**; the
+  revised diagnostic proved the prior four giant crashes resource-cap
+  dependent, and contract/implementation remain unfrozen.
 - Production Stage 7: **NOT STARTED**.
 
 This policy grants no scientific-stage or production-run authorization.

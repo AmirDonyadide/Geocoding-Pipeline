@@ -48,9 +48,9 @@ The pre-geocoding pipeline therefore establishes a controlled evidence chain:
 
 Stages 0–6 are implemented, independently reviewed, and accepted on
 DEVELOPMENT. Stage 7's first controlled design diagnostic correctly returned
-not ready. A revised owner-approved supervisor design is now in a targeted
-pre-contract diagnostic; Stage 7 remains unaccepted. Stages 8–19 have not
-started. No Stage 7 contract or materializer is frozen. See
+not ready. Its revised supervisor diagnostic then proved the prior four giant
+crashes were resource-cap dependent; Stage 7 remains unaccepted. Stages 8–19
+have not started. No Stage 7 contract or materializer is frozen. See
 [PIPELINE.md](PIPELINE.md).
 
 ## Standard and native Orbis representations
