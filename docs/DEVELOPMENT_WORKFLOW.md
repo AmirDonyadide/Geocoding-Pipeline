@@ -20,7 +20,9 @@ design
 ```
 
 Stages 0–6 have completed this lifecycle on DEVELOPMENT and are accepted.
-Stage 7 has not started.
+Stage 7 stopped at its controlled design diagnostic with a material
+giant-candidate parser limitation; its candidate is not ready, and the later
+steps in this lifecycle did not begin.
 
 ## Design and implementation
 

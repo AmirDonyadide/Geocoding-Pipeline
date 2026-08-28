@@ -132,7 +132,8 @@ documentation test pass.
 - Production Stage 5: **NOT STARTED**.
 - Stage 6 DEVELOPMENT: **`STAGE_6_ACCEPTED`**.
 - Production Stage 6: **NOT STARTED**.
-- Stage 7 DEVELOPMENT: **DESIGN / PARSER BUNDLE IN PROGRESS — NOT ACCEPTED**.
+- Stage 7 DEVELOPMENT: **`STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY`**; stopped
+  at the controlled design diagnostic after giant-candidate parser crashes.
 - Production Stage 7: **NOT STARTED**.
 
 This policy grants no scientific-stage or production-run authorization.

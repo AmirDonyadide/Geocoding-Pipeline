@@ -190,9 +190,11 @@ The final pre-geocoding sequence is:
 18. query generation; and
 19. query deduplication plus final QA.
 
-Stages 0–6 are implemented and accepted on DEVELOPMENT. Stages 7–19 are not
-started. Production Stage 0 and Stage 1 are accepted; production Stages 2–6
-are not started. The detailed stage contracts and acceptance requirements are
+Stages 0–6 are implemented and accepted on DEVELOPMENT. Stage 7's DEVELOPMENT
+candidate is not ready after a blocking design diagnostic; no contract or
+implementation was frozen. Stages 8–19 are not started. Production Stage 0
+and Stage 1 are accepted; production Stages 2–7 are not started. The detailed
+stage contracts and acceptance requirements are
 in [PIPELINE.md](PIPELINE.md). HOLDOUT remains untouched and sealed.
 
 ## 8. DEVELOPMENT methodology
@@ -245,6 +247,7 @@ Durable decisions are in [DECISIONS.md](DECISIONS.md); current status is in
 
 ## 11. Current next action
 
-Stage 7 — libpostal parsing — is not started. Stage 6 is accepted on
-DEVELOPMENT. Production Stage 2 through Stage 6 remain not started and
+Stage 7 — libpostal parsing — stopped at a blocking DEVELOPMENT design
+diagnostic and is not ready for independent review. Stage 6 remains accepted
+on DEVELOPMENT. Production Stage 2 through Stage 7 remain not started and
 unauthorized.

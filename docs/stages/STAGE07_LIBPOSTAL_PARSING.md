@@ -2,7 +2,7 @@
 
 ## Status
 
-**DEVELOPMENT DESIGN AND PARSER-BUNDLE PROVENANCE IN PROGRESS.**
+**`STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY`.**
 
 This branch starts from accepted `main` commit
 `76435eb7ca5cd9a47a2a77fb36278568ba3bfc29`. The owner authorized one fresh
@@ -11,11 +11,14 @@ Stage 7 acceptance. A later fresh independent-review session controls
 acceptance. HOLDOUT, production Stages 2–7, Stage 8, and geocoding remain
 unauthorized.
 
-The scientific contract/profile names proposed for freezing after the
-controlled design diagnostic are `stage07_libpostal_parsing_contract_v1` and
-`stage07_libpostal_parsing_profile_v1`. The diagnostic can still expose a
-scientific conflict; therefore this record does not yet declare those semantics
-accepted or final.
+The controlled design diagnostic exposed a material parser limitation before
+the contract/profile freeze: four of the 23 accepted candidates with at least
+1,000,000 code points crashed their isolated native parser process, including
+the accepted 25,920,495-code-point maximum. The session therefore stopped as
+required. Proposed names `stage07_libpostal_parsing_contract_v1` and
+`stage07_libpostal_parsing_profile_v1` were not frozen, implementation and the
+authoritative 51,779-candidate run did not begin, and no candidate is eligible
+for independent review.
 
 ## Accepted Stage 6 input boundary
 
@@ -81,7 +84,7 @@ component or relabel a technical failure as a successful empty parse. The
 controlled diagnostic must confirm that this fail-closed policy covers real
 DEVELOPMENT candidates without requiring an arbitrary hidden recovery rule.
 
-## Exact parser bundle under construction
+## Exact frozen parser bundle
 
 The controlled environment initially had neither libpostal nor pypostal.
 Stage 7 therefore builds one self-contained public parser bundle in a scheduled
@@ -228,11 +231,11 @@ zero symlinks. No license/notice file was present in the downloaded upstream
 model assets, so that absence is recorded without adding a SAFE license
 interpretation. Protected inputs opened: no.
 
-## Controlled design diagnostic gate
+## Controlled design diagnostic result
 
-After the bundle is frozen, one protected diagnostic will run through SLURM
-from an exact pushed detached worktree. It will validate accepted Stage 6 and
-cover:
+The protected diagnostic ran through SLURM from exact pushed commit
+`48c66f7beb0437d7f0a6cea575c560a2a9c6c920` as job `1760156`. It validated
+the accepted Stage 6 binding and covered:
 
 1. all 613 unique candidates referenced by the frozen fixed-500 mapping;
 2. all 123 multi-clean-surface lowercase groups and both clean surfaces per
@@ -242,10 +245,11 @@ cover:
 4. deterministic length, script, mixed-script, punctuation, numeric,
    representation-provenance, singleton/repeated, and ordinary samples.
 
-Protected strings and parser outputs remain in process memory or owner-only
-diagnostic state and never enter stdout, Git, or portable evidence. The Git-safe
-diagnostic contains aggregate counts, distributions, labels, timing,
-determinism, and case-variant comparison results only.
+Protected strings and parser outputs remained in process memory or owner-only
+diagnostic state and never entered stdout, Git, or portable evidence. The
+Git-safe [diagnostic summary](../../reports/development/stage07_design_diagnostic_summary.md)
+contains aggregate counts, distributions, labels, timing, determinism, and
+case-variant comparison results only.
 
 Every clean surface in the 123 groups is compared against its accepted
 lowercase canonical parse using ordered exact `(value, label)` equality. Any
@@ -273,25 +277,53 @@ no SAFE truncation, substring fallback, regex preprocessing, or inferred
 component. Any inability to parse an accepted giant candidate exactly is a
 scientific conflict requiring an explicit pipeline decision.
 
-## Execution and scaling direction
+The replacement diagnostic completed in 7 minutes 51 seconds with MaxRSS
+25,062,976 KiB. Its deterministic 986-candidate selection included all 613
+fixed-500 unique candidate IDs, all 123 multi-surface groups and 246 clean
+surfaces, all 23 giant candidates, and the required stratified samples. Its
+selection fingerprint is
+`a81995f832f89cdc5053827d6479c2170641815a44f3e64c90c9d3a6816fe3df`;
+the aggregate diagnostic evidence SHA-256 is
+`7b09fb79a6ef905c1e41d9387fc7ebfa5a24b257c8aee50d779f96aa47e32283`.
 
-DEVELOPMENT will prefer one parser process if diagnostic throughput is
-adequate. This avoids assuming native thread safety and provides one model
-initialization. The materializer is designed for independent candidate-ID range
-shards in future work, but restores exact Stage 6 registry order and never
-changes a result by worker count, input shard layout, Arrow batch size, Parquet
-row-group size, or output shard size.
+The lowercase safety gate passed exactly: all 123 groups and all 246 clean
+surfaces parsed without error; 123 groups had exact ordered output equality and
+zero had label, value, count, ordering, or empty/nonempty differences. All 64
+repeat-determinism candidates matched in-process, in a fresh process, with
+batch size 1, and with reversed batch-17 input. This evidence supports the
+accepted lowercase candidate as a parse-once key for the tested groups.
 
-Production-capable code streams bounded Arrow batches and Parquet shards. It
-does not use pandas, population-sized Python dictionaries/sets/lists, a whole
-registry `to_pylist`, or a population-sized parse-result buffer. The estimated
-208,667,272 production candidates remain planning-only; no production Stage 7
-run is authorized.
+The parser emitted 2,481,811 components for 979 `PARSED_NONEMPTY` and three
+`PARSED_EMPTY` diagnostic candidates. Four candidates had `PROCESS_CRASH` and
+were not reclassified as empty parses. Nineteen of the 23 giant candidates
+parsed; four crashed, including the maximum accepted candidate. Consequently,
+the diagnostic gate is `SCIENTIFIC_CONFLICT` with
+`GIANT_CANDIDATE_PARSER_LIMITATION` and
+`PROTECTED_CANDIDATE_PARSER_FAILURE`.
+
+The minimum next scientific decision is an explicitly reviewed pipeline policy
+for exact accepted giant candidates. The current evidence does not authorize
+arbitrary truncation, substring parsing, silently dropping candidates,
+inventing a fake component, or treating a native crash as `PARSED_EMPTY`.
+Whether the response belongs in upstream candidate construction/deduplication
+or in an explicit Stage 7 technical-failure contract must be decided before a
+new contract/profile can be frozen. This record makes no such choice.
+
+## Unexecuted work after the stop gate
+
+Because the design gate failed, no Stage 7 materializer, output schema, input
+binding, contract/profile, or implementation was frozen. No authoritative
+51,779-candidate DEVELOPMENT job was submitted. Post-publication validation,
+full fixed-500 map-back verification, the risk-stratified qualitative review,
+output invariance tests, throughput projection, and output fingerprints are
+therefore not applicable. Proposed bounded streaming and single-process
+execution remain unimplemented design direction, not evidence.
+
+The estimated 208,667,272 production candidates remain planning-only. No
+production run, HOLDOUT access, Stage 8 work, or geocoding occurred.
 
 ## Required stop gate
 
-This session may ultimately declare only
-`STAGE_7_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REVIEW` or
-`STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY`. It must not declare
-`STAGE_7_ACCEPTED`, merge to `main`, start Stage 8, access HOLDOUT, start a
-production stage, or geocode.
+This session declares only `STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY`. It does
+not declare `STAGE_7_ACCEPTED`, merge to `main`, begin independent review,
+start Stage 8, access HOLDOUT, start a production stage, or geocode.

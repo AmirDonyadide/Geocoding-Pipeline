@@ -147,7 +147,10 @@ personal absolute paths. Sanitized evidence is available under
 
 ## Current next stage
 
-**Stage 7 — libpostal parsing — DEVELOPMENT design and parser-bundle
-provenance in progress; not accepted.** Stage 6 is accepted on DEVELOPMENT.
-HOLDOUT, production Stages 2–7, Stage 8, and geocoding remain unauthorized and
-not started. See the [active Stage 7 record](docs/stages/STAGE07_LIBPOSTAL_PARSING.md).
+**Stage 7 — libpostal parsing — DEVELOPMENT candidate not ready.** Its pinned
+offline parser bundle is reproducible, and the 123-group lowercase safety gate
+passed, but the controlled diagnostic found native parser crashes on four
+accepted giant candidates. The contract and implementation were not frozen.
+Stage 6 remains accepted on DEVELOPMENT. HOLDOUT, production Stages 2–7,
+Stage 8, and geocoding remain unauthorized and not started. See the
+[Stage 7 record](docs/stages/STAGE07_LIBPOSTAL_PARSING.md).

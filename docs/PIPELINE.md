@@ -12,8 +12,9 @@ stage.
 - **PLANNED — NOT STARTED:** conceptual placement and likely technology only.
   No accepted design or implementation exists.
 
-Stages 0–6 are accepted on DEVELOPMENT. Stage 7 is in an authorized
-DEVELOPMENT design and parser-bundle provenance workflow; it is not accepted.
+Stages 0–6 are accepted on DEVELOPMENT. Stage 7's DEVELOPMENT design
+diagnostic found a blocking giant-candidate parser limitation; its candidate
+is not ready and it is not accepted.
 Production Stage 0 and Stage 1 are accepted for the 1,411-file population;
 production Stage 2 through Stage 6 have not started. DEVELOPMENT and production
 Stages 8–19 have not started, and production Stage 7 has not started.
@@ -188,7 +189,10 @@ stage consumes an accepted predecessor and must stop at its own review gate.
   each representation.
 - **Primary libraries:** libpostal/pypostal.
 - **Data effect:** Adds derived parsed components; candidate text is preserved.
-- **Status:** **DEVELOPMENT DESIGN / PARSER BUNDLE IN PROGRESS — NOT ACCEPTED**.
+- **Status:** **`STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY`**. The exact offline
+  parser bundle and lowercase parse-once safety gate passed, but four accepted
+  giant candidates crashed the native parser process. Contract/profile freeze,
+  implementation, and authoritative execution did not begin.
 - **Acceptance requirement:** Pinned build/resources, reproducible offline
   execution, multilingual DEVELOPMENT evaluation, failure preservation, and
   independent review.
