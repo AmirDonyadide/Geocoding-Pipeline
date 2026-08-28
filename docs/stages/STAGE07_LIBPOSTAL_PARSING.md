@@ -132,6 +132,18 @@ access, or parser call occurred. The minimal correction resolves the controlled
 root before comparison; any replacement uses new build/output identities and
 does not overwrite this failed attempt.
 
+The replacement public-only bundle submission, SLURM job `1760128` at
+diagnostic commit `6ea9dd2e0560e00f80a585d7c4e7e999e9b48a47`, failed after
+17 seconds during upstream autotools bootstrap. Goethe provided libtool 2.4.6,
+but `autoreconf` did not stage the libtool macros, so automake reported
+`LIBTOOL` undefined. The owner-only logs remain mode `0600`; the failed build
+root is preserved, and no immutable bundle output was published. No protected
+input was opened and no parser call occurred. The bounded correction explicitly
+runs the installed `libtoolize --copy --force` before the unchanged upstream
+`bootstrap.sh`; the frozen build identity records the compiler, make,
+autoconf, automake, libtoolize, and pkg-config versions. A replacement must use
+new build and output identities.
+
 ## Controlled design diagnostic gate
 
 After the bundle is frozen, one protected diagnostic will run through SLURM

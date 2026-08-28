@@ -97,6 +97,7 @@ git -C "${PYPPOSTAL_SOURCE}" checkout --quiet --detach "${PYPPOSTAL_COMMIT}"
 [[ -z "$(git -C "${PYPPOSTAL_SOURCE}" status --porcelain)" ]]
 
 cd "${LIBPOSTAL_SOURCE}"
+libtoolize --copy --force
 ./bootstrap.sh
 ./configure --prefix="${LIBPOSTAL_PREFIX}" --datadir="${MODEL_PREFIX}"
 make -j "${SLURM_CPUS_PER_TASK}"
@@ -180,7 +181,13 @@ print(f"public_parser_initialization_milliseconds={initialization_ms}")
 print(f"public_parser_smoke_components={len(result)}")
 PY
 
-readonly COMPILER_IDENTITY="$(gcc --version | head -n 1)"
+readonly COMPILER_IDENTITY="$(printf '%s; %s; %s; %s; %s; %s' \
+  "$(gcc --version | head -n 1)" \
+  "$(make --version | head -n 1)" \
+  "$(autoconf --version | head -n 1)" \
+  "$(automake --version | head -n 1)" \
+  "$(libtoolize --version | head -n 1)" \
+  "$(pkg-config --version)")"
 readonly PYTHON_IDENTITY="$("${BASE_PYTHON}" --version 2>&1) / Unicode 16.0.0"
 readonly GLIBC_IDENTITY="$(getconf GNU_LIBC_VERSION)"
 readonly PUBLISH_OUTPUT="$("${BASE_PYTHON}" \

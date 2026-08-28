@@ -445,7 +445,7 @@ def _clean_surface_groups(
             JOIN variant_ids v USING (candidate_id)
             ORDER BY d.candidate_id, d.clean_surface
             """
-        ).fetch_record_batch(rows_per_batch=128)
+        ).to_arrow_reader(batch_size=128)
         grouped: dict[bytes, list[str]] = defaultdict(list)
         for batch in reader:
             for row_index in range(batch.num_rows):

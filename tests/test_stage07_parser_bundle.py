@@ -172,6 +172,8 @@ def test_stage07_bundle_launcher_is_exact_public_only() -> None:
     assert PYPPOSTAL_SOURCE_COMMIT in launcher
     assert "SAFE_EXECUTION_SITE=goethe-nhr" in launcher
     assert "SLURM_JOB_ID:?SLURM_JOB_ID is required" in launcher
+    assert "libtoolize --copy --force" in launcher
+    assert "libtoolize --version" in launcher
     assert "protected_inputs_opened=false" in launcher
     assert "/scratch" not in launcher
     assert "/work/footprint/public" not in launcher

@@ -19,6 +19,7 @@ from safe_geocoding_pipeline.preprocessing.stages.s07_design_diagnostic import (
     Stage07DesignDiagnosticConfig,
     Stage07DesignDiagnosticError,
     _candidate_features,
+    _clean_surface_groups,
     _diagnostic_selection,
     _difference_types,
     _distribution,
@@ -172,6 +173,41 @@ def test_diagnostic_selection_is_deterministic_and_includes_required_sets(
     assert available["SCRIPT:HANGUL"] >= 1
     assert available["SCRIPT:MIXED_SCRIPT"] >= 1
     assert len(fingerprint) == 64
+
+
+def test_clean_surface_grouping_is_disk_backed_and_exact(tmp_path: Path) -> None:
+    first_id = b"a" * 32
+    second_id = b"b" * 32
+    table = pa.table(
+        {
+            "stage06_standard_exact_candidate_id": [first_id, second_id, None],
+            "stage05_standard_candidate_clean": [
+                "Synthetic Avenue",
+                "One Surface",
+                "",
+            ],
+            "stage06_native_exact_candidate_id": [first_id, second_id, second_id],
+            "stage05_native_candidate_clean": [
+                "synthetic avenue",
+                "One Surface",
+                "One Surface",
+            ],
+        }
+    )
+    row_map = tmp_path / "row_map.parquet"
+    pq.write_table(table, row_map, write_page_checksum=True)
+    row_map.chmod(0o600)
+    work = tmp_path / "work"
+    work.mkdir(mode=0o700)
+    work.chmod(0o700)
+
+    assert _clean_surface_groups(
+        (row_map,),
+        work_directory=work,
+        memory_limit="256MB",
+        threads=1,
+        authoritative_development=False,
+    ) == {first_id: ("Synthetic Avenue", "synthetic avenue")}
 
 
 def test_distribution_uses_nearest_rank() -> None:
