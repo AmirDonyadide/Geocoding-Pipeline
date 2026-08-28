@@ -163,6 +163,16 @@ installs it under that attempt's private build root, and invokes the exact
 private `libtoolize`. It does not depend on login-node tools or modify a shared
 environment.
 
+Public-only bundle job `1760139` at commit
+`7eb16a84d9e6016f6c8ac8fce6d5bb9c0a2f334f` then failed after nine minutes
+with curl exit `28`: the compute node could clone GitHub but could not connect
+to the primary `ftp.gnu.org` HTTPS endpoint. Its logs are mode `0600`, its
+failed build root remains mode `0700`, and its intended immutable output is
+absent. No protected input or parser call occurred. The next bounded correction
+uses the public GNU mirror at `mirrors.ibiblio.org`, which serves the same
+official `libtool-2.4.6.tar.gz`; the existing required SHA-256 remains unchanged
+and therefore controls artifact identity independently of the acquisition host.
+
 ## Controlled design diagnostic gate
 
 After the bundle is frozen, one protected diagnostic will run through SLURM

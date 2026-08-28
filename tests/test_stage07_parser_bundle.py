@@ -173,6 +173,8 @@ def test_stage07_bundle_launcher_is_exact_public_only() -> None:
     assert "SAFE_EXECUTION_SITE=goethe-nhr" in launcher
     assert "SLURM_JOB_ID:?SLURM_JOB_ID is required" in launcher
     assert "libtool-2.4.6.tar.gz" in launcher
+    assert "https://mirrors.ibiblio.org/gnu/libtool/" in launcher
+    assert "https://ftp.gnu.org/" not in launcher
     assert (
         "e3bd4d5d3d025a36c21dd6af7ea818a2afcd4dfc1ea5a17b39d7854bcd0c06e3" in launcher
     )
