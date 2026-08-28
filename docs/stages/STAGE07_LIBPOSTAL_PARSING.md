@@ -2,7 +2,8 @@
 
 ## Status
 
-**`STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY`.**
+**REVISED DEVELOPMENT DESIGN / SUPERVISOR DIAGNOSTIC IN PROGRESS — NOT
+ACCEPTED.**
 
 This branch starts from accepted `main` commit
 `76435eb7ca5cd9a47a2a77fb36278568ba3bfc29`. The owner authorized one fresh
@@ -19,6 +20,98 @@ required. Proposed names `stage07_libpostal_parsing_contract_v1` and
 `stage07_libpostal_parsing_profile_v1` were not frozen, implementation and the
 authoritative 51,779-candidate run did not begin, and no candidate is eligible
 for independent review.
+
+That not-ready conclusion remains immutable and historically correct at
+evidence commit `d132fd9d665995fc07743c512769e44fa7fcae0b`. The owner has now
+authorized a later revised Stage 7 design attempt, limited first to a targeted
+supervisor diagnostic over the same 23 accepted giant candidates. This does
+not retroactively pass the first design, freeze the contract/profile, accept
+Stage 7, authorize independent review, or change accepted Stage 6 science.
+
+## Revised owner decisions
+
+The complete 123-group / 246-surface case diagnostic is controlling evidence:
+all ordered parses were exactly equal. The accepted
+`stage06_candidate_lower` therefore remains the sole Stage 7 parse-once key.
+Clean/case-preserving surfaces remain upstream provenance and are not added to
+the key or parsed independently in the authoritative pipeline.
+
+Every Stage 6 candidate must receive exactly one Stage 7 row. A deterministic
+native parser-process crash is an explicit derived-information failure; it
+does not invalidate, modify, truncate, drop, or replace the Stage 6 candidate.
+The narrow approved status vocabulary is:
+
+| Status | Parser outcome | Component representation |
+|---|---|---|
+| `PARSED_NONEMPTY` | Parser returned normally with at least one component | non-null ordered list of length at least one |
+| `PARSED_EMPTY` | Parser returned normally with zero components | non-null exact empty list `[]` |
+| `PARSER_PROCESS_CRASH` | Exact input crashed the child twice under the approved fresh-retry policy | null list, never `[]` |
+
+A wrapper exception, malformed result, Python failure, schema error,
+publication error, crash→success retry, or changed technical failure aborts
+the complete publication. No additional scientific status is invented for
+unobserved cases. No size threshold skips parsing and no candidate timeout is
+part of the status contract; the SLURM allocation retains only its global time
+limit.
+
+## Revised supervised execution design
+
+A synchronous parent owns one exact active candidate and one long-lived
+spawned libpostal child. Requests and results carry an internal monotonic frame
+sequence. Before calling libpostal, the child acknowledges that sequence plus
+the exact input code-point count and SHA-256. An exit before this acknowledgment
+aborts and cannot qualify as a candidate crash. The parent accepts a result
+only when sequence and input identity match, so a neighbor cannot be omitted or
+cross-wired. The child initializes the frozen parser bundle once and remains
+alive across normal candidates.
+
+If the active child terminates before returning a valid frame, the parent
+records privacy-safe exit/signal, framing, runtime, and observable memory
+metadata, starts a fresh child with the same frozen bundle, and retries the
+same exact candidate once:
+
+1. crash then the same crash signature: publish `PARSER_PROCESS_CRASH` with
+   null components;
+2. crash then success: fail with parser/execution nondeterminism; or
+3. crash then another technical outcome or different exit/signal signature:
+   fail with technical nondeterminism.
+
+The successful ordinary path is attempted once. The supervision rule applies
+to every candidate and contains no giant-specific production semantics. The
+targeted diagnostic additionally performs a third fresh attempt for each
+reproducibly crashing giant as pre-contract evidence, but the proposed
+publication contract remains exactly two attempts after an initial crash.
+
+The first diagnostic imposed a 48 GiB child address-space ceiling and retained
+only aggregate giant results. The targeted job first replays that immutable
+isolated code path to reconstruct an owner-only candidate-level 19/4 reference
+and ordered digests; its original 900-second guard and 48 GiB cap are reference
+conditions, not proposed publication policy. The revised supervisor path then
+has no per-candidate timeout or address-space ceiling and runs in a job
+requesting 180 GiB on a 191 GB Goethe node. Candidate-by-candidate comparison
+therefore tests whether the same prior failures persist under the larger
+allocation rather than freezing a failure state around a potentially fixable
+SAFE resource cap. The same parser-bundle fingerprint remains binding.
+
+## Provisional revised output representation
+
+The proposed registry continues to preserve the five Stage 6 registry columns
+exactly and append only `stage07_parse_status` plus
+`stage07_libpostal_components`. A separate published `stage07_failure_code` is
+not proposed: with one approved technical-failure state it would duplicate the
+status invariant. The internal/aggregate technical code for that state is the
+fixed public value `NATIVE_PROCESS_CRASH`; low-level attempt evidence remains
+owner-only and is not copied into the registry.
+
+The proposed nested type is a nullable Arrow
+`large_list<struct<label: large_string not null, value: large_string not
+null> not null>`. A 64-bit list offset is justified by the observed 263,385
+components in one candidate and future shard scalability. `large_string`
+children avoid a 32-bit cumulative value-offset dependency within a batch.
+List order, duplicate labels, duplicate values, and exact strings remain
+authoritative. Parquet round-trip, one-row giant row groups, page sizing,
+checksums, and per-candidate construction memory must pass the targeted gate
+before this schema can be frozen.
 
 ## Accepted Stage 6 input boundary
 
@@ -49,7 +142,7 @@ The processing unit is one Stage 6 unique registry row. Stage 7 will parse
 `stage06_exact_candidate_id` plus all four other registry fields exactly. It
 will not independently parse 69,747 occurrences or 35,000 source rows.
 
-## Provisional scientific boundary
+## First-design scientific boundary and revision
 
 The exact parser call is intended to be:
 
@@ -70,19 +163,22 @@ deduplicate, combine repeated labels, convert the result to dictionary
 semantics, map labels to SAFE fields, or alter returned strings. Stage 8 owns
 label mapping.
 
-The proposed output is one row per Stage 6 registry row, preserving the five
+The first design proposed one row per Stage 6 registry row, preserving the five
 Stage 6 columns in order and appending:
 
-- non-null `stage07_parse_status`, with `PARSED_NONEMPTY` or `PARSED_EMPTY`;
-  and
-- non-null `stage07_libpostal_components`, an ordered list of non-null
+- non-null `stage07_parse_status`, then limited to `PARSED_NONEMPTY` or
+  `PARSED_EMPTY`; and
+- non-null `stage07_libpostal_components`, then an ordinary ordered list of non-null
   `{label, value}` structs whose strings are non-null and exact UTF-8.
 
 An exception, malformed wrapper result, null, non-string member, invalid UTF-8
 round-trip, or partial output fails the run. Stage 7 does not synthesize a
 component or relabel a technical failure as a successful empty parse. The
-controlled diagnostic must confirm that this fail-closed policy covers real
-DEVELOPMENT candidates without requiring an arbitrary hidden recovery rule.
+controlled diagnostic showed that this policy did not cover four real
+DEVELOPMENT candidates. The later owner decision above revises only those
+status/null semantics and the offset-width choice: confirmed native crashes
+receive `PARSER_PROCESS_CRASH` with a null `LargeList`. All other wrapper,
+schema, and publication failures remain fail-closed.
 
 ## Exact frozen parser bundle
 
@@ -309,7 +405,7 @@ Whether the response belongs in upstream candidate construction/deduplication
 or in an explicit Stage 7 technical-failure contract must be decided before a
 new contract/profile can be frozen. This record makes no such choice.
 
-## Unexecuted work after the stop gate
+## Work unexecuted after the first stop gate
 
 Because the design gate failed, no Stage 7 materializer, output schema, input
 binding, contract/profile, or implementation was frozen. No authoritative
@@ -322,8 +418,11 @@ execution remain unimplemented design direction, not evidence.
 The estimated 208,667,272 production candidates remain planning-only. No
 production run, HOLDOUT access, Stage 8 work, or geocoding occurred.
 
-## Required stop gate
+## Current required stop gate
 
-This session declares only `STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY`. It does
-not declare `STAGE_7_ACCEPTED`, merge to `main`, begin independent review,
-start Stage 8, access HOLDOUT, start a production stage, or geocode.
+The first design declared `STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY` and remains
+preserved as such. The revised attempt may eventually declare only
+`STAGE_7_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REVIEW` or
+`STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY`. It must not declare
+`STAGE_7_ACCEPTED`, merge to `main`, begin independent review, start Stage 8,
+access HOLDOUT, start a production stage, or geocode.

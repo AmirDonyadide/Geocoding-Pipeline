@@ -12,7 +12,7 @@ are in the linked stage records and sanitized reports.
 | 4 | Lowercase canonical forms | **`STAGE_4_ACCEPTED`** | Job `1759421`; independent job `1759473`; 35,000 → 35,000; exact Python `str.lower()`; [report](../reports/development/stage04_summary.md) | **NOT STARTED** |
 | 5 | Address reconstruction | **`STAGE_5_ACCEPTED`** | Job `1759603`; independent job `1759692`; 35,000 → 35,000; exact reconstruction and six accepted non-damaging boundary limitations in a 179-row risk scope; [report](../reports/development/stage05_summary.md); [Stage 5 record](stages/STAGE05_ADDRESS_RECONSTRUCTION.md) | **NOT STARTED** |
 | 6 | Early exact deduplication | **`STAGE_6_ACCEPTED`** | Job `1759819`; independent job `1760055`; 35,000 → 35,000; 69,747 occurrences → 51,779 unique exact candidates; zero collision/map-back/fixed-500 mismatches; [report](../reports/development/stage06_summary.md); [Stage 6 record](stages/STAGE06_EARLY_EXACT_DEDUPLICATION.md) | **NOT STARTED** |
-| 7 | libpostal parsing | **`STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY`** | Exact offline bundle and 123-group lowercase safety gate passed; four accepted giant candidates crashed the parser, so contract/implementation freeze stopped; [report](../reports/development/stage07_design_diagnostic_summary.md); [Stage 7 record](stages/STAGE07_LIBPOSTAL_PARSING.md) | **NOT STARTED** |
+| 7 | libpostal parsing | **REVISED SUPERVISOR DIAGNOSTIC — NOT ACCEPTED** | First design correctly not ready: [immutable report](../reports/development/stage07_design_diagnostic_summary.md). Owner-approved revision preserves the lowercase key and tests explicit confirmed-crash semantics before contract freeze; [Stage 7 record](stages/STAGE07_LIBPOSTAL_PARSING.md) | **NOT STARTED** |
 | 8–19 | Remaining pre-geocoding stages | **NOT STARTED** | No implementation or DEVELOPMENT run | **NOT STARTED** |
 
 Benchmark V1 contains 35,000 DEVELOPMENT and 15,000 sealed HOLDOUT rows from
@@ -20,8 +20,9 @@ the permanent 1,405-file population. The fixed 500-row qualitative subset has
 fingerprint
 `014f7c1373380b265f34e2ecb76614161b320e2bb972befb8f53994cc5a1dd52`.
 
-DEVELOPMENT Stages 0–6 are accepted. Stage 7 is not ready after a blocking
-DEVELOPMENT design diagnostic and is not accepted. Stages 8–19 are not
+DEVELOPMENT Stages 0–6 are accepted. Stage 7 is in a revised pre-contract
+supervisor diagnostic after its immutable first not-ready result; it remains
+not accepted. Stages 8–19 are not
 started. Production
 Stage 0 and Stage 1 are accepted; production Stages 2–7 are not started.
 HOLDOUT is untouched and sealed.

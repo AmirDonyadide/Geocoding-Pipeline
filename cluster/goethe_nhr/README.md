@@ -22,6 +22,16 @@ fixed-500 mapping, every case-variant group, every giant candidate, and the
 exact parser bundle before parsing. They do not freeze the final contract,
 materialize Stage 7, access HOLDOUT/production, map labels, or geocode.
 
+`stage07_supervisor_diagnostic.sbatch` is the later owner-authorized revised
+pre-contract gate. It reuses the same frozen parser bundle, binds the immutable
+first not-ready evidence, and first replays that diagnostic's exact capped
+isolated path to recover the protected candidate-level 19/4 reference that the
+aggregate-only artifact did not publish. It then retests all 23 accepted giant
+candidates through an uncapped, timeout-free supervisor path with exact-input
+acknowledgment, fresh-process crash confirmation, and nullable `LargeList`
+round-trip. The replay is comparison evidence, not proposed publication
+policy. This is not a materializer or authoritative Stage 7 run.
+
 All protected/heavy jobs require an exact pushed Git SHA, a clean/exact
 worktree, `SAFE_EXECUTION_SITE=goethe-nhr`, a non-empty `SLURM_JOB_ID`, owner-only
 paths, and new immutable outputs. See `docs/EXECUTION.md` and

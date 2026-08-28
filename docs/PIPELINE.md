@@ -12,9 +12,10 @@ stage.
 - **PLANNED — NOT STARTED:** conceptual placement and likely technology only.
   No accepted design or implementation exists.
 
-Stages 0–6 are accepted on DEVELOPMENT. Stage 7's DEVELOPMENT design
-diagnostic found a blocking giant-candidate parser limitation; its candidate
-is not ready and it is not accepted.
+Stages 0–6 are accepted on DEVELOPMENT. Stage 7's first DEVELOPMENT design
+diagnostic correctly returned not ready. A revised owner-approved supervision
+design is now undergoing its targeted pre-contract diagnostic; it is not
+accepted and no contract/profile is frozen.
 Production Stage 0 and Stage 1 are accepted for the 1,411-file population;
 production Stage 2 through Stage 6 have not started. DEVELOPMENT and production
 Stages 8–19 have not started, and production Stage 7 has not started.
@@ -189,10 +190,10 @@ stage consumes an accepted predecessor and must stop at its own review gate.
   each representation.
 - **Primary libraries:** libpostal/pypostal.
 - **Data effect:** Adds derived parsed components; candidate text is preserved.
-- **Status:** **`STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY`**. The exact offline
-  parser bundle and lowercase parse-once safety gate passed, but four accepted
-  giant candidates crashed the native parser process. Contract/profile freeze,
-  implementation, and authoritative execution did not begin.
+- **Status:** **REVISED DEVELOPMENT SUPERVISOR DIAGNOSTIC — NOT ACCEPTED**. The
+  first not-ready evidence remains immutable. The revised design preserves the
+  lowercase key and tests an explicit null-component technical-failure state
+  with one exact fresh-process retry before contract freeze.
 - **Acceptance requirement:** Pinned build/resources, reproducible offline
   execution, multilingual DEVELOPMENT evaluation, failure preservation, and
   independent review.

@@ -147,10 +147,11 @@ personal absolute paths. Sanitized evidence is available under
 
 ## Current next stage
 
-**Stage 7 — libpostal parsing — DEVELOPMENT candidate not ready.** Its pinned
-offline parser bundle is reproducible, and the 123-group lowercase safety gate
-passed, but the controlled diagnostic found native parser crashes on four
-accepted giant candidates. The contract and implementation were not frozen.
-Stage 6 remains accepted on DEVELOPMENT. HOLDOUT, production Stages 2–7,
-Stage 8, and geocoding remain unauthorized and not started. See the
+**Stage 7 — libpostal parsing — revised DEVELOPMENT supervisor diagnostic in
+progress; not accepted.** The first design's not-ready evidence remains
+immutable. The owner-approved revision preserves the Stage 6 lowercase key and
+tests one exact fresh-process retry plus an explicit null-component technical
+failure state before any contract freeze. Stage 6 remains accepted. HOLDOUT,
+production Stages 2–7, Stage 8, independent review, and geocoding remain
+unauthorized and not started. See the
 [Stage 7 record](docs/stages/STAGE07_LIBPOSTAL_PARSING.md).

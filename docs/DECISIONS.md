@@ -94,7 +94,7 @@ to change a decision or start a stage.
 - **Rationale:** Parsing needs a reviewed candidate boundary and line-use
   provenance.
 - **Status:** LOCKED sequence. Stages 5 and 6 are accepted on DEVELOPMENT;
-  Stage 7 remains future work.
+  Stage 7 is in a revised DEVELOPMENT design diagnostic under D023.
 
 ### D010 — Abbreviation normalization is component-aware and post-parsing
 
@@ -262,14 +262,38 @@ to change a decision or start a stage.
   `9f9a5a07a2dd3825c895b23406311651e5480324`, implementation
   `f39047cc825d9baef91915478f657aefecc86d4c`, reviewed candidate
   `03bab36bc2f45d218eb289abff0ad2aed72cffd8`, authoritative job `1759819`,
-  and independent job `1760055` are bound as the accepted history. Production,
-  HOLDOUT, and Stage 7 remain unauthorized.
+  and independent job `1760055` are bound as the accepted history. This Stage 6
+  decision did not itself authorize production, HOLDOUT, or Stage 7; the later
+  D023 authorization is separate and does not alter Stage 6.
+
+### D023 — Stage 7 preserves the lowercase key and represents confirmed native crashes
+
+- **Date:** 2026-08-28.
+- **Scope:** Revised Stage 7 DEVELOPMENT design attempt only.
+- **Decision:** The exact accepted Stage 6 lowercase candidate remains the
+  parse-once key because all 123 multi-clean-surface groups and all 246 clean
+  surfaces produced exact ordered parse equality. Every one of the 51,779
+  Stage 6 candidate IDs must receive one Stage 7 row. After one native parser
+  process exit, retry the same exact candidate once in a fresh frozen-bundle
+  process. Two identical process-crash signatures may produce
+  `PARSER_PROCESS_CRASH` with null components; `PARSED_EMPTY` remains a normal
+  parse with `[]`. Crash→success or another technical signature aborts the
+  publication. Never skip by size, truncate, parse a substring, synthesize a
+  component, or alter/drop the Stage 6 candidate.
+- **Rationale:** A parser result is derived information. A small, explicit,
+  reproducible technical-failure state preserves total candidate lineage
+  without misrepresenting failure as a valid empty parse or changing accepted
+  Stage 6 science.
+- **Status:** OWNER-APPROVED REVISED DESIGN DECISION. A targeted supervisor
+  diagnostic must pass before contract/profile freeze or implementation. This
+  is not Stage 7 acceptance and does not authorize independent review, Stage 8,
+  HOLDOUT, production, or geocoding.
 
 ## Open decisions
 
 These questions require future stage designs and explicit approval:
 
-- libpostal build/resource pinning and Stage 7 evaluation design;
+- final Stage 7 contract freeze, contingent on the targeted supervisor gate;
 - country-specific Stage 11 coverage and syntax policy;
 - reference versions/licenses and blocking semantics for Stages 13–15;
 - exact high-precision correction policy for Stage 16;
@@ -278,5 +302,6 @@ These questions require future stage designs and explicit approval:
 - whether interpolated address-layer Pelias results are usable for the final
   point-level analysis.
 
-Nothing in this register authorizes HOLDOUT, Stage 7, or production Stage 2
-through Stage 6.
+Nothing in this register authorizes HOLDOUT, Stage 7 acceptance or independent
+review, Stage 8, geocoding, or production Stage 2 through Stage 7. D023
+authorizes only its stated revised Stage 7 DEVELOPMENT design diagnostic.

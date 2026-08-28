@@ -47,9 +47,10 @@ The pre-geocoding pipeline therefore establishes a controlled evidence chain:
 8. submit only approved, versioned queries to self-hosted SAFE Pelias.
 
 Stages 0–6 are implemented, independently reviewed, and accepted on
-DEVELOPMENT. Stage 7's controlled DEVELOPMENT design diagnostic exposed a
-blocking giant-candidate parser limitation, so its candidate is not ready and
-no contract or implementation was frozen. Stages 8–19 have not started. See
+DEVELOPMENT. Stage 7's first controlled design diagnostic correctly returned
+not ready. A revised owner-approved supervisor design is now in a targeted
+pre-contract diagnostic; Stage 7 remains unaccepted. Stages 8–19 have not
+started. No Stage 7 contract or materializer is frozen. See
 [PIPELINE.md](PIPELINE.md).
 
 ## Standard and native Orbis representations
