@@ -308,5 +308,8 @@ def test_stage07_design_cluster_assets_are_fail_closed_and_offline() -> None:
         assert forbidden not in launcher
     assert "validate_parser_bundle" in bootstrap
     assert 'parse_address("10 synthetic example street")' in bootstrap
+    assert "pip==26.2.1 setuptools==80.9.0 wheel==0.45.1" in bootstrap
+    assert "duckdb==1.5.5 ftfy==6.3.1 pyarrow==25.0.0" in bootstrap
+    assert "--no-build-isolation --no-deps -e" in bootstrap
     assert "HOLDOUT" in launcher
     assert "STAGE08" not in launcher

@@ -132,6 +132,13 @@ access, or parser call occurred. The minimal correction resolves the controlled
 root before comparison; any replacement uses new build/output identities and
 does not overwrite this failed attempt.
 
+The controlled Stage 7 runtime is created anew for each execution and pins
+Python 3.14.3 / Unicode 16.0.0, pip 26.2.1, setuptools 80.9.0, wheel 0.45.1,
+DuckDB 1.5.5, ftfy 6.3.1, and PyArrow 25.0.0. The exact pushed repository is
+installed editable with dependency resolution and build isolation disabled.
+Public dependency acquisition completes before any protected Stage 6 input is
+opened; protected parser execution makes no network calls.
+
 The replacement public-only bundle submission, SLURM job `1760128` at
 diagnostic commit `6ea9dd2e0560e00f80a585d7c4e7e999e9b48a47`, failed after
 17 seconds during upstream autotools bootstrap. Goethe provided libtool 2.4.6,

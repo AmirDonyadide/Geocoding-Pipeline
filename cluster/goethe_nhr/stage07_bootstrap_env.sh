@@ -42,9 +42,14 @@ PY
 install -d -m 0700 "${RUNTIME_ROOT}"
 "${BASE_PYTHON}" -m venv "${VENV_PATH}" || \
   fail_runtime "isolated Stage 7 environment could not be created"
-"${VENV_PATH}/bin/python" -m pip install --quiet --upgrade pip || \
-  fail_runtime "pip bootstrap failed"
-"${VENV_PATH}/bin/python" -m pip install --quiet -e "${INTEGRATION_ROOT}" || \
+"${VENV_PATH}/bin/python" -m pip install --quiet \
+  pip==26.2.1 setuptools==80.9.0 wheel==0.45.1 || \
+  fail_runtime "pinned packaging bootstrap failed"
+"${VENV_PATH}/bin/python" -m pip install --quiet \
+  duckdb==1.5.5 ftfy==6.3.1 pyarrow==25.0.0 || \
+  fail_runtime "pinned runtime dependencies could not be installed"
+"${VENV_PATH}/bin/python" -m pip install --quiet \
+  --no-build-isolation --no-deps -e "${INTEGRATION_ROOT}" || \
   fail_runtime "exact Stage 7 dependencies could not be installed"
 
 export PYTHONDONTWRITEBYTECODE=1
@@ -59,9 +64,12 @@ export PYTHONPATH="${PARSER_BUNDLE_ROOT}/python:${INTEGRATION_ROOT}/src"
 "${VENV_PATH}/bin/python" - <<'PY' || fail_runtime "Stage 7 runtime differs"
 import duckdb
 import ftfy
+import pip
 import pyarrow
+import setuptools
 import sys
 import unicodedata
+import wheel
 
 from postal.parser import parse_address
 from safe_geocoding_pipeline.preprocessing.stages.s07_parser_bundle import (
@@ -75,6 +83,9 @@ assert unicodedata.unidata_version == "16.0.0", unicodedata.unidata_version
 assert ftfy.__version__ == "6.3.1", ftfy.__version__
 assert pyarrow.__version__ == "25.0.0", pyarrow.__version__
 assert duckdb.__version__ == "1.5.5", duckdb.__version__
+assert pip.__version__ == "26.2.1", pip.__version__
+assert setuptools.__version__ == "80.9.0", setuptools.__version__
+assert wheel.__version__ == "0.45.1", wheel.__version__
 result = parse_address("10 synthetic example street")
 assert isinstance(result, list)
 assert all(isinstance(item, tuple) and len(item) == 2 for item in result)
