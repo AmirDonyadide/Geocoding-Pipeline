@@ -23,6 +23,7 @@ from safe_geocoding_pipeline.preprocessing.stages.s07_design_diagnostic import (
     _diagnostic_selection,
     _difference_types,
     _distribution,
+    _receive_process_payload,
 )
 from safe_geocoding_pipeline.preprocessing.stages.s07_libpostal_adapter import (
     LibpostalComponent,
@@ -239,6 +240,27 @@ def test_distribution_uses_nearest_rank() -> None:
         "p99": 100,
         "max": 100,
     }
+
+
+class _EndOfFileConnection:
+    def poll(self) -> bool:
+        return True
+
+    def recv(self) -> object:
+        raise EOFError
+
+
+class _MalformedConnection:
+    def poll(self) -> bool:
+        return True
+
+    def recv(self) -> object:
+        return ["not", "a", "payload"]
+
+
+def test_process_payload_eof_and_malformed_results_fail_closed() -> None:
+    assert _receive_process_payload(_EndOfFileConnection()) is None
+    assert _receive_process_payload(_MalformedConnection()) is None
 
 
 def test_design_config_rejects_holdout_and_bad_bounds(tmp_path: Path) -> None:

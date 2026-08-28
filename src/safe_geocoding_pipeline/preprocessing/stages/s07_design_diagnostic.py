@@ -683,6 +683,16 @@ def _isolated_parse_child(
         send_connection.close()
 
 
+def _receive_process_payload(connection: Any) -> dict[str, Any] | None:
+    if not connection.poll():
+        return None
+    try:
+        payload = connection.recv()
+    except (EOFError, OSError):
+        return None
+    return cast(dict[str, Any], payload) if isinstance(payload, dict) else None
+
+
 def _isolated_parse(
     candidate: str, *, timeout_seconds: int, address_space_bytes: int
 ) -> _IsolatedParseResult:
@@ -705,9 +715,7 @@ def _isolated_parse(
         return _IsolatedParseResult(
             False, "TIMEOUT", "", 0, {}, 0, float(timeout_seconds), "", 0, ""
         )
-    payload: dict[str, Any] | None = None
-    if receive.poll():
-        payload = cast(dict[str, Any], receive.recv())
+    payload = _receive_process_payload(receive)
     receive.close()
     if process.exitcode != 0 or payload is None:
         return _IsolatedParseResult(
@@ -781,9 +789,7 @@ def _fresh_process_digests(
         process.join(30)
         receive.close()
         return [], 0.0, "TIMEOUT"
-    payload: dict[str, Any] | None = None
-    if receive.poll():
-        payload = cast(dict[str, Any], receive.recv())
+    payload = _receive_process_payload(receive)
     receive.close()
     if process.exitcode != 0 or payload is None or payload.get("ok") is not True:
         return [], 0.0, "PROCESS_FAILURE"

@@ -253,6 +253,19 @@ label, value, count, order, or empty/nonempty difference is a scientific
 conflict: the session stops before freezing the contract and does not silently
 split the Stage 6 key or parse alternate surfaces.
 
+The first protected design diagnostic, SLURM job `1760154` at commit
+`47e80fae17ca7cfabda14d189f0aebf713cef841`, validated its pinned runtime and
+bundle and entered giant-candidate parsing. It failed after 3 minutes 50
+seconds with MaxRSS 25,051,868 KiB because an isolated child closed its pipe
+without a payload and the parent allowed `EOFError` to escape. No final output
+was published; its owner-only runtime, logs, and incomplete attempt are
+preserved. The traceback contained paths and code only, no protected values.
+This is a harness failure rather than evidence that the candidate parsed
+successfully. The bounded correction treats EOF, OS-level pipe closure, or a
+malformed child payload as aggregate `PROCESS_CRASH`, allowing the diagnostic
+to complete and surface any genuine giant-parser limitation as a scientific
+conflict instead of losing the evidence.
+
 The giant candidates receive exact full-string parser calls in isolated,
 bounded compute processes so a native crash or resource failure becomes
 aggregate technical evidence instead of corrupting another candidate. There is
