@@ -89,7 +89,8 @@ SLURM job before protected parsing. The source choices are exact, not moving:
 
 - libpostal repository `openvenues/libpostal`, commit
   `25099c506612b34b23b1bfe286ca6321fcf06f35`, implementation 1.1.4,
-  upstream description `v1.1.4-2-g25099c50`;
+  upstream description `v1.1.4-2-g25099c50`, installed ABI binary
+  `libpostal.so.1.0.1`;
 - upstream default libpostal model, with base/parser/language-classifier asset
   version files all pinned to `v1.0.0` by that source commit;
 - pypostal repository `openvenues/pypostal`, commit
@@ -182,6 +183,16 @@ name, while the private prefix was not yet in `PATH`. No bundle output was
 published and no protected input or parser call occurred; logs and the failed
 build root remain owner-only. The bounded correction exposes only that exact
 private libtool `bin` directory to upstream bootstrap.
+
+Public-only bundle job `1760148` at commit
+`0021bbf5f94045d4ed8461691d2afd4b6dfa2478` then completed the pinned
+libtool/libpostal build and downloaded all upstream default model assets. It
+failed after 3 minutes 36 seconds on SAFE's shared-library filename assertion:
+libpostal implementation 1.1.4 installs ABI binary `libpostal.so.1.0.1`, not
+`libpostal.so.1.1.4`. The failed root and mode-`0600` logs are preserved, no
+immutable bundle was published, and no protected input or parser call occurred.
+The bounded correction binds and copies the actual installed ABI binary while
+retaining implementation version 1.1.4 as a separate provenance field.
 
 ## Controlled design diagnostic gate
 

@@ -33,7 +33,7 @@ def _private_directory(path: Path) -> None:
 def _synthetic_staging(root: Path) -> Path:
     staging = root / "bundle.in_progress"
     files = {
-        "lib/libpostal.so.1.1.4": b"synthetic shared library",
+        "lib/libpostal.so.1.0.1": b"synthetic shared library",
         "lib/libpostal.so.1": b"synthetic shared library",
         "lib/libpostal.so": b"synthetic shared library",
         "data/libpostal/data_version": b"v1\n",
@@ -170,6 +170,8 @@ def test_stage07_bundle_launcher_is_exact_public_only() -> None:
     ).read_text(encoding="utf-8")
     assert LIBPOSTAL_SOURCE_COMMIT in launcher
     assert PYPPOSTAL_SOURCE_COMMIT in launcher
+    assert "libpostal.so.1.0.1" in launcher
+    assert "libpostal.so.1.1.4" not in launcher
     assert "SAFE_EXECUTION_SITE=goethe-nhr" in launcher
     assert "SLURM_JOB_ID:?SLURM_JOB_ID is required" in launcher
     assert "libtool-2.4.6.tar.gz" in launcher

@@ -217,7 +217,7 @@ def _shared_library_identity(
     artifacts: tuple[ParserBundleArtifact, ...],
 ) -> ParserBundleArtifact:
     selected = [
-        item for item in artifacts if item.relative_path == "lib/libpostal.so.1.1.4"
+        item for item in artifacts if item.relative_path == "lib/libpostal.so.1.0.1"
     ]
     if len(selected) != 1:
         _fail(

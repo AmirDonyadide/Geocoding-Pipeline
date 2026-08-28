@@ -121,7 +121,7 @@ make install
 [[ "$(<"${MODEL_PREFIX}/libpostal/data_version")" == "v1" ]]
 [[ "$(<"${MODEL_PREFIX}/libpostal/parser_model_file_version")" == "v1.0.0" ]]
 [[ "$(<"${MODEL_PREFIX}/libpostal/language_classifier_model_file_version")" == "v1.0.0" ]]
-[[ -f "${LIBPOSTAL_PREFIX}/lib/libpostal.so.1.1.4" ]]
+[[ -f "${LIBPOSTAL_PREFIX}/lib/libpostal.so.1.0.1" ]]
 
 "${BASE_PYTHON}" -m venv "${BUILD_VENV}"
 readonly BUILD_PYTHON="${BUILD_VENV}/bin/python"
@@ -139,11 +139,11 @@ install -d -m 0700 \
   "${STAGING_DIRECTORY}/data/libpostal" \
   "${STAGING_DIRECTORY}/python" \
   "${STAGING_DIRECTORY}/licenses"
-install -m 0600 "${LIBPOSTAL_PREFIX}/lib/libpostal.so.1.1.4" \
-  "${STAGING_DIRECTORY}/lib/libpostal.so.1.1.4"
-install -m 0600 "${LIBPOSTAL_PREFIX}/lib/libpostal.so.1.1.4" \
+install -m 0600 "${LIBPOSTAL_PREFIX}/lib/libpostal.so.1.0.1" \
+  "${STAGING_DIRECTORY}/lib/libpostal.so.1.0.1"
+install -m 0600 "${LIBPOSTAL_PREFIX}/lib/libpostal.so.1.0.1" \
   "${STAGING_DIRECTORY}/lib/libpostal.so.1"
-install -m 0600 "${LIBPOSTAL_PREFIX}/lib/libpostal.so.1.1.4" \
+install -m 0600 "${LIBPOSTAL_PREFIX}/lib/libpostal.so.1.0.1" \
   "${STAGING_DIRECTORY}/lib/libpostal.so"
 cp -R "${MODEL_PREFIX}/libpostal/." "${STAGING_DIRECTORY}/data/libpostal/"
 
