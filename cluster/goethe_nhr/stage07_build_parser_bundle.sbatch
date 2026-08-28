@@ -26,6 +26,8 @@ readonly LIBPOSTAL_REPOSITORY="https://github.com/openvenues/libpostal.git"
 readonly LIBPOSTAL_COMMIT="25099c506612b34b23b1bfe286ca6321fcf06f35"
 readonly PYPPOSTAL_REPOSITORY="https://github.com/openvenues/pypostal.git"
 readonly PYPPOSTAL_COMMIT="d6666a4f6a2ae0e7b83e037a35412f0f6b45c318"
+readonly LIBTOOL_RELEASE_URL="https://ftp.gnu.org/pub/gnu/libtool/libtool-2.4.6.tar.gz"
+readonly LIBTOOL_RELEASE_SHA256="e3bd4d5d3d025a36c21dd6af7ea818a2afcd4dfc1ea5a17b39d7854bcd0c06e3"
 readonly LOG_ROOT="${DATA_ROOT}/logs/slurm"
 readonly JOB_STDOUT="${LOG_ROOT}/${SLURM_JOB_NAME}_${SLURM_JOB_ID}.out"
 readonly JOB_STDERR="${LOG_ROOT}/${SLURM_JOB_NAME}_${SLURM_JOB_ID}.err"
@@ -78,6 +80,9 @@ readonly LIBPOSTAL_SOURCE="${BUILD_ROOT}/libpostal-source"
 readonly PYPPOSTAL_SOURCE="${BUILD_ROOT}/pypostal-source"
 readonly LIBPOSTAL_PREFIX="${BUILD_ROOT}/libpostal-prefix"
 readonly MODEL_PREFIX="${BUILD_ROOT}/model-prefix"
+readonly LIBTOOL_ARCHIVE="${BUILD_ROOT}/libtool-2.4.6.tar.gz"
+readonly LIBTOOL_SOURCE="${BUILD_ROOT}/libtool-2.4.6"
+readonly LIBTOOL_PREFIX="${BUILD_ROOT}/libtool-prefix"
 readonly BUILD_VENV="${BUILD_ROOT}/build-venv"
 readonly WHEEL_ROOT="${BUILD_ROOT}/wheels"
 readonly OUTPUT_PARENT="$(dirname "${OUTPUT_DIRECTORY}")"
@@ -96,8 +101,18 @@ git -C "${PYPPOSTAL_SOURCE}" checkout --quiet --detach "${PYPPOSTAL_COMMIT}"
 [[ "$(git -C "${PYPPOSTAL_SOURCE}" rev-parse HEAD)" == "${PYPPOSTAL_COMMIT}" ]]
 [[ -z "$(git -C "${PYPPOSTAL_SOURCE}" status --porcelain)" ]]
 
+curl --fail --location --retry 3 --output "${LIBTOOL_ARCHIVE}" \
+  "${LIBTOOL_RELEASE_URL}"
+printf '%s  %s\n' "${LIBTOOL_RELEASE_SHA256}" "${LIBTOOL_ARCHIVE}" | \
+  sha256sum --check --strict -
+tar -xzf "${LIBTOOL_ARCHIVE}" -C "${BUILD_ROOT}"
+cd "${LIBTOOL_SOURCE}"
+./configure --prefix="${LIBTOOL_PREFIX}"
+make -j "${SLURM_CPUS_PER_TASK}"
+make install
+
 cd "${LIBPOSTAL_SOURCE}"
-libtoolize --copy --force
+"${LIBTOOL_PREFIX}/bin/libtoolize" --copy --force
 ./bootstrap.sh
 ./configure --prefix="${LIBPOSTAL_PREFIX}" --datadir="${MODEL_PREFIX}"
 make -j "${SLURM_CPUS_PER_TASK}"
@@ -186,7 +201,7 @@ readonly COMPILER_IDENTITY="$(printf '%s; %s; %s; %s; %s; %s' \
   "$(make --version | head -n 1)" \
   "$(autoconf --version | head -n 1)" \
   "$(automake --version | head -n 1)" \
-  "$(libtoolize --version | head -n 1)" \
+  "$("${LIBTOOL_PREFIX}/bin/libtoolize" --version | head -n 1)" \
   "$(pkg-config --version)")"
 readonly PYTHON_IDENTITY="$("${BASE_PYTHON}" --version 2>&1) / Unicode 16.0.0"
 readonly GLIBC_IDENTITY="$(getconf GNU_LIBC_VERSION)"

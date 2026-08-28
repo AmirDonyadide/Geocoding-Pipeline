@@ -151,6 +151,18 @@ runs the installed `libtoolize --copy --force` before the unchanged upstream
 autoconf, automake, libtoolize, and pkg-config versions. A replacement must use
 new build and output identities.
 
+The next public-only bundle submission, SLURM job `1760131` at commit
+`e042b65ea7890d8870ba91214866ab4293c11670`, failed after 12 seconds because
+the compute-node image did not expose `libtoolize` (`127`) even though the
+login-node image did. Its owner-only logs and build root remain preserved; no
+bundle output was published, no protected input was opened, and no parser call
+occurred. The next bounded correction downloads the official GNU libtool 2.4.6
+release tarball inside the public-only job, requires SHA-256
+`e3bd4d5d3d025a36c21dd6af7ea818a2afcd4dfc1ea5a17b39d7854bcd0c06e3`,
+installs it under that attempt's private build root, and invokes the exact
+private `libtoolize`. It does not depend on login-node tools or modify a shared
+environment.
+
 ## Controlled design diagnostic gate
 
 After the bundle is frozen, one protected diagnostic will run through SLURM
