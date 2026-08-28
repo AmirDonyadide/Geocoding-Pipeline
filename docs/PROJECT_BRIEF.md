@@ -190,11 +190,10 @@ The final pre-geocoding sequence is:
 18. query generation; and
 19. query deduplication plus final QA.
 
-Stages 0–5 are implemented and accepted on DEVELOPMENT. Stage 6 — early exact
-deduplication — is not started, and Stages 7–19 are not started. Production
-Stage 0 and Stage 1 are accepted; production Stages 2–6 are not started. The
-detailed stage contracts and acceptance requirements are in
-[PIPELINE.md](PIPELINE.md). HOLDOUT remains untouched and sealed.
+Stages 0–6 are implemented and accepted on DEVELOPMENT. Stages 7–19 are not
+started. Production Stage 0 and Stage 1 are accepted; production Stages 2–6
+are not started. The detailed stage contracts and acceptance requirements are
+in [PIPELINE.md](PIPELINE.md). HOLDOUT remains untouched and sealed.
 
 ## 8. DEVELOPMENT methodology
 
@@ -246,6 +245,6 @@ Durable decisions are in [DECISIONS.md](DECISIONS.md); current status is in
 
 ## 11. Current next action
 
-Stage 6 — Early exact deduplication — has a completed DEVELOPMENT candidate at
-the independent-review gate. It is not accepted. Stage 7 and production Stage
-2 through Stage 6 remain not started and unauthorized.
+Stage 7 — libpostal parsing — is not started. Stage 6 is accepted on
+DEVELOPMENT. Production Stage 2 through Stage 6 remain not started and
+unauthorized.

@@ -130,7 +130,6 @@ total-row identity state, repeated cleaner lifecycle, incorrect/ambiguous
 punctuation reporting, and incomplete BOM regression evidence. V2 changed
 implementation/reporting/validation only and proved exact scientific equality.
 
-At Stage 3 acceptance, Stage 4 was not started. Stages 4 and 5 are now
-separately accepted on DEVELOPMENT; this does not change or reopen accepted
-Stage 3. Stage 6 now has a completed DEVELOPMENT candidate awaiting independent
-review and is not accepted. Production Stages 2–6 remain **NOT STARTED**.
+At Stage 3 acceptance, Stage 4 was not started. Stages 4–6 are now separately
+accepted on DEVELOPMENT; this does not change or reopen accepted Stage 3.
+Production Stages 2–6 remain **NOT STARTED**.

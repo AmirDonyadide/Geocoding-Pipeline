@@ -19,10 +19,8 @@ design
   -> stop
 ```
 
-Stages 0–5 have completed this lifecycle on DEVELOPMENT and are accepted.
-Stage 6 has completed design, implementation, DEVELOPMENT execution, and
-candidate reporting; it is stopped at the fresh independent-review gate and is
-not accepted. Stage 7 has not started.
+Stages 0–6 have completed this lifecycle on DEVELOPMENT and are accepted.
+Stage 7 has not started.
 
 ## Design and implementation
 

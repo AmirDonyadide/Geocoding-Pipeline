@@ -21,8 +21,7 @@ query can be inspected and reproduced.
 
 ## Current status
 
-The DEVELOPMENT pipeline is accepted through Stage 5. Stage 6 has a completed
-DEVELOPMENT candidate awaiting independent review; later stages have not
+The DEVELOPMENT pipeline is accepted through Stage 6. Later stages have not
 started.
 
 | Stage | Name | Status | Data effect |
@@ -33,7 +32,7 @@ started.
 | 3 | Safe text cleaning | **ACCEPTED** | Adds derived `*_clean` values and ordered audit reasons; raw fields remain unchanged |
 | 4 | Lowercase canonical forms | **`STAGE_4_ACCEPTED`** | Appends exact Python Unicode lowercase representations; all upstream values remain unchanged |
 | 5 | Address reconstruction | **`STAGE_5_ACCEPTED`** | Appends separate clean/lower standard/native line-body candidates and compact provenance |
-| 6 | Early exact deduplication | **DEVELOPMENT CANDIDATE — INDEPENDENT REVIEW REQUIRED** | Preserves 35,000 rows and maps 69,747 occurrences to 51,779 exact candidates |
+| 6 | Early exact deduplication | **`STAGE_6_ACCEPTED`** | Preserves 35,000 rows and maps 69,747 occurrences to 51,779 exact candidates |
 | 7–19 | Parsing, validation, and query preparation | **NOT STARTED** | Planned derived representations only |
 
 Production Stage 0 and Stage 1 are accepted for
@@ -104,7 +103,7 @@ documentation. See [Privacy and security](docs/PRIVACY_AND_SECURITY.md).
 ## Quick start
 
 The package supports Python 3.11 or newer for local development. Reproducing
-the accepted Stage 3–5 or candidate Stage 6 Goethe execution requires its exact
+the accepted Stage 3–6 Goethe execution requires its exact
 pinned Python 3.14.3 runtime and Unicode 16.0.0 contract.
 
 ```bash
@@ -146,8 +145,8 @@ personal absolute paths. Sanitized evidence is available under
 - [Accepted stage records](docs/stages/README.md)
 - [Historical records](docs/history/README.md)
 
-## Current review gate
+## Current next stage
 
-**Stage 6 — Early exact deduplication — DEVELOPMENT CANDIDATE AWAITING
-INDEPENDENT REVIEW.** Stage 6 is not accepted. Stage 7, HOLDOUT access, and
-production Stage 2 through Stage 6 remain unauthorized and not started.
+**Stage 7 — libpostal parsing — NOT STARTED.** Stage 6 is accepted on
+DEVELOPMENT. HOLDOUT access and production Stage 2 through Stage 6 remain
+unauthorized and not started.

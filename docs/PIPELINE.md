@@ -12,11 +12,10 @@ stage.
 - **PLANNED — NOT STARTED:** conceptual placement and likely technology only.
   No accepted design or implementation exists.
 
-Stages 0–5 are accepted on DEVELOPMENT.
+Stages 0–6 are accepted on DEVELOPMENT.
 Production Stage 0 and Stage 1 are accepted for the 1,411-file population;
-production Stage 2 through Stage 6 have not started. DEVELOPMENT Stage 6 is a
-completed candidate awaiting independent review; DEVELOPMENT Stages 7–19 and
-production Stages 7–19 have not started.
+production Stage 2 through Stage 6 have not started. DEVELOPMENT and production
+Stages 7–19 have not started.
 
 ## Cross-stage scientific rules
 
@@ -170,10 +169,10 @@ stage consumes an accepted predecessor and must stop at its own review gate.
 - **Data effect:** Exact candidate work is deduplicated globally across
   representations; source rows and representation occurrences are never
   discarded.
-- **Status:** **`STAGE_6_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REVIEW`**.
-  Authoritative job `1759819` completed 35,000 → 35,000 and 69,747 occurrences
-  → 51,779 unique candidates with zero reconciliation, map-back, collision, or
-  fixed-500 mismatches. Stage 6 is not accepted; production is not started.
+- **Status:** **`STAGE_6_ACCEPTED`** on DEVELOPMENT. Authoritative job
+  `1759819` and independent job `1760055` verified 35,000 → 35,000 and 69,747
+  occurrences → 51,779 unique candidates with zero reconciliation, map-back,
+  collision, or fixed-500 mismatches. Production is not started.
 - **Acceptance requirement:** Canonical serialization and collision design,
   deterministic keys, one-to-many map-back integrity, reconciled counts, and
   independent review. See the

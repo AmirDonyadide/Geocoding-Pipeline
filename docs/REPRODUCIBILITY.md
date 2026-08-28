@@ -40,7 +40,11 @@ The final accepted `main` before post-Stage-5 cleanup was
 `97bd7fa74da358e81133ac4d38232931762d3e78` are reachable from `main`.
 Review-only commits outside `main` remain reachable through immutable
 annotated tags: `stage04-independent-review-2b77aab` and
-`stage05-independent-review-cbafa0a`.
+`stage05-independent-review-cbafa0a`. Stage 6 implementation
+`f39047cc825d9baef91915478f657aefecc86d4c` and reviewed candidate
+`03bab36bc2f45d218eb289abff0ad2aed72cffd8` are reachable from `main`; its
+review-only harness remains reachable through
+`stage06-independent-review-e3ec946`.
 
 ## Contracts and profiles
 

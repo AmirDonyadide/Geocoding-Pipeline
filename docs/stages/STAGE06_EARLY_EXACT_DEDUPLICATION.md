@@ -2,14 +2,15 @@
 
 ## Status
 
-**`STAGE_6_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REVIEW`.**
+**`STAGE_6_ACCEPTED` on DEVELOPMENT.**
 
 The user approved the scientific design at Git commit
 `9f9a5a07a2dd3825c895b23406311651e5480324`. That approval froze the contract
 below and authorized implementation and one authoritative 35,000-row
-DEVELOPMENT execution. Authoritative job `1759819` completed successfully, but
-this is not Stage 6 acceptance. Nothing here authorizes HOLDOUT, production,
-Stage 7, libpostal, or geocoding.
+DEVELOPMENT execution. Authoritative job `1759819` completed successfully.
+Independent job `1760055` then falsification-tested the exact candidate and
+reproduced its scientific identity and aggregates. Nothing here authorizes
+HOLDOUT, production, Stage 7, libpostal, or geocoding.
 
 ## Purpose and boundary
 
@@ -197,7 +198,30 @@ seconds, and immediate publication validation 22.618 seconds. DuckDB reported
 no spill. The aggregate evidence and complete performance record are in the
 [sanitized Stage 6 report](../../reports/development/stage06_summary.md).
 
-## Acceptance gate
+## Independent acceptance
 
-This development session may only produce a candidate for independent review.
-A later fresh independent-review session alone may accept or reject Stage 6.
+Fresh independent review used harness commit
+`e3ec946fb64a154033095d3edcd4afef7203c507`, preserved by annotated tag
+`stage06-independent-review-e3ec946`. The harness did not import the Stage 6
+implementation. It independently streamed accepted Stage 5 and immutable Stage
+6 with different batch boundaries, recomputed every candidate ID and Stage 6
+fingerprint, rebuilt exact occurrence groups in disk-backed DuckDB, compared
+full candidate bytes within every ID group, reconciled every occurrence and
+registry row, and verified the frozen 500 identities.
+
+Independent SLURM job `1760055` completed with exit `0:0` in 33 seconds. Its
+aggregate result SHA-256 is
+`41dd5561ce0c7a57d97acec9eadbebe5f71f0754f017e0295ca324f5adb8579d`.
+It reproduced 35,000 rows, 69,747 occurrences, 51,779 unique candidates, every
+reported group distribution, all 23 STANDARD candidates of at least 1,000,000
+code points, the 25,920,495-code-point maximum, and the fixed-500 result with
+zero mismatches. Candidate-ID collision groups and distinct-text digest
+collision groups were both zero. A separately injected
+same-digest/different-text case exercised the fail-closed collision path.
+
+The exact reviewed candidate is
+`03bab36bc2f45d218eb289abff0ad2aed72cffd8`; its implementation is
+`f39047cc825d9baef91915478f657aefecc86d4c`. The candidate was integrated into
+`main` by fast-forward without rebasing, squashing, or rewriting history.
+Stage 6 is frozen as `STAGE_6_ACCEPTED` on DEVELOPMENT. Production Stage 2
+through Stage 6, HOLDOUT, and Stage 7 remain not started.

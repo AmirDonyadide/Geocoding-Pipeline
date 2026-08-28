@@ -130,8 +130,7 @@ documentation test pass.
 - Production Stage 4: **NOT STARTED**.
 - Stage 5 DEVELOPMENT: **`STAGE_5_ACCEPTED`**.
 - Production Stage 5: **NOT STARTED**.
-- Stage 6 DEVELOPMENT: **candidate ready for independent review; not
-  accepted**.
+- Stage 6 DEVELOPMENT: **`STAGE_6_ACCEPTED`**.
 - Production Stage 6: **NOT STARTED**.
 - Stage 7: **NOT STARTED**.
 

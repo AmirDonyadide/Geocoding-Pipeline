@@ -93,9 +93,8 @@ to change a decision or start a stage.
   reconstruction layer.
 - **Rationale:** Parsing needs a reviewed candidate boundary and line-use
   provenance.
-- **Status:** LOCKED sequence. Stage 5 is accepted on DEVELOPMENT; Stage 6 has
-  a completed candidate awaiting independent review; Stage 7 remains future
-  work.
+- **Status:** LOCKED sequence. Stages 5 and 6 are accepted on DEVELOPMENT;
+  Stage 7 remains future work.
 
 ### D010 — Abbreviation normalization is component-aware and post-parsing
 
@@ -150,9 +149,8 @@ to change a decision or start a stage.
 - **Rationale:** Library-first offline processing under reproducible privacy
   controls.
 - **Status:** Accepted-stage choices are bound by the reviewed contracts for
-  Stages 0–5. The Stage 6 stack is implemented in a DEVELOPMENT candidate
-  awaiting independent review. Stages 7–19 remain planned. pgeocode is
-  proof-of-concept only. Pandas is inspection-only.
+  Stages 0–6. Stages 7–19 remain planned. pgeocode is proof-of-concept only.
+  Pandas is inspection-only.
 
 ### D015 — Protected data never leaves controlled infrastructure
 
@@ -244,7 +242,7 @@ to change a decision or start a stage.
 
 ### D022 — Stage 6 deduplicates exact lowercase candidates globally
 
-- **Scope:** Stage 6 DEVELOPMENT candidate
+- **Scope:** Stage 6 DEVELOPMENT
 - **Decision:** Use exact accepted Stage 5 lowercase reconstructed candidate
   equality as the sole early deduplication key. Apply one global namespace
   across STANDARD, NATIVE, all rows, and same-row representations. Derive a
@@ -260,9 +258,11 @@ to change a decision or start a stage.
   DEVELOPMENT while retaining complete occurrence provenance. Adding clean
   surface text would split 123 accepted canonical groups without protecting
   source information, because every clean form remains in the row map.
-- **Status:** LOCKED for the DEVELOPMENT candidate by approved design commit
-  `9f9a5a07a2dd3825c895b23406311651e5480324` and authoritative job `1759819`.
-  Independent review is still required; Stage 6 is not accepted. Production,
+- **Status:** `STAGE_6_ACCEPTED` on DEVELOPMENT. Approved design commit
+  `9f9a5a07a2dd3825c895b23406311651e5480324`, implementation
+  `f39047cc825d9baef91915478f657aefecc86d4c`, reviewed candidate
+  `03bab36bc2f45d218eb289abff0ad2aed72cffd8`, authoritative job `1759819`,
+  and independent job `1760055` are bound as the accepted history. Production,
   HOLDOUT, and Stage 7 remain unauthorized.
 
 ## Open decisions
@@ -278,5 +278,5 @@ These questions require future stage designs and explicit approval:
 - whether interpolated address-layer Pelias results are usable for the final
   point-level analysis.
 
-Nothing in this register accepts Stage 6 or authorizes HOLDOUT, Stage 7, or
-production Stage 2 through Stage 6.
+Nothing in this register authorizes HOLDOUT, Stage 7, or production Stage 2
+through Stage 6.

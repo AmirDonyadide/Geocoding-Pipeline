@@ -42,7 +42,7 @@ Stage 5: address reconstruction (accepted on DEVELOPMENT)
   + availability, line count, and occupancy-mask evidence
         |
         v
-Stage 6: early exact deduplication (DEVELOPMENT candidate)
+Stage 6: early exact deduplication (accepted on DEVELOPMENT)
   all Stage 5 fields unchanged
   + nullable standard/native exact-candidate IDs
   + separate exact unique-candidate registry and occurrence counts
@@ -174,12 +174,12 @@ ID, total/STANDARD/NATIVE occurrence counts, and deterministic ID ordering.
 The ID is SHA-256 over the versioned Stage 6 domain and exact UTF-8 candidate
 bytes. Exact byte equality is checked inside every observed digest group, so a
 digest alone is never treated as equality proof. Stage 6 applies no additional
-normalization or parsing. The DEVELOPMENT candidate awaits independent review.
+normalization or parsing. The Stage 6 output is accepted on DEVELOPMENT.
 
 ## Future candidate representations
 
 Stages 7–19 have not started. Their data model is constrained by these accepted
-and candidate-stage principles:
+principles:
 
 - lowercase, reconstructed, parsed, normalized, transliterated, corrected, and
   query-ready values are separate derived representations;
