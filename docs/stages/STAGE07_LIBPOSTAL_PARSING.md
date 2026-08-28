@@ -204,6 +204,30 @@ parser call occurred; its owner-only logs and failed root are preserved. The
 bounded correction uses `env` to pass that exact prefix to pypostal's pinned
 `setup.py` without assigning the shell variable.
 
+Public-only parser-bundle job `1760151` at commit
+`2063317745389465eb8cd62d8e5cbab50235de2a` completed in 4 minutes 35
+seconds with MaxRSS 749,652 KiB. It initialized the parser in 4,948 ms, parsed
+the public smoke fixture into two components, revalidated every artifact, and
+atomically published the owner-only immutable bundle. Exact identities are:
+
+- complete parser-bundle fingerprint:
+  `f3c6db7e9f11ab75b2207be773e946d531dbba763008d9f7e5036d8c923dc2ae`;
+- parser model/data fingerprint:
+  `0b067a2697e9f90cef92c806701c08648a1f5127c17f0f3168ecaed186dc3293`;
+- pypostal runtime fingerprint:
+  `ccc547bfdcaf391685cbb3285be9a02d84c28c7671dcafb4450d25c03920f7ff`;
+- exact `libpostal.so.1.0.1` SHA-256:
+  `3e2aa3e23b62c22b77827b47d78692d49ae3d693c07ee7ad3763e9b97438cb5e`;
+- parser-bundle manifest SHA-256:
+  `12a0080bff6b3ed2420847124eb918d91b7582214e3d4b037628bf5b9022340d`.
+
+The manifest enumerates 56 public runtime/model artifacts totaling
+2,013,605,137 bytes. Manifest and success marker reconcile exactly; all 58
+published files are mode `0600`, every directory is mode `0700`, and there are
+zero symlinks. No license/notice file was present in the downloaded upstream
+model assets, so that absence is recorded without adding a SAFE license
+interpretation. Protected inputs opened: no.
+
 ## Controlled design diagnostic gate
 
 After the bundle is frozen, one protected diagnostic will run through SLURM
