@@ -1,6 +1,8 @@
 # Stage 7 DEVELOPMENT candidate report
 
-Verdict: `STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY` pending the required offline owner qualitative review.
+Verdict: `STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY` because the completed
+risk-stratified qualitative review found a material systematic Stage 7 parser
+problem.
 
 Contract: `stage07_libpostal_parsing_contract_v1`; profile:
 `stage07_libpostal_parsing_profile_v1`. Exact input is
@@ -11,7 +13,7 @@ LargeString `label` and `value`; ordering and duplicates are preserved. Any
 child crash is retried once exactly and aborts publication if unresolved.
 
 Implementation SHA: `4a5f7495cf55121198981eae92ac3db8c73ad1fa`.
-Final evidence SHA: `29d5afe2233a5a0712b2f1bab4cefbbd79d4f684`.
+Pre-qualitative evidence SHA: `6d105c35c41181f96ec881d6501f9b53b5ceb11c`.
 Base main: `76435eb7ca5cd9a47a2a77fb36278568ba3bfc29`.
 
 Authoritative job `1760221` completed in 00:09:56 with 180 GiB, one
@@ -30,8 +32,45 @@ occurrences, 613 unique candidates, 324 duplicate occurrences, 0 mismatches,
 and 0 cross-wires. It selected 120 candidates with fingerprint
 `1507900b27e4503eb33836c8465217092e9ffb8de2f1b6ef05026690be11a844`.
 
-The owner-only qualitative surface remains `AWAITING_OFFLINE_OWNER_REVIEW`, so
-no qualitative classification totals are claimed. The first diagnostic’s 48
-GiB ceiling and 4/23 crashes remain immutable history; job `1760182` showed
-23/23 success under 180 GiB. HOLDOUT, production Stages 2–7, Stage 8, and
-geocoding were not used.
+The existing selection was reviewed in a separate, owner-authorized
+LLM-assisted Codex helper session. The owner explicitly authorized the OpenAI
+model to inspect exactly these 120 selected protected candidates and their raw
+Stage 7 outputs. The authorization did not include HOLDOUT, production, or the
+complete candidate population; no web search or third-party API was used.
+Protected classifications and abstract comments remain owner-only and
+untracked. Only these aggregate results enter Git:
+
+- `PLAUSIBLE_PARSE`: 30;
+- `PARTIAL_BUT_USABLE_PARSE`: 41;
+- `QUESTIONABLE_PARSE`: 7;
+- `CLEAR_MISPARSE`: 11; and
+- `UPSTREAM_SOURCE_CORRUPTION_OR_UNASSESSABLE`: 31.
+
+All 120 decisions and comments validated against the exact selection
+fingerprint, with zero missing, duplicate, unknown, invalid, or classification-
+mismatched records. All five `PARSED_EMPTY` cases were classified upstream
+source corruption or unassessable; none was classified as a material parser
+failure. The 13 giant/multi-record cases identified in the abstract review
+evidence were likewise classified upstream corruption or unassessable rather
+than intrinsic parser failure.
+
+The exact existing HTML-export contract is recorded as
+`stage07_qualitative_classifications_export_v1` (top-level selection fingerprint
+plus 120 `review_order`/`classification` records). The owner-only classification
+artifact SHA-256 is
+`0df881a1f62db505175aa916ca259e090341f0ffde14893679a3571042a4760f`; the
+abstract-comment sidecar SHA-256 is
+`4c073e03d33182d5c7f73690424a90886dee70cf8cdf9a4d3deec817287f7796`.
+
+The 11 clear misparses include aggregate patterns of severe component
+mislabeling and material boundary/within-word splitting. Clear failures occur
+across multiple non-Latin/script risk strata rather than a single isolated
+candidate class. Seven additional parses remain questionable. These are raw
+libpostal parsing defects that cannot be assumed repairable by Stage 8 label
+mapping. The controlling finding is
+`MATERIAL_SYSTEMATIC_STAGE07_PROBLEM`; machine-integrity success therefore does
+not make the frozen parsing strategy ready for independent review.
+
+The first diagnostic’s 48 GiB ceiling and 4/23 crashes remain immutable
+history; job `1760182` showed 23/23 success under 180 GiB. HOLDOUT, production
+Stages 2–7, Stage 8, and geocoding were not used.
