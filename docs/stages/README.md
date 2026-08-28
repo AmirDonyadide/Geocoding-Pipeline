@@ -14,6 +14,7 @@ independent review records acceptance.
 | 4 | [Lowercase canonical forms](STAGE04_LOWERCASE_CANONICAL.md) | `STAGE_4_ACCEPTED` | NOT STARTED |
 | 5 | [Address reconstruction](STAGE05_ADDRESS_RECONSTRUCTION.md) | `STAGE_5_ACCEPTED` | NOT STARTED |
 | 6 | [Early exact deduplication](STAGE06_EARLY_EXACT_DEDUPLICATION.md) | `STAGE_6_ACCEPTED` | NOT STARTED |
+| 7 | [libpostal parsing](STAGE07_LIBPOSTAL_PARSING.md) | DESIGN / PARSER BUNDLE IN PROGRESS | NOT STARTED |
 
-Stages 7–19 remain documented only in
+Stages 8–19 remain documented only in
 [the pipeline specification](../PIPELINE.md) because they have not started.

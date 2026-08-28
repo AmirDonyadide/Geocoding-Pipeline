@@ -11,6 +11,12 @@ review evidence. It does not authorize production, HOLDOUT, Stage 7, parsing, or
 geocoding. `benchmark_sample_v1.sbatch` and `development_reporting.sbatch`
 support the fixed benchmark/review infrastructure.
 
+`stage07_build_parser_bundle.sbatch` is a public-software-only provenance job
+for the active Stage 7 DEVELOPMENT design. It compiles exact libpostal and
+pypostal commits, freezes every runtime/model artifact by content, and opens no
+protected input. Its existence does not authorize protected parsing; the later
+controlled diagnostic must require the resulting exact bundle fingerprint.
+
 All protected/heavy jobs require an exact pushed Git SHA, a clean/exact
 worktree, `SAFE_EXECUTION_SITE=goethe-nhr`, a non-empty `SLURM_JOB_ID`, owner-only
 paths, and new immutable outputs. See `docs/EXECUTION.md` and

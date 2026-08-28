@@ -147,6 +147,7 @@ personal absolute paths. Sanitized evidence is available under
 
 ## Current next stage
 
-**Stage 7 — libpostal parsing — NOT STARTED.** Stage 6 is accepted on
-DEVELOPMENT. HOLDOUT access and production Stage 2 through Stage 6 remain
-unauthorized and not started.
+**Stage 7 — libpostal parsing — DEVELOPMENT design and parser-bundle
+provenance in progress; not accepted.** Stage 6 is accepted on DEVELOPMENT.
+HOLDOUT, production Stages 2–7, Stage 8, and geocoding remain unauthorized and
+not started. See the [active Stage 7 record](docs/stages/STAGE07_LIBPOSTAL_PARSING.md).

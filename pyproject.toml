@@ -21,6 +21,7 @@ safe-geocoding-stage03 = "safe_geocoding_pipeline.preprocessing.stage03_cli:main
 safe-geocoding-stage04 = "safe_geocoding_pipeline.preprocessing.stage04_cli:main"
 safe-geocoding-stage05 = "safe_geocoding_pipeline.preprocessing.stage05_cli:main"
 safe-geocoding-stage06 = "safe_geocoding_pipeline.preprocessing.stage06_cli:main"
+safe-geocoding-stage07-bundle = "safe_geocoding_pipeline.preprocessing.stage07_bundle_cli:main"
 safe-geocoding-development-reporting = "safe_geocoding_pipeline.preprocessing.development_reporting_cli:main"
 
 [tool.setuptools.packages.find]

@@ -12,10 +12,11 @@ stage.
 - **PLANNED — NOT STARTED:** conceptual placement and likely technology only.
   No accepted design or implementation exists.
 
-Stages 0–6 are accepted on DEVELOPMENT.
+Stages 0–6 are accepted on DEVELOPMENT. Stage 7 is in an authorized
+DEVELOPMENT design and parser-bundle provenance workflow; it is not accepted.
 Production Stage 0 and Stage 1 are accepted for the 1,411-file population;
 production Stage 2 through Stage 6 have not started. DEVELOPMENT and production
-Stages 7–19 have not started.
+Stages 8–19 have not started, and production Stage 7 has not started.
 
 ## Cross-stage scientific rules
 
@@ -187,7 +188,7 @@ stage consumes an accepted predecessor and must stop at its own review gate.
   each representation.
 - **Primary libraries:** libpostal/pypostal.
 - **Data effect:** Adds derived parsed components; candidate text is preserved.
-- **Status:** **PLANNED — NOT STARTED**.
+- **Status:** **DEVELOPMENT DESIGN / PARSER BUNDLE IN PROGRESS — NOT ACCEPTED**.
 - **Acceptance requirement:** Pinned build/resources, reproducible offline
   execution, multilingual DEVELOPMENT evaluation, failure preservation, and
   independent review.
