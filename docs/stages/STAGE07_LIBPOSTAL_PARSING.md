@@ -2,7 +2,7 @@
 
 ## Status
 
-**`STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY`.**
+**`STAGE_7_DEVELOPMENT_IN_PROGRESS` (candidate not yet ready).**
 
 This branch starts from accepted `main` commit
 `76435eb7ca5cd9a47a2a77fb36278568ba3bfc29`. The owner authorized one fresh
@@ -36,7 +36,7 @@ technical-failure status and resource contract require reconsideration before
 contract freeze. The sanitized [revised diagnostic report](../../reports/development/stage07_supervisor_diagnostic_summary.md)
 records the aggregate evidence.
 
-## Owner-authorized revised proposal — not frozen
+## Owner-authorized revised proposal — v1 contract frozen for implementation
 
 The complete 123-group / 246-surface case diagnostic is controlling evidence:
 all ordered parses were exactly equal. The accepted
@@ -44,23 +44,23 @@ all ordered parses were exactly equal. The accepted
 Clean/case-preserving surfaces remain upstream provenance and are not added to
 the key or parsed independently in the authoritative pipeline.
 
-Every Stage 6 candidate must receive exactly one Stage 7 row. A deterministic
-native parser-process crash is an explicit derived-information failure; it
-does not invalidate, modify, truncate, drop, or replace the Stage 6 candidate.
-The narrow owner-authorized proposed status vocabulary was:
+Every Stage 6 candidate must receive exactly one Stage 7 row. The owner’s
+resource-sufficient decision freezes fail-closed handling: an unresolved native
+parser crash aborts publication and is not a v1 row status. The v1 vocabulary is:
 
 | Status | Parser outcome | Component representation |
 |---|---|---|
 | `PARSED_NONEMPTY` | Parser returned normally with at least one component | non-null ordered list of length at least one |
 | `PARSED_EMPTY` | Parser returned normally with zero components | non-null exact empty list `[]` |
-| `PARSER_PROCESS_CRASH` | Exact input crashed the child twice under the approved fresh-retry policy | null list, never `[]` |
 
 A wrapper exception, malformed result, Python failure, schema error,
-publication error, crash→success retry, or changed technical failure aborts
-the complete publication. No additional scientific status is invented for
-unobserved cases. No size threshold skips parsing and no candidate timeout is
-part of the status contract; the SLURM allocation retains only its global time
-limit.
+publication error, crash→success retry, repeated crash, or changed technical
+failure aborts the complete publication. No size threshold skips parsing and
+no candidate timeout is part of the status contract; authoritative DEVELOPMENT
+uses a validated 180 GiB allocation with no internal address-space ceiling.
+
+The earlier `PARSER_PROCESS_CRASH` proposal remains rejected historical design
+evidence and is not part of the v1 schema.
 
 ## Revised supervised execution design
 

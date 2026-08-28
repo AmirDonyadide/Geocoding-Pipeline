@@ -1,4 +1,4 @@
-"""Provisional Stage 7 nested Arrow representation for pre-contract validation."""
+"""Frozen Stage 7 v1 ordered nested Arrow representation."""
 
 from __future__ import annotations
 
@@ -21,17 +21,28 @@ def component_struct_type() -> pa.StructType:
 
 
 def component_list_type() -> pa.LargeListType:
-    return pa.large_list(pa.field("item", component_struct_type(), nullable=False))
+    # ``element`` is Parquet's canonical repeated-field name.  Declaring it here
+    # makes the exact Arrow schema stable after a write/reopen round trip.
+    return pa.large_list(pa.field("element", component_struct_type(), nullable=False))
 
 
-def component_list_field() -> pa.Field:
-    return pa.field(STAGE07_COMPONENTS_FIELD, component_list_type(), nullable=True)
+def component_list_field(*, diagnostic_nullable: bool = False) -> pa.Field:
+    """Return the v1 non-null field, or the historical diagnostic-only variant."""
+    return pa.field(
+        STAGE07_COMPONENTS_FIELD,
+        component_list_type(),
+        nullable=diagnostic_nullable,
+    )
 
 
 def one_component_list_array(
     components: tuple[LibpostalComponent, ...] | None,
 ) -> pa.LargeListArray:
-    """Build one nullable large-list row without a per-component dictionary list."""
+    """Build one large-list row without a per-component dictionary list.
+
+    ``None`` is retained only for reopening the pre-contract diagnostic.  The
+    Stage 7 v1 materializer and schema never pass or permit it.
+    """
     values = components or ()
     struct_type = component_struct_type()
     struct_values = pa.StructArray.from_arrays(

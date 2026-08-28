@@ -546,10 +546,21 @@ class SpawnedParserWorker:
 
 
 class SupervisedParser:
-    """Apply the owner-approved two-crash confirmation rule to every candidate."""
+    """Contain native crashes and fail closed after one exact fresh retry.
 
-    def __init__(self, worker_factory: WorkerFactory = SpawnedParserWorker) -> None:
+    ``diagnostic_crash_status`` exists only to reproduce the targeted diagnostic
+    written before the Stage 7 v1 contract was frozen.  Authoritative parsing
+    must use the default, which never returns a crash as a publishable row.
+    """
+
+    def __init__(
+        self,
+        worker_factory: WorkerFactory = SpawnedParserWorker,
+        *,
+        diagnostic_crash_status: bool = False,
+    ) -> None:
         self._worker_factory = worker_factory
+        self._diagnostic_crash_status = diagnostic_crash_status
         self._worker: ParserWorker | None = None
         self.workers_started = 0
         self.worker_restarts = 0
@@ -642,6 +653,12 @@ class SupervisedParser:
                 "Fresh retry process termination differs",
             )
         self.confirmed_repeated_crashes += 1
+        self.last_failed_attempts = (first, second)
+        if not self._diagnostic_crash_status:
+            _fail(
+                "PARSER_RESOURCE_SUFFICIENT_CRASH_UNSUPPORTED",
+                "The exact fresh retry repeated a native parser crash",
+            )
         outcome = SupervisedParseOutcome(
             status=PARSER_PROCESS_CRASH,
             components=None,

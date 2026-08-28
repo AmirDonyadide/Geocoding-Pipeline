@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+import hashlib
 import importlib
+from multiprocessing.connection import Connection
 from pathlib import Path
 
 import pyarrow as pa
@@ -126,6 +128,40 @@ class _WorkerFactory:
         return worker
 
 
+def _cross_wired_worker_main(connection: Connection) -> None:
+    connection.send(
+        {"kind": "READY", "initialization_seconds": 0.0, "child_max_rss_kib": 1}
+    )
+    request = connection.recv()
+    candidate = request["candidate"]
+    sequence = request["sequence"]
+    input_sha256 = hashlib.sha256(candidate.encode("utf-8")).hexdigest()
+    connection.send(
+        {
+            "kind": "STARTED",
+            "sequence": sequence,
+            "input_codepoints": len(candidate),
+            "input_sha256": input_sha256,
+            "child_max_rss_kib": 1,
+        }
+    )
+    connection.send(
+        {
+            "kind": "RESULT",
+            "sequence": sequence + 1,
+            "status": PARSED_EMPTY,
+            "components": (),
+            "input_codepoints": len(candidate),
+            "input_sha256": input_sha256,
+            "child_max_rss_kib": 1,
+        }
+    )
+    stop = connection.recv()
+    if stop.get("kind") == "STOP":
+        connection.send({"kind": "STOPPED"})
+    connection.close()
+
+
 def test_supervisor_reuses_long_lived_worker_for_normal_results() -> None:
     factory = _WorkerFactory(
         [[_success(_parsed(("road", "example"))), _success(_parsed())]]
@@ -142,19 +178,29 @@ def test_supervisor_reuses_long_lived_worker_for_normal_results() -> None:
     assert supervisor.worker_restarts == 0
 
 
-def test_two_identical_native_crashes_become_null_component_failure() -> None:
+def test_two_identical_native_crashes_abort_v1_publication() -> None:
     factory = _WorkerFactory([[_crash()], [_crash()]])
     supervisor = SupervisedParser(factory)
+    with pytest.raises(
+        Stage07SupervisorError, match="PARSER_RESOURCE_SUFFICIENT_CRASH_UNSUPPORTED"
+    ):
+        supervisor.parse("synthetic crash")
+    supervisor.close()
+
+    assert supervisor.first_attempt_crashes == 1
+    assert supervisor.confirmed_repeated_crashes == 1
+    assert supervisor.worker_restarts == 1
+
+
+def test_rejected_crash_status_is_explicitly_diagnostic_only() -> None:
+    factory = _WorkerFactory([[_crash()], [_crash()]])
+    supervisor = SupervisedParser(factory, diagnostic_crash_status=True)
     outcome = supervisor.parse("synthetic crash")
     supervisor.close()
 
     assert outcome.status == PARSER_PROCESS_CRASH
     assert outcome.components is None
     assert outcome.failure_code == NATIVE_PROCESS_CRASH
-    assert len(outcome.attempts) == 2
-    assert supervisor.first_attempt_crashes == 1
-    assert supervisor.confirmed_repeated_crashes == 1
-    assert supervisor.worker_restarts == 1
 
 
 def test_crash_then_success_fails_publication_instead_of_using_result() -> None:
@@ -196,6 +242,19 @@ def test_wrapper_or_python_failure_aborts_without_new_status() -> None:
     assert supervisor.first_attempt_crashes == 0
 
 
+def test_spawned_worker_rejects_cross_wired_response_sequence(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "safe_geocoding_pipeline.preprocessing.stages.s07_supervised_parser._worker_main",
+        _cross_wired_worker_main,
+    )
+    supervisor = SupervisedParser()
+    with pytest.raises(Stage07SupervisorError, match="PARSER_RESULT_CROSS_WIRED"):
+        supervisor.parse("synthetic exact active candidate")
+    supervisor.close()
+
+
 def test_spawned_supervisor_contains_real_public_signal_and_restarts(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -218,20 +277,22 @@ def parse_address(value):
 
     supervisor = SupervisedParser()
     success = supervisor.parse("synthetic success")
-    crash = supervisor.parse("synthetic crash")
+    with pytest.raises(
+        Stage07SupervisorError, match="PARSER_RESOURCE_SUFFICIENT_CRASH_UNSUPPORTED"
+    ):
+        supervisor.parse("synthetic crash")
     after = supervisor.parse("synthetic after restart")
     supervisor.close()
 
     assert success.components == (
         LibpostalComponent(label="road", value="synthetic success"),
     )
-    assert crash.status == PARSER_PROCESS_CRASH
-    assert crash.components is None
-    assert all(attempt.input_sha256_verified for attempt in crash.attempts)
-    assert all(attempt.input_codepoints_verified for attempt in crash.attempts)
+    crash_attempts = supervisor.last_failed_attempts
+    assert all(attempt.input_sha256_verified for attempt in crash_attempts)
+    assert all(attempt.input_codepoints_verified for attempt in crash_attempts)
     assert all(
         attempt.failure_signature and attempt.failure_signature.signal_name == "SIGABRT"
-        for attempt in crash.attempts
+        for attempt in crash_attempts
     )
     assert after.components == (
         LibpostalComponent(label="road", value="synthetic after restart"),
@@ -240,7 +301,7 @@ def parse_address(value):
     assert supervisor.worker_restarts == 2
 
 
-def test_large_list_distinguishes_empty_crash_and_duplicate_labels(
+def test_large_list_v1_is_nonnull_and_preserves_empty_and_duplicate_labels(
     tmp_path: Path,
 ) -> None:
     values = (
@@ -251,7 +312,6 @@ def test_large_list_distinguishes_empty_crash_and_duplicate_labels(
         (
             one_component_list_array(values),
             one_component_list_array(()),
-            one_component_list_array(None),
         )
     )
     assert array.type == component_list_type()
@@ -260,7 +320,7 @@ def test_large_list_distinguishes_empty_crash_and_duplicate_labels(
         {"label": "road", "value": "second"},
     ]
     assert array[1].as_py() == []
-    assert array[2].as_py() is None
+    assert component_list_field().nullable is False
 
     schema = pa.schema((component_list_field(),))
     path = tmp_path / "nested.parquet"
@@ -273,7 +333,13 @@ def test_large_list_distinguishes_empty_crash_and_duplicate_labels(
     read = pq.ParquetFile(path, page_checksum_verification=True).read(use_threads=False)
     assert read.schema == schema
     assert read.column(STAGE07_COMPONENTS_FIELD)[1].as_py() == []
-    assert read.column(STAGE07_COMPONENTS_FIELD)[2].as_py() is None
+    assert read.column(STAGE07_COMPONENTS_FIELD)[1].as_py() == []
+
+
+def test_historical_diagnostic_large_list_can_reopen_null() -> None:
+    array = one_component_list_array(None)
+    assert array[0].as_py() is None
+    assert component_list_field(diagnostic_nullable=True).nullable is True
 
 
 def test_supervisor_config_rejects_holdout_and_bad_commit(tmp_path: Path) -> None:

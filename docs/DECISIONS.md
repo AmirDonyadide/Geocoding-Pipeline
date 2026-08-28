@@ -312,6 +312,25 @@ to change a decision or start a stage.
   7 DEVELOPMENT run, independent review, Stage 8, HOLDOUT, production, or
   geocoding is authorized.
 
+### D025 — Freeze Stage 7 v1 with resource-sufficient fail-closed supervision
+
+- **Date:** 2026-08-28.
+- **Scope:** Stage 7 DEVELOPMENT implementation and one authoritative run.
+- **Decision:** Job `1760182` parsed all 23 giant candidates, including the
+  25,920,495-code-point maximum, under 180 GiB with the prior 48 GiB ceiling
+  removed. Freeze `stage07_libpostal_parsing_contract_v1` and
+  `stage07_libpostal_parsing_profile_v1` with exact lowercase input,
+  context-free pinned libpostal, one synchronous child, and one fresh exact
+  retry after child death. Any unresolved crash or nondeterminism aborts the
+  publication. Published statuses are only `PARSED_NONEMPTY` and
+  `PARSED_EMPTY`; `PARSER_PROCESS_CRASH` is not in v1.
+- **Rationale:** The earlier 4/23 crashes were resource-cap dependent, not an
+  intrinsic parser limitation. The original not-ready evidence remains
+  immutable and accepted Stage 6 science is unchanged.
+- **Status:** OWNER-APPROVED CONTRACT FREEZE; Stage 7 DEVELOPMENT remains in
+  progress and is not accepted. Independent review, Stage 8, HOLDOUT,
+  production, and geocoding remain unauthorized.
+
 ## Open decisions
 
 These questions require future stage designs and explicit approval:

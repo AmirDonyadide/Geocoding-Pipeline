@@ -384,7 +384,7 @@ def _audit_large_list(work: Path, outcome: SupervisedParseOutcome) -> _LargeList
     schema = pa.schema(
         (
             pa.field(STAGE07_STATUS_FIELD, pa.string(), nullable=False),
-            component_list_field(),
+            component_list_field(diagnostic_nullable=True),
         )
     )
     started = time.perf_counter()
@@ -531,7 +531,7 @@ def run_stage07_supervisor_diagnostic(
     controlled_row_by_id: dict[bytes, dict[str, object]] = {}
     large_list_audits: list[_LargeListAudit] = []
     all_attempts: list[ParseAttempt] = []
-    first_phase_supervisor = SupervisedParser()
+    first_phase_supervisor = SupervisedParser(diagnostic_crash_status=True)
     parent_survived = False
     first_phase_error: str | None = None
     prior_reference_success_matches = 0
@@ -639,7 +639,7 @@ def run_stage07_supervisor_diagnostic(
     worker_initialization_seconds = list(
         first_phase_supervisor.worker_initialization_seconds
     )
-    repeat_supervisor = SupervisedParser()
+    repeat_supervisor = SupervisedParser(diagnostic_crash_status=True)
     try:
         if first_phase_error is None:
             for item in _iter_giants(registry_paths):
@@ -703,7 +703,7 @@ def run_stage07_supervisor_diagnostic(
                         repeat_supervisor.worker_initialization_seconds
                     )
                     repeat_supervisor.close()
-                    repeat_supervisor = SupervisedParser()
+                    repeat_supervisor = SupervisedParser(diagnostic_crash_status=True)
                     third = repeat_supervisor.attempt_once(item.candidate)
                     all_attempts.append(third)
                     controlled_row_by_id[item.candidate_id]["third_attempt"] = (
