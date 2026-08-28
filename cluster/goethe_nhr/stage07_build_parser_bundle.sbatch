@@ -128,7 +128,7 @@ readonly BUILD_PYTHON="${BUILD_VENV}/bin/python"
 "${BUILD_PYTHON}" -m pip install --quiet \
   pip==26.2.1 setuptools==80.9.0 wheel==0.45.1
 install -d -m 0700 "${WHEEL_ROOT}"
-LIBPOSTAL_PREFIX="${LIBPOSTAL_PREFIX}" \
+env LIBPOSTAL_PREFIX="${LIBPOSTAL_PREFIX}" \
   "${BUILD_PYTHON}" -m pip wheel --quiet --no-deps --no-build-isolation \
   --wheel-dir "${WHEEL_ROOT}" "${PYPPOSTAL_SOURCE}"
 

@@ -194,6 +194,16 @@ immutable bundle was published, and no protected input or parser call occurred.
 The bounded correction binds and copies the actual installed ABI binary while
 retaining implementation version 1.1.4 as a separate provenance field.
 
+Public-only bundle job `1760150` at commit
+`d8427a1584a534052ee10b375041346fd03b4af1` passed the corrected ABI gate and
+again completed libpostal/model installation. It failed after 4 minutes 4
+seconds immediately before pypostal compilation because Bash prohibits a
+per-command assignment to the already-readonly shell variable
+`LIBPOSTAL_PREFIX`. No immutable bundle was published and no protected input or
+parser call occurred; its owner-only logs and failed root are preserved. The
+bounded correction uses `env` to pass that exact prefix to pypostal's pinned
+`setup.py` without assigning the shell variable.
+
 ## Controlled design diagnostic gate
 
 After the bundle is frozen, one protected diagnostic will run through SLURM
