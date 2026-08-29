@@ -107,6 +107,24 @@ def test_quality_diagnostic_rejects_holdout_and_empty_registry() -> None:
         QualityDiagnosticConfig(**{**common, "stage07_registry_paths": ()}).validate()
 
 
+def test_quality_launcher_uses_clean_bundle_view_without_resource_cap() -> None:
+    repository = Path(__file__).resolve().parents[1]
+    script = (
+        repository / "cluster/goethe_nhr/stage07_quality_root_cause.sbatch"
+    ).read_text(encoding="utf-8")
+    assert "#SBATCH --mem=180G" in script
+    assert "one_synchronous_supervised_child" in script
+    assert "PYTHONDONTWRITEBYTECODE=1" in script
+    assert "SOURCE_PARSER_BUNDLE_ROOT" in script
+    assert "parser_bundle_view_excludes_runtime_cache=true" in script
+    assert "source_parser_bundle_modified=false" in script
+    assert "__pycache__" in script
+    assert "cp --reflink=auto --preserve=mode,timestamps" in script
+    assert "RLIMIT_AS" not in script
+    assert "setrlimit" not in script
+    assert "ulimit -v" not in script
+
+
 def test_quality_diagnostic_publishes_only_protected_technical_evidence(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
