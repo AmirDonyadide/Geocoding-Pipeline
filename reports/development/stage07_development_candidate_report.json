@@ -58,6 +58,21 @@
   "systematic_finding": "MATERIAL_SYSTEMATIC_STAGE07_PROBLEM",
   "systematic_summary": "Severe mislabeling and material boundary failures occur across multiple non-Latin/script risk strata; giant and multi-record cases were primarily upstream-corrupt or unassessable.",
   "scientifically_safe_for_stage8_handoff": false,
+  "targeted_root_cause_diagnostic": {
+    "status": "COMPLETE",
+    "job": "1760818",
+    "implementation_sha": "5f324fd8bbeacc1b5c9de1d249e6429796ed2c82",
+    "cases": 18,
+    "exact_deterministic_reparses": 18,
+    "true_libpostal_error_cases": 14,
+    "true_libpostal_label_error_cases": 6,
+    "true_libpostal_boundary_error_cases": 9,
+    "upstream_input_problem_cases": 3,
+    "stage8_deterministically_recoverable_cases": 0,
+    "stage8_not_safely_recoverable_without_guessing": 14,
+    "controlling_conclusion": "MIXED_ROOT_CAUSES_REQUIRING_TARGETED_STAGE07_DESIGN_CHANGE",
+    "manifest_sha256": "bcba55a56a9530a712b53caf94118affc4556abe25571efc8eefd226e901d858"
+  },
   "llm_review_provenance": {
     "separate_codex_helper_session": true,
     "owner_authorized_exact_selected_candidates": 120,

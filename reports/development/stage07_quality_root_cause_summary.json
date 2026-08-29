@@ -1,0 +1,113 @@
+{
+  "verdict": "STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY",
+  "diagnostic_status": "STAGE07_QUALITY_ROOT_CAUSE_DIAGNOSTIC_COMPLETE",
+  "controlling_conclusion": "MIXED_ROOT_CAUSES_REQUIRING_TARGETED_STAGE07_DESIGN_CHANGE",
+  "selection_fingerprint": "1507900b27e4503eb33836c8465217092e9ffb8de2f1b6ef05026690be11a844",
+  "parser_bundle_fingerprint": "f3c6db7e9f11ab75b2207be773e946d531dbba763008d9f7e5036d8c923dc2ae",
+  "diagnostic_implementation_sha": "5f324fd8bbeacc1b5c9de1d249e6429796ed2c82",
+  "diagnostic_job": "1760818",
+  "diagnostic_run": "stage07_quality_5f324fd_attempt2",
+  "diagnostic_manifest_sha256": "bcba55a56a9530a712b53caf94118affc4556abe25571efc8eefd226e901d858",
+  "aggregate_sha256": "62f6412e58191d3311119a8f2ed9244a174de5e7b432f7ded3dfef10e645d7a1",
+  "protected_case_table_sha256": "4b4d8eaeeafe703b88242a9da9dd62d6937d7957c5798fdebd138c17a9d6524a",
+  "failed_attempt": {
+    "job": "1760707",
+    "implementation_sha": "1c781eb261b7361220563f425e0306ccbd9345ce",
+    "state": "FAILED",
+    "scientific_parser_evidence_produced": false,
+    "cause": "UNMANIFESTED_PYTHON_BYTECODE_CACHE_IN_FROZEN_BUNDLE_TREE",
+    "preserved": true
+  },
+  "scope": {
+    "selected_candidates": 120,
+    "target_cases": 18,
+    "clear_misparse": 11,
+    "questionable_parse": 7,
+    "authoritative_parse_rerun": false,
+    "qualitative_selection_regenerated": false,
+    "stage6_changed": false
+  },
+  "execution": {
+    "elapsed": "00:01:13",
+    "total_cpu": "00:00:31.446",
+    "max_rss_kib": 2140712,
+    "requested_memory_gib": 180,
+    "parser_crashes": 0,
+    "worker_restarts": 0,
+    "exact_deterministic_reparses": 18,
+    "bundle_view_excluded_only_unmanifested_python_bytecode_cache": true,
+    "source_parser_bundle_modified": false
+  },
+  "root_cause_counts": {
+    "TRUE_LIBPOSTAL_LABEL_ERROR": 6,
+    "TRUE_LIBPOSTAL_BOUNDARY_ERROR": 9,
+    "SCRIPT_SPECIFIC_PARSER_WEAKNESS": 0,
+    "TRANSLITERATION_OR_ROMANIZATION_DAMAGE": 3,
+    "MULTI_ADDRESS_OR_MULTI_RECORD_INPUT": 0,
+    "STAGE5_RECONSTRUCTION_ARTIFACT": 0,
+    "STAGE3_4_CLEANING_ARTIFACT": 0,
+    "SOURCE_CORRUPTION": 0,
+    "AMBIGUOUS_BUT_INFORMATION_PRESERVED": 4,
+    "OTHER": 0,
+    "counts_may_overlap": true,
+    "distinct_true_libpostal_error_cases": 14,
+    "distinct_upstream_input_problem_cases": 3
+  },
+  "clear_case_assessment": {
+    "cases": 11,
+    "important_information_present_in_stage6_candidate": 11,
+    "stage7_row_retained_exact_stage6_candidate": 11,
+    "component_stream_preserved_lexical_numeric_input": 11,
+    "semantic_label_only_errors": 5,
+    "word_or_token_internal_split_errors": 6,
+    "information_lost_from_stage7_row": 0,
+    "upstream_caused": 0,
+    "stage8_deterministically_recoverable_with_fixed_mapping": 0,
+    "stage8_not_safely_recoverable_without_guessing": 11
+  },
+  "all_target_case_information": {
+    "stage7_row_information_loss": 0,
+    "component_stream_preserved_lexical_numeric_input": 18,
+    "component_stream_preserved_nonwhitespace_input": 12,
+    "mechanical_nonlexical_component_omission": 6
+  },
+  "stage8_recoverability": {
+    "deterministically_recoverable_with_fixed_label_mapping": 0,
+    "not_safely_recoverable_without_guessing": 14,
+    "upstream_input_requires_non_stage8_repair": 2,
+    "inconclusive": 2,
+    "note": "One upstream-damage case also has a true parser error and is counted under not safely recoverable."
+  },
+  "script_classification_counts": {
+    "HAN": {"CLEAR_MISPARSE": 3, "QUESTIONABLE_PARSE": 1},
+    "HANGUL": {"CLEAR_MISPARSE": 3},
+    "HEBREW": {"CLEAR_MISPARSE": 1},
+    "LAO": {"CLEAR_MISPARSE": 2},
+    "THAI": {"CLEAR_MISPARSE": 2},
+    "LATIN": {"QUESTIONABLE_PARSE": 4},
+    "GREEK": {"QUESTIONABLE_PARSE": 1},
+    "MIXED_SCRIPT": {"QUESTIONABLE_PARSE": 1}
+  },
+  "provenance_classification_counts": {
+    "NATIVE": {"CLEAR_MISPARSE": 11, "QUESTIONABLE_PARSE": 3},
+    "STANDARD": {"QUESTIONABLE_PARSE": 3},
+    "BOTH": {"QUESTIONABLE_PARSE": 1}
+  },
+  "scientific_interpretation": {
+    "all_clear_failures_are_upstream": false,
+    "all_clear_failures_are_mapping_only": false,
+    "all_clear_failures_are_native_single_script": true,
+    "clear_failures_span_multiple_non_latin_scripts": true,
+    "raw_stage6_candidate_remains_losslessly_available": true,
+    "fixed_stage8_mapping_can_be_assumed_to_repair_clear_failures": false,
+    "new_owner_scientific_decision_required": true
+  },
+  "prohibited_or_not_started": {
+    "holdout_accessed": false,
+    "production_started": false,
+    "stage8_started": false,
+    "independent_review_started": false,
+    "geocoding_started": false,
+    "merged_to_main": false
+  }
+}

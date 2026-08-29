@@ -74,3 +74,23 @@ not make the frozen parsing strategy ready for independent review.
 The first diagnostic’s 48 GiB ceiling and 4/23 crashes remain immutable
 history; job `1760182` showed 23/23 success under 180 GiB. HOLDOUT, production
 Stages 2–7, Stage 8, and geocoding were not used.
+
+## Targeted parser-quality root cause
+
+Job `1760818` deterministically reparsed only the 11 clear and seven
+questionable selected cases using the unchanged frozen bundle. All 18 ordered
+results reproduced exactly, with zero crashes or restarts. Fourteen distinct
+cases have true libpostal errors: six label errors and nine boundary errors,
+with one case in both categories. Three cases show upstream
+transliteration/romanization damage.
+
+All 11 clear cases are native, single-script candidates distributed across
+Han, Hangul, Lao, Thai, and Hebrew. The exact Stage 6 candidate remains in
+every Stage 7 row, and component values preserve all lexical/numeric input in
+all 11. Nevertheless, five are material label errors and six are within-word
+or token boundary failures; fixed Stage 8 label mapping could safely recover
+none without guessing. The controlling diagnosis is
+`MIXED_ROOT_CAUSES_REQUIRING_TARGETED_STAGE07_DESIGN_CHANGE`.
+
+See the sanitized [root-cause report](stage07_quality_root_cause_summary.md).
+No redesign was implemented and a new owner scientific decision is required.

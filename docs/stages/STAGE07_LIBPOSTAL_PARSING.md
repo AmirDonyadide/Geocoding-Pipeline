@@ -490,3 +490,26 @@ preserved as such. The revised attempt also declares
 `STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY`. It does not declare
 `STAGE_7_ACCEPTED`, merge to `main`, begin independent review, start Stage 8,
 access HOLDOUT, start a production stage, or geocode.
+
+## Later DEVELOPMENT quality diagnosis
+
+Subsequent owner-authorized DEVELOPMENT execution produced the complete
+51,779-row Stage 7 registry, passed independent machine validation and
+fixed-500 map-back, but remained not ready after the risk-stratified
+qualitative review. The later targeted root-cause diagnostic examined only the
+11 `CLEAR_MISPARSE` and seven `QUESTIONABLE_PARSE` selections.
+
+Job `1760818` at
+`5f324fd8bbeacc1b5c9de1d249e6429796ed2c82` reproduced all 18 authoritative
+ordered parse results exactly. It found 14 distinct cases with true libpostal
+label or boundary errors, including five label-only and six boundary failures
+among all 11 clear cases. All clear cases were native, single-script inputs
+spanning five non-Latin script strata. Exact candidates remained available and
+component streams retained their lexical/numeric content, but fixed Stage 8
+label mapping could deterministically recover none of the clear cases without
+guessing.
+
+The controlling conclusion is
+`MIXED_ROOT_CAUSES_REQUIRING_TARGETED_STAGE07_DESIGN_CHANGE`. No redesign was
+implemented. The full sanitized evidence is in the
+[targeted root-cause report](../../reports/development/stage07_quality_root_cause_summary.md).

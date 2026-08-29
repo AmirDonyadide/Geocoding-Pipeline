@@ -12,10 +12,11 @@ stage.
 - **PLANNED — NOT STARTED:** conceptual placement and likely technology only.
   No accepted design or implementation exists.
 
-Stages 0–6 are accepted on DEVELOPMENT. Stage 7's first DEVELOPMENT design
-diagnostic correctly returned not ready; its revised supervisor diagnostic
-then proved all four prior giant crashes resource-cap dependent. Stage 7
-remains not ready and no contract/profile is frozen.
+Stages 0–6 are accepted on DEVELOPMENT. Stage 7's frozen v1 contract completed
+authoritative DEVELOPMENT parsing and machine validation, but the candidate
+remains not ready: qualitative and targeted root-cause evidence found material
+systematic libpostal label/boundary errors across multiple native non-Latin
+strata. No Stage 7 acceptance or Stage 8 handoff is authorized.
 Production Stage 0 and Stage 1 are accepted for the 1,411-file population;
 production Stage 2 through Stage 6 have not started. DEVELOPMENT and production
 Stages 8–19 have not started, and production Stage 7 has not started.
@@ -190,10 +191,12 @@ stage consumes an accepted predecessor and must stop at its own review gate.
   each representation.
 - **Primary libraries:** libpostal/pypostal.
 - **Data effect:** Adds derived parsed components; candidate text is preserved.
-- **Status:** **`STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY`**. The first
-  not-ready evidence remains immutable. The revised uncapped diagnostic parsed
-  all 23 giants, so the four prior crashes were caused by the 48 GiB ceiling
-  and the technical-failure status/resource contract require reconsideration.
+- **Status:** **`STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY`**. Authoritative job
+  `1760221` produced all 51,779 rows and machine validation/map-back passed,
+  but the 120-case qualitative review found 11 clear misparses. Targeted job
+  `1760818` confirmed 14/18 investigated cases have genuine libpostal label or
+  boundary errors and selected conclusion
+  `MIXED_ROOT_CAUSES_REQUIRING_TARGETED_STAGE07_DESIGN_CHANGE`.
 - **Acceptance requirement:** Pinned build/resources, reproducible offline
   execution, multilingual DEVELOPMENT evaluation, failure preservation, and
   independent review.

@@ -191,10 +191,11 @@ The final pre-geocoding sequence is:
 19. query deduplication plus final QA.
 
 Stages 0–6 are implemented and accepted on DEVELOPMENT. Stage 7 remains not
-ready: its revised supervisor diagnostic proved the first diagnostic's four
-giant crashes were caused by its 48 GiB ceiling. No Stage 7 contract or
-implementation is frozen. Stages 8–19 are not started. Production Stage 0 and
-Stage 1 are accepted; production Stages 2–7 are not started. The detailed
+ready: its authoritative DEVELOPMENT run passed complete machine integrity,
+but qualitative and targeted root-cause evidence found systematic libpostal
+label/boundary failures that are not safely delegated to fixed Stage 8 mapping.
+Stages 8–19 are not started. Production Stage 0 and Stage 1 are accepted;
+production Stages 2–7 are not started. The detailed
 stage contracts and acceptance requirements are
 in [PIPELINE.md](PIPELINE.md). HOLDOUT remains untouched and sealed.
 

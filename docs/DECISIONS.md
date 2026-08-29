@@ -331,12 +331,34 @@ to change a decision or start a stage.
   progress and is not accepted. Independent review, Stage 8, HOLDOUT,
   production, and geocoding remain unauthorized.
 
+### D026 — Stage 7 v1 is not ready after parser-quality diagnosis
+
+- **Date:** 2026-08-30.
+- **Scope:** Stage 7 DEVELOPMENT candidate only.
+- **Decision:** Do not hand the current frozen context-free libpostal output to
+  independent review or Stage 8 as a ready candidate. The 120-case
+  risk-stratified qualitative review found 11 clear misparses, and targeted job
+  `1760818` deterministically reproduced only those 11 plus seven questionable
+  cases. Fourteen distinct cases have true libpostal label or boundary errors.
+  All 11 clear cases are native, single-script candidates across five
+  non-Latin strata; five are label-only errors and six contain within-word or
+  token boundary failures. Although the exact Stage 6 candidate remains
+  losslessly present, fixed Stage 8 label mapping can deterministically recover
+  none of the clear cases without guessing.
+- **Rationale:** Machine totality, exact map-back, and deterministic parsing are
+  necessary but do not override systematic semantic/boundary failures in the
+  parsing layer. Raw-input preservation allows a future conservative design;
+  it does not make incorrect component boundaries safe for mapping.
+- **Status:** `STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY`, with controlling
+  conclusion `MIXED_ROOT_CAUSES_REQUIRING_TARGETED_STAGE07_DESIGN_CHANGE`.
+  No remedy is selected or implemented by this decision. A new owner
+  scientific decision is required.
+
 ## Open decisions
 
 These questions require future stage designs and explicit approval:
 
-- final Stage 7 resource policy, technical-failure necessity, and contract
-  freeze after the targeted supervisor conflict;
+- the next controlled Stage 7 parser-quality design after D026;
 - country-specific Stage 11 coverage and syntax policy;
 - reference versions/licenses and blocking semantics for Stages 13–15;
 - exact high-precision correction policy for Stage 16;
@@ -346,5 +368,5 @@ These questions require future stage designs and explicit approval:
   point-level analysis.
 
 Nothing in this register authorizes HOLDOUT, Stage 7 acceptance or independent
-review, Stage 8, geocoding, or production Stage 2 through Stage 7. D023
-authorizes only its stated revised Stage 7 DEVELOPMENT design diagnostic.
+review, Stage 8, geocoding, or production Stage 2 through Stage 7. Stage 7
+decisions D023–D026 authorize only their stated DEVELOPMENT scopes.
