@@ -513,3 +513,34 @@ The controlling conclusion is
 `MIXED_ROOT_CAUSES_REQUIRING_TARGETED_STAGE07_DESIGN_CHANGE`. No redesign was
 implemented. The full sanitized evidence is in the
 [targeted root-cause report](../../reports/development/stage07_quality_root_cause_summary.md).
+
+## Owner-authorized context-option diagnostic
+
+The next owner decision authorizes one non-authoritative comparison of only
+libpostal context parameters that are both genuinely effective in the frozen
+bundle and backed by unambiguous accepted occurrence provenance. It does not
+authorize a new Stage 7 candidate, an authoritative rerun, a Stage 6 key
+change, inferred context, Stage 8, independent review, HOLDOUT, production, or
+geocoding.
+
+Inspection of the exact frozen public sources found an early stop condition.
+Pinned pypostal commit `d6666a4f6a2ae0e7b83e037a35412f0f6b45c318`
+exposes `parse_address(address, language=None, country=None)` and forwards both
+keywords. Pinned libpostal commit
+`25099c506612b34b23b1bfe286ca6321fcf06f35` exposes only `language` and
+`country` in its parser-options struct, but its parser implementation
+explicitly assigns both to `NULL` immediately before constructing parser
+context. The source explains that this model was trained without
+language/country and intentionally ignores the options until corresponding
+models exist.
+
+Therefore the exact frozen bundle has no effective context configuration to
+compare. SAFE will not append metadata to candidate text, fabricate a hint
+mechanism, or claim that wrapper arguments alter output. A protected
+metadata-only SLURM audit will still quantify explicit country availability
+and conflict across all accepted Stage 6 occurrence mappings and the immutable
+120-case selection. Accepted Stage 6 contains no explicit language field, so
+the audit will not infer language from script, candidate text, representation,
+or parser output. It will make zero parser calls and will not exercise the
+owner's narrowly scoped authorization for a paired LLM assessment because no
+variant outputs exist.

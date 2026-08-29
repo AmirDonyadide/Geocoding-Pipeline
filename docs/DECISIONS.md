@@ -354,11 +354,32 @@ to change a decision or start a stage.
   No remedy is selected or implemented by this decision. A new owner
   scientific decision is required.
 
+### D027 — Test only effective provenance-grounded libpostal context options
+
+- **Date:** 2026-08-30.
+- **Scope:** Non-authoritative Stage 7 DEVELOPMENT design diagnostic only.
+- **Decision:** Inspect the exact frozen libpostal/pypostal API first, then
+  compare only effective parser context parameters backed by unanimous
+  accepted occurrence metadata over the existing 120-case selection. Never
+  infer context, alter candidate text, select a majority context, or change
+  the Stage 6 key in this diagnostic. The pinned wrapper exposes optional
+  `language` and `country`, but the pinned native parser explicitly forces
+  both to `NULL` before parser-context construction. Consequently there is no
+  effective variant to execute; run only the required metadata provenance and
+  ambiguity audit and do not fabricate a comparison.
+- **Rationale:** A wrapper signature is not evidence that the bound model uses
+  an option. A scientifically meaningful comparison requires both an effective
+  parser mechanism and trusted unambiguous context.
+- **Status:** OWNER-AUTHORIZED DIAGNOSTIC IN PROGRESS. The authoritative Stage
+  7 v1 output and `STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY` verdict remain
+  unchanged. Independent review, Stage 8, HOLDOUT, production, geocoding, and
+  merge remain unauthorized.
+
 ## Open decisions
 
 These questions require future stage designs and explicit approval:
 
-- the next controlled Stage 7 parser-quality design after D026;
+- the next controlled Stage 7 parser-quality design after D027;
 - country-specific Stage 11 coverage and syntax policy;
 - reference versions/licenses and blocking semantics for Stages 13–15;
 - exact high-precision correction policy for Stage 16;
@@ -369,4 +390,4 @@ These questions require future stage designs and explicit approval:
 
 Nothing in this register authorizes HOLDOUT, Stage 7 acceptance or independent
 review, Stage 8, geocoding, or production Stage 2 through Stage 7. Stage 7
-decisions D023–D026 authorize only their stated DEVELOPMENT scopes.
+decisions D023–D027 authorize only their stated DEVELOPMENT scopes.
