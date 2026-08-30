@@ -561,3 +561,30 @@ determinism comparison was scientifically defined. If a future parser truly
 uses context, the 14 conflicting candidates would require context-aware parse
 identity rather than arbitrary majority selection. No key or artifact changed.
 See the [sanitized context diagnostic](../../reports/development/stage07_context_provenance_summary.md).
+
+## Owner-authorized second-parser diagnostic
+
+After `CONTEXT_AWARE_LIBPOSTAL_NOT_SUFFICIENT`, the owner authorized one
+non-authoritative comparison of a second mature offline parser on exactly the
+existing 120-case selection. A public-only eligibility review selected
+DeepParse `0.10.0` at source commit
+`5b17c0bccd6773044f8a61da68a7b8c91c4fd1e8` with the official BPEmb-attention
+model revision `4af74dad1d547804dfc2de8f40fb23fbbec5b811`.
+
+The selection is not an endorsement. DeepParse's official address-data
+repository says its training data were generated from libpostal data, so model
+errors may correlate with the baseline. South Korea/Hangul has direct published
+support, Japan is a weak zero-shot result, and Lao/Thai/Hebrew have only
+embedding-level multilingual coverage rather than direct address evaluation.
+These limitations are predeclared endpoints of the comparison.
+
+The bundle must be completely acquired and hashed before protected access.
+Protected inference will be offline on Goethe and pass the exact
+`stage06_candidate_lower`, with no SAFE normalization, hint, or augmentation.
+It will preserve the exact candidate and the ordered native token/tag/
+probability stream rather than converting the result into dict semantics.
+Exact repeat determinism over the 18 prior target cases is a gate. The
+immutable libpostal baseline, authoritative registry, original 120 selection,
+and qualitative classifications are not replaced.
+
+See the [public parser-candidate matrix](../../reports/development/stage07_second_parser_candidate_matrix.md).

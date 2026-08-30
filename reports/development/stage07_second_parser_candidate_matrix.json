@@ -1,0 +1,258 @@
+{
+  "candidates": [
+    {
+      "approach": "LSTM sequence tagger over multilingual BPEmb subword embeddings with an attention decoder",
+      "component_vocabulary": [
+        "StreetNumber",
+        "StreetName",
+        "Unit",
+        "Municipality",
+        "Province",
+        "PostalCode",
+        "Orientation",
+        "GeneralDelivery"
+      ],
+      "deterministic_controls": "CPU evaluation mode; single process/thread; PyTorch deterministic algorithms; fixed seeds; exact repeat gate",
+      "expected_resources": "CPU; approximately 1 GiB for ordinary inference in project benchmarks, with the selected giant cases requiring empirical controlled measurement",
+      "identity_considered": {
+        "bpemb_package": "0.3.6",
+        "deepparse_package": "0.10.0",
+        "deepparse_source_commit": "5b17c0bccd6773044f8a61da68a7b8c91c4fd1e8",
+        "model_repository": "deepparse/bpemb-attention",
+        "model_revision": "4af74dad1d547804dfc2de8f40fb23fbbec5b811"
+      },
+      "license": {
+        "bpemb_code": "MIT",
+        "deepparse_address_data": "MIT",
+        "deepparse_code": "LGPL-3.0",
+        "model_card_separate_license_field": "NOT_DECLARED",
+        "use_scope": "owner-controlled non-redistributed research diagnostic using the official publicly documented model download"
+      },
+      "maintenance_evidence": "DeepParse 0.10.0 was released 2026-02-28; its repository was active in 2026-08",
+      "model_assets": "official BPEmb-attention safetensors/config plus multilingual BPEmb multi/vs100000/d300 SentencePiece and embedding files",
+      "multilingual_claim": "DeepParse is evaluated on 61 countries; the selected BPEmb representation is multilingual and draws on BPEmb's 275-language vocabulary",
+      "name": "DeepParse BPEmb-attention",
+      "offline_capability": "SUPPORTED after all public package/model/embedding assets are acquired and frozen; AddressParser offline=True and local-files-only loading",
+      "reasons": [
+        "only screened project that combines mature general multinational parsing, structured token labels, an offline model, and a reproducibly pinnable runtime",
+        "attention model has the strongest published DeepParse BPEmb zero-shot result for Japan among its BPEmb configurations",
+        "official data provenance says the address training data were generated from libpostal data, so errors may be correlated with the baseline",
+        "direct address-level evaluation is absent for Lao, Thai, and Hebrew and weak for Japan; applicability there is experimental, not established",
+        "the BPEmb encoder internally lowercases and replaces digits with zero for feature lookup; SAFE will pass and preserve the exact candidate and will not add preprocessing"
+      ],
+      "script_scope": {
+        "Han": "LIMITED_DIRECT_EVIDENCE: Japan is a published zero-shot country and performs poorly; multilingual BPEmb includes Japanese and Chinese scripts",
+        "Hangul": "DIRECT_EVIDENCE: South Korea is a training/evaluation country and an official Hangul inference example is published",
+        "Hebrew": "EMBEDDING_LEVEL_ONLY: Hebrew is in BPEmb's multilingual language set; no direct DeepParse address evaluation was found",
+        "Lao": "EMBEDDING_LEVEL_ONLY: Lao is in BPEmb's multilingual language set; no direct DeepParse address evaluation was found",
+        "Thai": "EMBEDDING_LEVEL_ONLY: Thai is in BPEmb's multilingual language set; no direct DeepParse address evaluation was found"
+      },
+      "selection": "SELECTED_FOR_CONTROLLED_NON_AUTHORITATIVE_COMPARISON"
+    },
+    {
+      "approach": "configurable rule, dictionary, pattern, and composite natural-language classifiers designed for Pelias geocoding",
+      "component_vocabulary": "structured geocoding query fields",
+      "deterministic_controls": "deterministic local JavaScript execution where only local classifiers are configured",
+      "expected_resources": "CPU/Node.js",
+      "identity_considered": "pelias/parser commit f8808981ea23c99126ea2e1e98b1ed8f7891fe01",
+      "license": "MIT",
+      "maintenance_evidence": "repository active in 2026-08",
+      "model_assets": "rules and dictionaries rather than a documented general multilingual address model",
+      "multilingual_claim": "no credible documented coverage for the five required scripts was found",
+      "name": "Pelias parser",
+      "offline_capability": "SUPPORTED for local classifier configurations",
+      "reasons": [
+        "built primarily as a classifier engine for Pelias geocoding queries",
+        "no substantiated Han/Hangul/Lao/Thai/Hebrew parsing scope",
+        "not an evidence-supported remedy for the observed multilingual failures"
+      ],
+      "script_scope": {
+        "Han": "NOT_SUBSTANTIATED",
+        "Hangul": "NOT_SUBSTANTIATED",
+        "Hebrew": "NOT_SUBSTANTIATED",
+        "Lao": "NOT_SUBSTANTIATED",
+        "Thai": "NOT_SUBSTANTIATED"
+      },
+      "selection": "REJECTED"
+    },
+    {
+      "approach": "CRF sequence tagger for unstructured United States addresses",
+      "component_vocabulary": "detailed United States postal-address labels",
+      "deterministic_controls": "deterministic local CRF inference",
+      "expected_resources": "CPU/Python",
+      "identity_considered": {
+        "package": "0.5.16",
+        "source_commit": "aa7699b53a0843fc443f9e87285b88cbd9eaf50a"
+      },
+      "license": "MIT",
+      "maintenance_evidence": "0.5.16 released 2025-08-07",
+      "model_assets": "packaged US CRF model",
+      "multilingual_claim": "explicitly scoped to United States addresses",
+      "name": "usaddress",
+      "offline_capability": "SUPPORTED",
+      "reasons": [
+        "country-specific and therefore inapplicable to the required multilingual scripts"
+      ],
+      "script_scope": {
+        "Han": "NO",
+        "Hangul": "NO",
+        "Hebrew": "NO",
+        "Lao": "NO",
+        "Thai": "NO"
+      },
+      "selection": "REJECTED"
+    },
+    {
+      "approach": "locale-specific heuristic parsing and formatting rules",
+      "component_vocabulary": [
+        "country",
+        "countryCode",
+        "postalCode",
+        "region",
+        "locality",
+        "streetAddress"
+      ],
+      "deterministic_controls": "deterministic local JavaScript execution",
+      "expected_resources": "CPU/Node.js",
+      "identity_considered": {
+        "package": "ilib-address 1.0.3",
+        "source_commit": "7bc01deaf02ddf161f70d69915d50840f884ddcd"
+      },
+      "license": "Apache-2.0",
+      "maintenance_evidence": "current monorepo active in 2026-08; former standalone repository is deprecated in favor of the monorepo",
+      "model_assets": "locale rule data bundled with iLib",
+      "multilingual_claim": "locale-aware parsing with explicit Korean and Chinese-order documentation",
+      "name": "iLib address",
+      "offline_capability": "SUPPORTED with bundled locale data",
+      "reasons": [
+        "foreign parsing generally depends on locale/country detection or hints while the exact Stage 5 body omits country context",
+        "the residual streetAddress field is too coarse to test or replace the component boundaries at issue",
+        "no direct evidence for Lao, Thai, or Hebrew was found"
+      ],
+      "script_scope": {
+        "Han": "DOCUMENTED_LOCALE_RULES_BUT_COARSE_OUTPUT",
+        "Hangul": "DIRECT_EXAMPLE_BUT_COARSE_OUTPUT",
+        "Hebrew": "NOT_SUBSTANTIATED",
+        "Lao": "NOT_SUBSTANTIATED",
+        "Thai": "NOT_SUBSTANTIATED"
+      },
+      "selection": "REJECTED"
+    },
+    {
+      "approach": "Conditional Random Field plus fuzzy matching and reference rules",
+      "component_vocabulary": [
+        "Town",
+        "Country"
+      ],
+      "deterministic_controls": "local Python inference",
+      "expected_resources": "CPU, 4 GiB documented minimum, GeoNames-derived reference assets",
+      "identity_considered": "Swift-SC/iso20022-address-structuring commit 916deca20a2f3501c9b7befb11e21be3931887ba",
+      "license": "project-specific Swift software license; GitHub reports NOASSERTION",
+      "maintenance_evidence": "repository active in 2026-03",
+      "model_assets": "CRF resources plus GeoNames and REST Countries derivatives",
+      "multilingual_claim": "global town/country extraction",
+      "name": "Swift ISO 20022 address structuring",
+      "offline_capability": "SUPPORTED after public reference acquisition",
+      "reasons": [
+        "official documentation explicitly says it does not convert an unstructured address into a generally structured one",
+        "extracts only town and country, not the road/building/number boundaries under investigation"
+      ],
+      "script_scope": {
+        "Han": "NOT_APPLICABLE_TO_REQUIRED_COMPONENT_TASK",
+        "Hangul": "NOT_APPLICABLE_TO_REQUIRED_COMPONENT_TASK",
+        "Hebrew": "NOT_APPLICABLE_TO_REQUIRED_COMPONENT_TASK",
+        "Lao": "NOT_APPLICABLE_TO_REQUIRED_COMPONENT_TASK",
+        "Thai": "NOT_APPLICABLE_TO_REQUIRED_COMPONENT_TASK"
+      },
+      "selection": "REJECTED"
+    },
+    {
+      "approach": "multilingual entity recognizers for numbers, units, dates, times, and sequences",
+      "component_vocabulary": "does not include a general postal-address component schema",
+      "deterministic_controls": "deterministic local runtime",
+      "expected_resources": "CPU across supported language runtimes",
+      "identity_considered": "microsoft/Recognizers-Text commit da7edcff59f669b2a460ab9d400e36298f0d658e",
+      "license": "MIT",
+      "maintenance_evidence": "repository active in 2026-04",
+      "model_assets": "rule/model resources packaged by language/runtime",
+      "multilingual_claim": "multilingual entity recognition, but not multilingual address parsing",
+      "name": "Microsoft Recognizers-Text",
+      "offline_capability": "SUPPORTED",
+      "reasons": [
+        "not a structured free-form postal-address parser"
+      ],
+      "script_scope": {
+        "Han": "PARTIAL_ENTITY_RECOGNITION_ONLY",
+        "Hangul": "PARTIAL_ENTITY_RECOGNITION_ONLY",
+        "Hebrew": "NO_ADDRESS_PARSER",
+        "Lao": "NO_ADDRESS_PARSER",
+        "Thai": "NO_ADDRESS_PARSER"
+      },
+      "selection": "REJECTED"
+    },
+    {
+      "approach": "country metadata for address-form collection, formatting, and validation",
+      "component_vocabulary": "structured fields supplied by an application, not inferred free-form components",
+      "deterministic_controls": "deterministic local libraries once metadata are available",
+      "expected_resources": "CPU/C++ or Java",
+      "identity_considered": "google/libaddressinput commit 81eb9628382b07d371d8ea0b11badf7de3857fd5",
+      "license": "Apache-2.0 code; CC-BY-4.0 data",
+      "maintenance_evidence": "repository active in 2026-05",
+      "model_assets": "Google address-format metadata",
+      "multilingual_claim": "worldwide address-form metadata",
+      "name": "Google libaddressinput",
+      "offline_capability": "metadata can be local, but the documented service-backed acquisition is outside this comparison",
+      "reasons": [
+        "collects and validates already structured fields; it is not a free-form address component parser"
+      ],
+      "script_scope": {
+        "Han": "FORMAT_METADATA_ONLY",
+        "Hangul": "FORMAT_METADATA_ONLY",
+        "Hebrew": "FORMAT_METADATA_ONLY",
+        "Lao": "FORMAT_METADATA_ONLY",
+        "Thai": "FORMAT_METADATA_ONLY"
+      },
+      "selection": "REJECTED"
+    }
+  ],
+  "created_date": "2026-08-30",
+  "decision": "DEEPPARSE_BPEMB_ATTENTION_SELECTED_FOR_CONTROLLED_COMPARISON",
+  "eligibility_gate": "PASS_WITH_PREDECLARED_COVERAGE_AND_PROVENANCE_LIMITATIONS",
+  "network_policy": {
+    "protected_inference_network_calls": 0,
+    "public_asset_acquisition_before_protected_inference": true
+  },
+  "privacy": {
+    "candidate_strings_inspected": 0,
+    "holdout_accessed": false,
+    "production_accessed": false,
+    "protected_artifacts_accessed": false
+  },
+  "scope": "PUBLIC_NON_PROTECTED_SECOND_PARSER_ELIGIBILITY_REVIEW",
+  "selected_configuration": {
+    "attention_mechanism": true,
+    "batch_size": 1,
+    "device": "cpu",
+    "model_type": "bpemb",
+    "num_workers": 0,
+    "pre_processors": [],
+    "with_hyphen_split": false,
+    "with_prob": true
+  },
+  "sources": [
+    "https://github.com/GRAAL-Research/deepparse",
+    "https://deepparse.org/parser.html",
+    "https://aclanthology.org/2023.nlposs-1.3/",
+    "https://github.com/GRAAL-Research/deepparse-address-data",
+    "https://github.com/bheinzerling/bpemb",
+    "https://aclanthology.org/L18-1473/",
+    "https://huggingface.co/deepparse/bpemb-attention",
+    "https://github.com/pelias/parser",
+    "https://github.com/datamade/usaddress",
+    "https://github.com/iLib-js/ilib-mono",
+    "https://github.com/Swift-SC/iso20022-address-structuring",
+    "https://github.com/microsoft/Recognizers-Text",
+    "https://github.com/google/libaddressinput"
+  ],
+  "version": "stage07_second_parser_candidate_matrix_v1"
+}

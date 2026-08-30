@@ -381,11 +381,40 @@ to change a decision or start a stage.
   Independent review, Stage 8, HOLDOUT, production, geocoding, and merge remain
   unauthorized.
 
+### D028 — Compare one pinned second offline parser on the existing 120 cases
+
+- **Date:** 2026-08-30.
+- **Scope:** Non-authoritative Stage 7 DEVELOPMENT design diagnostic only.
+- **Decision:** After a public, non-protected eligibility screen, select
+  DeepParse `0.10.0` with its BPEmb-attention model for one controlled
+  comparison against the immutable libpostal results for the existing
+  120-candidate qualitative selection. Freeze all public code, model,
+  embedding, tokenizer, dependency, runtime, option, seed, device, and license
+  identities before protected inference. Protected execution is offline on a
+  Goethe compute node and receives the exact `stage06_candidate_lower` with no
+  SAFE preprocessing. Preserve the parser's native ordered token labels and
+  probabilities. Require exact repeats over all 18 clear/questionable targets
+  before semantic comparison.
+- **Rationale:** Context-aware libpostal is unavailable in the pinned bundle.
+  DeepParse is the only screened mature project with a general multinational
+  structured parser, a documented offline mode, and pinnable public model
+  assets. Its official address data are libpostal-derived, its direct Han
+  evidence is weak, and direct Lao/Thai/Hebrew address evidence is absent;
+  these are controlling limitations to measure, not reasons to assume a win.
+  Competing screened tools are country-specific, geocoder-query classifiers,
+  coarse locale formatters, town/country extractors, or structured-form
+  validators rather than applicable multilingual component parsers.
+- **Status:** PUBLIC ELIGIBILITY GATE COMPLETE; protected bundle construction
+  and the 120-case comparison remain pending. The authoritative Stage 7 v1
+  registry and `STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY` verdict are unchanged.
+  No Stage 7 redesign, independent review, Stage 8, HOLDOUT, production,
+  geocoding, or merge is authorized.
+
 ## Open decisions
 
 These questions require future stage designs and explicit approval:
 
-- the next controlled Stage 7 parser-quality design after D027;
+- the Stage 7 design decision after the D028 second-parser diagnostic;
 - country-specific Stage 11 coverage and syntax policy;
 - reference versions/licenses and blocking semantics for Stages 13–15;
 - exact high-precision correction policy for Stage 16;
@@ -396,4 +425,4 @@ These questions require future stage designs and explicit approval:
 
 Nothing in this register authorizes HOLDOUT, Stage 7 acceptance or independent
 review, Stage 8, geocoding, or production Stage 2 through Stage 7. Stage 7
-decisions D023–D027 authorize only their stated DEVELOPMENT scopes.
+decisions D023–D028 authorize only their stated DEVELOPMENT scopes.
