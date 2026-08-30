@@ -370,10 +370,16 @@ to change a decision or start a stage.
 - **Rationale:** A wrapper signature is not evidence that the bound model uses
   an option. A scientifically meaningful comparison requires both an effective
   parser mechanism and trusted unambiguous context.
-- **Status:** OWNER-AUTHORIZED DIAGNOSTIC IN PROGRESS. The authoritative Stage
-  7 v1 output and `STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY` verdict remain
-  unchanged. Independent review, Stage 8, HOLDOUT, production, geocoding, and
-  merge remain unauthorized.
+- **Status:** DIAGNOSTIC COMPLETE —
+  `CONTEXT_AWARE_LIBPOSTAL_NOT_SUFFICIENT`. Metadata-only job `1761212`
+  verified the exact API finding and audited all 51,779 candidate IDs without
+  a parser call. Country provenance was unanimous and complete for 50,761,
+  absent for 1,000, partial for four, and conflicting for 14; all 18 targeted
+  qualitative cases had unanimous country context. There is no accepted
+  explicit language field. The authoritative Stage 7 v1 output and
+  `STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY` verdict remain unchanged.
+  Independent review, Stage 8, HOLDOUT, production, geocoding, and merge remain
+  unauthorized.
 
 ## Open decisions
 

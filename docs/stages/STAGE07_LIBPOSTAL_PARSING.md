@@ -544,3 +544,20 @@ the audit will not infer language from script, candidate text, representation,
 or parser output. It will make zero parser calls and will not exercise the
 owner's narrowly scoped authorization for a paired LLM assessment because no
 variant outputs exist.
+
+Metadata-only SLURM job `1761212` completed this audit from exact pushed commit
+`4d0569eecbfc2b2a1e6a0ce4782036c9ccb1406d`. It verified all 51,779 accepted
+candidate IDs and 69,747 occurrence mappings without reading candidate text or
+calling the parser. Country context was unanimous and complete for 50,761
+candidates, unavailable for 1,000, partial for four, and conflicting for 14.
+Seven candidates had context differences across STANDARD/NATIVE occurrences.
+The immutable 120 selection contained 115 unanimous-country and five
+no-country candidates; all 18 clear/questionable targets had unanimous country
+context. No explicit accepted language field exists.
+
+The decision is `CONTEXT_AWARE_LIBPOSTAL_NOT_SUFFICIENT`: there is no effective
+variant under the frozen bundle, so no paired semantic assessment or
+determinism comparison was scientifically defined. If a future parser truly
+uses context, the 14 conflicting candidates would require context-aware parse
+identity rather than arbitrary majority selection. No key or artifact changed.
+See the [sanitized context diagnostic](../../reports/development/stage07_context_provenance_summary.md).

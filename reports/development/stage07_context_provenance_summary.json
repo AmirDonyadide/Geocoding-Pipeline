@@ -1,0 +1,116 @@
+{
+  "api_evidence": {
+    "applicable_context_variants": [],
+    "effective_context_parameters": [],
+    "libpostal_address_parser_source_sha256": "a129328e4ac2301ccffdc092811a09663f01802e97c8be780c704e51a0e59222",
+    "libpostal_header_source_sha256": "d537b0709c4882919a3d6209b952c30ea072cf0ee90f3eeff655eb8c512df6bb",
+    "libpostal_native_option_handling": "LANGUAGE_AND_COUNTRY_FORCED_NULL_BEFORE_CONTEXT_FILL",
+    "libpostal_options_struct_fields": [
+      "language",
+      "country"
+    ],
+    "libpostal_source_commit": "25099c506612b34b23b1bfe286ca6321fcf06f35",
+    "pypostal_exposed_context_parameters": [
+      "language",
+      "country"
+    ],
+    "pypostal_parser_source_sha256": "5fe25a6a23ed4845a6a22d25836c27e3651e603a64668b44f2a290178e306d02",
+    "pypostal_signature": "parse_address(address, language=None, country=None)",
+    "pypostal_source_commit": "d6666a4f6a2ae0e7b83e037a35412f0f6b45c318"
+  },
+  "decision": "CONTEXT_AWARE_LIBPOSTAL_NOT_SUFFICIENT",
+  "decision_basis": "PINNED_LIBPOSTAL_EXPLICITLY_IGNORES_EXPOSED_CONTEXT_OPTIONS",
+  "diagnostic": {
+    "aggregate_sha256": "9eadaac538f451f185a3da7b029f09ab972347f907b839b13582447aa29694b3",
+    "elapsed_seconds": 17,
+    "implementation_sha": "4d0569eecbfc2b2a1e6a0ce4782036c9ccb1406d",
+    "job_id": "1761212",
+    "manifest_sha256": "0ab71e71ae6be727699054378bbdc5891107c6d51f5e7343d55edcb4057985ab",
+    "requested_memory_gib": 16,
+    "state": "COMPLETED",
+    "stderr_bytes": 0,
+    "validation": "PASS",
+    "version": "stage07_context_provenance_diagnostic_v1"
+  },
+  "future_parse_key": {
+    "candidate_plus_context_required_for_conflicting_candidates_if_future_effective_context_exists": true,
+    "current_stage07_authoritative_output_changed": false,
+    "stage06_key_changed": false
+  },
+  "parser_bundle_fingerprint": "f3c6db7e9f11ab75b2207be773e946d531dbba763008d9f7e5036d8c923dc2ae",
+  "population_audit": {
+    "both_representation_candidates": 17882,
+    "candidates": 51779,
+    "candidates_with_invalid_country_occurrences": 279,
+    "candidates_with_missing_country_occurrences": 725,
+    "conflicting_countries": 14,
+    "conflicting_explicit_languages": 0,
+    "context_differs_across_standard_native": 7,
+    "country_only_parse_once_eligible": 50761,
+    "effective_context_variant_eligible": 0,
+    "invalid_country_occurrences": 283,
+    "missing_country_occurrences": 1263,
+    "no_explicit_language": 51779,
+    "no_usable_explicit_country": 1000,
+    "partial_one_country": 4,
+    "unanimous_one_country": 50761,
+    "unanimous_one_explicit_language": 0,
+    "unique_country_language_combination": 0
+  },
+  "privacy": {
+    "candidate_text_inspections": 0,
+    "candidate_text_in_git_evidence": false,
+    "holdout_accessed": false,
+    "owner_llm_authorization_exercised": false,
+    "production_accessed": false,
+    "protected_parser_calls": 0,
+    "web_or_external_api_used": false
+  },
+  "selection_audit": {
+    "candidates": 120,
+    "classification_counts": {
+      "CLEAR_MISPARSE": 11,
+      "PARTIAL_BUT_USABLE_PARSE": 41,
+      "PLAUSIBLE_PARSE": 30,
+      "QUESTIONABLE_PARSE": 7,
+      "UPSTREAM_SOURCE_CORRUPTION_OR_UNASSESSABLE": 31
+    },
+    "clear_misparse_unanimous_country": 11,
+    "context_differs_across_standard_native": 0,
+    "country_only_parse_once_eligible": 115,
+    "effective_context_variant_eligible": 0,
+    "no_usable_explicit_country": 5,
+    "questionable_parse_unanimous_country": 7,
+    "selection_fingerprint": "1507900b27e4503eb33836c8465217092e9ffb8de2f1b6ef05026690be11a844",
+    "target_cases": 18,
+    "target_country_only_parse_once_eligible": 18,
+    "unanimous_one_country": 115
+  },
+  "stage06_binding": {
+    "logical_fingerprint": "2f6379c0cd5dc9654c03895cae6fdd48f3a7af528158c33e44d2030c816640b6",
+    "manifest_sha256": "e1da7b8ef04b65b1ece8e710720b57a8536841766fcf9de641f889b42eadd241",
+    "native_occurrences": 34925,
+    "occurrences": 69747,
+    "registry_rows": 51779,
+    "schema_fingerprint": "9c07b7a4c3f7a5c43ad457dcf6f7fe3fd746d54d82a731139905b30828b6c9ce",
+    "standard_occurrences": 34822
+  },
+  "trusted_context": {
+    "country_field": "stage04_lower_country_iso_code",
+    "country_inference_used": false,
+    "eligibility_rule": "EXACT_ASCII_LOWERCASE_TWO_LETTER_CODE_ON_EVERY_OCCURRENCE",
+    "explicit_language_field_present": false,
+    "language_inference_used": false
+  },
+  "variant_comparison": {
+    "boundary_error_repairs": "NOT_APPLICABLE",
+    "control_regressions": "NOT_APPLICABLE",
+    "deterministic_repeats": "NOT_APPLICABLE_NO_EFFECTIVE_VARIANTS",
+    "label_error_repairs": "NOT_APPLICABLE",
+    "paired_llm_assessment": "NOT_PERFORMED_NO_EFFECTIVE_VARIANTS",
+    "script_stratum_effects": "NOT_APPLICABLE",
+    "target_improvements": "NOT_APPLICABLE",
+    "target_regressions": "NOT_APPLICABLE",
+    "variants_created": 0
+  }
+}
