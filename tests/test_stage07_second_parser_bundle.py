@@ -75,6 +75,19 @@ def test_publish_and_reopen_second_parser_bundle(tmp_path: Path) -> None:
     assert manifest["scientific_identity"]["model"]["revision"] == (
         "4af74dad1d547804dfc2de8f40fb23fbbec5b811"
     )
+    assert manifest["scientific_identity"]["sqlite"] == {
+        "configure_arguments": [
+            "--disable-shared",
+            "--enable-static",
+            "CFLAGS=-O2 -fPIC",
+        ],
+        "license": "PUBLIC_DOMAIN",
+        "linkage": "STATIC_IN_CPYTHON_SQLITE3_EXTENSION",
+        "source_sha256": (
+            "67d3fe6d268e6eaddcae3727fce58fcc8e9c53869bdd07a0c61e38ddf2965071"
+        ),
+        "version": "3.46.1",
+    }
     assert manifest["scientific_identity"]["parser_call"]["caller_preprocessors"] == []
     assert manifest["public_assets_only"] is True
     assert manifest["protected_inputs_opened"] is False
@@ -135,3 +148,17 @@ def test_second_parser_bundle_symlink_rejected(tmp_path: Path) -> None:
             staging, staging.parent / "bundle", build_identity=_identity()
         )
     assert raised.value.code == "SECOND_PARSER_BUNDLE_SYMLINK_PROHIBITED"
+
+
+def test_second_parser_launcher_pins_required_sqlite_runtime() -> None:
+    repository = Path(__file__).resolve().parents[1]
+    launcher = (
+        repository / "cluster/goethe_nhr/stage07_build_second_parser_bundle.sbatch"
+    ).read_text()
+    assert 'readonly SQLITE_VERSION="3.46.1"' in launcher
+    assert (
+        'readonly SQLITE_SHA256="67d3fe6d268e6eaddcae3727fce58fcc'
+        '8e9c53869bdd07a0c61e38ddf2965071"'
+    ) in launcher
+    assert "--disable-shared" in launcher
+    assert 'assert sqlite3.sqlite_version == "3.46.1"' in launcher

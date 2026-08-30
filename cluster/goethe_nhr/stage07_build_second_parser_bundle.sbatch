@@ -30,6 +30,10 @@ readonly PYTHON_VERSION="3.13.15"
 readonly PYTHON_ARCHIVE_NAME="Python-${PYTHON_VERSION}.tgz"
 readonly PYTHON_URL="https://www.python.org/ftp/python/${PYTHON_VERSION}/${PYTHON_ARCHIVE_NAME}"
 readonly PYTHON_SHA256="c28d9d213c09b5b5ab2c29812950e12f746999e099b82894231be954b26baed9"
+readonly SQLITE_VERSION="3.46.1"
+readonly SQLITE_ARCHIVE_NAME="sqlite-autoconf-3460100.tar.gz"
+readonly SQLITE_URL="https://www.sqlite.org/2024/${SQLITE_ARCHIVE_NAME}"
+readonly SQLITE_SHA256="67d3fe6d268e6eaddcae3727fce58fcc8e9c53869bdd07a0c61e38ddf2965071"
 readonly DEEPPARSE_VERSION="0.10.0"
 readonly DEEPPARSE_WHEEL_SHA256="0e4641147f0a27875edb715248d93277082f10610f237a5e2f8c296d576884bd"
 readonly BPEMB_VERSION="0.3.6"
@@ -84,18 +88,41 @@ readonly PYTHON_PREFIX="${BUILD_ROOT}/python-prefix"
 readonly PIP_CACHE="${BUILD_ROOT}/pip-cache"
 readonly PUBLIC_DOWNLOADS="${BUILD_ROOT}/public-downloads"
 readonly CACHE_ROOT="${BUILD_ROOT}/runtime-cache"
+readonly SQLITE_ARCHIVE="${PUBLIC_DOWNLOADS}/${SQLITE_ARCHIVE_NAME}"
+readonly SQLITE_SOURCE="${BUILD_ROOT}/sqlite-autoconf-3460100"
+readonly SQLITE_PREFIX="${BUILD_ROOT}/sqlite-prefix"
 install -d -m 0700 "${PIP_CACHE}" "${PUBLIC_DOWNLOADS}" "${CACHE_ROOT}"
 
 curl --fail --location --retry 3 --output "${PYTHON_ARCHIVE}" "${PYTHON_URL}"
 printf '%s  %s\n' "${PYTHON_SHA256}" "${PYTHON_ARCHIVE}" | sha256sum --check --strict -
+curl --fail --location --retry 3 --output "${SQLITE_ARCHIVE}" "${SQLITE_URL}"
+printf '%s  %s\n' "${SQLITE_SHA256}" "${SQLITE_ARCHIVE}" | \
+  sha256sum --check --strict -
+tar -xzf "${SQLITE_ARCHIVE}" -C "${BUILD_ROOT}"
+cd "${SQLITE_SOURCE}"
+CFLAGS="-O2 -fPIC" ./configure \
+  --prefix="${SQLITE_PREFIX}" \
+  --disable-shared \
+  --enable-static
+make -j "${SLURM_CPUS_PER_TASK}"
+make install
+
 tar -xzf "${PYTHON_ARCHIVE}" -C "${BUILD_ROOT}"
 cd "${PYTHON_SOURCE}"
-./configure --prefix="${PYTHON_PREFIX}" --with-ensurepip=install
+PKG_CONFIG_PATH="${SQLITE_PREFIX}/lib/pkgconfig" \
+CPPFLAGS="-I${SQLITE_PREFIX}/include" \
+LDFLAGS="-L${SQLITE_PREFIX}/lib" \
+  ./configure --prefix="${PYTHON_PREFIX}" --with-ensurepip=install
 make -j "${SLURM_CPUS_PER_TASK}"
 make install
 
 readonly SECOND_PYTHON="${PYTHON_PREFIX}/bin/python3.13"
 [[ -x "${SECOND_PYTHON}" ]]
+"${SECOND_PYTHON}" - <<'PY'
+import sqlite3
+
+assert sqlite3.sqlite_version == "3.46.1", sqlite3.sqlite_version
+PY
 "${SECOND_PYTHON}" -m pip install --quiet \
   pip==26.2.1 setuptools==80.9.0 wheel==0.45.1
 
@@ -148,6 +175,7 @@ printf '%s  %s\n' "${BPEMB_EMBEDDING_SHA256}" \
 "${SECOND_PYTHON}" - <<'PY' > "${PUBLIC_DOWNLOADS}/runtime-identity.json"
 import json
 import platform
+import sqlite3
 import sys
 import unicodedata
 
@@ -155,6 +183,7 @@ print(json.dumps({
     "implementation": platform.python_implementation(),
     "python": platform.python_version(),
     "platform": platform.platform(),
+    "sqlite": sqlite3.sqlite_version,
     "executable": "<relocatable-private-bundle>/runtime/bin/python3.13",
     "unicode": unicodedata.unidata_version,
     "byteorder": sys.byteorder,
@@ -262,6 +291,8 @@ install -m 0600 "${PYTHON_ARCHIVE}" \
   "${STAGING_DIRECTORY}/sources/${PYTHON_ARCHIVE_NAME}"
 install -m 0600 "${PYTHON_SOURCE}/LICENSE" \
   "${STAGING_DIRECTORY}/licenses/CPython-LICENSE"
+sed -n '29,39p' "${SQLITE_SOURCE}/sqlite3.c" > \
+  "${STAGING_DIRECTORY}/licenses/SQLite-PUBLIC-DOMAIN-NOTICE"
 unzip -p "${DEEPPARSE_WHEEL}" deepparse-0.10.0.dist-info/licenses/LICENSE > \
   "${STAGING_DIRECTORY}/licenses/DeepParse-LICENSE"
 unzip -p "${BPEMB_WHEEL}" bpemb-0.3.6.dist-info/LICENSE > \
@@ -309,12 +340,14 @@ readonly PUBLISHED_PYTHON="${OUTPUT_DIRECTORY}/runtime/bin/python3.13"
 export HF_HOME="${OUTPUT_DIRECTORY}/cache"
 "${PUBLISHED_PYTHON}" - <<'PY'
 import socket
+import sqlite3
 
 def deny_network(*args, **kwargs):
     raise AssertionError("NETWORK_ACCESS_DENIED_DURING_PUBLISHED_SMOKE")
 
 socket.create_connection = deny_network
 socket.socket.connect = deny_network
+assert sqlite3.sqlite_version == "3.46.1", sqlite3.sqlite_version
 from deepparse.parser import AddressParser
 
 parser = AddressParser(

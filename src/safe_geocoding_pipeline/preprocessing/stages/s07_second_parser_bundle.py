@@ -47,6 +47,10 @@ CPYTHON_VERSION = "3.13.15"
 CPYTHON_SOURCE_SHA256 = (
     "c28d9d213c09b5b5ab2c29812950e12f746999e099b82894231be954b26baed9"
 )
+SQLITE_VERSION = "3.46.1"
+SQLITE_SOURCE_SHA256 = (
+    "67d3fe6d268e6eaddcae3727fce58fcc8e9c53869bdd07a0c61e38ddf2965071"
+)
 PYTORCH_VERSION = "2.7.1+cpu"
 
 PARSER_CALL = "deepparse.parser.AddressParser(exact_stage06_candidate_lower)"
@@ -270,6 +274,17 @@ def _scientific_identity(
             "version": CPYTHON_VERSION,
             "source_sha256": CPYTHON_SOURCE_SHA256,
             "configure_arguments": list(build.python_configure_arguments),
+        },
+        "sqlite": {
+            "version": SQLITE_VERSION,
+            "source_sha256": SQLITE_SOURCE_SHA256,
+            "linkage": "STATIC_IN_CPYTHON_SQLITE3_EXTENSION",
+            "configure_arguments": [
+                "--disable-shared",
+                "--enable-static",
+                "CFLAGS=-O2 -fPIC",
+            ],
+            "license": "PUBLIC_DOMAIN",
         },
         "pytorch_version": PYTORCH_VERSION,
         "parser_call": {
