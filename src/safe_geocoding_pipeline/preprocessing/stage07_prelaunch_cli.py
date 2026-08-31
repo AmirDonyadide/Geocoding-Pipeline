@@ -35,6 +35,7 @@ def _submission_parser(
     parser.add_argument("--allow-attached-worktree", action="store_true")
     parser.add_argument("--allow-network", action="store_true")
     parser.add_argument("--require-model-offline-environment", action="store_true")
+    parser.add_argument("--require-compute-smoke-environment", action="store_true")
 
 
 def _bundle_parser(
@@ -72,6 +73,9 @@ def main() -> int:
                     network_allowed=args.allow_network,
                     require_model_offline_environment=(
                         args.require_model_offline_environment
+                    ),
+                    require_compute_smoke_environment=(
+                        args.require_compute_smoke_environment
                     ),
                 )
             )

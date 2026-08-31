@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import NoReturn
 
+from ...execution_policy import ExecutionPolicyError, require_goethe_nhr_slurm
 from .s07_country_eligibility import load_eligibility_manifest
 from .s07_second_parser_bundle import validate_second_parser_bundle
 
@@ -22,6 +23,21 @@ PRELAUNCH_PASS = "STAGE07_PRELAUNCH_GATE_PASS"
 PRELAUNCH_FAIL = "STAGE07_PRELAUNCH_GATE_FAIL"
 _GIT_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+_SMOKE_REQUIRED_ENVIRONMENT = (
+    "SLURM_JOB_ID",
+    "SLURM_JOB_NAME",
+    "STAGE07_SECOND_SMOKE_GIT_COMMIT",
+    "STAGE07_SECOND_SMOKE_INTEGRATION_ROOT",
+    "STAGE07_SECOND_SMOKE_BUNDLE_DIRECTORY",
+    "STAGE07_SECOND_SMOKE_BUNDLE_FINGERPRINT",
+    "STAGE07_SECOND_SMOKE_OUTPUT_DIRECTORY",
+    "STAGE07_SECOND_SMOKE_RUNTIME_ROOT",
+)
+_SMOKE_OFFLINE_EXPORTS = (
+    "export HF_HUB_OFFLINE=1",
+    "export TRANSFORMERS_OFFLINE=1",
+    "export HF_HUB_DISABLE_TELEMETRY=1",
+)
 
 
 class Stage07PrelaunchError(RuntimeError):
@@ -53,6 +69,7 @@ class SubmissionPreflightConfig:
     require_detached: bool = True
     network_allowed: bool = False
     require_model_offline_environment: bool = False
+    require_compute_smoke_environment: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -108,6 +125,78 @@ def _require_owner_only(path: Path, *, directory: bool) -> None:
         _fail("PRELAUNCH_OWNERSHIP_FAILURE", "A controlled owner differs")
 
 
+def _validate_compute_smoke_environment(text: str) -> dict[str, object]:
+    """Validate the real smoke launcher's environment before guarded execution."""
+    guarded_call = text.find(
+        "safe_geocoding_pipeline.preprocessing.stage07_second_parser_bundle_cli "
+        "validate"
+    )
+    smoke_call = text.find(
+        "safe_geocoding_pipeline.preprocessing.stages.s07_second_parser_smoke"
+    )
+    if guarded_call < 0 or smoke_call < 0 or smoke_call <= guarded_call:
+        _fail(
+            "PRELAUNCH_EXECUTION_MARKER_FAILURE",
+            "Guarded smoke call topology differs",
+        )
+
+    missing_guards = []
+    late_guards = []
+    for name in _SMOKE_REQUIRED_ENVIRONMENT:
+        marker = f': "${{{name}:?'
+        position = text.find(marker)
+        if position < 0:
+            missing_guards.append(name)
+        elif position > guarded_call:
+            late_guards.append(name)
+    if missing_guards or late_guards:
+        _fail(
+            "PRELAUNCH_EXECUTION_MARKER_FAILURE",
+            "A required smoke environment guard is absent or late",
+        )
+
+    site_marker = "export SAFE_EXECUTION_SITE=goethe-nhr"
+    site_position = text.find(site_marker)
+    synthetic_environment = {"SLURM_JOB_ID": "PUBLIC_SYNTHETIC_PREFLIGHT"}
+    if site_position >= 0:
+        synthetic_environment["SAFE_EXECUTION_SITE"] = "goethe-nhr"
+    try:
+        require_goethe_nhr_slurm(
+            "stage07-public-compute-smoke-preflight",
+            environment=synthetic_environment,
+        )
+    except ExecutionPolicyError as error:
+        raise Stage07PrelaunchError(
+            "PRELAUNCH_EXECUTION_MARKER_FAILURE",
+            "The real execution guard rejects launcher-derived markers",
+        ) from error
+    if site_position > guarded_call:
+        _fail(
+            "PRELAUNCH_EXECUTION_MARKER_FAILURE",
+            "Execution-site marker is established after guarded execution",
+        )
+
+    late_offline_exports = [
+        value
+        for value in _SMOKE_OFFLINE_EXPORTS
+        if not 0 <= text.find(value) < smoke_call
+    ]
+    if late_offline_exports:
+        _fail(
+            "PRELAUNCH_NETWORK_POLICY_FAILURE",
+            "A required offline model export is absent or late",
+        )
+    return {
+        "execution_site": "goethe-nhr",
+        "slurm_job_id_contract": "NONEMPTY_REQUIRED",
+        "real_execution_guard": "PASS",
+        "required_environment_guards": len(_SMOKE_REQUIRED_ENVIRONMENT),
+        "required_environment_guard_result": "PASS",
+        "offline_exports_before_model_execution": "PASS",
+        "first_guarded_call_marker": "SECOND_PARSER_BUNDLE_VALIDATE",
+    }
+
+
 def _validate_launcher(
     path: Path,
     *,
@@ -116,6 +205,7 @@ def _validate_launcher(
     walltime: str,
     network_allowed: bool,
     require_model_offline_environment: bool,
+    require_compute_smoke_environment: bool,
 ) -> dict[str, object]:
     if path.is_symlink() or not path.is_file():
         _fail("PRELAUNCH_LAUNCHER_INVALID", "Launcher is absent or a symlink")
@@ -151,6 +241,9 @@ def _validate_launcher(
         )
     ):
         _fail("PRELAUNCH_NETWORK_POLICY_FAILURE", "Offline model controls differ")
+    smoke_environment: dict[str, object] | str = "NOT_APPLICABLE"
+    if require_compute_smoke_environment:
+        smoke_environment = _validate_compute_smoke_environment(text)
     return {
         "sha256": __import__("hashlib").sha256(text.encode("utf-8")).hexdigest(),
         "resource_directives": "PASS",
@@ -164,6 +257,7 @@ def _validate_launcher(
         "offline_model_environment": (
             "PASS" if require_model_offline_environment else "NOT_APPLICABLE"
         ),
+        "compute_smoke_environment": smoke_environment,
     }
 
 
@@ -233,6 +327,7 @@ def run_submission_preflight(config: SubmissionPreflightConfig) -> dict[str, obj
         walltime=config.requested_walltime,
         network_allowed=config.network_allowed,
         require_model_offline_environment=config.require_model_offline_environment,
+        require_compute_smoke_environment=config.require_compute_smoke_environment,
     )
     return {
         "version": PRELAUNCH_VERSION,

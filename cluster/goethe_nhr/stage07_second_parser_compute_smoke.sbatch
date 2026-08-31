@@ -21,6 +21,8 @@ umask 077
 : "${STAGE07_SECOND_SMOKE_OUTPUT_DIRECTORY:?new output is required}"
 : "${STAGE07_SECOND_SMOKE_RUNTIME_ROOT:?new runtime root is required}"
 
+export SAFE_EXECUTION_SITE=goethe-nhr
+
 readonly DATA_ROOT="$(realpath -e -- /work/footprint/donyadidegan/safe_geocoding_pipeline)"
 readonly BASE_PYTHON="${DATA_ROOT}/.venv-goethe-nhr/bin/python"
 readonly INTEGRATION_ROOT="$(realpath -e -- "${STAGE07_SECOND_SMOKE_INTEGRATION_ROOT}")"

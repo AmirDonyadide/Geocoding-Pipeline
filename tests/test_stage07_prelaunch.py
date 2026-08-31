@@ -257,6 +257,50 @@ def test_compute_smoke_launcher_is_public_offline_and_small() -> None:
     assert "ulimit -v" not in script
 
 
+def test_compute_smoke_launcher_establishes_real_execution_contract() -> None:
+    launcher = (
+        REPOSITORY / "cluster/goethe_nhr/stage07_second_parser_compute_smoke.sbatch"
+    )
+    result = s07_prelaunch._validate_launcher(
+        launcher,
+        requested_memory_gib=16,
+        requested_cpus=4,
+        walltime="00:30:00",
+        network_allowed=False,
+        require_model_offline_environment=True,
+        require_compute_smoke_environment=True,
+    )
+    environment = result["compute_smoke_environment"]
+    assert isinstance(environment, dict)
+    assert environment["execution_site"] == "goethe-nhr"
+    assert environment["slurm_job_id_contract"] == "NONEMPTY_REQUIRED"
+    assert environment["real_execution_guard"] == "PASS"
+    assert environment["required_environment_guards"] == 8
+
+
+def test_compute_smoke_launcher_missing_site_fails_real_execution_guard(
+    tmp_path: Path,
+) -> None:
+    source = (
+        REPOSITORY / "cluster/goethe_nhr/stage07_second_parser_compute_smoke.sbatch"
+    ).read_text(encoding="utf-8")
+    launcher = tmp_path / "missing-site.sbatch"
+    _private_file(
+        launcher,
+        source.replace("export SAFE_EXECUTION_SITE=goethe-nhr\n", "", 1),
+    )
+    with pytest.raises(Stage07PrelaunchError, match="EXECUTION_MARKER_FAILURE"):
+        s07_prelaunch._validate_launcher(
+            launcher,
+            requested_memory_gib=16,
+            requested_cpus=4,
+            walltime="00:30:00",
+            network_allowed=False,
+            require_model_offline_environment=True,
+            require_compute_smoke_environment=True,
+        )
+
+
 def test_submission_preflight_rejects_network_command_for_offline_job(
     tmp_path: Path,
 ) -> None:
