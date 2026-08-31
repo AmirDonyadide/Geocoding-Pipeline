@@ -588,3 +588,35 @@ immutable libpostal baseline, authoritative registry, original 120 selection,
 and qualitative classifications are not replaced.
 
 See the [public parser-candidate matrix](../../reports/development/stage07_second_parser_candidate_matrix.md).
+
+## Country-aware stabilization and prelaunch audit
+
+The owner subsequently required parser applicability and quality denominators
+to be country-aware. Trusted country is only the accepted occurrence field
+`stage04_lower_country_iso_code`; candidate text, script, parser output,
+geocoding, majority selection, first-value selection, and representation
+priority cannot supply or resolve country.
+
+The exact pinned libpostal documentation claims training over every inhabited
+country and contains no enumerable model-country manifest, so the audit does
+not invent a small whitelist or relabel quality failures as non-applicability.
+The exact DeepParse diagnostic model is restricted to its 20 documented
+training countries; zero-shot evaluation is not training eligibility.
+Missing, partial, invalid, or conflicting country provenance produces explicit
+eligibility abstention/ambiguity for a country-dependent parser.
+
+Coverage over all unique candidates, technical outcome over eligible attempted
+calls, and semantic quality over reviewed eligible candidates are reported as
+different measures. The predeclared usable semantic numerator is
+`PLAUSIBLE_PARSE + PARTIAL_BUT_USABLE_PARSE`. `PARSED_NONEMPTY` alone is never
+reported as semantic correctness.
+
+The implementation/failure audit also freezes a fail-closed prelaunch gate:
+exact clean controlled worktree, path and output topology, import closure,
+runtime completeness, native linkage, bundle/model identity, offline public
+model initialization, deterministic multilingual public smoke, permissions,
+resources, and network/privacy policy must all pass before protected DeepParse
+inference. See the
+[stabilization report](../../reports/development/stage07_stabilization_prelaunch_audit.md).
+The immutable v1 registry and `STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY` status
+remain unchanged.

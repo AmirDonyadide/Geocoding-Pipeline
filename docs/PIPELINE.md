@@ -16,7 +16,9 @@ Stages 0–6 are accepted on DEVELOPMENT. Stage 7's frozen v1 contract completed
 authoritative DEVELOPMENT parsing and machine validation, but the candidate
 remains not ready: qualitative and targeted root-cause evidence found material
 systematic libpostal label/boundary errors across multiple native non-Latin
-strata. No Stage 7 acceptance or Stage 8 handoff is authorized.
+strata. Parser applicability is now being audited from trusted country
+provenance with parser-specific coverage denominators and a mandatory
+prelaunch gate. No Stage 7 acceptance or Stage 8 handoff is authorized.
 Production Stage 0 and Stage 1 are accepted for the 1,411-file population;
 production Stage 2 through Stage 6 have not started. DEVELOPMENT and production
 Stages 8–19 have not started, and production Stage 7 has not started.
@@ -196,10 +198,14 @@ stage consumes an accepted predecessor and must stop at its own review gate.
   but the 120-case qualitative review found 11 clear misparses. Targeted job
   `1760818` confirmed 14/18 investigated cases have genuine libpostal label or
   boundary errors and selected conclusion
-  `MIXED_ROOT_CAUSES_REQUIRING_TARGETED_STAGE07_DESIGN_CHANGE`.
+  `MIXED_ROOT_CAUSES_REQUIRING_TARGETED_STAGE07_DESIGN_CHANGE`. Country-aware
+  stabilization treats libpostal's documented worldwide scope separately from
+  DeepParse's exact 20-country training set, and keeps coverage, technical
+  success, and semantic quality as separate denominators.
 - **Acceptance requirement:** Pinned build/resources, reproducible offline
-  execution, multilingual DEVELOPMENT evaluation, failure preservation, and
-  independent review.
+  execution, trusted pre-parse applicability, multilingual DEVELOPMENT
+  evaluation on eligible populations, failure/abstention preservation,
+  prelaunch gate, and independent review.
 
 ## Stage 8 — Internal component mapping
 

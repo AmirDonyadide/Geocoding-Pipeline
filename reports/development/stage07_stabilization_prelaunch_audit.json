@@ -1,0 +1,74 @@
+{
+  "version": "stage07_stabilization_prelaunch_audit_v1",
+  "engineering_status": "PENDING",
+  "scientific_status": "STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY",
+  "authoritative_stage07_output_changed": false,
+  "stage06_science_changed": false,
+  "trusted_country_field": "stage04_lower_country_iso_code",
+  "eligibility_manifest": {
+    "path": "docs/scientific_assets/stage07_parser_country_eligibility_v1.json",
+    "sha256": "49dcda13e36d2692885efadffb606fa96207fc174a3385041c07af9bf0d1026a"
+  },
+  "parsers": {
+    "LIBPOSTAL": {
+      "bundle_fingerprint": "f3c6db7e9f11ab75b2207be773e946d531dbba763008d9f7e5036d8c923dc2ae",
+      "support_definition": "DOCUMENTED_EVERY_INHABITED_COUNTRY_WORLDWIDE",
+      "enumerable_model_country_manifest_present": false,
+      "eligibility_counts": "PENDING_METADATA_ONLY_AUDIT"
+    },
+    "DEEPPARSE": {
+      "package_version": "0.10.0",
+      "source_commit": "5b17c0bccd6773044f8a61da68a7b8c91c4fd1e8",
+      "model_revision": "4af74dad1d547804dfc2de8f40fb23fbbec5b811",
+      "support_definition": "TRAINED_COUNTRY_ONLY",
+      "trained_country_count": 20,
+      "zero_shot_countries_eligible": false,
+      "eligibility_counts": "PENDING_METADATA_ONLY_AUDIT"
+    }
+  },
+  "metric_denominators": {
+    "coverage": "ELIGIBLE_UNIQUE_CANDIDATES_DIVIDED_BY_51779",
+    "technical_success": "TECHNICAL_OUTCOMES_AMONG_ELIGIBLE_ATTEMPTED_CANDIDATES",
+    "semantic_quality": "QUALITATIVE_CLASSIFICATIONS_AMONG_REVIEWED_ELIGIBLE_CANDIDATES",
+    "usable": "PLAUSIBLE_PARSE_PLUS_PARTIAL_BUT_USABLE_PARSE"
+  },
+  "failure_ledger": {
+    "path": "reports/development/stage07_failure_ledger.json",
+    "current_job": "1762078",
+    "current_job_status": "NOT_YET_INSPECTED_DURING_STABILIZATION_AUDIT"
+  },
+  "prelaunch": {
+    "methodology_consistency": "PASS",
+    "country_eligibility_frozen": "PASS",
+    "clean_exact_git_sha": "PENDING_FINAL_SHA",
+    "path_policy": "IMPLEMENTED_EVIDENCE_PENDING",
+    "local_safe_tests": "PENDING_FINAL_GATES",
+    "dependency_import_closure": "IMPLEMENTED_BUNDLE_EVIDENCE_PENDING",
+    "binary_linkage": "IMPLEMENTED_COMPUTE_EVIDENCE_PENDING",
+    "python_runtime_completeness": "IMPLEMENTED_BUNDLE_EVIDENCE_PENDING",
+    "bundle_model_hashes": "PENDING_JOB_1762078",
+    "offline_synthetic_initialization": "PENDING_COMPUTE_SMOKE",
+    "public_multilingual_smoke": "PENDING_COMPUTE_SMOKE",
+    "permissions": "IMPLEMENTED_ARTIFACT_EVIDENCE_PENDING",
+    "disk_resource_preflight": "IMPLEMENTED_GOETHE_EVIDENCE_PENDING",
+    "no_protected_data_in_public_tests": "PASS",
+    "no_holdout": "PASS",
+    "no_production": "PASS",
+    "no_network_in_protected_execution": "IMPLEMENTED_RUNTIME_EVIDENCE_PENDING"
+  },
+  "compute_smoke": {
+    "scope": "PUBLIC_SYNTHETIC_ONLY",
+    "cpus": 4,
+    "memory_gib": 16,
+    "walltime": "00:30:00",
+    "protected_inputs_opened": false,
+    "status": "NOT_SUBMITTED"
+  },
+  "privacy": {
+    "holdout_accessed": false,
+    "production_accessed": false,
+    "stage8_started": false,
+    "independent_review_started": false,
+    "geocoding_started": false
+  }
+}

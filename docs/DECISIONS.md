@@ -410,11 +410,40 @@ to change a decision or start a stage.
   No Stage 7 redesign, independent review, Stage 8, HOLDOUT, production,
   geocoding, or merge is authorized.
 
+### D029 — Make parser applicability country-aware and require a prelaunch gate
+
+- **Date:** 2026-08-31.
+- **Scope:** Stage 7 DEVELOPMENT stabilization and non-authoritative parser
+  diagnostics only.
+- **Decision:** Decide parser country eligibility before parsing from accepted
+  `stage04_lower_country_iso_code` occurrence provenance. Never infer, vote,
+  or select a country. Missing, partial, invalid, or conflicting provenance
+  requires explicit abstention/ambiguity for a country-dependent parser.
+  Bind the exact pinned libpostal bundle to its documented worldwide
+  inhabited-country training scope without inventing a small quality-derived
+  whitelist. Bind the exact DeepParse BPEmb-attention model conservatively to
+  its 20 documented training countries; its 41 zero-shot evaluation countries
+  are not eligible. Separate coverage, technical success, and reviewed
+  semantic quality at source-row, occurrence, candidate, and review levels.
+- **Engineering decision:** No new expensive or protected parser job may launch
+  until a single fail-closed prelaunch gate verifies exact Git/path identity,
+  country policy, complete runtime imports, native linkage, bundle/model hashes,
+  offline public model initialization, compute-node smoke, permissions,
+  resources, and network/privacy policy. Current public-only bundle job
+  `1762078` is not cancelled or repeatedly polled and receives one status
+  inspection only after the local audit.
+- **Status:** OWNER-APPROVED STABILIZATION DESIGN. Eligibility counts, current
+  bundle outcome, compute smoke, and final prelaunch status remain pending. The
+  authoritative Stage 7 registry is unchanged and the scientific verdict
+  remains `STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY`. No independent review,
+  Stage 8, HOLDOUT, production, geocoding, or merge is authorized.
+
 ## Open decisions
 
 These questions require future stage designs and explicit approval:
 
-- the Stage 7 design decision after the D028 second-parser diagnostic;
+- the Stage 7 design decision after the D028/D029 eligibility-matched
+  second-parser diagnostic;
 - country-specific Stage 11 coverage and syntax policy;
 - reference versions/licenses and blocking semantics for Stages 13–15;
 - exact high-precision correction policy for Stage 16;
@@ -425,4 +454,4 @@ These questions require future stage designs and explicit approval:
 
 Nothing in this register authorizes HOLDOUT, Stage 7 acceptance or independent
 review, Stage 8, geocoding, or production Stage 2 through Stage 7. Stage 7
-decisions D023–D028 authorize only their stated DEVELOPMENT scopes.
+decisions D023–D029 authorize only their stated DEVELOPMENT scopes.

@@ -152,6 +152,10 @@ def _binding(tmp_path: Path) -> tuple[Path, str, object]:
 def _patch_protected_dependencies(
     monkeypatch: pytest.MonkeyPatch, stage06_root: Path, binding: object
 ) -> None:
+    # These synthetic materialization tests exercise Stage 7 logic, not the
+    # separately tested exact Goethe runtime binding. The developer venv may
+    # move to a later CPython patch release without weakening production.
+    monkeypatch.setattr(s07_parsing, "_validate_runtime", lambda: None)
     monkeypatch.setattr(s07_parsing, "SupervisedParser", _FakeSupervisor)
     monkeypatch.setattr(s07_parsing, "_validate_bundle_identity", lambda *args: None)
     monkeypatch.setattr(

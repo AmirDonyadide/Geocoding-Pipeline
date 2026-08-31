@@ -54,6 +54,14 @@ readonly PYTHON_CONFIGURE_ARGUMENTS=(
   "--with-ensurepip=install"
 )
 
+for required_command in \
+  curl gcc make tar sha256sum unzip ldd readelf; do
+  command -v "${required_command}" >/dev/null || {
+    echo "STAGE07_SECOND_PARSER_BUILD_TOOL_MISSING" >&2
+    exit 1
+  }
+done
+
 chmod 0600 "${JOB_STDOUT}" "${JOB_STDERR}"
 [[ "$(stat -c %a "${JOB_STDOUT}")" == "600" ]]
 [[ "$(stat -c %a "${JOB_STDERR}")" == "600" ]]
@@ -93,6 +101,12 @@ readonly SQLITE_SOURCE="${BUILD_ROOT}/sqlite-autoconf-3460100"
 readonly SQLITE_PREFIX="${BUILD_ROOT}/sqlite-prefix"
 install -d -m 0700 "${PIP_CACHE}" "${PUBLIC_DOWNLOADS}" "${CACHE_ROOT}"
 
+export PYTHONDONTWRITEBYTECODE=1
+export PYTHONUTF8=1
+export PYTHONHASHSEED=0
+export LANG=C.UTF-8
+export LC_ALL=C.UTF-8
+
 curl --fail --location --retry 3 --output "${PYTHON_ARCHIVE}" "${PYTHON_URL}"
 printf '%s  %s\n' "${PYTHON_SHA256}" "${PYTHON_ARCHIVE}" | sha256sum --check --strict -
 curl --fail --location --retry 3 --output "${SQLITE_ARCHIVE}" "${SQLITE_URL}"
@@ -121,19 +135,26 @@ make install
 readonly SECOND_PYTHON="${PYTHON_PREFIX}/bin/python3.13"
 [[ -x "${SECOND_PYTHON}" ]]
 "${SECOND_PYTHON}" - <<'PY'
+import _hashlib
+import _ssl
+import bz2
+import ctypes
+import lzma
+import multiprocessing
 import sqlite3
+import zlib
 
 assert sqlite3.sqlite_version == "3.46.1", sqlite3.sqlite_version
 PY
-"${SECOND_PYTHON}" -m pip install --quiet \
+"${SECOND_PYTHON}" -m pip install --quiet --no-compile \
   pip==26.2.1 setuptools==80.9.0 wheel==0.45.1
 
 export PIP_CACHE_DIR="${PIP_CACHE}"
-"${SECOND_PYTHON}" -m pip install --quiet \
+"${SECOND_PYTHON}" -m pip install --quiet --no-compile \
   --report "${PUBLIC_DOWNLOADS}/pip-torch-install-report.json" \
   --index-url https://download.pytorch.org/whl/cpu \
   "torch==${PYTORCH_VERSION}"
-"${SECOND_PYTHON}" -m pip install --quiet \
+"${SECOND_PYTHON}" -m pip install --quiet --no-compile \
   --report "${PUBLIC_DOWNLOADS}/pip-deepparse-install-report.json" \
   "deepparse==${DEEPPARSE_VERSION}" "bpemb==${BPEMB_VERSION}"
 "${SECOND_PYTHON}" -m pip check
@@ -197,20 +218,33 @@ export HF_HUB_OFFLINE=1
 export TRANSFORMERS_OFFLINE=1
 export HF_HUB_DISABLE_TELEMETRY=1
 export DO_NOT_TRACK=1
-export PYTHONDONTWRITEBYTECODE=1
-export PYTHONUTF8=1
-export PYTHONHASHSEED=0
 export OMP_NUM_THREADS=1
 export MKL_NUM_THREADS=1
 export OPENBLAS_NUM_THREADS=1
-export LANG=C.UTF-8
-export LC_ALL=C.UTF-8
 "${SECOND_PYTHON}" - <<'PY'
 import random
 import socket
 
 import numpy
 import torch
+
+for required_module in (
+    "bpemb",
+    "cloudpathlib",
+    "deepparse",
+    "gensim",
+    "huggingface_hub",
+    "pandas",
+    "poutyne",
+    "pymagnitudelight",
+    "requests",
+    "scipy",
+    "sentencepiece",
+    "tqdm",
+    "transformers",
+    "urllib3",
+):
+    __import__(required_module)
 
 network_attempts = 0
 
@@ -279,6 +313,10 @@ PY
 readonly OUTPUT_PARENT="$(dirname "${OUTPUT_DIRECTORY}")"
 readonly OUTPUT_NAME="$(basename "${OUTPUT_DIRECTORY}")"
 readonly STAGING_DIRECTORY="${OUTPUT_PARENT}/.${OUTPUT_NAME}.${SLURM_JOB_ID}.in_progress"
+[[ ! -e "${STAGING_DIRECTORY}" ]]
+
+find "${PYTHON_PREFIX}" -type f \( -name '*.pyc' -o -name '*.pyo' \) -delete
+find "${PYTHON_PREFIX}" -depth -type d -name __pycache__ -empty -delete
 install -d -m 0700 "${OUTPUT_PARENT}" "${STAGING_DIRECTORY}"
 install -d -m 0700 \
   "${STAGING_DIRECTORY}/runtime" \
@@ -307,6 +345,11 @@ cp "${PUBLIC_DOWNLOADS}/runtime-identity.json" \
 
 if find "${STAGING_DIRECTORY}" -type l -print -quit | grep -q .; then
   echo "STAGE07_SECOND_PARSER_BUNDLE_SYMLINK_PROHIBITED" >&2
+  exit 1
+fi
+if find "${STAGING_DIRECTORY}" \( -name __pycache__ -o -name '*.pyc' -o -name '*.pyo' \) \
+  -print -quit | grep -q .; then
+  echo "STAGE07_SECOND_PARSER_BYTECODE_CACHE_PROHIBITED" >&2
   exit 1
 fi
 find "${STAGING_DIRECTORY}" -type d -exec chmod 0700 {} +

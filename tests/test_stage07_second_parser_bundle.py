@@ -164,3 +164,10 @@ def test_second_parser_launcher_pins_required_sqlite_runtime() -> None:
     assert "--disable-shared" in launcher
     assert 'LIBSQLITE3_LIBS="-L${SQLITE_PREFIX}/lib -lsqlite3 -lm -lz"' in launcher
     assert 'assert sqlite3.sqlite_version == "3.46.1"' in launcher
+    assert "--no-compile" in launcher
+    assert "STAGE07_SECOND_PARSER_BUILD_TOOL_MISSING" in launcher
+    assert "STAGE07_SECOND_PARSER_BYTECODE_CACHE_PROHIBITED" in launcher
+    assert '"pymagnitudelight"' in launcher
+    assert '"sentencepiece"' in launcher
+    assert "readelf" in launcher
+    assert "ldd" in launcher

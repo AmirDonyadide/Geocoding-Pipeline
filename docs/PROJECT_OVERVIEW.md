@@ -51,7 +51,9 @@ DEVELOPMENT. Stage 7's first controlled design diagnostic correctly returned
 not ready. Its revised supervisor diagnostic then proved the prior four giant
 crashes were resource-cap dependent, and its later authoritative DEVELOPMENT
 run passed machine integrity. Stage 7 remains unaccepted because qualitative
-and targeted root-cause evidence found material systematic parsing errors.
+and targeted root-cause evidence found material systematic parsing errors. A
+country-aware parser-applicability and fail-closed prelaunch stabilization
+audit is now in progress; it does not alter the immutable v1 output.
 Stages 8–19 have not started. See
 [PIPELINE.md](PIPELINE.md).
 
@@ -95,7 +97,9 @@ evidence aggregation, policy, fail-closed validation, and verified gaps.
 
 Accepted stages currently use Python's `csv` and `hashlib`, PyArrow/Parquet,
 DuckDB, `unicodedata`, `ftfy`, regular-expression/Arrow operations, and SAFE
-contracts. Planned libraries include libpostal/pypostal, pycountry,
+contracts. Current Stage 7 DEVELOPMENT evidence uses pinned
+libpostal/pypostal and is evaluating one pinned DeepParse model only as a
+country-eligible diagnostic. Other planned libraries include pycountry,
 google-i18n-address, direct pinned GeoNames postal data, local Overture Maps
 Addresses GeoParquet, RapidFuzz, Polars, and optional OSM evidence. A planned
 library is not an implemented dependency; every new stage requires design and

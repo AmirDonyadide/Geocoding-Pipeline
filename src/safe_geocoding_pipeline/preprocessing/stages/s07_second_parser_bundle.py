@@ -311,6 +311,11 @@ def _scientific_identity(
             "torch_interop_threads": 1,
         },
         "network_policy": "ALL_PUBLIC_ASSETS_PRELOADED; PROTECTED_INFERENCE_NETWORK_DENIED",
+        "python_runtime_completeness_gate": (
+            "STDLIB_NATIVE_EXTENSIONS_PLUS_SELECTED_MODEL_IMPORT_CLOSURE"
+        ),
+        "python_bytecode_cache_policy": "EXCLUDED_FROM_PUBLISHED_BUNDLE",
+        "binary_linkage_policy": "FULL_ELF_LDD_READELF_GATE_IN_COMPUTE_SMOKE",
         "build": {
             "execution_git_sha": build.execution_git_sha,
             "compiler_identity": build.compiler_identity,
