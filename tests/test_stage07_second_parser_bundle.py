@@ -171,3 +171,7 @@ def test_second_parser_launcher_pins_required_sqlite_runtime() -> None:
     assert '"sentencepiece"' in launcher
     assert "readelf" in launcher
     assert "ldd" in launcher
+    assert "printf '%s' \"${MODEL_REVISION}\" > \"${HF_REFS}/main\"" in launcher
+    assert '"$(wc -c < "${HF_REFS}/main")" -eq 40' in launcher
+    assert "public_huggingface_cache_binding=PASS" in launcher
+    assert 'revision="main"' in launcher

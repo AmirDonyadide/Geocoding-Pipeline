@@ -175,7 +175,9 @@ curl --fail --location --retry 3 --output "${HF_SNAPSHOT}/config.json" "${MODEL_
 curl --fail --location --retry 3 --output "${HF_SNAPSHOT}/model.safetensors" "${MODEL_WEIGHTS_URL}"
 printf '%s  %s\n' "${MODEL_CONFIG_SHA256}" "${HF_SNAPSHOT}/config.json" | sha256sum --check --strict -
 printf '%s  %s\n' "${MODEL_WEIGHTS_SHA256}" "${HF_SNAPSHOT}/model.safetensors" | sha256sum --check --strict -
-printf '%s\n' "${MODEL_REVISION}" > "${HF_REFS}/main"
+printf '%s' "${MODEL_REVISION}" > "${HF_REFS}/main"
+[[ "$(wc -c < "${HF_REFS}/main")" -eq 40 ]]
+[[ "$(< "${HF_REFS}/main")" == "${MODEL_REVISION}" ]]
 
 curl --fail --location --retry 3 --output \
   "${BPEMB_CACHE}/multi.wiki.bpe.vs100000.model" "${BPEMB_MODEL_URL}"
@@ -221,6 +223,21 @@ export DO_NOT_TRACK=1
 export OMP_NUM_THREADS=1
 export MKL_NUM_THREADS=1
 export OPENBLAS_NUM_THREADS=1
+"${SECOND_PYTHON}" - <<'PY'
+import os
+
+from huggingface_hub import try_to_load_from_cache
+
+for filename in ("config.json", "model.safetensors"):
+    resolved = try_to_load_from_cache(
+        "deepparse/bpemb-attention",
+        filename,
+        cache_dir=os.environ["HF_HOME"],
+        revision="main",
+    )
+    assert isinstance(resolved, str), filename
+print("public_huggingface_cache_binding=PASS")
+PY
 "${SECOND_PYTHON}" - <<'PY'
 import random
 import socket

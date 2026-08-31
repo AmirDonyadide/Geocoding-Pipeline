@@ -51,9 +51,11 @@ DEVELOPMENT. Stage 7's first controlled design diagnostic correctly returned
 not ready. Its revised supervisor diagnostic then proved the prior four giant
 crashes were resource-cap dependent, and its later authoritative DEVELOPMENT
 run passed machine integrity. Stage 7 remains unaccepted because qualitative
-and targeted root-cause evidence found material systematic parsing errors. A
-country-aware parser-applicability and fail-closed prelaunch stabilization
-audit is now in progress; it does not alter the immutable v1 output.
+and targeted root-cause evidence found material systematic parsing errors. The
+country-aware applicability audit now has reconciled DEVELOPMENT denominators,
+but the fail-closed DeepParse prelaunch gate remains blocked by an unvalidated
+public-bundle correction and compute smoke; none of this alters the immutable
+v1 output.
 Stages 8–19 have not started. See
 [PIPELINE.md](PIPELINE.md).
 

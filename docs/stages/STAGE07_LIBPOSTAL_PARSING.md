@@ -623,7 +623,28 @@ remain unchanged.
 
 The first stabilization checkpoint returned `STAGE07_PRELAUNCH_GATE_FAIL`:
 public bundle job `1762078` and metadata-only eligibility job `1762293` were
-both pending and unstarted at their planned inspection, so bundle validation,
-exact eligibility denominators, and the required public compute smoke remained
-unavailable. Neither job was cancelled, repeatedly polled, or duplicated, and
-no protected DeepParse inference began.
+both pending and unstarted, so bundle validation, exact eligibility
+denominators, and the public compute smoke were unavailable. Neither job was
+cancelled or duplicated.
+
+The existing jobs later resolved. Metadata-only job `1762293` completed and
+independent reopen checks reconciled all 51,779 candidates, 69,747 occurrences,
+and 120 immutable review selections without candidate-text/component reads or
+parser calls. Libpostal is eligible for 50,685 unanimous-valid candidates
+(68,019 occurrences); DeepParse's trained-country set is eligible for 10,265
+candidates (16,358 occurrences). The overlapping eligible population is
+10,265 candidates. Of the immutable 120 cases, 114 are libpostal-eligible and
+20 are DeepParse-trained-country-eligible; the latter contain three original
+clear libpostal misparses, no original questionable cases, and 16 original
+plausible/partial controls.
+
+Public-only bundle job `1762078` failed pre-scientifically after its private
+runtime and pinned downloads succeeded: its Hugging Face `refs/main` cache
+entry contained the correct 40-hex revision plus a terminating newline, so
+offline `main` resolution could not locate the present checkpoint. Protected
+processing did not begin. The prepared minimum correction writes and verifies
+the exact 40-byte revision and checks offline resolver binding before model
+initialization. It is locally tested but not SLURM-validated. No replacement
+build, compute smoke, or protected DeepParse inference was submitted, so
+`STAGE07_PRELAUNCH_GATE_FAIL` and
+`STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY` remain controlling.

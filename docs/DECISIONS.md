@@ -432,14 +432,21 @@ to change a decision or start a stage.
   resources, and network/privacy policy. Current public-only bundle job
   `1762078` is not cancelled or repeatedly polled and receives one status
   inspection only after the local audit.
-- **Status:** OWNER-APPROVED STABILIZATION DESIGN. At the single planned status
-  inspection, public bundle job `1762078` and metadata-only eligibility job
-  `1762293` were both still pending and had not started. The engineering result
-  is therefore `STAGE07_PRELAUNCH_GATE_FAIL` until both immutable outcomes and
-  the later public compute smoke pass. No duplicate job is justified. The
-  authoritative Stage 7 registry is unchanged and the scientific verdict
-  remains `STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY`. No independent review,
-  Stage 8, HOLDOUT, production, geocoding, or merge is authorized.
+- **Status:** OWNER-APPROVED STABILIZATION DESIGN. At the initial checkpoint,
+  public bundle job `1762078` and metadata-only eligibility job `1762293` were
+  both pending and had not started, so `STAGE07_PRELAUNCH_GATE_FAIL` correctly
+  controlled. The existing jobs were later inspected without duplication:
+  `1762293` completed and its 51,779-candidate/69,747-occurrence/120-selection
+  aggregates independently reconcile; `1762078` failed pre-scientifically
+  because its otherwise complete offline model cache wrote the exact revision
+  plus a newline to Hugging Face `refs/main`. The minimal correction writes and
+  verifies the exact 40-byte revision and verifies offline `main` resolution
+  before model initialization. It is locally tested but not SLURM-validated;
+  no replacement build or compute smoke was submitted. The engineering result
+  therefore remains `STAGE07_PRELAUNCH_GATE_FAIL`. The authoritative Stage 7
+  registry is unchanged and the scientific verdict remains
+  `STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY`. No independent review, Stage 8,
+  HOLDOUT, production, geocoding, or merge is authorized.
 
 ## Open decisions
 

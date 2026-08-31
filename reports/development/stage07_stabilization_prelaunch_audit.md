@@ -86,21 +86,72 @@ Coverage, technical success, and semantic quality are separate:
 
 The predeclared usable category is
 `PLAUSIBLE_PARSE + PARTIAL_BUT_USABLE_PARSE`. `PARSED_NONEMPTY` is not semantic
-correctness. Counts will be reported at source-row, occurrence, unique-candidate
+correctness. Counts are reported at source-row, occurrence, unique-candidate
 (primary parser-call), and immutable 120-case review levels. The pairwise view
-will additionally use only candidates eligible for both parsers.
+uses only candidates eligible for both parsers.
 
-Exact protected metadata-only counts remain pending in existing job `1762293`,
-submitted once at
-`aa15b1c4c078be8f2db50c9940347975f9e282a7`. At the planned inspection it was
-still pending with zero elapsed compute time. No parser call is needed to
-compute the counts, and no duplicate job was submitted.
+Metadata-only job `1762293`, run once at
+`aa15b1c4c078be8f2db50c9940347975f9e282a7`, completed in 11 seconds with no
+candidate-text or component read, parser call, or network call. Independent
+reopen validation rehashed all three artifacts, reconciled 51,779 candidate
+rows, 69,747 occurrences, and 120 immutable selection rows, and confirmed
+`0700`/`0600` modes. Its manifest SHA-256 is
+`8395b0b5f8e0943dc6dd1a9c9553ea571294fc7bbe61fc9b9b1e6e8fd1cea1a6`; the
+aggregate SHA-256 is
+`a619974ba50da78a174b9344a1248a91340f5a83864296a5add6dae1e4bfb947`.
+
+### Country provenance over unique candidates
+
+| Provenance result | Candidates |
+|---|---:|
+| Unanimous valid | 50,685 |
+| Missing | 721 |
+| Partial | 4 |
+| Invalid | 355 |
+| Conflicting | 14 |
+| **Total** | **51,779** |
+
+The 1,094 non-unanimous/invalid candidate IDs are unresolved for a
+country-dependent parse-once call. No majority, first value, or representation
+priority was used.
+
+### Parser-specific coverage
+
+| Population | libpostal eligible | DeepParse trained-country eligible | DeepParse not applicable | Country unresolved |
+|---|---:|---:|---:|---:|
+| Unique candidates | 50,685 | 10,265 | 40,420 | 1,094 |
+| Occurrences | 68,019 | 16,358 | 51,661 | 1,728 |
+
+Candidate coverage is 97.887% for the documented libpostal scope and 19.825%
+for the conservative DeepParse trained-country scope. The overlap contains
+10,265 candidates and 16,358 occurrences. Because DeepParse's eligible set is
+a subset of the broad libpostal scope, the remaining resolved population is
+40,420 libpostal-only candidates; there are no DeepParse-only candidates.
+
+At source-row level, 34,124 of 35,000 rows have at least one libpostal-eligible
+representation and 876 have only unresolved country context. For DeepParse,
+8,203 rows have at least one trained-country-eligible representation, 25,918
+have no eligible representation, and 879 have only unresolved context.
+
+Among libpostal-eligible candidates, the immutable authoritative output has
+50,681 `PARSED_NONEMPTY`, four `PARSED_EMPTY`, and zero technical failures.
+These are technical outcomes, not semantic accuracy. The immutable review has
+114 libpostal-eligible candidates: 29 plausible, 41 partial-but-usable, seven
+questionable, 11 clear misparses, and 26 upstream-corrupt/unassessable. The
+predeclared usable count is therefore 70/114 (61.404%).
+
+The immutable review contains only 20 DeepParse-trained-country-eligible
+candidates: eight originally plausible libpostal parses, eight originally
+partial-but-usable, three original clear misparses, and one upstream-corrupt/
+unassessable case. None of the seven original questionable cases is eligible.
+These are baseline libpostal categories, not DeepParse semantic-quality
+results; DeepParse has not run.
 
 ## Failure-history ledger
 
 The machine-readable chronological ledger is
-[`stage07_failure_ledger.json`](stage07_failure_ledger.json). Before the one-time
-inspection of current job 1762078, known root categories are:
+[`stage07_failure_ledger.json`](stage07_failure_ledger.json). After the two
+existing jobs resolved, known root categories are:
 
 | Root category | Count | Controlling lesson |
 |---|---:|---|
@@ -109,7 +160,7 @@ inspection of current job 1762078, known root categories are:
 | `MULTIPROCESS_LAUNCHER_FAILURE` | 1 | Exercise the real spawn entry point before protected work. |
 | `RESOURCE_CEILING_FAILURE` | 1 | Do not impose the invalid 48 GiB process ceiling. |
 | `BUNDLE_CONTAMINATION_FAILURE` | 1 | Reject cache/bytecode contamination and bind the runtime exactly. |
-| `MISSING_RUNTIME_DEPENDENCY` | 4 | Validate the selected model's complete import closure. |
+| `MISSING_RUNTIME_DEPENDENCY` | 5 | Validate stdlib/import closure and exact offline model-cache resolution. |
 | `STATIC_LINK_DEPENDENCY_FAILURE` | 1 | Audit native transitive linkage, not only direct libraries. |
 | `PARSER_SCIENTIFIC_FAILURE` | 2 | Machine success does not override parser-quality evidence. |
 | `OTHER` | 2 | Preserve and diagnose every attempt rather than erase it. |
@@ -117,11 +168,19 @@ inspection of current job 1762078, known root categories are:
 The original 48 GiB diagnostic, its four giant crashes, the later 180 GiB
 23/23 giant success, authoritative job 1760221, validation job 1760226,
 fixed-500/review job 1760494, quality job 1760818, and context job 1761212 all
-remain immutable. Current public-only DeepParse bundle job 1762078 remains
-untouched until the audit's single planned inspection. That inspection found
-job 1762078 still pending, with submission time `2026-08-31T11:25:13`, no start
-time, and zero elapsed compute time. It was not cancelled, polled again, or
-duplicated.
+remain immutable. Public-only DeepParse bundle job `1762078` also remains
+immutable. It started at `2026-08-31T18:13:55` and failed pre-scientifically
+after 8 minutes 35 seconds with exit `1:0`; protected processing never began.
+Its batch maximum RSS was 723,276 KiB and maximum virtual size was 3,298,508
+KiB, excluding resource exhaustion as the observed cause.
+
+The private CPython runtime—including `_sqlite3`—built, dependencies installed,
+and every pinned model/tokenizer/embedding download passed its SHA-256 check.
+The failure occurred when offline DeepParse initialization asked Hugging Face
+to resolve `main`: the staged `refs/main` file contained the correct 40-hex
+revision plus a newline (41 bytes). Exact-revision cache lookup succeeds, while
+`main` lookup fails. This is a pre-scientific offline-cache binding defect, not
+a parser-quality, model-asset, or resource failure.
 
 ## Methodology audit
 
@@ -174,14 +233,24 @@ in-scope clear misparses.
   excludes path/build-time Python bytecode caches;
 - future build publication rejects `__pycache__`, `.pyc`, and `.pyo` artifacts.
 
+### Prepared correction from job 1762078
+
+The minimum correction writes the exact revision as 40 bytes without a
+terminating newline, checks both byte length and value, and requires
+`huggingface_hub.try_to_load_from_cache(..., revision="main")` to resolve both
+the config and weights before model initialization. Focused synthetic tests and
+shell syntax pass locally, and a public metadata-only resolver check against a
+temporary cache view resolved both preserved checkpoint files with the exact
+40-byte reference. The correction has not been validated by SLURM, and no
+replacement job has been submitted.
+
 ### Remaining until executed evidence exists
 
-- outcome and immutable bundle identity from job 1762078;
+- a successful corrected public build and immutable bundle identity;
 - validation of that bundle against its manifest and complete runtime closure;
 - exact compute-image native linkage evidence;
 - offline public multilingual model-initialization smoke on a Goethe compute
   node;
-- protected metadata-only country denominator counts;
 - complete transitive license/notice audit for the resulting installed
   distribution set;
 - a final all-checks prelaunch record at one exact pushed SHA.
@@ -195,17 +264,19 @@ item passes.
 |---|---|
 | Methodology consistency | PASS |
 | Country eligibility definition frozen | PASS |
-| Exact clean pushed/detached execution SHA | PASS — `aa15b1c4c078be8f2db50c9940347975f9e282a7` |
-| Controlled worktree/path policy | PASS for eligibility audit submission |
+| Exact clean pushed/detached execution SHA | PASS for eligibility job `1762293` at `aa15b1c4c078be8f2db50c9940347975f9e282a7` |
+| Controlled worktree/path policy | PASS for completed eligibility audit |
 | Local-safe tests/static/syntax | PASS |
-| Dependency/import closure | IMPLEMENTED; BUNDLE EVIDENCE PENDING |
-| Binary linkage | IMPLEMENTED; COMPUTE EVIDENCE PENDING |
-| Python runtime completeness | IMPLEMENTED; BUNDLE EVIDENCE PENDING |
-| Bundle/model hashes | PENDING JOB 1762078 |
-| Offline synthetic initialization | PENDING COMPUTE SMOKE |
-| Public multilingual smoke | PENDING COMPUTE SMOKE |
-| Permissions | PASS for inputs/worktree; bundle artifact pending |
-| Disk/inode/resource preflight | PASS for eligibility audit submission |
+| Eligibility denominators | PASS — job `1762293`, independently reopened |
+| Dependency/import closure | IMPLEMENTED; no published bundle evidence |
+| Binary linkage | IMPLEMENTED; compute evidence unavailable |
+| Python runtime completeness | Built in failed job; no published bundle |
+| Bundle/model hashes | Source assets passed; no published bundle |
+| Offline cache binding | CORRECTION PREPARED; not SLURM-validated |
+| Offline synthetic initialization | FAILED before initialization in job `1762078` |
+| Public multilingual smoke | NOT RUN; no valid bundle |
+| Permissions | PASS for eligibility artifact; bundle not published |
+| Disk/inode/resource preflight | PASS for completed eligibility audit |
 | No protected data in public tests | PASS BY DESIGN/STATIC REVIEW |
 | No HOLDOUT / production | PASS |
 | No network during protected execution | IMPLEMENTED; RUNTIME EVIDENCE PENDING |
@@ -220,8 +291,9 @@ training countries twice, checks exact structured determinism, exercises
 `multiprocessing` spawn, audits every material dynamic ELF dependency, writes
 and reopens owner-only JSON evidence, and exits. It reads no protected input.
 
-The smoke will not be submitted while job 1762078 is pending/running. A larger
-or protected DeepParse diagnostic remains prohibited until this smoke passes.
+The smoke cannot be submitted because job 1762078 did not publish a valid
+bundle. A larger or protected DeepParse diagnostic remains prohibited until a
+corrected bundle exists and this smoke passes.
 
 ## Final design questions
 
@@ -258,12 +330,12 @@ or protected DeepParse diagnostic remains prohibited until this smoke passes.
 
 ## Current job handling
 
-- Public bundle job `1762078`: pending; 8 CPUs, 24 GiB, 6-hour limit; submitted
-  `2026-08-31T11:25:13`; not started at the single planned inspection.
-- Metadata-only eligibility job `1762293`: pending; 4 CPUs, 16 GiB, 2-hour
-  limit; submitted `2026-08-31T14:33:12`; not started at inspection.
-- Public compute smoke: not submitted, because the bundle does not yet exist
-  and policy prohibits a second job while 1762078 is pending/running.
+- Public bundle job `1762078`: failed pre-scientifically after 8 minutes 35
+  seconds because the offline cache reference had a trailing newline. No bundle
+  was published and no protected candidate processing began.
+- Metadata-only eligibility job `1762293`: completed in 11 seconds; its exact
+  aggregate, row counts, artifact hashes, and permissions independently pass.
+- Public compute smoke: not submitted because no valid bundle exists.
 - Protected DeepParse inference: not submitted or started.
 
 ## Current engineering decision
@@ -271,16 +343,15 @@ or protected DeepParse diagnostic remains prohibited until this smoke passes.
 `STAGE07_PRELAUNCH_GATE_FAIL` is controlling. Remaining blockers are exact and
 non-speculative:
 
-1. job 1762078 must complete successfully and its immutable bundle must pass
-   manifest, permissions, import-closure, stable-identity, and license/notices
-   validation;
-2. job 1762293 must complete successfully so candidate, occurrence, source-row,
-   overlap, and immutable-review eligibility denominators can be reconciled;
-3. after bundle validation, the one public-only compute-node smoke must pass
+1. one corrected public-only build must complete successfully and its immutable
+   bundle must pass manifest, permissions, import-closure, stable-identity, and
+   license/notices validation;
+2. after bundle validation, the one public-only compute-node smoke must pass
    offline initialization, multilingual public synthetic determinism,
    multiprocessing spawn, and full native linkage;
-4. a final exact-SHA prelaunch record must show all checks pass together.
+3. a final exact-SHA prelaunch record must show all checks pass together.
 
-No additional expensive or protected job is currently justified. Wait for the
-two existing jobs and reuse their immutable outcomes. Scientific status remains
-`STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY`.
+Exactly one corrected replacement **public bundle build** is technically
+justified by the isolated defect, but this report intentionally proposes the
+correction before submission. No protected job is justified. Scientific status
+remains `STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY`.
