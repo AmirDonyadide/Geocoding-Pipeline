@@ -112,6 +112,8 @@ cd "${PYTHON_SOURCE}"
 PKG_CONFIG_PATH="${SQLITE_PREFIX}/lib/pkgconfig" \
 CPPFLAGS="-I${SQLITE_PREFIX}/include" \
 LDFLAGS="-L${SQLITE_PREFIX}/lib" \
+LIBSQLITE3_CFLAGS="-I${SQLITE_PREFIX}/include" \
+LIBSQLITE3_LIBS="-L${SQLITE_PREFIX}/lib -lsqlite3 -lm -lz" \
   ./configure --prefix="${PYTHON_PREFIX}" --with-ensurepip=install
 make -j "${SLURM_CPUS_PER_TASK}"
 make install

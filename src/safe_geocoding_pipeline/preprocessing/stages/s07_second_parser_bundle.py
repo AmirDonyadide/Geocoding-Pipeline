@@ -283,6 +283,7 @@ def _scientific_identity(
                 "--disable-shared",
                 "--enable-static",
                 "CFLAGS=-O2 -fPIC",
+                "LIBSQLITE3_LIBS=-lsqlite3 -lm -lz",
             ],
             "license": "PUBLIC_DOMAIN",
         },

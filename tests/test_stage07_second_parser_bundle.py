@@ -80,6 +80,7 @@ def test_publish_and_reopen_second_parser_bundle(tmp_path: Path) -> None:
             "--disable-shared",
             "--enable-static",
             "CFLAGS=-O2 -fPIC",
+            "LIBSQLITE3_LIBS=-lsqlite3 -lm -lz",
         ],
         "license": "PUBLIC_DOMAIN",
         "linkage": "STATIC_IN_CPYTHON_SQLITE3_EXTENSION",
@@ -161,4 +162,5 @@ def test_second_parser_launcher_pins_required_sqlite_runtime() -> None:
         '8e9c53869bdd07a0c61e38ddf2965071"'
     ) in launcher
     assert "--disable-shared" in launcher
+    assert 'LIBSQLITE3_LIBS="-L${SQLITE_PREFIX}/lib -lsqlite3 -lm -lz"' in launcher
     assert 'assert sqlite3.sqlite_version == "3.46.1"' in launcher
