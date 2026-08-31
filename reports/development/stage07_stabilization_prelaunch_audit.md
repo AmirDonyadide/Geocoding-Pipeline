@@ -160,7 +160,7 @@ public attempts resolved, known root categories are:
 | `SHELL_OR_QUOTING_FAILURE` | 2 | Syntax and exact command framing are submission gates. |
 | `MULTIPROCESS_LAUNCHER_FAILURE` | 1 | Exercise the real spawn entry point before protected work. |
 | `RESOURCE_CEILING_FAILURE` | 1 | Do not impose the invalid 48 GiB process ceiling. |
-| `BUNDLE_CONTAMINATION_FAILURE` | 1 | Reject cache/bytecode contamination and bind the runtime exactly. |
+| `BUNDLE_CONTAMINATION_FAILURE` | 2 | Reject cache/bytecode contamination and bind the runtime exactly. |
 | `MISSING_RUNTIME_DEPENDENCY` | 5 | Validate stdlib/import closure and exact offline model-cache resolution. |
 | `STATIC_LINK_DEPENDENCY_FAILURE` | 1 | Audit native transitive linkage, not only direct libraries. |
 | `PARSER_SCIENTIFIC_FAILURE` | 2 | Machine success does not override parser-quality evidence. |
@@ -243,16 +243,35 @@ the config and weights before model initialization. Focused synthetic tests and
 shell syntax pass locally, and a public metadata-only resolver check against a
 temporary cache view resolved both preserved checkpoint files with the exact
 40-byte reference. Job `1762661` validated this correction, the later exact-argv
-publication correction, and the complete immutable bundle publication.
+publication correction, and the complete immutable bundle publication at that
+time.
 
 Compute smoke job `1762663` did not test the bundle: the launcher omitted
 `SAFE_EXECUTION_SITE=goethe-nhr`, and the first guarded call failed before any
-bundle or synthetic input access. The prelaunch validator must assert this
-marker as part of the exact launcher contract before another smoke can be
-considered.
+bundle or synthetic input access. Commit
+`6a64c830b784eb9742e70ad648243e87b54a1b9b` corrected the launcher and added an
+exact prelaunch check that exercises the real Goethe/SLURM guard and audits all
+eight required smoke environment variables. That gate passed before replacement
+job `1762669`.
+
+Job `1762669` reached the immutable-bundle validator, proving the execution-site
+correction, but the bundle tree was no longer identical to its successful
+publication state. The manifest still declares 29,590 artifacts and none are
+missing, while the current tree contains 363 additional unmanifested `.pyc`
+files in 39 `__pycache__` directories with mode `0755`. Their modification-time
+window is after successful bundle publication and aligns with the first smoke
+preparation window. The validator failed closed before model initialization,
+linkage inspection, or public synthetic parsing. No output was published.
+
+The frozen bundle must not be repaired in place: deleting files or changing
+modes would mutate the preserved attempt again. This session also did not
+authorize a rebuild. Consequently the published tree is historical provenance,
+not a reusable immutable runtime.
 
 ### Remaining until executed evidence exists
 
+- a new owner decision on whether to abandon DeepParse or authorize a newly
+  published immutable bundle with a strict read-only/no-bytecode runtime policy;
 - exact compute-image native linkage evidence;
 - offline public multilingual model-initialization smoke on a Goethe compute
   node;
@@ -268,22 +287,22 @@ item passes.
 |---|---|
 | Methodology consistency | PASS |
 | Country eligibility definition frozen | PASS |
-| Exact clean pushed/detached execution SHA | PASS for public bundle/smoke SHA `843f30c10e4fc359258869ea3904ba90fb4abe6f` |
+| Exact clean pushed/detached execution SHA | PASS for replacement smoke SHA `6a64c830b784eb9742e70ad648243e87b54a1b9b` |
 | Controlled worktree/path policy | PASS for bundle and smoke attempts |
 | Local-safe tests/static/syntax | PASS |
 | Eligibility denominators | PASS — job `1762293`, independently reopened |
 | Dependency/import closure | PASS in published bundle job `1762661` |
-| Binary linkage | NOT RUN; smoke job `1762663` stopped at execution-site guard |
+| Binary linkage | NOT RUN; smoke job `1762669` stopped during bundle reopen |
 | Python runtime completeness | PASS in published bundle job `1762661` |
-| Bundle/model hashes | PASS for immutable bundle from job `1762661` |
+| Bundle/model hashes | Historical PASS in job `1762661`; current tree contaminated |
 | Offline cache binding | PASS in job `1762661` |
 | Offline synthetic initialization | PASS in job `1762661`; zero network attempts |
-| Public multilingual smoke | FAILED before execution in job `1762663` |
-| Permissions | PASS for eligibility and immutable bundle artifacts |
+| Public multilingual smoke | FAILED before model execution in job `1762669` |
+| Permissions | FAIL — 39 current cache directories have mode `0755` |
 | Disk/inode/resource preflight | PASS for bundle and smoke submissions |
 | No protected data in public tests | PASS BY DESIGN/STATIC REVIEW |
 | No HOLDOUT / production | PASS |
-| No network during protected execution | IMPLEMENTED; RUNTIME EVIDENCE PENDING |
+| No network during protected execution | IMPLEMENTED; RUNTIME EVIDENCE NOT REACHED |
 
 ## Small compute-node smoke design
 
@@ -296,10 +315,10 @@ training countries twice, checks exact structured determinism, exercises
 and reopens owner-only JSON evidence, and exits. It reads no protected input.
 
 The first smoke was submitted as job `1762663` but stopped at the fail-closed
-execution-site guard before bundle validation or public parsing. A corrected
-public smoke requires an explicit owner decision plus a launcher export and
-prelaunch assertion for `SAFE_EXECUTION_SITE=goethe-nhr`. A larger or protected
-DeepParse diagnostic remains prohibited until that smoke passes.
+execution-site guard before bundle validation or public parsing. The corrected
+replacement, job `1762669`, passed the execution-marker preflight and reached
+bundle validation, which rejected post-publication bytecode/cache contamination.
+A larger or protected DeepParse diagnostic remains prohibited.
 
 ## Final design questions
 
@@ -365,6 +384,14 @@ DeepParse diagnostic remains prohibited until that smoke passes.
   rejected the operation before bundle validation, model initialization,
   linkage inspection, or public synthetic parsing. The new owner-only runtime
   root contains only its empty temporary directory; no smoke output exists.
+- Corrected public compute smoke job `1762669` at
+  `6a64c830b784eb9742e70ad648243e87b54a1b9b` failed pre-scientifically after two
+  seconds. Its exact execution-site/SLURM preflight passed and bundle validation
+  began. Validation found 39 non-private cache directories and 363 unmanifested
+  bytecode files in the published runtime tree. No manifest artifact is missing;
+  model initialization, linkage checks, multiprocessing, and public synthetic
+  parsing did not begin. Network attempts and protected inputs opened were zero,
+  and no smoke output exists.
 - Protected DeepParse inference: not submitted or started.
 
 ## Current engineering decision
@@ -372,16 +399,23 @@ DeepParse diagnostic remains prohibited until that smoke passes.
 `STAGE07_PRELAUNCH_GATE_FAIL` is controlling. Remaining blockers are exact and
 non-speculative:
 
-1. the compute-smoke launcher must export the exact Goethe execution-site
-   marker, and the submission preflight must assert that marker rather than
-   checking only the SLURM/resource/offline controls;
-2. one corrected public-only compute-node smoke must pass
+1. the post-publication-contaminated DeepParse bundle cannot be reused or
+   repaired in place; the owner must choose whether to abandon this diagnostic
+   path or separately authorize one newly frozen, read-only runtime bundle;
+2. any retained DeepParse path still requires one public-only compute-node smoke
+   to pass
    offline initialization, multilingual public synthetic determinism,
    multiprocessing spawn, and full native linkage;
 3. a final exact-SHA prelaunch record must show all checks pass together.
 
-The bundle is now reproducibly frozen. The smoke failure is a bounded
-orchestration-environment defect and exposes a concrete prelaunch-check gap; it
-is not parser or model evidence. No replacement smoke is authorized or
-submitted. No protected job is justified. Scientific status remains
-`STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY`.
+The execution-marker defect is corrected and independently reached the intended
+guarded boundary. The remaining failure is a repeated bundle-contamination
+class, not parser-quality evidence, but it invalidates the only published
+DeepParse runtime for reuse. Given the long sequence of build/orchestration
+failures and a second contamination event, further blind patch/resubmit cycles
+are disproportionate. The conservative engineering recommendation is to abandon
+the current DeepParse frozen-runtime path and return to owner-directed
+abstention/fallback design unless the owner explicitly authorizes a fresh bundle
+with write protection and a pre-submission full-tree rehash. No further job is
+authorized or submitted. No protected job is justified. Scientific status
+remains `STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY`.
