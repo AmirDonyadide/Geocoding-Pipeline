@@ -1,6 +1,6 @@
 {
   "version": "stage07_stabilization_prelaunch_audit_v1",
-  "engineering_status": "PENDING",
+  "engineering_status": "STAGE07_PRELAUNCH_GATE_FAIL",
   "scientific_status": "STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY",
   "authoritative_stage07_output_changed": false,
   "stage06_science_changed": false,
@@ -35,14 +35,25 @@
   "failure_ledger": {
     "path": "reports/development/stage07_failure_ledger.json",
     "current_job": "1762078",
-    "current_job_status": "NOT_YET_INSPECTED_DURING_STABILIZATION_AUDIT"
+    "current_job_status": "PENDING_AT_SINGLE_PLANNED_INSPECTION",
+    "current_job_submission_time": "2026-08-31T11:25:13",
+    "country_eligibility_job": "1762293",
+    "country_eligibility_job_status": "PENDING_AT_PLANNED_INSPECTION",
+    "country_eligibility_job_submission_time": "2026-08-31T14:33:12"
   },
   "prelaunch": {
     "methodology_consistency": "PASS",
     "country_eligibility_frozen": "PASS",
-    "clean_exact_git_sha": "PENDING_FINAL_SHA",
-    "path_policy": "IMPLEMENTED_EVIDENCE_PENDING",
-    "local_safe_tests": "PENDING_FINAL_GATES",
+    "clean_exact_git_sha": "PASS_AA15B1C4C078BE8F2DB50C9940347975F9E282A7",
+    "path_policy": "PASS_FOR_ELIGIBILITY_AUDIT_SUBMISSION",
+    "local_safe_tests": "PASS_538_PASSED_4_DESELECTED",
+    "stage02_through_stage07_regressions": "PASS_271_PASSED",
+    "focused_stage07_tests": "PASS_96_PASSED",
+    "ruff": "PASS",
+    "strict_mypy": "PASS_88_SOURCE_FILES",
+    "shell_syntax": "PASS",
+    "json_and_markdown_links": "PASS",
+    "privacy_tracked_data_audit": "PASS",
     "dependency_import_closure": "IMPLEMENTED_BUNDLE_EVIDENCE_PENDING",
     "binary_linkage": "IMPLEMENTED_COMPUTE_EVIDENCE_PENDING",
     "python_runtime_completeness": "IMPLEMENTED_BUNDLE_EVIDENCE_PENDING",
@@ -50,7 +61,7 @@
     "offline_synthetic_initialization": "PENDING_COMPUTE_SMOKE",
     "public_multilingual_smoke": "PENDING_COMPUTE_SMOKE",
     "permissions": "IMPLEMENTED_ARTIFACT_EVIDENCE_PENDING",
-    "disk_resource_preflight": "IMPLEMENTED_GOETHE_EVIDENCE_PENDING",
+    "disk_resource_preflight": "PASS_FOR_ELIGIBILITY_AUDIT_SUBMISSION",
     "no_protected_data_in_public_tests": "PASS",
     "no_holdout": "PASS",
     "no_production": "PASS",
@@ -62,8 +73,15 @@
     "memory_gib": 16,
     "walltime": "00:30:00",
     "protected_inputs_opened": false,
-    "status": "NOT_SUBMITTED"
+    "status": "NOT_SUBMITTED_BUNDLE_JOB_PENDING"
   },
+  "remaining_blockers": [
+    "JOB_1762078_MUST_COMPLETE_AND_BUNDLE_MUST_VALIDATE",
+    "JOB_1762293_MUST_COMPLETE_AND_ELIGIBILITY_COUNTS_MUST_RECONCILE",
+    "PUBLIC_ONLY_COMPUTE_SMOKE_MUST_PASS",
+    "FINAL_ALL_CHECKS_EXACT_SHA_PRELAUNCH_RECORD_MUST_PASS"
+  ],
+  "another_slurm_job_currently_justified": false,
   "privacy": {
     "holdout_accessed": false,
     "production_accessed": false,

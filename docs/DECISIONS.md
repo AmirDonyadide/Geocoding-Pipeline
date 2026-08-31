@@ -432,8 +432,11 @@ to change a decision or start a stage.
   resources, and network/privacy policy. Current public-only bundle job
   `1762078` is not cancelled or repeatedly polled and receives one status
   inspection only after the local audit.
-- **Status:** OWNER-APPROVED STABILIZATION DESIGN. Eligibility counts, current
-  bundle outcome, compute smoke, and final prelaunch status remain pending. The
+- **Status:** OWNER-APPROVED STABILIZATION DESIGN. At the single planned status
+  inspection, public bundle job `1762078` and metadata-only eligibility job
+  `1762293` were both still pending and had not started. The engineering result
+  is therefore `STAGE07_PRELAUNCH_GATE_FAIL` until both immutable outcomes and
+  the later public compute smoke pass. No duplicate job is justified. The
   authoritative Stage 7 registry is unchanged and the scientific verdict
   remains `STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY`. No independent review,
   Stage 8, HOLDOUT, production, geocoding, or merge is authorized.

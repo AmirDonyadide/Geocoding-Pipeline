@@ -620,3 +620,10 @@ inference. See the
 [stabilization report](../../reports/development/stage07_stabilization_prelaunch_audit.md).
 The immutable v1 registry and `STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY` status
 remain unchanged.
+
+The first stabilization checkpoint returned `STAGE07_PRELAUNCH_GATE_FAIL`:
+public bundle job `1762078` and metadata-only eligibility job `1762293` were
+both pending and unstarted at their planned inspection, so bundle validation,
+exact eligibility denominators, and the required public compute smoke remained
+unavailable. Neither job was cancelled, repeatedly polled, or duplicated, and
+no protected DeepParse inference began.

@@ -1,6 +1,6 @@
 # Stage 7 stabilization and prelaunch audit
 
-Status: **IN PROGRESS**. The scientific verdict remains
+Engineering status: **`STAGE07_PRELAUNCH_GATE_FAIL`**. The scientific verdict remains
 `STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY`. This audit does not accept Stage 7,
 alter the immutable authoritative libpostal registry, change Stage 6, start
 Stage 8, access HOLDOUT, start production, geocode, or authorize independent
@@ -90,8 +90,11 @@ correctness. Counts will be reported at source-row, occurrence, unique-candidate
 (primary parser-call), and immutable 120-case review levels. The pairwise view
 will additionally use only candidates eligible for both parsers.
 
-Exact protected metadata-only counts: **PENDING ONE CONTROLLED ELIGIBILITY
-AUDIT**. No parser call is needed to compute them.
+Exact protected metadata-only counts remain pending in existing job `1762293`,
+submitted once at
+`aa15b1c4c078be8f2db50c9940347975f9e282a7`. At the planned inspection it was
+still pending with zero elapsed compute time. No parser call is needed to
+compute the counts, and no duplicate job was submitted.
 
 ## Failure-history ledger
 
@@ -115,7 +118,10 @@ The original 48 GiB diagnostic, its four giant crashes, the later 180 GiB
 23/23 giant success, authoritative job 1760221, validation job 1760226,
 fixed-500/review job 1760494, quality job 1760818, and context job 1761212 all
 remain immutable. Current public-only DeepParse bundle job 1762078 remains
-untouched until the audit's single planned inspection.
+untouched until the audit's single planned inspection. That inspection found
+job 1762078 still pending, with submission time `2026-08-31T11:25:13`, no start
+time, and zero elapsed compute time. It was not cancelled, polled again, or
+duplicated.
 
 ## Methodology audit
 
@@ -189,17 +195,17 @@ item passes.
 |---|---|
 | Methodology consistency | PASS |
 | Country eligibility definition frozen | PASS |
-| Exact clean pushed/detached execution SHA | PENDING FINAL SHA |
-| Controlled worktree/path policy | IMPLEMENTED; GOETHE EVIDENCE PENDING |
-| Local-safe tests/static/syntax | PENDING FINAL GATES |
+| Exact clean pushed/detached execution SHA | PASS — `aa15b1c4c078be8f2db50c9940347975f9e282a7` |
+| Controlled worktree/path policy | PASS for eligibility audit submission |
+| Local-safe tests/static/syntax | PASS |
 | Dependency/import closure | IMPLEMENTED; BUNDLE EVIDENCE PENDING |
 | Binary linkage | IMPLEMENTED; COMPUTE EVIDENCE PENDING |
 | Python runtime completeness | IMPLEMENTED; BUNDLE EVIDENCE PENDING |
 | Bundle/model hashes | PENDING JOB 1762078 |
 | Offline synthetic initialization | PENDING COMPUTE SMOKE |
 | Public multilingual smoke | PENDING COMPUTE SMOKE |
-| Permissions | IMPLEMENTED; ARTIFACT EVIDENCE PENDING |
-| Disk/inode/resource preflight | IMPLEMENTED; GOETHE EVIDENCE PENDING |
+| Permissions | PASS for inputs/worktree; bundle artifact pending |
+| Disk/inode/resource preflight | PASS for eligibility audit submission |
 | No protected data in public tests | PASS BY DESIGN/STATIC REVIEW |
 | No HOLDOUT / production | PASS |
 | No network during protected execution | IMPLEMENTED; RUNTIME EVIDENCE PENDING |
@@ -250,8 +256,31 @@ or protected DeepParse diagnostic remains prohibited until this smoke passes.
     semantic results on eligible populations, overlapping pairwise evidence,
     validation against overfitting, and a new explicit owner design decision.
 
+## Current job handling
+
+- Public bundle job `1762078`: pending; 8 CPUs, 24 GiB, 6-hour limit; submitted
+  `2026-08-31T11:25:13`; not started at the single planned inspection.
+- Metadata-only eligibility job `1762293`: pending; 4 CPUs, 16 GiB, 2-hour
+  limit; submitted `2026-08-31T14:33:12`; not started at inspection.
+- Public compute smoke: not submitted, because the bundle does not yet exist
+  and policy prohibits a second job while 1762078 is pending/running.
+- Protected DeepParse inference: not submitted or started.
+
 ## Current engineering decision
 
-**PENDING** until job 1762078 is inspected once and the remaining executable
-gates above are resolved. Scientific status remains
+`STAGE07_PRELAUNCH_GATE_FAIL` is controlling. Remaining blockers are exact and
+non-speculative:
+
+1. job 1762078 must complete successfully and its immutable bundle must pass
+   manifest, permissions, import-closure, stable-identity, and license/notices
+   validation;
+2. job 1762293 must complete successfully so candidate, occurrence, source-row,
+   overlap, and immutable-review eligibility denominators can be reconciled;
+3. after bundle validation, the one public-only compute-node smoke must pass
+   offline initialization, multilingual public synthetic determinism,
+   multiprocessing spawn, and full native linkage;
+4. a final exact-SHA prelaunch record must show all checks pass together.
+
+No additional expensive or protected job is currently justified. Wait for the
+two existing jobs and reuse their immutable outcomes. Scientific status remains
 `STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY`.
