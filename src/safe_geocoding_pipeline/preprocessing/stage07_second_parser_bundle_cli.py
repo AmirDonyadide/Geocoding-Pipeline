@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+from collections.abc import Sequence
 from pathlib import Path
 
 from ..execution_policy import ExecutionPolicyError, require_goethe_nhr_slurm
@@ -51,8 +52,8 @@ def _print_outcome(result: SecondParserBundleOutcome) -> None:
     print(f"stage07_second_parser_bundle_bytes={result.total_size_bytes}")
 
 
-def main() -> int:
-    args = build_parser().parse_args()
+def main(argv: Sequence[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
     try:
         require_goethe_nhr_slurm("stage07-second-parser-bundle")
         if args.command == "publish":

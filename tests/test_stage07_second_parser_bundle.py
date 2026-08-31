@@ -2,15 +2,26 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
 
+from safe_geocoding_pipeline.preprocessing import stage07_second_parser_bundle_cli
 from safe_geocoding_pipeline.preprocessing.stages.s07_second_parser_bundle import (
     SecondParserBundleBuildIdentity,
     Stage07SecondParserBundleError,
     publish_second_parser_bundle,
     validate_second_parser_bundle,
+)
+
+_PUBLISH_MODULE = (
+    "safe_geocoding_pipeline.preprocessing.stage07_second_parser_bundle_cli"
+)
+_PYTHON_CONFIGURE_ARGUMENTS = (
+    "--prefix=<private-python-prefix>",
+    "--with-ensurepip=install",
 )
 
 
@@ -19,10 +30,7 @@ def _identity() -> SecondParserBundleBuildIdentity:
         execution_git_sha="a" * 40,
         compiler_identity="synthetic gcc",
         glibc_identity="glibc synthetic",
-        python_configure_arguments=(
-            "--prefix=<private-python-prefix>",
-            "--with-ensurepip=install",
-        ),
+        python_configure_arguments=_PYTHON_CONFIGURE_ARGUMENTS,
     )
 
 
@@ -56,6 +64,134 @@ def _staging(tmp_path: Path) -> Path:
             directory.chmod(0o700)
     root.chmod(0o700)
     return root
+
+
+def _launcher_publish_argv(
+    *,
+    staging: Path,
+    output: Path,
+    execution_git_sha: str = "a" * 40,
+    compiler_identity: str = "synthetic gcc",
+    glibc_identity: str = "glibc synthetic",
+    configure_arguments: tuple[str, ...] = _PYTHON_CONFIGURE_ARGUMENTS,
+) -> tuple[str, ...]:
+    repository = Path(__file__).resolve().parents[1]
+    helper = (
+        repository / "cluster/goethe_nhr/stage07_second_parser_bundle_publish_argv.sh"
+    )
+    shell = r"""
+source "$1"
+shift
+stage07_second_parser_bundle_publish_argv "$@"
+printf '%s\0' "${STAGE07_SECOND_PARSER_PUBLISH_ARGV[@]}"
+"""
+    completed = subprocess.run(
+        [
+            "bash",
+            "-c",
+            shell,
+            "stage07-publish-argv-test",
+            str(helper),
+            sys.executable,
+            str(staging),
+            str(output),
+            execution_git_sha,
+            compiler_identity,
+            glibc_identity,
+            *configure_arguments,
+        ],
+        check=True,
+        capture_output=True,
+    )
+    assert completed.stderr == b""
+    return tuple(token.decode("utf-8") for token in completed.stdout.split(b"\0")[:-1])
+
+
+def test_launcher_exact_publish_argv_survives_shell_and_argparse(
+    tmp_path: Path,
+) -> None:
+    staging = tmp_path / "public staging [synthetic]"
+    output = tmp_path / "public output; synthetic"
+    configure_arguments = (
+        "--prefix=/public synthetic/[prefix]",
+        "-Xsynthetic=value with spaces",
+        "--with-build-label=public;synthetic",
+    )
+    compiler_identity = "synthetic gcc 13; make 4"
+    glibc_identity = "glibc synthetic (public)"
+
+    argv = _launcher_publish_argv(
+        staging=staging,
+        output=output,
+        compiler_identity=compiler_identity,
+        glibc_identity=glibc_identity,
+        configure_arguments=configure_arguments,
+    )
+
+    assert argv[:4] == (sys.executable, "-m", _PUBLISH_MODULE, "publish")
+    value_tokens = argv[4:]
+    assert all(token.startswith("--") and "=" in token for token in value_tokens)
+    assert not any(token in configure_arguments for token in value_tokens)
+    assert [
+        token.removeprefix("--python-configure-argument=")
+        for token in value_tokens
+        if token.startswith("--python-configure-argument=")
+    ] == list(configure_arguments)
+
+    parsed = stage07_second_parser_bundle_cli.build_parser().parse_args(argv[3:])
+    assert parsed.staging_directory == staging
+    assert parsed.output_directory == output
+    assert parsed.execution_git_sha == "a" * 40
+    assert parsed.compiler_identity == compiler_identity
+    assert parsed.glibc_identity == glibc_identity
+    assert tuple(parsed.python_configure_argument) == configure_arguments
+
+
+def test_exact_launcher_argv_publishes_synthetic_bundle(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    staging = _staging(tmp_path)
+    output = staging.parent / "published bundle with spaces"
+    compiler_identity = "synthetic gcc 13; make 4"
+    glibc_identity = "glibc synthetic (public)"
+    argv = _launcher_publish_argv(
+        staging=staging,
+        output=output,
+        compiler_identity=compiler_identity,
+        glibc_identity=glibc_identity,
+    )
+    monkeypatch.setattr(
+        stage07_second_parser_bundle_cli,
+        "require_goethe_nhr_slurm",
+        lambda _operation: None,
+    )
+
+    assert stage07_second_parser_bundle_cli.main(argv[3:]) == 0
+    stdout = capsys.readouterr().out
+    assert "status=STAGE07_SECOND_PARSER_BUNDLE_FROZEN" in stdout
+    assert not staging.exists()
+    assert output.is_dir()
+    assert (output.stat().st_mode & 0o777) == 0o700
+    assert ((output / "_SUCCESS.json").stat().st_mode & 0o777) == 0o600
+
+    manifest = json.loads(
+        (output / "stage07_second_parser_bundle_manifest.json").read_text()
+    )
+    assert manifest["scientific_identity"]["python"]["configure_arguments"] == list(
+        _PYTHON_CONFIGURE_ARGUMENTS
+    )
+    assert manifest["scientific_identity"]["build"] == {
+        "compiler_identity": compiler_identity,
+        "execution_git_sha": "a" * 40,
+        "glibc_identity": glibc_identity,
+    }
+    fingerprint = manifest["second_parser_bundle_fingerprint"]
+    validate_second_parser_bundle(
+        output,
+        expected_second_parser_bundle_fingerprint=fingerprint,
+    )
 
 
 def test_publish_and_reopen_second_parser_bundle(tmp_path: Path) -> None:
@@ -171,7 +307,9 @@ def test_second_parser_launcher_pins_required_sqlite_runtime() -> None:
     assert '"sentencepiece"' in launcher
     assert "readelf" in launcher
     assert "ldd" in launcher
-    assert "printf '%s' \"${MODEL_REVISION}\" > \"${HF_REFS}/main\"" in launcher
+    assert 'printf \'%s\' "${MODEL_REVISION}" > "${HF_REFS}/main"' in launcher
     assert '"$(wc -c < "${HF_REFS}/main")" -eq 40' in launcher
     assert "public_huggingface_cache_binding=PASS" in launcher
     assert 'revision="main"' in launcher
+    assert "stage07_second_parser_bundle_publish_argv" in launcher
+    assert '"${STAGE07_SECOND_PARSER_PUBLISH_ARGV[@]}"' in launcher

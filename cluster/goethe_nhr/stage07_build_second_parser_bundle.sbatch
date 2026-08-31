@@ -378,15 +378,17 @@ readonly COMPILER_IDENTITY="$(printf '%s; %s' \
 readonly GLIBC_IDENTITY="$(getconf GNU_LIBC_VERSION)"
 export PYTHONPATH="${INTEGRATION_ROOT}/src"
 export SAFE_EXECUTION_SITE=goethe-nhr
-readonly PUBLISH_OUTPUT="$("${BASE_PYTHON}" \
-  -m safe_geocoding_pipeline.preprocessing.stage07_second_parser_bundle_cli publish \
-  --staging-directory "${STAGING_DIRECTORY}" \
-  --output-directory "${OUTPUT_DIRECTORY}" \
-  --execution-git-sha "${ACTUAL_COMMIT}" \
-  --compiler-identity "${COMPILER_IDENTITY}" \
-  --glibc-identity "${GLIBC_IDENTITY}" \
-  --python-configure-argument "${PYTHON_CONFIGURE_ARGUMENTS[0]}" \
-  --python-configure-argument "${PYTHON_CONFIGURE_ARGUMENTS[1]}")"
+readonly PUBLISH_ARGV_HELPER="${INTEGRATION_ROOT}/cluster/goethe_nhr/stage07_second_parser_bundle_publish_argv.sh"
+source "${PUBLISH_ARGV_HELPER}"
+stage07_second_parser_bundle_publish_argv \
+  "${BASE_PYTHON}" \
+  "${STAGING_DIRECTORY}" \
+  "${OUTPUT_DIRECTORY}" \
+  "${ACTUAL_COMMIT}" \
+  "${COMPILER_IDENTITY}" \
+  "${GLIBC_IDENTITY}" \
+  "${PYTHON_CONFIGURE_ARGUMENTS[@]}"
+readonly PUBLISH_OUTPUT="$("${STAGE07_SECOND_PARSER_PUBLISH_ARGV[@]}")"
 printf '%s\n' "${PUBLISH_OUTPUT}"
 readonly BUNDLE_FINGERPRINT="$(printf '%s\n' "${PUBLISH_OUTPUT}" | \
   awk -F= '$1 == "stage07_second_parser_bundle_fingerprint" {print $2}')"
