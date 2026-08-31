@@ -644,7 +644,13 @@ entry contained the correct 40-hex revision plus a terminating newline, so
 offline `main` resolution could not locate the present checkpoint. Protected
 processing did not begin. The prepared minimum correction writes and verifies
 the exact 40-byte revision and checks offline resolver binding before model
-initialization. It is locally tested but not SLURM-validated. No replacement
-build, compute smoke, or protected DeepParse inference was submitted, so
+initialization. Corrected public-only job `1762652` subsequently validated that
+cache binding, all pinned public hashes, and offline initialization with zero
+network attempts. It then failed before bundle publication because the launcher
+passed configure values beginning with `--` as separate `argparse` value
+tokens. The build tree remains preserved, no immutable bundle output exists,
+and protected processing did not begin. This bounded argument-framing defect
+requires a reviewed exact-argv preflight before another build; no compute smoke
+or protected DeepParse inference was submitted, so
 `STAGE07_PRELAUNCH_GATE_FAIL` and
 `STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY` remain controlling.

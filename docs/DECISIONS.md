@@ -441,10 +441,14 @@ to change a decision or start a stage.
   because its otherwise complete offline model cache wrote the exact revision
   plus a newline to Hugging Face `refs/main`. The minimal correction writes and
   verifies the exact 40-byte revision and verifies offline `main` resolution
-  before model initialization. It is locally tested but not SLURM-validated;
-  no replacement build or compute smoke was submitted. The engineering result
-  therefore remains `STAGE07_PRELAUNCH_GATE_FAIL`. The authoritative Stage 7
-  registry is unchanged and the scientific verdict remains
+  before model initialization. Corrected public-only job `1762652` validated
+  that cache binding, all pinned hashes, and offline initialization with zero
+  network attempts, then failed before publication because leading-`--`
+  configure values were passed to `argparse` as separate value tokens. This is
+  a bounded shell/argument-framing failure requiring an exact-argv preflight;
+  no further build or compute smoke was submitted. The engineering result
+  remains `STAGE07_PRELAUNCH_GATE_FAIL`. The authoritative Stage 7 registry is
+  unchanged and the scientific verdict remains
   `STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY`. No independent review, Stage 8,
   HOLDOUT, production, geocoding, or merge is authorized.
 

@@ -333,6 +333,14 @@ corrected bundle exists and this smoke passes.
 - Public bundle job `1762078`: failed pre-scientifically after 8 minutes 35
   seconds because the offline cache reference had a trailing newline. No bundle
   was published and no protected candidate processing began.
+- Corrected public bundle job `1762652` at
+  `dee39ba71ae44b4bf4b6146a40057b31ab7fa008`: failed pre-scientifically after
+  9 minutes 14 seconds. The exact 40-byte cache correction, all pinned public
+  asset hashes, and offline synthetic initialization passed with zero network
+  attempts. Publication then failed because configure values beginning with
+  `--` were passed as separate `argparse` value tokens. The failed build tree is
+  preserved, the immutable output path was never created, and no protected
+  candidate processing began.
 - Metadata-only eligibility job `1762293`: completed in 11 seconds; its exact
   aggregate, row counts, artifact hashes, and permissions independently pass.
 - Public compute smoke: not submitted because no valid bundle exists.
@@ -343,15 +351,18 @@ corrected bundle exists and this smoke passes.
 `STAGE07_PRELAUNCH_GATE_FAIL` is controlling. Remaining blockers are exact and
 non-speculative:
 
-1. one corrected public-only build must complete successfully and its immutable
+1. the publish invocation must frame each leading-`--` configure value as one
+   option/value token and an exact-argv preflight must exercise the actual CLI;
+2. one corrected public-only build must complete successfully and its immutable
    bundle must pass manifest, permissions, import-closure, stable-identity, and
    license/notices validation;
-2. after bundle validation, the one public-only compute-node smoke must pass
+3. after bundle validation, the one public-only compute-node smoke must pass
    offline initialization, multilingual public synthetic determinism,
    multiprocessing spawn, and full native linkage;
-3. a final exact-SHA prelaunch record must show all checks pass together.
+4. a final exact-SHA prelaunch record must show all checks pass together.
 
-Exactly one corrected replacement **public bundle build** is technically
-justified by the isolated defect, but this report intentionally proposes the
-correction before submission. No protected job is justified. Scientific status
-remains `STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY`.
+The failure is a bounded shell/argument-framing reproducibility defect with a
+defensible static preflight, not evidence that the parser/model cannot be
+frozen. No further build is authorized or submitted; the correction must be
+reviewed first. No protected job is justified. Scientific status remains
+`STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY`.
