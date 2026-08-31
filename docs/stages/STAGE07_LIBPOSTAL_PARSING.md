@@ -649,8 +649,19 @@ cache binding, all pinned public hashes, and offline initialization with zero
 network attempts. It then failed before bundle publication because the launcher
 passed configure values beginning with `--` as separate `argparse` value
 tokens. The build tree remains preserved, no immutable bundle output exists,
-and protected processing did not begin. This bounded argument-framing defect
-requires a reviewed exact-argv preflight before another build; no compute smoke
-or protected DeepParse inference was submitted, so
+and protected processing did not begin. Corrected public-only job `1762661` at
+`843f30c10e4fc359258869ea3904ba90fb4abe6f` passed the reviewed exact-argv
+preflight and atomically published the fully pinned 29,590-artifact bundle with
+fingerprint
+`564f8e416b7e88f0d1d94e3d486b97ae33c73cb6c065adc31f060078f84700ab`.
+
+The first public compute smoke, job `1762663`, then failed pre-scientifically
+after two seconds because its launcher did not export the required
+`SAFE_EXECUTION_SITE=goethe-nhr` marker. The fail-closed guard stopped the first
+bundle-validation call before it opened the bundle, initialized the model,
+inspected linkage, or parsed public synthetic input. This is a bounded
+orchestration-environment defect and a missing prelaunch assertion, not parser
+evidence. No replacement smoke or protected DeepParse inference was submitted,
+so
 `STAGE07_PRELAUNCH_GATE_FAIL` and
 `STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY` remain controlling.

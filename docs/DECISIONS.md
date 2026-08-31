@@ -444,13 +444,17 @@ to change a decision or start a stage.
   before model initialization. Corrected public-only job `1762652` validated
   that cache binding, all pinned hashes, and offline initialization with zero
   network attempts, then failed before publication because leading-`--`
-  configure values were passed to `argparse` as separate value tokens. This is
-  a bounded shell/argument-framing failure requiring an exact-argv preflight;
-  no further build or compute smoke was submitted. The engineering result
-  remains `STAGE07_PRELAUNCH_GATE_FAIL`. The authoritative Stage 7 registry is
-  unchanged and the scientific verdict remains
-  `STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY`. No independent review, Stage 8,
-  HOLDOUT, production, geocoding, or merge is authorized.
+  configure values were passed to `argparse` as separate value tokens.
+  Corrected public-only job `1762661` then passed the exact-argv gate and
+  published the fully pinned offline bundle. Public compute smoke `1762663`
+  failed two seconds after starting because its launcher omitted the required
+  `SAFE_EXECUTION_SITE=goethe-nhr` marker; the execution guard stopped it before
+  bundle validation, model initialization, linkage, or synthetic parsing. The
+  submission preflight had not asserted that marker. No replacement smoke was
+  submitted. The engineering result remains `STAGE07_PRELAUNCH_GATE_FAIL`.
+  The authoritative Stage 7 registry is unchanged and the scientific verdict
+  remains `STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY`. No independent review,
+  Stage 8, HOLDOUT, production, geocoding, or merge is authorized.
 
 ## Open decisions
 
