@@ -132,9 +132,11 @@ documentation test pass.
 - Production Stage 5: **NOT STARTED**.
 - Stage 6 DEVELOPMENT: **`STAGE_6_ACCEPTED`**.
 - Production Stage 6: **NOT STARTED**.
-- Stage 7 DEVELOPMENT: **`STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY`**; the
-  revised diagnostic proved the prior four giant crashes resource-cap
-  dependent, and contract/implementation remain unfrozen.
+- Stage 7 DEVELOPMENT:
+  **`STAGE07_EVIDENCE_ONLY_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REREVIEW`**.
+  The v2 evidence contract/implementation are frozen, but Stage 7 is not
+  accepted. Raw parser output is evidence rather than semantic truth, and a
+  fresh independent rereview is required before any acceptance decision.
 - Production Stage 7: **NOT STARTED**.
 
 This policy grants no scientific-stage or production-run authorization.

@@ -1,10 +1,32 @@
-# Stage 7 DEVELOPMENT candidate report
+# Stage 7 DEVELOPMENT evidence history and current candidate report
 
-Verdict: `STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY` because the completed
-risk-stratified qualitative review found a material systematic Stage 7 parser
-problem.
+Current workflow status:
+`STAGE07_EVIDENCE_ONLY_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REREVIEW`.
+This is not Stage 7 acceptance. The first independent review found only stale
+current-status and downstream-contract documentation; those findings were
+corrected without changing Stage 7 science, code, or protected artifacts.
 
-Contract: `stage07_libpostal_parsing_contract_v1`; profile:
+The controlling candidate uses contract
+`stage07_parser_evidence_contract_v2` and profile
+`stage07_parser_evidence_profile_v2`. It preserves all 51,779 exact Stage 6
+candidates, immutable v1 technical statuses and ordered raw component streams,
+country/applicability evidence, deterministic structural warnings, and all
+69,747 occurrence mappings. Parser calls and semantic-trust claims are zero.
+Raw components are hypotheses/evidence; absence of a warning is not semantic
+truth. Job `1763516`, implementation
+`e684d84a8d68498ea790542143c8e125b3eb87b5`, manifest
+`f58410877a7810562df7985c7316de7546d4dd8e11a647fd659c53a272e9c266`,
+and the immutable v1 output remain unchanged.
+
+## Historical v1 semantic-gate verdict
+
+At the original v1 decision point the verdict was
+`STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY` because the completed risk-stratified
+qualitative review found a material systematic parser-quality problem. That
+finding and the later failed readiness-rule experiment remain immutable
+historical evidence; neither is the current evidence-only workflow status.
+
+Historical v1 contract: `stage07_libpostal_parsing_contract_v1`; profile:
 `stage07_libpostal_parsing_profile_v1`. Exact input is
 `stage06_candidate_lower`; context and hints are none; Stage 6 science is
 unchanged. Published statuses are only `PARSED_NONEMPTY` and `PARSED_EMPTY`.
@@ -143,7 +165,8 @@ remain unresolved. Compact replacement Stages 8–14 are proposed in the
 [architecture redesign](post_stage07_geocoding_architecture_redesign.md), but
 none is started or authorized.
 
-Current scientific status remains
-`STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY`. A new owner scientific decision is
-required before any replacement design; independent review and Stage 8 remain
-unauthorized.
+The later owner decision retired that semantic-trust gate and froze the
+evidence-only contract. The current candidate is
+`STAGE07_EVIDENCE_ONLY_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REREVIEW`.
+Independent rereview and a separate owner acceptance decision remain required;
+Stage 8 remains unstarted and unauthorized.

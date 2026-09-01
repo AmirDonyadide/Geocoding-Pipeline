@@ -2,23 +2,25 @@
 
 ## Status
 
-**`STAGE_7_DEVELOPMENT_IN_PROGRESS` (candidate not yet ready).**
+**`STAGE07_EVIDENCE_ONLY_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REREVIEW`.**
 
 This branch starts from accepted `main` commit
-`76435eb7ca5cd9a47a2a77fb36278568ba3bfc29`. The owner authorized one fresh
-Stage 7 DEVELOPMENT workflow from design through candidate evidence, but not
-Stage 7 acceptance. A later fresh independent-review session controls
-acceptance. HOLDOUT, production Stages 2–7, Stage 8, and geocoding remain
-unauthorized.
+`76435eb7ca5cd9a47a2a77fb36278568ba3bfc29`. Evidence-only v2 is a
+DEVELOPMENT candidate, not Stage 7 acceptance. Its first independent review at
+evidence commit `6ea2ba2cef1a63f91a5a831755d8ecb0cd7d179f` rejected only stale
+current-status and downstream-contract documentation. Those findings have been
+corrected without changing the contract, implementation, protected output, or
+science; a fresh independent rereview is required. HOLDOUT, production Stages
+2–7, Stage 8, and geocoding remain unauthorized.
 
-The controlled design diagnostic exposed a material parser limitation before
-the contract/profile freeze: four of the 23 accepted candidates with at least
+Historically, the first controlled design diagnostic exposed a material parser
+limitation before the contract/profile freeze: four of the 23 accepted candidates with at least
 1,000,000 code points crashed their isolated native parser process, including
-the accepted 25,920,495-code-point maximum. The session therefore stopped as
+the accepted 25,920,495-code-point maximum. At that point the session stopped as
 required. Proposed names `stage07_libpostal_parsing_contract_v1` and
 `stage07_libpostal_parsing_profile_v1` were not frozen, implementation and the
-authoritative 51,779-candidate run did not begin, and no candidate is eligible
-for independent review.
+authoritative 51,779-candidate run did not begin, and no candidate was eligible
+for independent review. That historical stop is not the current v2 status.
 
 That not-ready conclusion remains immutable and historically correct at
 evidence commit `d132fd9d665995fc07743c512769e44fa7fcae0b`. The owner has now
@@ -483,7 +485,7 @@ execution remain unimplemented design direction, not evidence.
 The estimated 208,667,272 production candidates remain planning-only. No
 production run, HOLDOUT access, Stage 8 work, or geocoding occurred.
 
-## Current required stop gate
+## Historical stop gate after the targeted diagnostics
 
 The first design declared `STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY` and remains
 preserved as such. The revised attempt also declares
@@ -618,8 +620,8 @@ model initialization, deterministic multilingual public smoke, permissions,
 resources, and network/privacy policy must all pass before protected DeepParse
 inference. See the
 [stabilization report](../../reports/development/stage07_stabilization_prelaunch_audit.md).
-The immutable v1 registry and `STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY` status
-remain unchanged.
+At that stabilization checkpoint, the immutable v1 registry and
+`STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY` status remained unchanged.
 
 The first stabilization checkpoint returned `STAGE07_PRELAUNCH_GATE_FAIL`:
 public bundle job `1762078` and metadata-only eligibility job `1762293` were
@@ -682,8 +684,9 @@ v2 design physically locks directories/executables to `0555` and ordinary files
 to `0444`, rejects all bytecode and symlinks, externalizes mutable runtime state,
 uses Python `-B` plus inherited bytecode suppression, and requires exact pre/post
 full-tree identity with zero mutation-category counts. No protected DeepParse
-inference has been submitted, so `STAGE07_PRELAUNCH_GATE_FAIL` and
-`STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY` remain controlling.
+inference had been submitted, so `STAGE07_PRELAUNCH_GATE_FAIL` and
+`STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY` were controlling at that prelaunch
+checkpoint.
 
 The V2 prelaunch implementation also binds the exact 79-distribution version
 lock (`3a4fd33…`) and its SHA-256 acquisition lock (`b866354…`), substantiates
@@ -777,9 +780,10 @@ not an estimate of population-wide libpostal accuracy, and the rule must not be
 tuned on the validation labels. Full sanitized evidence is in the
 [fresh validation report](../../reports/development/stage07_v2_fresh_development_validation.md).
 
-Stage 7 remains `STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY`. A new owner
-scientific decision is required; independent review, Stage 8, HOLDOUT,
-production, geocoding, and merge remain unauthorized.
+At that decision point Stage 7 remained
+`STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY`, and a new owner scientific decision
+was required. That historical result remains immutable; D035 later replaced the
+prospective semantic gate with the evidence-only contract.
 
 ## Controlling evidence-only v2 contract
 
@@ -813,6 +817,11 @@ validation passed in Goethe-NHR job `1763516` at exact implementation SHA
 occurrences reconciled, raw v1 evidence was exact, parser calls and semantic-
 trust claims were zero, and the manifest SHA-256 is
 `f58410877a7810562df7985c7316de7546d4dd8e11a647fd659c53a272e9c266`.
-The current verdict is
+The original evidence-only candidate verdict was
 `STAGE07_EVIDENCE_ONLY_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REVIEW`.
-Independent review has not started.
+Its first independent review found only tracked documentation/downstream-
+contract inconsistencies; it did not reject the implementation or machine
+evidence. After those documentation-only corrections, the current workflow
+status is
+`STAGE07_EVIDENCE_ONLY_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REREVIEW`.
+Independent rereview has not started.

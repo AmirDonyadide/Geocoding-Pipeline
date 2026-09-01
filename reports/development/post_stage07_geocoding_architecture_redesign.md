@@ -6,9 +6,9 @@ authorize Stage 8, authorize geocoding, or change the current rule that no
 geocoding workload may run before the governing pre-geocoding design is
 accepted and separately authorized.
 
-Stages 0–6 and the immutable Stage 7 v1 evidence are unchanged. Stage 7 remains
-`STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY` pending its v2 validation and later
-independent review.
+Stages 0–6 and the immutable Stage 7 v1 evidence are unchanged. Stage 7 now has
+an evidence-only v2 DEVELOPMENT candidate awaiting independent rereview. It is
+not accepted, and this proposal does not authorize Stage 8.
 
 ## Governing philosophy
 
@@ -31,11 +31,11 @@ overwrites the exact Stage 6 candidate or any earlier source value.
 ### Stage 8 — Lossless address-evidence projection
 
 - **Responsibility:** Join accepted Stage 7 applicability, technical, raw parse,
-  and readiness evidence to trusted country/address-format metadata. Map raw
-  libpostal labels into the fixed SAFE component superset only when
-  `COMPONENTS_READY`; preserve unmapped and duplicate ordered components.
-  Abstained candidates retain raw evidence and exact whole-string candidates
-  but do not produce trusted mapped components.
+  and structural-warning evidence to trusted country/address-format metadata.
+  Preserve raw ordered libpostal labels, duplicate components, unmapped
+  components, and exact whole-string candidates. Any fixed-schema mapping is a
+  parser-derived hypothesis only; neither a warning nor absence of a warning
+  makes a mapped component trusted source truth.
 - **Input:** Accepted Stage 6 lineage and accepted Stage 7 v2.
 - **Output:** Lossless evidence view, parser-derived component hypotheses,
   address-format requirements, and explicit unsupported/ambiguous states.
@@ -44,8 +44,9 @@ overwrites the exact Stage 6 candidate or any earlier source value.
   `libaddressinput` metadata for formatting/required-field evidence. No Google
   Address Validation API or runtime Address Data Service call.
 - **Acceptance:** Exact lineage and raw preservation, complete known component
-  superset plus `unmapped_components`, no mapping for abstained rows, exact
-  metadata version/license, and no claim of geographic truth.
+  superset plus `unmapped_components`, no semantic-consumption gate derived
+  from structural warnings, exact metadata version/license, and no claim of
+  geographic truth.
 - **Replaces:** old Stages 8, 9, 10, and the format-only part of 11.
 
 ### Stage 9 — Offline geographic reference evidence
@@ -74,8 +75,9 @@ overwrites the exact Stage 6 candidate or any earlier source value.
 
 - **Responsibility:** Generate a small deterministic set of plausible address
   and query hypotheses per source candidate. Whole-string standard/native
-  candidates remain available regardless of component readiness. Structured
-  hypotheses use only ready parser components and reference-supported variants.
+  candidates remain available regardless of parser warnings. Structured
+  hypotheses may use parser components only as explicitly identified evidence,
+  alongside reference-supported variants; they are never source truth.
 - **Input:** Stage 8 evidence plus accepted Stage 9 reference evidence.
 - **Output:** Immutable hypothesis IDs, hypothesis type/reason, exact fields,
   source/candidate map-back, and bounded query ladders.
@@ -87,7 +89,7 @@ overwrites the exact Stage 6 candidate or any earlier source value.
 - **Replaces:** old correction output in Stage 16 and old Stages 17–18.
 
 Possible hypothesis families—subject to the Stage 10 design review—include
-exact cleaned STANDARD, exact cleaned NATIVE, ready parser-derived structure,
+exact cleaned STANDARD, exact cleaned NATIVE, parser-evidence-derived structure,
 house-number/street/postcode/locality combinations, street/postcode/locality,
 street/locality, and postcode/locality. They are examples, not a frozen ladder.
 Unsupported or contradicted variants must not be generated merely to increase
@@ -238,9 +240,9 @@ separately approved and repository execution policy is deliberately updated.
 
 ## Exact next task and session boundary
 
-The next task is **not** Stage 8. It is the bounded fresh validation of
-`stage07_component_readiness_rule_v1` described in the Stage 7 v2 readiness
-report. That work belongs in the **same Stage 7 DEVELOPMENT session** and needs
-new owner authorization for the exact protected scope. Only after a Stage 7 v2
-candidate is independently reviewed and accepted should the proposed Stage 8
-receive a fresh design session and explicit implementation authorization.
+The next task is **not** Stage 8. It is a fresh independent rereview of the
+corrected Stage 7 evidence-only v2 DEVELOPMENT candidate. The failed
+`stage07_component_readiness_rule_v1` validation remains immutable historical
+evidence and is not a future trust-gate task. Only after Stage 7 is independently
+reviewed and separately accepted should proposed Stage 8 receive a fresh design
+session and explicit implementation authorization.

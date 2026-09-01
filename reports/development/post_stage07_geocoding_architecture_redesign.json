@@ -1,7 +1,7 @@
 {
   "version": "post_stage07_geocoding_architecture_redesign_v1",
   "status": "PROPOSED_NOT_STARTED",
-  "current_stage07_status": "STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY",
+  "current_stage07_status": "STAGE07_EVIDENCE_ONLY_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REREVIEW",
   "governing_philosophy": [
     "PRESERVE",
     "GENERATE_MULTIPLE_ADDRESS_HYPOTHESES",
@@ -58,6 +58,9 @@
   ],
   "source_truth_overwritten": false,
   "parser_is_ground_truth": false,
+  "parser_components_are_hypotheses_and_evidence": true,
+  "structural_warning_absence_implies_trust": false,
+  "component_readiness_semantic_gate": false,
   "pelias_top_result_is_ground_truth": false,
   "numeric_scoring_weights_frozen": false,
   "google_address_validation_api": false,
@@ -67,8 +70,8 @@
   "geocoding_started": false,
   "stage08_started": false,
   "next_task": {
-    "name": "FRESH_STAGE07_V2_COMPONENT_READINESS_VALIDATION",
-    "session": "SAME_STAGE_7_DEVELOPMENT_SESSION",
+    "name": "FRESH_STAGE07_EVIDENCE_ONLY_INDEPENDENT_REREVIEW",
+    "session": "FRESH_INDEPENDENT_REVIEW_SESSION",
     "requires_owner_authorization": true
   }
 }

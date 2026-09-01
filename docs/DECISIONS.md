@@ -661,11 +661,34 @@ to change a decision or start a stage.
   This is not Stage 7 acceptance. Independent review, Stage 8, HOLDOUT,
   production, geocoding, and merge remain unauthorized.
 
+### D036 — Correct the evidence-only candidate's review-documentation conflicts
+
+- **Date:** 2026-09-01.
+- **Scope:** Documentation-only Stage 7 DEVELOPMENT remediation after the first
+  independent review; no science, implementation, or protected artifact change.
+- **Finding:** Independent review of candidate
+  `318b70b00a52376b1b4fe865f41a789e2dd3feb9`, recorded at review evidence
+  `6ea2ba2cef1a63f91a5a831755d8ecb0cd7d179f`, found that the detailed proposed
+  Stage 8 architecture still depended on the rejected `COMPONENTS_READY` gate
+  and that several current-facing status/report surfaces still presented older
+  not-ready states as current. Implementation and static checks passed.
+- **Decision:** Remove readiness-based semantic consumption from every current
+  downstream contract. Raw libpostal components are always hypotheses/evidence;
+  structural warnings and their absence never establish semantic trust. Keep
+  all failed-readiness classifications and reports immutable as explicitly
+  historical evidence. Reconcile current status surfaces without altering Stage
+  6, Stage 7 v1, the evidence-only contract/profile, job `1763516`, or its
+  protected output.
+- **Status:**
+  `STAGE07_EVIDENCE_ONLY_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REREVIEW`.
+  This is not Stage 7 acceptance and does not authorize Stage 8, HOLDOUT,
+  production, geocoding, or merge.
+
 ## Open decisions
 
 These questions require future stage designs and explicit approval:
 
-- evidence-only Stage 7 v2 independent review and owner acceptance decision;
+- evidence-only Stage 7 v2 independent rereview and owner acceptance decision;
 - approval or revision of the proposed compact Stages 8–14;
 - exact offline reference releases/licenses and blocking semantics;
 - the bounded Stage 10 hypothesis/query ladder;

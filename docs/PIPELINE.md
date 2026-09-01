@@ -24,11 +24,12 @@ DEVELOPMENT validation: READY precision, clear-misparse leakage, and usable
 abstention all missed their predeclared thresholds. It is retained only as
 warning-feature history; evidence-only v2 publishes no semantic readiness
 gate. Its 51,779-row DEVELOPMENT projection and independent reopen validation
-passed in job `1763516`. The candidate is ready for separately authorized
-independent review, but no Stage 7 acceptance or Stage 8 handoff is authorized.
+passed in job `1763516`. The first independent review found only stale status
+and downstream-contract documentation; the corrected candidate now requires
+independent rereview, and no Stage 7 acceptance or Stage 8 handoff is authorized.
 Production Stage 0 and Stage 1 are accepted for the 1,411-file population;
-production Stage 2 through Stage 6 have not started. DEVELOPMENT and production
-The old Stages 8–19 have not started. A compact replacement Stages 8–14 is
+production Stage 2 through Stage 6 have not started. The old Stages 8–19 have
+not started. A compact replacement Stages 8–14 is
 proposed below but is also not started. Production Stage 7 has not started.
 
 ## Cross-stage scientific rules
@@ -206,7 +207,7 @@ geocoding before the governing pre-geocoding acceptance gate remains in force.
 - **Primary libraries:** libpostal/pypostal.
 - **Data effect:** Adds derived parsed components; candidate text is preserved.
 - **Status:**
-  **`STAGE07_EVIDENCE_ONLY_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REVIEW`**.
+  **`STAGE07_EVIDENCE_ONLY_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REREVIEW`**.
   Historical authoritative v1 job
   `1760221` produced all 51,779 rows and machine validation/map-back passed,
   but the 120-case qualitative review found 11 clear misparses. Targeted job
@@ -232,7 +233,7 @@ geocoding before the governing pre-geocoding acceptance gate remains in force.
   execution, trusted pre-parse applicability, multilingual DEVELOPMENT
   evaluation on eligible populations, exact raw preservation, deterministic
   structural warnings without trust claims, complete map-back, and independent
-  review. Stage 7 does not guarantee semantic component or geographic truth.
+  rereview. Stage 7 does not guarantee semantic component or geographic truth.
 
 ## Proposed replacement Stages 8–14
 
