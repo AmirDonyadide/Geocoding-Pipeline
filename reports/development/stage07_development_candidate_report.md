@@ -118,10 +118,23 @@ semantic review. Machine-only job `1763433` applied the unchanged frozen rule
 to those 604 and froze a 240-case balanced selection (120 ready/120 abstain),
 fingerprinted as
 `c05cecf2aa9099045adc0d5c698c7e82a6bae187ae82222817f4bfb5264c2a89`.
-Semantic review remains unauthorized. The full status model, reason codes,
-schema, metrics, thresholds, and authorization boundary are in the
-[v2 readiness design](stage07_v2_readiness_design.md), with execution evidence
-in the [selection-freeze report](stage07_v2_validation_selection_freeze.md).
+Owner-authorized Codex semantic review then inspected exactly those frozen 240
+cases while blinded to readiness predictions. The frozen classification totals
+were 79 plausible, 69 partial-but-usable, eight questionable, 41 clear
+misparses, and 43 upstream-corrupt/unassessable. READY precision was 85/100
+(85.000%), 10 clear misparses leaked into READY, and 63/148 usable parses were
+abstained (42.568%). These fail the predeclared 95%, 2.5%/two-case, and 40%
+gates respectively. Eligible-frame abstention coverage passed at 122/452
+(26.991%), and structural-reason replay was exact.
+
+The scientific conclusion is
+`STAGE07_V2_FRESH_DEVELOPMENT_VALIDATION_FAIL`. The full sanitized evidence is
+in the [fresh validation report](stage07_v2_fresh_development_validation.md).
+The rule must not be tuned on these validation labels. The status model, reason
+codes, schema, metrics, and frozen thresholds remain documented in the
+[v2 readiness design](stage07_v2_readiness_design.md), with machine-only
+selection evidence in the
+[selection-freeze report](stage07_v2_validation_selection_freeze.md).
 
 The post-Stage-7 philosophy is now parser-as-evidence: preserve source truth,
 generate multiple hypotheses, retrieve top-N self-hosted Pelias candidates,
@@ -130,7 +143,7 @@ remain unresolved. Compact replacement Stages 8–14 are proposed in the
 [architecture redesign](post_stage07_geocoding_architecture_redesign.md), but
 none is started or authorized.
 
-Current statuses remain:
-
-- `STAGE07_V2_READINESS_DESIGN_READY_FOR_FRESH_DEVELOPMENT_VALIDATION`; and
-- `STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY`.
+Current scientific status remains
+`STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY`. A new owner scientific decision is
+required before any replacement design; independent review and Stage 8 remain
+unauthorized.

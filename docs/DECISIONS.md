@@ -595,11 +595,39 @@ to change a decision or start a stage.
   `STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY`; independent review, Stage 8,
   HOLDOUT, production, geocoding, and merge remain unauthorized.
 
+### D034 — Reject the frozen Stage 7 v2 readiness rule after fresh validation
+
+- **Date:** 2026-09-01.
+- **Scope:** Fresh Stage 7 v2 DEVELOPMENT validation of exactly the frozen
+  240-candidate selection; no rule tuning or further stage execution.
+- **Decision:** Do not publish `stage07_component_readiness_rule_v1` as the
+  Stage 7 v2 component-consumption gate. The owner-authorized Codex semantic
+  review was prediction-blinded until all 240 classifications were frozen.
+  Selection fingerprint, membership, 120 READY/120 ABSTAIN predictions, reason
+  codes, metrics, and thresholds remained unchanged.
+- **Evidence:** Among 100 assessable READY cases, 85 were plausible/usable and
+  10 were `CLEAR_MISPARSE`. READY precision was 85.000% versus the predeclared
+  95.000% minimum; clear-misparse leakage was 10.000% and 10 cases versus the
+  2.500% and two-case maxima. The rule abstained on 63/148 usable parses
+  (42.568%) versus the 40.000% maximum. Eligible-frame abstention coverage was
+  non-vacuous at 122/452 (26.991%), and structural-reason replay remained
+  exact, but those passes do not override the three quality-gate failures.
+- **Rationale:** Structural warnings detect many dangerous outputs but do not
+  protect READY with sufficient precision and also discard too many usable
+  component streams under the frozen decision rule. The balanced selection is
+  validation evidence, not a population-wide libpostal accuracy estimate.
+  Tuning on these fresh labels is prohibited.
+- **Status:** `STAGE07_V2_FRESH_DEVELOPMENT_VALIDATION_FAIL` and
+  `STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY`. Preserve v1 raw evidence and the
+  protected validation artifacts. A new owner scientific decision is required
+  before any replacement Stage 7 design. Independent review, Stage 8, HOLDOUT,
+  production, geocoding, and merge remain unauthorized.
+
 ## Open decisions
 
 These questions require future stage designs and explicit approval:
 
-- fresh Stage 7 v2 validation under D032 and its subsequent independent review;
+- a new owner scientific decision after the failed Stage 7 v2 validation;
 - approval or revision of the proposed compact Stages 8–14;
 - exact offline reference releases/licenses and blocking semantics;
 - the bounded Stage 10 hypothesis/query ladder;
@@ -609,4 +637,4 @@ These questions require future stage designs and explicit approval:
 
 Nothing in this register authorizes HOLDOUT, Stage 7 acceptance or independent
 review, Stage 8, geocoding, or production Stage 2 through Stage 7. Stage 7
-decisions D023–D032 authorize only their stated DEVELOPMENT scopes.
+decisions D023–D034 authorize only their stated DEVELOPMENT scopes.

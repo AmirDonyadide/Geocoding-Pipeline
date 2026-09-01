@@ -738,8 +738,9 @@ semantically untouched. Machine-only job `1763433` at
 to those 604 and produced 330 ready, 122 abstain, and 152 not assessed. It then
 froze exactly 120 ready and 120 abstain cases with selection fingerprint
 `c05cecf2aa9099045adc0d5c698c7e82a6bae187ae82222817f4bfb5264c2a89`.
-No new semantic inspection occurred or is authorized yet. Sanitized evidence
-is in the [selection-freeze report](../../reports/development/stage07_v2_validation_selection_freeze.md).
+At that freeze point no new semantic inspection had occurred. Sanitized
+machine-only evidence is in the
+[selection-freeze report](../../reports/development/stage07_v2_validation_selection_freeze.md).
 
 Stage 7 v2 must guarantee exact lineage/text/raw ordered parse preservation,
 trusted-country applicability, separate technical status, deterministic
@@ -747,6 +748,35 @@ structural warnings, explicit abstention, and full map-back. It does not
 guarantee postal semantics, reference validity, geocoder success, or coordinate
 accuracy. The full sanitized design and predeclared validation thresholds are
 in the [v2 readiness report](../../reports/development/stage07_v2_readiness_design.md).
-The design status is
+The design status at freeze was
 `STAGE07_V2_READINESS_DESIGN_READY_FOR_FRESH_DEVELOPMENT_VALIDATION`; the
-scientific status remains `STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY`.
+scientific status remained `STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY`.
+
+## Fresh Stage 7 v2 DEVELOPMENT validation
+
+The owner subsequently authorized Codex semantic inspection of exactly the
+frozen 240 cases and no others. Review used the existing five-value qualitative
+vocabulary and remained blinded to readiness predictions until all decisions
+were durably frozen in owner-only untracked artifacts. The rule, selection,
+predictions, reasons, metrics, and thresholds were not changed.
+
+The classification totals were 79 plausible, 69 partial-but-usable, eight
+questionable, 41 clear misparses, and 43 upstream-corrupt/unassessable. Among
+100 assessable READY cases, 85 were usable and 10 were clear misparses. READY
+precision was therefore 85.000%, below the frozen 95.000% minimum. Clear-
+misparse leakage was 10.000% and 10 cases, above both the 2.500% and two-case
+maxima. The rule abstained on 63/148 usable parses (42.568%), above the 40.000%
+maximum. Eligible-frame abstention coverage remained non-vacuous at 122/452
+(26.991%), and structural-reason replay was exact.
+
+The fresh scientific conclusion is
+`STAGE07_V2_FRESH_DEVELOPMENT_VALIDATION_FAIL`. The rule remains useful as
+structural-warning evidence, but it is not safe to publish as the v2 gate for
+downstream structured-component consumption. These balanced-sample results are
+not an estimate of population-wide libpostal accuracy, and the rule must not be
+tuned on the validation labels. Full sanitized evidence is in the
+[fresh validation report](../../reports/development/stage07_v2_fresh_development_validation.md).
+
+Stage 7 remains `STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY`. A new owner
+scientific decision is required; independent review, Stage 8, HOLDOUT,
+production, geocoding, and merge remain unauthorized.

@@ -1,7 +1,10 @@
 # Stage 7 v2 component-readiness design
 
-Status: **`STAGE07_V2_READINESS_DESIGN_READY_FOR_FRESH_DEVELOPMENT_VALIDATION`**.
-This is a DEVELOPMENT design result, not Stage 7 acceptance. The controlling
+Current outcome: **`STAGE07_V2_FRESH_DEVELOPMENT_VALIDATION_FAIL`**. The design
+was frozen as
+`STAGE07_V2_READINESS_DESIGN_READY_FOR_FRESH_DEVELOPMENT_VALIDATION` before
+fresh labels existed; that historical gate is preserved, but the frozen rule
+did not pass validation. This is not Stage 7 acceptance. The controlling
 scientific status remains **`STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY`**.
 DeepParse remains closed under `DEEPPARSE_INFRASTRUCTURE_PATH_NOT_JUSTIFIED`.
 
@@ -313,7 +316,8 @@ assessed, then froze exactly 120 ready and 120 abstain candidates. The selected
 fingerprint is
 `c05cecf2aa9099045adc0d5c698c7e82a6bae187ae82222817f4bfb5264c2a89`.
 Candidate text and parser values never entered selection ranking; semantic
-inspection remained zero. Full aggregate evidence is in the
+inspection remained zero at the selection-freeze boundary. Full aggregate
+machine-only evidence is in the
 [selection-freeze report](stage07_v2_validation_selection_freeze.md).
 
 Primary predeclared metrics and gates are:
@@ -387,18 +391,24 @@ structured hypothesis; it is never final truth. An abstained parse remains
 available as raw evidence, while the exact whole candidate remains eligible
 for separately approved whole-string hypothesis generation.
 
-## Authorization boundary and next decision
+## Fresh validation outcome and next decision
 
-No new protected semantic content was inspected. HOLDOUT and production were
-not accessed. The authorized machine-only rule application is complete; the
-240 candidate IDs, predictions, reasons, selection fingerprint, metrics, and
-thresholds are frozen in owner-only artifacts. Qualitative inspection of those
-240 candidates remains unauthorized pending an explicit owner decision.
+The owner later authorized Codex semantic inspection of exactly the frozen 240
+cases. Predictions remained blinded until all five-category classifications
+were frozen, and the rule, selection, reason codes, metrics, and thresholds did
+not change. HOLDOUT and production were not accessed, and no parser, web,
+third-party service, Stage 8, or geocoder call occurred.
 
-Job `1763433` used no parser call, network, new model, HOLDOUT, production, or
-full Python materialization of the 51,779-row nested registry. The engine
-performed an ID-only population binding and returned candidate/component
-values to SAFE code only for 452 eligible untouched IDs; the 152 unresolved
-candidates were decided from applicability metadata without reading their
-values. No future stage implementation or semantic review is authorized by
-this report.
+The validation returned 85/100 usable assessable READY cases, 10/100 clear
+misparses in READY, and 63/148 usable parses abstained. These results fail the
+95% READY-precision minimum, the 2.5%/two-case clear-leakage maxima, and the
+40% usable-abstention maximum. Eligible-frame abstention coverage remained
+non-vacuous at 122/452 (26.991%) and structural-reason replay was exact.
+
+The design outcome is
+`STAGE07_V2_FRESH_DEVELOPMENT_VALIDATION_FAIL`. The rule remains useful
+warning evidence but is not publishable as the component-consumption gate.
+The fresh labels must not be used to tune it. The full aggregate evidence is in
+the [fresh validation report](stage07_v2_fresh_development_validation.md).
+A new owner scientific decision is required; no future stage implementation,
+independent review, HOLDOUT, production, or geocoding is authorized.

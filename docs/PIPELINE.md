@@ -19,7 +19,9 @@ libpostal label/boundary errors. A prospective v2 preserves the immutable v1
 raw evidence and adds trusted-country applicability plus deterministic
 structural readiness/abstention. Optimized audit job `1763358` found that this
 warning rule catches all six known boundary failures but cannot establish
-semantic label truth. Fresh validation is required. No Stage 7 acceptance or
+semantic label truth. The frozen rule subsequently failed its fresh 240-case
+DEVELOPMENT validation: READY precision, clear-misparse leakage, and usable
+abstention all missed their predeclared thresholds. No Stage 7 acceptance or
 Stage 8 handoff is authorized.
 Production Stage 0 and Stage 1 are accepted for the 1,411-file population;
 production Stage 2 through Stage 6 have not started. DEVELOPMENT and production
@@ -211,8 +213,11 @@ geocoding before the governing pre-geocoding acceptance gate remains in force.
   readiness, and semantic quality as separate concepts. The DeepParse path is
   closed as `DEEPPARSE_INFRASTRUCTURE_PATH_NOT_JUSTIFIED`. Optimized bounded
   v2 audit job `1763358` caught all six known boundary failures, but one of five
-  label-only clear failures remained structurally ready. The prospective rule
-  is ready only for fresh DEVELOPMENT validation.
+  label-only clear failures remained structurally ready. Fresh blinded
+  validation of the frozen 240-case selection then produced 85/100 usable
+  assessable READY cases, 10 clear misparses in READY, and 63/148 usable parses
+  abstained. Those results fail the predeclared rule gates; they are validation
+  evidence, not population-wide libpostal accuracy estimates.
 - **Acceptance requirement:** Pinned build/resources, reproducible offline
   execution, trusted pre-parse applicability, multilingual DEVELOPMENT
   evaluation on eligible populations, exact raw preservation, deterministic

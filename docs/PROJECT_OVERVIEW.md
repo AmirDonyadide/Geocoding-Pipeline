@@ -60,10 +60,13 @@ DeepParse infrastructure path is closed as
 `DEEPPARSE_INFRASTRUCTURE_PATH_NOT_JUSTIFIED`; no protected DeepParse inference
 occurred. Optimized bounded readiness audit job `1763358` found that a
 deterministic Stage 7-local screen catches all six known boundary failures but
-cannot guarantee semantic label correctness. The prospective v2 design is
-ready for fresh DEVELOPMENT validation only; none of this alters the immutable
-v1 output. The old Stages 8–19 have not started, and compact evidence-first
-replacement Stages 8–14 are proposed but not started. See
+cannot guarantee semantic label correctness. Fresh prediction-blinded review
+of the predeclared 240-case v2 validation selection then failed the frozen
+READY-precision, clear-misparse-leakage, and usable-abstention gates. The rule
+remains useful structural-warning evidence but is not publishable as the v2
+component-consumption gate. None of this alters immutable v1 output. The old
+Stages 8–19 have not started, and compact evidence-first replacement Stages
+8–14 are proposed but not started. See
 [PIPELINE.md](PIPELINE.md).
 
 ## Standard and native Orbis representations

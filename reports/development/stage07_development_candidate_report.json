@@ -84,7 +84,8 @@
     "protected_artifacts_owner_only_untracked": true
   },
   "v2_readiness_design": {
-    "status": "STAGE07_V2_READINESS_DESIGN_READY_FOR_FRESH_DEVELOPMENT_VALIDATION",
+    "status": "STAGE07_V2_FRESH_DEVELOPMENT_VALIDATION_FAIL",
+    "design_freeze_status": "STAGE07_V2_READINESS_DESIGN_READY_FOR_FRESH_DEVELOPMENT_VALIDATION",
     "rule_id": "stage07_component_readiness_rule_v1",
     "optimized_audit_job": "1763358",
     "optimized_audit_sha": "372aad37370144d6ca85d05c56302a0af2cad4b3",
@@ -110,7 +111,24 @@
     "fresh_validation_selection_abstain": 120,
     "fresh_validation_selection_fingerprint": "c05cecf2aa9099045adc0d5c698c7e82a6bae187ae82222817f4bfb5264c2a89",
     "fresh_validation_machine_completed": true,
-    "fresh_validation_semantic_review_authorized": false
+    "fresh_validation_semantic_review_authorized": true,
+    "fresh_validation_semantic_review_completed": true,
+    "fresh_validation_review_method": "OWNER_AUTHORIZED_CODEX_SEMANTIC_REVIEW",
+    "fresh_validation_result": "STAGE07_V2_FRESH_DEVELOPMENT_VALIDATION_FAIL",
+    "fresh_validation_classification_counts": {
+      "PLAUSIBLE_PARSE": 79,
+      "PARTIAL_BUT_USABLE_PARSE": 69,
+      "QUESTIONABLE_PARSE": 8,
+      "CLEAR_MISPARSE": 41,
+      "UPSTREAM_SOURCE_CORRUPTION_OR_UNASSESSABLE": 43
+    },
+    "fresh_validation_ready_precision": {"numerator": 85, "denominator": 100, "percent": 85.0, "pass": false},
+    "fresh_validation_clear_misparse_leakage": {"count": 10, "denominator": 100, "percent": 10.0, "count_pass": false, "percent_pass": false},
+    "fresh_validation_usable_abstention_rate": {"numerator": 63, "denominator": 148, "percent": 42.567567567567565, "pass": false},
+    "fresh_validation_eligible_frame_abstention_coverage": {"numerator": 122, "denominator": 452, "percent": 26.991150442477878, "pass": true},
+    "fresh_validation_structural_reason_replay_exact": true,
+    "fresh_validation_protected_manifest_sha256": "d5e517bd7cb55d7f954224f9aa380841acc1c9f4e77593918e522f632c9509b4",
+    "fresh_validation_protected_aggregate_sha256": "5e55757daa817d7ffe24c2f053ce045783300b116acb5d20df17419e2738bdfd"
   },
   "post_stage07_architecture": {
     "status": "PROPOSED_NOT_STARTED",
