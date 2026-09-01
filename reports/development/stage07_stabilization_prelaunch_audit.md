@@ -286,18 +286,14 @@ modes would mutate the preserved attempt again. Owner decision D030 authorizes
 exactly one fresh public-only read-only v2 bundle after every prelaunch gate
 passes. The contaminated tree remains historical provenance and is not reused.
 
-### Remaining until executed evidence exists
+### Final V2 prelaunch outcome
 
-- one fresh public-only read-only v2 bundle built from the exact pushed SHA and
-  independently reopened without mutation;
-- exact compute-image native linkage evidence;
-- offline public multilingual model-initialization smoke on a Goethe compute
-  node;
-- exact imported-distribution/runtime evidence from that compute smoke;
-- a final all-checks prelaunch record at one exact pushed SHA.
-
-No protected DeepParse inference is justified until every applicable remaining
-item passes.
+The exact pushed-SHA/path/resource gates passed, but the mandatory publication
+filesystem probe failed with PanFS `EINVAL` before scheduling. Consequently no
+fresh read-only bundle, compute-image linkage evidence, multilingual model
+smoke, or imported-distribution runtime evidence exists for V2. The probe left
+no build/output path. No protected DeepParse inference is justified, and D030
+prohibits another infrastructure iteration.
 
 ## Prelaunch checklist
 
@@ -305,8 +301,8 @@ item passes.
 |---|---|
 | Methodology consistency | PASS |
 | Country eligibility definition frozen | PASS |
-| Exact clean pushed/detached execution SHA | PENDING V2 COMMIT/PUSH |
-| Controlled worktree/path policy | IMPLEMENTED; FINAL EXACT-SHA PREFLIGHT PENDING |
+| Exact clean pushed/detached execution SHA | PASS — `1b6aa0c204a9e4369969b603f358763fcedec71c` |
+| Controlled worktree/path policy | PASS until the exact target-filesystem atomic probe |
 | Local focused tests/static/syntax | PASS — 119 Stage 7 tests, 294 Stage 2–7 regressions, and 561 local-safe tests (4 deselected) under exact Python 3.14.3; Ruff, strict mypy, shell syntax, and diff check |
 | Eligibility denominators | PASS — job `1762293`, independently reopened |
 | Dependency/import closure | Historical PASS in job `1762661`; exact 79-distribution hash lock frozen for v2 |
@@ -316,7 +312,8 @@ item passes.
 | Offline cache binding | PASS in job `1762661` |
 | Offline synthetic initialization | PASS in job `1762661`; zero network attempts |
 | Public multilingual smoke | FAILED before model execution in job `1762669` |
-| Read-only permission design | LOCAL BEHAVIORAL PASS; fresh v2 execution pending |
+| Read-only permission design | LOCAL BEHAVIORAL PASS; fresh bundle was not executed |
+| Target-filesystem no-replace atomic publication | FAIL — PanFS returned `EINVAL` (errno 22) for same-parent `renameat2(RENAME_NOREPLACE)` |
 | Disk/inode/resource preflight | PASS for bundle and smoke submissions |
 | JSON and Markdown-link checks | PASS for changed sanitized evidence |
 | Privacy/tracked-data audit | PASS; no protected or controlled artifact is tracked |
@@ -420,23 +417,20 @@ diagnostic remains prohibited.
 
 ## Current engineering decision
 
-`STAGE07_PRELAUNCH_GATE_FAIL` is controlling. Remaining blockers are exact and
-non-speculative:
+`STAGE07_PRELAUNCH_GATE_FAIL` is controlling. The complete local V2 gates passed
+and exact pushed SHA `1b6aa0c204a9e4369969b603f358763fcedec71c` was opened as a clean detached
+Goethe worktree. The mandatory probe then established that the exact PanFS
+publication parent rejects Linux same-parent
+`renameat2(RENAME_NOREPLACE)` with `EINVAL` (errno 22). The probe cleaned its
+temporary tree; neither the fresh build path nor output path was created, and
+no SLURM job was submitted.
 
-1. the completed v2 implementation/local gates must be committed and pushed,
-   then a clean detached Goethe worktree and fresh build/output paths must pass
-   the exact submission preflight;
-2. the one owner-authorized fresh public-only physically read-only bundle must
-   build, publish, and independently reopen with zero writable paths, bytecode,
-   links, or full-tree identity differences;
-3. the one final public-only compute-node smoke must pass
-   offline initialization, multilingual public synthetic determinism,
-   multiprocessing spawn, and full native linkage;
-4. a final exact-SHA prelaunch record must show all checks pass together.
-
-The contamination is an infrastructure defect, not parser-quality evidence.
-D030 is the final infrastructure architecture: if its fresh build or smoke fails
-for a substantive runtime/reproducibility reason, no further bundle/smoke is
-permitted and the DeepParse path becomes unjustified. At this report point the
-v2 public job has not yet been submitted and no protected job is justified.
-Scientific status remains `STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY`.
+This is a target-filesystem reproducibility failure at the final architecture's
+fail-closed atomic-publication boundary. Weakening no-replace semantics or
+starting another packaging redesign would violate D030's hard stop. Therefore
+`DEEPPARSE_INFRASTRUCTURE_PATH_NOT_JUSTIFIED` is the engineering conclusion.
+Stage 7 should proceed only after a new owner scientific decision, using
+libpostal on its eligible population, an explicit semantic-readiness policy,
+and conservative abstention for unsafe structured parses while preserving the
+exact Stage 6 candidate and raw Stage 7 evidence. Scientific status remains
+`STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY`.

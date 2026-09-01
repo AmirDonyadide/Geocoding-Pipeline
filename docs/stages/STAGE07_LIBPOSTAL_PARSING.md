@@ -692,3 +692,14 @@ rejects external hard links, recursively fsyncs the payload, and probes
 race-safe no-replace atomic rename semantics on the exact publication
 filesystem before scheduling. Login-node bundle checks are metadata-only;
 complete content and tree rehashing remain compute-job gates.
+
+The completed local V2 gates were committed and pushed at
+`1b6aa0c204a9e4369969b603f358763fcedec71c`, then opened in a clean detached
+controlled Goethe worktree. The mandatory exact-parent prelaunch probe failed
+before scheduling: PanFS returned `EINVAL` (errno 22) for same-parent Linux
+`renameat2(RENAME_NOREPLACE)`. The probe cleaned its temporary tree; no fresh
+build/output path was created, no SLURM job was submitted, and no protected
+input was opened. D030's final-architecture hard stop therefore applies:
+`DEEPPARSE_INFRASTRUCTURE_PATH_NOT_JUSTIFIED`. Further DeepParse bundle/smoke
+iterations are not authorized; a new owner scientific decision is required for
+libpostal semantic-readiness and conservative abstention policy.

@@ -57,8 +57,10 @@ and the DeepParse trained-country diagnostic remains infrastructure-only. Its
 first public bundle was valid at publication but was later mutated by a
 login-side Python cache-resolution import because post-publication write
 protection was absent. Both compute smokes stopped before scientific execution.
-One final public-only physically read-only bundle architecture is undergoing
-PRELAUNCH V2 validation; none of this alters the immutable v1 output.
+The final public-only physically read-only architecture passed local V2 gates,
+but its exact Goethe prelaunch stopped before scheduling because PanFS rejected
+the required no-replace atomic rename with `EINVAL`. The DeepParse infrastructure
+path is therefore not justified; none of this alters the immutable v1 output.
 Stages 8–19 have not started. See
 [PIPELINE.md](PIPELINE.md).
 

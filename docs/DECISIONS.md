@@ -495,6 +495,30 @@ to change a decision or start a stage.
   protected inference, independent review, Stage 8, HOLDOUT, production,
   geocoding, or merge is authorized.
 
+### D031 — Stop the DeepParse infrastructure path at the final V2 prelaunch gate
+
+- **Date:** 2026-09-01.
+- **Scope:** Outcome of the owner-approved D030 public-only infrastructure
+  attempt; no parser inference.
+- **Evidence:** All local V2 behavioral/static gates passed and exact pushed SHA
+  `1b6aa0c204a9e4369969b603f358763fcedec71c` was opened as a clean detached
+  controlled Goethe worktree. Before scheduling, the exact publication-parent
+  probe established that PanFS returns `EINVAL` (errno 22) for same-parent Linux
+  `renameat2(RENAME_NOREPLACE)`. The probe cleaned its temporary tree. No fresh
+  build/output path was created, no SLURM job was submitted, and no protected
+  input was opened.
+- **Decision:** Apply D030's hard stop. Do not weaken fail-closed no-replace
+  publication semantics and do not enter another bundle/smoke redesign cycle.
+  The engineering conclusion is
+  `DEEPPARSE_INFRASTRUCTURE_PATH_NOT_JUSTIFIED`. A future Stage 7 scientific
+  decision should instead consider libpostal within its eligible country scope,
+  an explicit semantic-readiness policy, and conservative abstention while
+  preserving exact Stage 6 candidates and immutable raw Stage 7 evidence.
+- **Status:** `STAGE07_PRELAUNCH_GATE_FAIL` and
+  `STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY`. No protected DeepParse inference,
+  independent review, Stage 8, HOLDOUT, production, geocoding, merge, further
+  bundle build, or compute smoke is authorized.
+
 ## Open decisions
 
 These questions require future stage designs and explicit approval:
@@ -511,4 +535,4 @@ These questions require future stage designs and explicit approval:
 
 Nothing in this register authorizes HOLDOUT, Stage 7 acceptance or independent
 review, Stage 8, geocoding, or production Stage 2 through Stage 7. Stage 7
-decisions D023–D030 authorize only their stated DEVELOPMENT scopes.
+decisions D023–D031 authorize only their stated DEVELOPMENT scopes.
