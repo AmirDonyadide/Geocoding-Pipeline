@@ -958,12 +958,20 @@ def run_independent_rereview(config: RereviewConfig) -> RereviewOutcome:
             "stage07_parse_status": "stage07_parse_status",
         }
         for eligibility_name, v2_name in mapping.items():
-            expected = _scalar(eligibility_batch, eligibility_index, eligibility_name)
-            _assert_equal(
-                expected,
-                _scalar(v2_batch, v2_index, v2_name),
-                "ELIGIBILITY_COPY_MISMATCH",
-            )
+            # The frozen eligibility artifact intentionally uses some physical
+            # Arrow types that differ from the v2 schema (for example binary
+            # versus fixed-size binary candidate IDs).  The scientific
+            # contract is exact logical-value preservation, so compare the
+            # decoded scalar values here; the v2 physical types are checked
+            # independently by ``_validate_v2_schema``.
+            if (
+                _scalar(eligibility_batch, eligibility_index, eligibility_name).as_py()
+                != _scalar(v2_batch, v2_index, v2_name).as_py()
+            ):
+                _fail(
+                    "ELIGIBILITY_COPY_MISMATCH",
+                    "A protected eligibility value differs",
+                )
         _validate_country_invariants(eligibility)
 
         v1_status = _scalar(v1_batch, v1_index, "stage07_parse_status")
