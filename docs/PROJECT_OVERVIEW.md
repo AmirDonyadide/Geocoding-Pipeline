@@ -64,7 +64,11 @@ cannot guarantee semantic label correctness. Fresh prediction-blinded review
 of the predeclared 240-case v2 validation selection then failed the frozen
 READY-precision, clear-misparse-leakage, and usable-abstention gates. The rule
 remains useful structural-warning evidence but is not publishable as the v2
-component-consumption gate. None of this alters immutable v1 output. The old
+component-consumption gate. Owner decision D035 freezes evidence-only
+`stage07_parser_evidence_contract_v2`: exact v1 outputs and Stage 6 candidates
+are preserved, applicability and technical execution remain separate, and
+structural signals are warnings rather than semantic trust. Its full
+DEVELOPMENT projection is pending. None of this alters immutable v1 output. The old
 Stages 8–19 have not started, and compact evidence-first replacement Stages
 8–14 are proposed but not started. See
 [PIPELINE.md](PIPELINE.md).

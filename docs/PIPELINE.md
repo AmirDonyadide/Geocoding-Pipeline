@@ -15,14 +15,15 @@ stage.
 Stages 0–6 are accepted on DEVELOPMENT. Stage 7's frozen v1 contract completed
 authoritative DEVELOPMENT parsing and machine validation, but the candidate
 remains not ready: qualitative and targeted root-cause evidence found material
-libpostal label/boundary errors. A prospective v2 preserves the immutable v1
-raw evidence and adds trusted-country applicability plus deterministic
-structural readiness/abstention. Optimized audit job `1763358` found that this
-warning rule catches all six known boundary failures but cannot establish
+libpostal label/boundary errors. A frozen evidence-only v2 preserves the
+immutable v1 raw evidence and adds trusted-country applicability plus
+deterministic structural warnings. Optimized audit job `1763358` found that
+the former warning rule catches all six known boundary failures but cannot establish
 semantic label truth. The frozen rule subsequently failed its fresh 240-case
 DEVELOPMENT validation: READY precision, clear-misparse leakage, and usable
-abstention all missed their predeclared thresholds. No Stage 7 acceptance or
-Stage 8 handoff is authorized.
+abstention all missed their predeclared thresholds. It is retained only as
+warning-feature history; evidence-only v2 publishes no semantic readiness
+gate. No Stage 7 acceptance or Stage 8 handoff is authorized.
 Production Stage 0 and Stage 1 are accepted for the 1,411-file population;
 production Stage 2 through Stage 6 have not started. DEVELOPMENT and production
 The old Stages 8–19 have not started. A compact replacement Stages 8–14 is
@@ -198,8 +199,8 @@ geocoding before the governing pre-geocoding acceptance gate remains in force.
   The parser is evidence, not postal truth.
 - **Input:** Accepted unique Stage 6 candidates.
 - **Output:** Versioned exact ordered libpostal labels/values, applicability and
-  technical statuses, parser provenance, and component readiness/abstention
-  evidence for each candidate and representation map-back.
+  technical statuses, parser provenance, non-semantic structural-warning
+  evidence, and complete candidate/occurrence map-back.
 - **Primary libraries:** libpostal/pypostal.
 - **Data effect:** Adds derived parsed components; candidate text is preserved.
 - **Status:** **`STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY`**. Authoritative job
@@ -217,11 +218,14 @@ geocoding before the governing pre-geocoding acceptance gate remains in force.
   validation of the frozen 240-case selection then produced 85/100 usable
   assessable READY cases, 10 clear misparses in READY, and 63/148 usable parses
   abstained. Those results fail the predeclared rule gates; they are validation
-  evidence, not population-wide libpostal accuracy estimates.
+  evidence, not population-wide libpostal accuracy estimates. Controlling v2
+  contract `stage07_parser_evidence_contract_v2` therefore removes
+  `COMPONENTS_READY`/`COMPONENTS_ABSTAIN` and treats structural reasons as
+  warnings only. Its full DEVELOPMENT projection is pending.
 - **Acceptance requirement:** Pinned build/resources, reproducible offline
   execution, trusted pre-parse applicability, multilingual DEVELOPMENT
   evaluation on eligible populations, exact raw preservation, deterministic
-  structural warnings, explicit abstention, fresh validation, and independent
+  structural warnings without trust claims, complete map-back, and independent
   review. Stage 7 does not guarantee semantic component or geographic truth.
 
 ## Proposed replacement Stages 8–14
@@ -234,13 +238,14 @@ are in the
 
 ### Stage 8 — Lossless address-evidence projection
 
-- **Purpose:** Map only structurally ready parser evidence into the fixed SAFE
-  component superset; retain raw order, duplicates, unmapped components, exact
-  candidates, abstention, and pinned offline country-format metadata.
+- **Purpose:** Treat parser labels as hypotheses/evidence while retaining raw
+  order, duplicates, unmapped components, exact whole-string STANDARD/NATIVE
+  candidates, structural warnings, and pinned offline country-format metadata.
+  Absence of a Stage 7 warning is never semantic truth.
 - **Primary tools:** PyArrow/Parquet, pycountry, pinned offline
   libaddressinput metadata.
-- **Acceptance:** Lossless lineage/mapping, no component trust for abstained
-  rows, and no claim of geographic truth.
+- **Acceptance:** Lossless lineage/mapping, no raw parser label treated as
+  source truth, and no claim of geographic truth.
 - **Status:** **PROPOSED — NOT STARTED**.
 
 ### Stage 9 — Offline geographic reference evidence

@@ -623,11 +623,42 @@ to change a decision or start a stage.
   before any replacement Stage 7 design. Independent review, Stage 8, HOLDOUT,
   production, geocoding, and merge remain unauthorized.
 
+### D035 — Redefine Stage 7 v2 as an evidence-only projection
+
+- **Date:** 2026-09-01.
+- **Scope:** Stage 7 DEVELOPMENT design, implementation, and one prospective
+  projection/validation from immutable Stage 6, Stage 7 v1, and eligibility
+  evidence; no parser calls or semantic review.
+- **Decision:** Freeze `stage07_parser_evidence_contract_v2` and
+  `stage07_parser_evidence_profile_v2`. Stage 7 guarantees exact source and raw
+  parser-evidence preservation, parser/applicability/technical provenance,
+  deterministic structural warnings, and full map-back. It does not guarantee
+  semantic labels, component boundaries, postal validity, geographic truth, or
+  semantic correctness when no structural warning fires.
+- **Readiness disposition:** Retire `COMPONENTS_READY` and
+  `COMPONENTS_ABSTAIN` as a downstream semantic-trust gate. Preserve the failed
+  `stage07_component_readiness_rule_v1` and its fresh validation immutably.
+  Reuse only its deterministic structural signals under
+  `stage07_structural_warning_features_v1`; publish no readiness field or
+  semantic-trust assertion.
+- **Historical execution:** v2 makes zero parser calls. It copies the exact v1
+  `PARSED_NONEMPTY`/`PARSED_EMPTY` status and ordered raw component stream and
+  records origin `REUSED_IMMUTABLE_STAGE07_V1`. Country applicability remains
+  a separate field. Country-unresolved rows retain historical raw evidence but
+  receive `STRUCTURAL_WARNINGS_NOT_EVALUATED`.
+- **Downstream meaning:** Future Stage 8 may consume raw libpostal labels only
+  as hypotheses/evidence and must retain exact whole-string STANDARD/NATIVE
+  candidates in parallel. No-warning is not trust.
+- **Status:** Contract and implementation design frozen; the required full
+  51,779-row DEVELOPMENT projection/reopen validation remains pending. Stage 7
+  remains `STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY`. Independent review,
+  Stage 8, HOLDOUT, production, geocoding, and merge remain unauthorized.
+
 ## Open decisions
 
 These questions require future stage designs and explicit approval:
 
-- a new owner scientific decision after the failed Stage 7 v2 validation;
+- evidence-only Stage 7 v2 DEVELOPMENT publication and independent review;
 - approval or revision of the proposed compact Stages 8–14;
 - exact offline reference releases/licenses and blocking semantics;
 - the bounded Stage 10 hypothesis/query ladder;
@@ -637,4 +668,4 @@ These questions require future stage designs and explicit approval:
 
 Nothing in this register authorizes HOLDOUT, Stage 7 acceptance or independent
 review, Stage 8, geocoding, or production Stage 2 through Stage 7. Stage 7
-decisions D023–D034 authorize only their stated DEVELOPMENT scopes.
+decisions D023–D035 authorize only their stated DEVELOPMENT scopes.

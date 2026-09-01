@@ -780,3 +780,32 @@ tuned on the validation labels. Full sanitized evidence is in the
 Stage 7 remains `STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY`. A new owner
 scientific decision is required; independent review, Stage 8, HOLDOUT,
 production, geocoding, and merge remain unauthorized.
+
+## Controlling evidence-only v2 contract
+
+Owner decision D035 resolves the failed-readiness conflict by defining Stage 7
+as evidence production rather than semantic truth. The frozen identities are
+`stage07_parser_evidence_contract_v2` and
+`stage07_parser_evidence_profile_v2`. They project immutable Stage 6, Stage 7
+v1, and country-eligibility evidence without making a new parser call or
+modifying v1.
+
+The projection preserves all five Stage 6 registry fields, historical v1
+`PARSED_NONEMPTY`/`PARSED_EMPTY`, and the exact ordered non-null LargeList of
+raw label/value pairs. It adds trusted-country provenance/applicability and
+deterministic parser-local warning features. Warning status is one of
+`STRUCTURAL_WARNINGS_PRESENT`, `NO_STRUCTURAL_WARNINGS_DETECTED`, or
+`STRUCTURAL_WARNINGS_NOT_EVALUATED`. No `COMPONENTS_READY`,
+`COMPONENTS_ABSTAIN`, or semantic-trust field is published.
+
+This contract guarantees lineage, technical provenance, warning
+reproducibility, exact raw evidence, and complete map-back. It explicitly does
+not guarantee semantic labels, component boundaries, postal validity,
+geographic truth, or semantic correctness when no warning fires. Future Stage
+8 may use libpostal components only as hypotheses/evidence while keeping exact
+whole-string STANDARD/NATIVE candidates in parallel.
+
+Implementation and pre-publication design evidence are in the
+[evidence-only v2 report](../../reports/development/stage07_parser_evidence_v2_design.md).
+The required 51,779-row DEVELOPMENT projection and independent reopen
+validation are pending; Stage 7 remains not ready until they pass.
