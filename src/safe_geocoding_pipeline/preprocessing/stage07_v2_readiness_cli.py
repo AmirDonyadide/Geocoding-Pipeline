@@ -20,7 +20,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--classifications", type=Path, required=True)
     parser.add_argument("--root-cause", type=Path, required=True)
     parser.add_argument("--eligibility", type=Path, required=True)
-    parser.add_argument("--stage07-registry", type=Path, nargs="+", required=True)
+    parser.add_argument("--qualitative-html", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--execution-git-sha", required=True)
     return parser
@@ -36,7 +36,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             classifications_path=args.classifications,
             root_cause_path=args.root_cause,
             eligibility_path=args.eligibility,
-            stage07_registry_paths=tuple(args.stage07_registry),
+            qualitative_html_path=args.qualitative_html,
             output_directory=args.output,
             execution_git_sha=args.execution_git_sha,
         )
@@ -49,6 +49,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     print(f"fixed500_remaining_unreviewed={fixed['remaining_unreviewed_candidates']}")
     print(f"discovery_candidates={discovery['selected_candidates']}")
     print(f"clear_misparse_leaked_ready={discovery['clear_misparse_leaked_ready']}")
+    print("semantic_input=existing_owner_only_qualitative_review_html")
+    print("authoritative_registry_nested_scan=false")
     print("protected_values_printed=false")
     return 0
 

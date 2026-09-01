@@ -209,18 +209,33 @@ def structural_signals(
 
     maximum_per_run = 0
     if stream_equal and candidate_stream:
-        run_starts = [0]
-        for offset in range(1, len(source_positions)):
-            if source_positions[offset] != source_positions[offset - 1] + 1:
-                run_starts.append(offset)
-        run_bounds = tuple(zip(run_starts, (*run_starts[1:], len(candidate_stream))))
-        for run_start, run_end in run_bounds:
-            intersections = sum(
-                start < run_end and end > run_start
-                for start, end, _ in component_spans
-                if end > start
-            )
+        # Component spans and lexical runs are both ordered, non-overlapping
+        # partitions of the same lexical/numeric stream.  Sweep them together
+        # instead of comparing every run with every component.  This preserves
+        # the exact intersection definition while keeping giant fragmented
+        # candidates O(codepoints + components), not O(runs * components).
+        nonempty_spans = (
+            (start, end) for start, end, _ in component_spans if end > start
+        )
+        current_span = next(nonempty_spans, None)
+        run_start = 0
+        for offset in range(1, len(source_positions) + 1):
+            if (
+                offset < len(source_positions)
+                and source_positions[offset] == source_positions[offset - 1] + 1
+            ):
+                continue
+            run_end = offset
+            intersections = 0
+            while current_span is not None and current_span[0] < run_end:
+                if current_span[1] > run_start:
+                    intersections += 1
+                if current_span[1] <= run_end:
+                    current_span = next(nonempty_spans, None)
+                else:
+                    break
             maximum_per_run = max(maximum_per_run, intersections)
+            run_start = run_end
     if maximum_per_run >= 3:
         reasons.add(REASON_FRAGMENTATION)
 

@@ -79,6 +79,18 @@ def test_internal_boundary_fragmentation_and_repeated_labels_are_preserved() -> 
     )
 
 
+def test_many_lexical_runs_use_linear_fragmentation_sweep() -> None:
+    # The former run-by-component cross product made this bounded synthetic
+    # shape impractical.  The exact signal is one component per lexical run.
+    run_count = 20_000
+    signals = structural_signals(
+        " ".join("a" for _ in range(run_count)),
+        tuple(_component("a") for _ in range(run_count)),
+    )
+    assert signals.maximum_components_per_lexical_run == 1
+    assert signals.internal_boundary_count == 0
+
+
 @pytest.mark.parametrize(
     ("candidate", "values", "expected"),
     [

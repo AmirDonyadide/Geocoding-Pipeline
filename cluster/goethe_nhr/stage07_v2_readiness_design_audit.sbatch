@@ -24,7 +24,6 @@ readonly INTEGRATION_ROOT="$(realpath -e -- "${STAGE07_V2_INTEGRATION_ROOT}")"
 readonly RUNTIME_ROOT="$(realpath -e -- "${STAGE07_V2_RUNTIME_ROOT}")"
 readonly OUTPUT_DIRECTORY="$(realpath -m -- "${STAGE07_V2_OUTPUT_DIRECTORY}")"
 readonly STAGE06_FIXED="${DATA_ROOT}/derived/controlled/development_reporting/stage06_review_20260828T223804Z_f39047cc825d/stage06_fixed500_verification.parquet"
-readonly STAGE07_ROOT="${DATA_ROOT}/derived/controlled/stage07/development/stage07_development_4a5f749"
 readonly REVIEW_ROOT="${DATA_ROOT}/derived/controlled/stage07/review/stage07_review_4a5f749"
 readonly QUALITY_ROOT="${DATA_ROOT}/derived/controlled/stage07/quality_diagnostics/stage07_quality_5f324fd_attempt2"
 readonly ELIGIBILITY_ROOT="${DATA_ROOT}/derived/controlled/stage07/eligibility_audits/stage07_eligibility_aa15b1c_attempt1"
@@ -33,7 +32,6 @@ for controlled_path in \
   "${INTEGRATION_ROOT}" \
   "${RUNTIME_ROOT}" \
   "${STAGE06_FIXED}" \
-  "${STAGE07_ROOT}" \
   "${REVIEW_ROOT}" \
   "${QUALITY_ROOT}" \
   "${ELIGIBILITY_ROOT}" \
@@ -71,15 +69,11 @@ export LANG=C.UTF-8
 export LC_ALL=C.UTF-8
 export PYTHONPATH="${INTEGRATION_ROOT}/src"
 
-mapfile -d '' REGISTRY_FILES < <(
-  find "${STAGE07_ROOT}/registry/data" -maxdepth 1 -type f \
-    -name 'part-*.parquet' -print0 | sort -z
-)
-[[ "${#REGISTRY_FILES[@]}" -eq 13 ]]
-
 echo "job_id=${SLURM_JOB_ID}"
 echo "git_commit=${STAGE07_V2_GIT_COMMIT}"
 echo "scope=existing_authorized_120_plus_metadata_only_fixed500"
+echo "semantic_input=existing_owner_only_qualitative_review_html"
+echo "authoritative_registry_nested_scan=false"
 echo "new_semantic_candidates_inspected=0"
 echo "parser_calls=0"
 echo "network_calls=0"
@@ -91,7 +85,7 @@ echo "network_calls=0"
   --classifications "${REVIEW_ROOT}/stage07_qualitative_classifications.json" \
   --root-cause "${QUALITY_ROOT}/stage07_quality_root_cause_cases.parquet" \
   --eligibility "${ELIGIBILITY_ROOT}/stage07_candidate_country_eligibility.parquet" \
-  --stage07-registry "${REGISTRY_FILES[@]}" \
+  --qualitative-html "${REVIEW_ROOT}/stage07_qualitative_review.html" \
   --output "${OUTPUT_DIRECTORY}" \
   --execution-git-sha "${STAGE07_V2_GIT_COMMIT}"
 

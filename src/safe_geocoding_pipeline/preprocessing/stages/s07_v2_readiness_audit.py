@@ -9,28 +9,28 @@ metadata.  Git-safe output is aggregate-only.
 from __future__ import annotations
 
 import hashlib
+import html
 import json
+import mmap
 import os
 import re
 import stat
 from collections import Counter, defaultdict
-from collections.abc import Iterable, Iterator
+from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, NoReturn, cast
 
 import pyarrow as pa
-import pyarrow.dataset as ds
 import pyarrow.parquet as pq
 
 from ...execution_policy import require_goethe_nhr_slurm
 from ..reporting.stage06 import stage06_review_schema
 from ..reporting.stage07 import (
     QUALITATIVE_CLASSIFICATIONS,
-    _components_from_scalar,
     _fixed500_schema,
 )
-from .s06_exact_deduplication import REGISTRY_COLUMNS, ROW_MAP_ID_COLUMNS
+from .s06_exact_deduplication import ROW_MAP_ID_COLUMNS
 from .s07_component_readiness import (
     COMPONENTS_ABSTAIN,
     COMPONENTS_READY,
@@ -39,11 +39,11 @@ from .s07_component_readiness import (
     decide_component_readiness,
 )
 from .s07_country_eligibility import PARSER_ELIGIBLE_COUNTRY
-from .s07_output_schema import STAGE07_COMPONENTS_FIELD, STAGE07_STATUS_FIELD
+from .s07_libpostal_adapter import LibpostalComponent
 from .s07_quality_root_cause import SELECTION_FINGERPRINT, _selection_fingerprint
 
 
-AUDIT_VERSION = "stage07_v2_readiness_design_audit_v1"
+AUDIT_VERSION = "stage07_v2_readiness_design_audit_v2"
 EXPECTED_FIXED_ROWS = 500
 EXPECTED_FIXED_OCCURRENCES = 937
 EXPECTED_FIXED_CANDIDATES = 613
@@ -66,6 +66,9 @@ ROOT_CAUSE_ARTIFACT_SHA256 = (
 )
 ELIGIBILITY_ARTIFACT_SHA256 = (
     "a6ba110c0519873af898dcec0b5188a1db2659fe31aa619613cffcfdf82e499c"
+)
+QUALITATIVE_HTML_SHA256 = (
+    "b681fcc9ea2d971195e503d24cdd1c7339c7cf40dcf74c8a21a79fd84daf93b9"
 )
 
 _GIT_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
@@ -91,7 +94,7 @@ class ReadinessAuditConfig:
     classifications_path: Path
     root_cause_path: Path
     eligibility_path: Path
-    stage07_registry_paths: tuple[Path, ...]
+    qualitative_html_path: Path
     output_directory: Path
     execution_git_sha: str
     authoritative_development: bool = True
@@ -106,11 +109,9 @@ class ReadinessAuditConfig:
             self.classifications_path,
             self.root_cause_path,
             self.eligibility_path,
-            *self.stage07_registry_paths,
+            self.qualitative_html_path,
             self.output_directory,
         )
-        if not self.stage07_registry_paths:
-            _fail("REGISTRY_ABSENT", "Stage 7 registry paths are absent")
         if any(
             "holdout" in part.casefold()
             for path in paths
@@ -219,9 +220,7 @@ def _write_json(path: Path, value: object) -> None:
         os.fsync(handle.fileno())
 
 
-def _cross_tab(
-    records: list[dict[str, object]], key: str
-) -> dict[str, dict[str, int]]:
+def _cross_tab(records: list[dict[str, object]], key: str) -> dict[str, dict[str, int]]:
     result: dict[str, Counter[str]] = defaultdict(Counter)
     for record in records:
         classification = cast(str, record["classification"])
@@ -233,16 +232,181 @@ def _cross_tab(
     }
 
 
-def _nonempty_unit_batches(
-    batches: Iterable[pa.RecordBatch],
-) -> Iterator[pa.RecordBatch]:
-    """Discard legal empty filtered batches and require unit selected batches."""
-    for batch in batches:
-        if batch.num_rows == 0:
-            continue
-        if batch.num_rows != 1:
-            _fail("REGISTRY_INVALID", "Selected registry framing differs")
-        yield batch
+_SECTION_PREFIX = b"<section data-order='"
+_CANDIDATE_PREFIX = b"<h3>Exact Stage 6 candidate</h3><div class='candidate'>"
+_CANDIDATE_SUFFIX = b"</div>"
+_COMPONENTS_PREFIX = (
+    b"<h3>Ordered libpostal components</h3><table><thead><tr><th>#</th>"
+    b"<th>label</th><th>value</th></tr></thead><tbody>"
+)
+_COMPONENTS_SUFFIX = b"</tbody></table>"
+_ROW_PREFIX = b"<tr><td>"
+_ORDER_LABEL_SEPARATOR = b"</td><td>"
+_LABEL_VALUE_SEPARATOR = b"</td><td class='value'>"
+_ROW_SUFFIX = b"</td></tr>"
+
+
+@dataclass(frozen=True, slots=True)
+class _ReviewHtmlRow:
+    review_order: int
+    candidate: str
+    components: tuple[LibpostalComponent, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class _SelectedReview:
+    review_order: int
+    candidate_id: bytes
+    classification: str
+    parse_status: str
+    component_count: int
+    input_codepoints: int
+
+
+def _decode_html_text(value: bytes) -> str:
+    try:
+        return html.unescape(value.decode("utf-8", errors="strict"))
+    except UnicodeError as error:
+        raise Stage07V2ReadinessAuditError(
+            "QUALITATIVE_HTML_INVALID", "Review HTML contains invalid UTF-8"
+        ) from error
+
+
+def _find_required(
+    document: mmap.mmap, marker: bytes, start: int, stop: int, detail: str
+) -> int:
+    offset = document.find(marker, start, stop)
+    if offset < 0:
+        _fail("QUALITATIVE_HTML_INVALID", detail)
+    return offset
+
+
+def _iter_qualitative_html_rows(path: Path) -> Iterator[_ReviewHtmlRow]:
+    """Stream the exact pre-materialized 120-case review without registry access."""
+    try:
+        with (
+            path.open("rb") as handle,
+            mmap.mmap(handle.fileno(), 0, access=mmap.ACCESS_READ) as document,
+        ):
+            cursor = 0
+            for expected_order in range(1, EXPECTED_SELECTION_ROWS + 1):
+                marker = f"<section data-order='{expected_order}'>".encode("ascii")
+                section = _find_required(
+                    document,
+                    marker,
+                    cursor,
+                    len(document),
+                    "A required review section is absent",
+                )
+                if document.find(_SECTION_PREFIX, cursor, section) >= 0:
+                    _fail(
+                        "QUALITATIVE_HTML_INVALID",
+                        "Review section ordering or coverage differs",
+                    )
+                next_section = document.find(_SECTION_PREFIX, section + len(marker))
+                section_stop = next_section if next_section >= 0 else len(document)
+
+                candidate_start = _find_required(
+                    document,
+                    _CANDIDATE_PREFIX,
+                    section + len(marker),
+                    section_stop,
+                    "A review candidate field is absent",
+                ) + len(_CANDIDATE_PREFIX)
+                candidate_stop = _find_required(
+                    document,
+                    _CANDIDATE_SUFFIX,
+                    candidate_start,
+                    section_stop,
+                    "A review candidate field is unterminated",
+                )
+                candidate = _decode_html_text(document[candidate_start:candidate_stop])
+
+                component_start = _find_required(
+                    document,
+                    _COMPONENTS_PREFIX,
+                    candidate_stop,
+                    section_stop,
+                    "The ordered component table is absent",
+                ) + len(_COMPONENTS_PREFIX)
+                component_stop = _find_required(
+                    document,
+                    _COMPONENTS_SUFFIX,
+                    component_start,
+                    section_stop,
+                    "The ordered component table is unterminated",
+                )
+                components: list[LibpostalComponent] = []
+                row_cursor = component_start
+                while True:
+                    row_start = document.find(_ROW_PREFIX, row_cursor, component_stop)
+                    if row_start < 0:
+                        break
+                    order_start = row_start + len(_ROW_PREFIX)
+                    order_stop = _find_required(
+                        document,
+                        _ORDER_LABEL_SEPARATOR,
+                        order_start,
+                        component_stop,
+                        "A component order field is malformed",
+                    )
+                    try:
+                        component_order = int(document[order_start:order_stop])
+                    except ValueError as error:
+                        raise Stage07V2ReadinessAuditError(
+                            "QUALITATIVE_HTML_INVALID",
+                            "A component order value is malformed",
+                        ) from error
+                    if component_order != len(components) + 1:
+                        _fail(
+                            "QUALITATIVE_HTML_INVALID",
+                            "Ordered component framing differs",
+                        )
+                    label_start = order_stop + len(_ORDER_LABEL_SEPARATOR)
+                    label_stop = _find_required(
+                        document,
+                        _LABEL_VALUE_SEPARATOR,
+                        label_start,
+                        component_stop,
+                        "A component label field is malformed",
+                    )
+                    value_start = label_stop + len(_LABEL_VALUE_SEPARATOR)
+                    value_stop = _find_required(
+                        document,
+                        _ROW_SUFFIX,
+                        value_start,
+                        component_stop,
+                        "A component value field is malformed",
+                    )
+                    components.append(
+                        LibpostalComponent(
+                            label=_decode_html_text(document[label_start:label_stop]),
+                            value=_decode_html_text(document[value_start:value_stop]),
+                        )
+                    )
+                    row_cursor = value_stop + len(_ROW_SUFFIX)
+                if row_cursor != component_stop:
+                    trailing = document[row_cursor:component_stop]
+                    if trailing:
+                        _fail(
+                            "QUALITATIVE_HTML_INVALID",
+                            "Unexpected ordered component table content exists",
+                        )
+                yield _ReviewHtmlRow(
+                    review_order=expected_order,
+                    candidate=candidate,
+                    components=tuple(components),
+                )
+                cursor = component_stop + len(_COMPONENTS_SUFFIX)
+            if document.find(_SECTION_PREFIX, cursor) >= 0:
+                _fail(
+                    "QUALITATIVE_HTML_INVALID",
+                    "Unexpected additional review sections exist",
+                )
+    except OSError as error:
+        raise Stage07V2ReadinessAuditError(
+            "QUALITATIVE_HTML_INVALID", "Review HTML could not be read"
+        ) from error
 
 
 def run_v2_readiness_design_audit(
@@ -260,11 +424,10 @@ def run_v2_readiness_design_audit(
         (config.qualitative_selection_path, SELECTION_ARTIFACT_SHA256),
         (config.root_cause_path, ROOT_CAUSE_ARTIFACT_SHA256),
         (config.eligibility_path, ELIGIBILITY_ARTIFACT_SHA256),
+        (config.qualitative_html_path, QUALITATIVE_HTML_SHA256),
         (config.classifications_path, None),
     ):
         _require_private_file(path, expected)
-    for path in config.stage07_registry_paths:
-        _require_private_file(path)
 
     stage06_fixed = pq.ParquetFile(
         config.stage06_fixed500_path, page_checksum_verification=True
@@ -293,13 +456,36 @@ def run_v2_readiness_design_audit(
     if _selection_fingerprint(selection) != SELECTION_FINGERPRINT:
         _fail("SELECTION_INVALID", "Qualitative selection fingerprint differs")
     classifications = _load_classifications(config.classifications_path)
-    selected_by_id: dict[bytes, tuple[int, str]] = {}
+    selected_by_id: dict[bytes, _SelectedReview] = {}
+    selected_by_order: dict[int, _SelectedReview] = {}
     for index in range(selection.num_rows):
         order = selection.column("review_order")[index].as_py()
         candidate_id = selection.column("stage06_exact_candidate_id")[index].as_py()
-        if not isinstance(order, int) or not isinstance(candidate_id, bytes):
+        parse_status = selection.column("stage07_parse_status")[index].as_py()
+        component_count = selection.column("component_count")[index].as_py()
+        input_codepoints = selection.column("input_codepoints")[index].as_py()
+        if (
+            not isinstance(order, int)
+            or not isinstance(candidate_id, bytes)
+            or not isinstance(parse_status, str)
+            or not isinstance(component_count, int)
+            or not isinstance(input_codepoints, int)
+            or candidate_id in selected_by_id
+            or order in selected_by_order
+        ):
             _fail("SELECTION_INVALID", "A qualitative selection row differs")
-        selected_by_id[candidate_id] = (order, classifications[order])
+        selected = _SelectedReview(
+            review_order=order,
+            candidate_id=candidate_id,
+            classification=classifications[order],
+            parse_status=parse_status,
+            component_count=component_count,
+            input_codepoints=input_codepoints,
+        )
+        selected_by_id[candidate_id] = selected
+        selected_by_order[order] = selected
+    if set(selected_by_order) != set(range(1, EXPECTED_SELECTION_ROWS + 1)):
+        _fail("SELECTION_INVALID", "Qualitative review ordering differs")
     selected_ids = set(selected_by_id)
 
     root_cause = pq.ParquetFile(
@@ -356,33 +542,27 @@ def run_v2_readiness_design_audit(
     ):
         _fail("ELIGIBILITY_RECONCILIATION_FAILURE", "Eligibility totals differ")
 
-    dataset = ds.dataset(
-        [str(path) for path in config.stage07_registry_paths], format="parquet"
-    )
-    scanner = dataset.scanner(
-        columns=[
-            *REGISTRY_COLUMNS,
-            STAGE07_STATUS_FIELD,
-            STAGE07_COMPONENTS_FIELD,
-        ],
-        filter=ds.field(REGISTRY_COLUMNS[0]).isin(sorted(selected_ids)),
-        batch_size=1,
-        use_threads=False,
-    )
     discovery_records: list[dict[str, object]] = []
     seen_registry_ids: set[bytes] = set()
-    for batch in _nonempty_unit_batches(scanner.to_batches()):
-        candidate_id = batch.column(0)[0].as_py()
-        candidate = batch.column(1)[0].as_py()
-        if not isinstance(candidate_id, bytes) or not isinstance(candidate, str):
-            _fail("REGISTRY_INVALID", "Selected registry row differs")
+    for html_row in _iter_qualitative_html_rows(config.qualitative_html_path):
+        selected = selected_by_order[html_row.review_order]
+        candidate_id = selected.candidate_id
+        candidate = html_row.candidate
+        if (
+            len(candidate) != selected.input_codepoints
+            or len(html_row.components) != selected.component_count
+        ):
+            _fail(
+                "QUALITATIVE_HTML_INVALID",
+                "Review HTML candidate or component counts differ from selection",
+            )
         meta = eligibility_by_id[candidate_id]
         applicability = cast(str, meta["libpostal_eligibility"])
-        published_status = batch.column(5)[0].as_py()
-        if not isinstance(published_status, str):
-            _fail("REGISTRY_INVALID", "Selected parse status differs")
+        published_status = selected.parse_status
+        if meta["stage07_parse_status"] != published_status:
+            _fail("SELECTION_INVALID", "Selected parse status binding differs")
         if applicability == PARSER_ELIGIBLE_COUNTRY:
-            components = _components_from_scalar(batch.column(6)[0])
+            components = html_row.components
             technical_status = published_status
         else:
             components = None
@@ -392,17 +572,14 @@ def run_v2_readiness_design_audit(
             technical_status=technical_status,
             candidate=candidate,
             components=components,
-            standard_occurrence_count=_metadata_int(
-                meta["standard_occurrence_count"]
-            ),
+            standard_occurrence_count=_metadata_int(meta["standard_occurrence_count"]),
             native_occurrence_count=_metadata_int(meta["native_occurrence_count"]),
         )
-        order, classification = selected_by_id[candidate_id]
         discovery_records.append(
             {
-                "review_order": order,
+                "review_order": selected.review_order,
                 "stage06_exact_candidate_id": candidate_id,
-                "classification": classification,
+                "classification": selected.classification,
                 "representation": _representation(
                     _metadata_int(meta["standard_occurrence_count"]),
                     _metadata_int(meta["native_occurrence_count"]),
@@ -481,8 +658,8 @@ def run_v2_readiness_design_audit(
 
     clear_ids = {
         candidate_id
-        for candidate_id, (_, classification) in selected_by_id.items()
-        if classification == "CLEAR_MISPARSE"
+        for candidate_id, selected in selected_by_id.items()
+        if selected.classification == "CLEAR_MISPARSE"
     }
     predicted_by_id = {
         cast(bytes, record["stage06_exact_candidate_id"]): cast(
@@ -506,6 +683,12 @@ def run_v2_readiness_design_audit(
     aggregate: dict[str, object] = {
         "audit_version": AUDIT_VERSION,
         "scope": "EXISTING_AUTHORIZED_120_VALUES_PLUS_METADATA_ONLY_FIXED500",
+        "semantic_input": {
+            "source": "EXISTING_OWNER_ONLY_QUALITATIVE_REVIEW_HTML",
+            "sha256": QUALITATIVE_HTML_SHA256,
+            "selected_candidates": EXPECTED_SELECTION_ROWS,
+            "authoritative_registry_nested_scan": False,
+        },
         "readiness_rule_version": READINESS_RULE_VERSION,
         "fixed500": {
             "row_selection_fingerprint": "014f7c1373380b265f34e2ecb76614161b320e2bb972befb8f53994cc5a1dd52",
@@ -567,6 +750,8 @@ def run_v2_readiness_design_audit(
             "candidate_values_read_outside_authorized_120": 0,
             "component_streams_read": EXPECTED_SELECTION_ROWS,
             "component_streams_read_outside_authorized_120": 0,
+            "authoritative_registry_rows_scanned": 0,
+            "authoritative_registry_nested_rows_decoded": 0,
             "fixed500_nonoverlap_values_read": 0,
             "protected_values_in_aggregate": False,
             "holdout_accessed": False,
@@ -578,7 +763,7 @@ def run_v2_readiness_design_audit(
     aggregate_path = config.output_directory / "stage07_v2_readiness_aggregate.json"
     _write_json(aggregate_path, aggregate)
     manifest = {
-        "version": "stage07_v2_readiness_design_audit_manifest_v1",
+        "version": "stage07_v2_readiness_design_audit_manifest_v2",
         "status": "STAGE07_V2_READINESS_DESIGN_AUDIT_COMPLETE",
         "execution_git_sha": config.execution_git_sha,
         "artifacts": [
