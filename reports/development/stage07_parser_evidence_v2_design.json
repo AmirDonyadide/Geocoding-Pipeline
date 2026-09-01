@@ -45,7 +45,8 @@
   "schema_fingerprint": "b0e0e83ea3d929b7df8a6a5f64c2e8eb026395a917da90e97a98858b27e9ead2",
   "schema_id": "stage07_parser_evidence_schema_v2",
   "semantic_trust_claims": 0,
-  "status": "DESIGN_AND_IMPLEMENTATION_CONTRACT_FROZEN_AWAITING_DEVELOPMENT_PUBLICATION",
+  "post_freeze_development_report": "stage07_parser_evidence_v2_development.json",
+  "status": "DESIGN_AND_IMPLEMENTATION_CONTRACT_FROZEN",
   "structural_warning_feature_version": "stage07_structural_warning_features_v1",
   "structural_warning_status_vocabulary": [
     "NO_STRUCTURAL_WARNINGS_DETECTED",

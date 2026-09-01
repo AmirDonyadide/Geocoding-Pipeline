@@ -808,4 +808,11 @@ whole-string STANDARD/NATIVE candidates in parallel.
 Implementation and pre-publication design evidence are in the
 [evidence-only v2 report](../../reports/development/stage07_parser_evidence_v2_design.md).
 The required 51,779-row DEVELOPMENT projection and independent reopen
-validation are pending; Stage 7 remains not ready until they pass.
+validation passed in Goethe-NHR job `1763516` at exact implementation SHA
+`e684d84a8d68498ea790542143c8e125b3eb87b5`. All 51,779 candidates and 69,747
+occurrences reconciled, raw v1 evidence was exact, parser calls and semantic-
+trust claims were zero, and the manifest SHA-256 is
+`f58410877a7810562df7985c7316de7546d4dd8e11a647fd659c53a272e9c266`.
+The current verdict is
+`STAGE07_EVIDENCE_ONLY_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REVIEW`.
+Independent review has not started.

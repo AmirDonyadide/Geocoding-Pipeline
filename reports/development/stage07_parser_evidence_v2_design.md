@@ -119,3 +119,8 @@ Goethe-NHR DEVELOPMENT publication/validation must still prove 51,779 → 51,779
 exact v1 preservation, 69,747-occurrence map-back, deterministic warnings, and
 zero semantic-trust claims. Independent review, Stage 8, HOLDOUT, production,
 geocoding, and merge remain unauthorized.
+
+Post-freeze execution note: job `1763516` subsequently passed those gates. The
+sanitized outcome is recorded in the
+[DEVELOPMENT report](stage07_parser_evidence_v2_development.md); this design
+record otherwise remains the pre-execution freeze.

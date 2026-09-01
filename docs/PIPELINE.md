@@ -23,7 +23,9 @@ semantic label truth. The frozen rule subsequently failed its fresh 240-case
 DEVELOPMENT validation: READY precision, clear-misparse leakage, and usable
 abstention all missed their predeclared thresholds. It is retained only as
 warning-feature history; evidence-only v2 publishes no semantic readiness
-gate. No Stage 7 acceptance or Stage 8 handoff is authorized.
+gate. Its 51,779-row DEVELOPMENT projection and independent reopen validation
+passed in job `1763516`. The candidate is ready for separately authorized
+independent review, but no Stage 7 acceptance or Stage 8 handoff is authorized.
 Production Stage 0 and Stage 1 are accepted for the 1,411-file population;
 production Stage 2 through Stage 6 have not started. DEVELOPMENT and production
 The old Stages 8–19 have not started. A compact replacement Stages 8–14 is
@@ -203,7 +205,9 @@ geocoding before the governing pre-geocoding acceptance gate remains in force.
   evidence, and complete candidate/occurrence map-back.
 - **Primary libraries:** libpostal/pypostal.
 - **Data effect:** Adds derived parsed components; candidate text is preserved.
-- **Status:** **`STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY`**. Authoritative job
+- **Status:**
+  **`STAGE07_EVIDENCE_ONLY_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REVIEW`**.
+  Historical authoritative v1 job
   `1760221` produced all 51,779 rows and machine validation/map-back passed,
   but the 120-case qualitative review found 11 clear misparses. Targeted job
   `1760818` confirmed 14/18 investigated cases have genuine libpostal label or
@@ -221,7 +225,9 @@ geocoding before the governing pre-geocoding acceptance gate remains in force.
   evidence, not population-wide libpostal accuracy estimates. Controlling v2
   contract `stage07_parser_evidence_contract_v2` therefore removes
   `COMPONENTS_READY`/`COMPONENTS_ABSTAIN` and treats structural reasons as
-  warnings only. Its full DEVELOPMENT projection is pending.
+  warnings only. Evidence-only job `1763516` projected and independently
+  reopened all 51,779 candidates with exact v1 preservation, complete
+  69,747-occurrence map-back, and zero parser/trust claims.
 - **Acceptance requirement:** Pinned build/resources, reproducible offline
   execution, trusted pre-parse applicability, multilingual DEVELOPMENT
   evaluation on eligible populations, exact raw preservation, deterministic

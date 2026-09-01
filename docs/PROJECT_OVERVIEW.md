@@ -68,7 +68,9 @@ component-consumption gate. Owner decision D035 freezes evidence-only
 `stage07_parser_evidence_contract_v2`: exact v1 outputs and Stage 6 candidates
 are preserved, applicability and technical execution remain separate, and
 structural signals are warnings rather than semantic trust. Its full
-DEVELOPMENT projection is pending. None of this alters immutable v1 output. The old
+DEVELOPMENT projection and reopen validation passed for all 51,779 candidates
+in job `1763516`; the evidence-only candidate is ready for separately
+authorized independent review. None of this alters immutable v1 output. The old
 Stages 8–19 have not started, and compact evidence-first replacement Stages
 8–14 are proposed but not started. See
 [PIPELINE.md](PIPELINE.md).

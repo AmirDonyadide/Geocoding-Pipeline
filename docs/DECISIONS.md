@@ -649,16 +649,23 @@ to change a decision or start a stage.
 - **Downstream meaning:** Future Stage 8 may consume raw libpostal labels only
   as hypotheses/evidence and must retain exact whole-string STANDARD/NATIVE
   candidates in parallel. No-warning is not trust.
-- **Status:** Contract and implementation design frozen; the required full
-  51,779-row DEVELOPMENT projection/reopen validation remains pending. Stage 7
-  remains `STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY`. Independent review,
-  Stage 8, HOLDOUT, production, geocoding, and merge remain unauthorized.
+- **Execution evidence:** Goethe-NHR job `1763516` at exact pushed SHA
+  `e684d84a8d68498ea790542143c8e125b3eb87b5` completed the bounded projection
+  and independent reopen validation in 5 minutes 19 seconds. It reconciled
+  51,779 → 51,779 candidates and all 69,747 occurrences, preserved every Stage
+  6 field and raw v1 status/component stream, replayed warnings exactly, and
+  made zero parser calls and zero semantic-trust claims. Manifest SHA-256 is
+  `f58410877a7810562df7985c7316de7546d4dd8e11a647fd659c53a272e9c266`.
+- **Status:**
+  `STAGE07_EVIDENCE_ONLY_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REVIEW`.
+  This is not Stage 7 acceptance. Independent review, Stage 8, HOLDOUT,
+  production, geocoding, and merge remain unauthorized.
 
 ## Open decisions
 
 These questions require future stage designs and explicit approval:
 
-- evidence-only Stage 7 v2 DEVELOPMENT publication and independent review;
+- evidence-only Stage 7 v2 independent review and owner acceptance decision;
 - approval or revision of the proposed compact Stages 8–14;
 - exact offline reference releases/licenses and blocking semantics;
 - the bounded Stage 10 hypothesis/query ladder;
