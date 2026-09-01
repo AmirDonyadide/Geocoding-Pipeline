@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pyarrow as pa
 import pytest
 
 from safe_geocoding_pipeline.preprocessing.stage07_v2_readiness_cli import main
@@ -9,6 +10,7 @@ from safe_geocoding_pipeline.preprocessing.stages.s07_v2_readiness_audit import 
     ReadinessAuditConfig,
     Stage07V2ReadinessAuditError,
     _candidate_id_fingerprint,
+    _nonempty_unit_batches,
 )
 
 
@@ -49,3 +51,13 @@ def test_cli_requires_every_protected_input() -> None:
     with pytest.raises(SystemExit) as raised:
         main([])
     assert raised.value.code == 2
+
+
+def test_filtered_scanner_empty_batches_are_legal_but_nonunit_rows_fail() -> None:
+    empty = pa.record_batch([pa.array([], type=pa.int64())], names=["value"])
+    unit = pa.record_batch([pa.array([1], type=pa.int64())], names=["value"])
+    assert list(_nonempty_unit_batches((empty, unit))) == [unit]
+
+    multiple = pa.record_batch([pa.array([1, 2], type=pa.int64())], names=["value"])
+    with pytest.raises(Stage07V2ReadinessAuditError, match="framing"):
+        list(_nonempty_unit_batches((multiple,)))

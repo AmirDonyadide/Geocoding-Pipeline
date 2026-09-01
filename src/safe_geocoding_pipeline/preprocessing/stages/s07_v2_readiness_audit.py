@@ -14,6 +14,7 @@ import os
 import re
 import stat
 from collections import Counter, defaultdict
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, NoReturn, cast
@@ -232,6 +233,18 @@ def _cross_tab(
     }
 
 
+def _nonempty_unit_batches(
+    batches: Iterable[pa.RecordBatch],
+) -> Iterator[pa.RecordBatch]:
+    """Discard legal empty filtered batches and require unit selected batches."""
+    for batch in batches:
+        if batch.num_rows == 0:
+            continue
+        if batch.num_rows != 1:
+            _fail("REGISTRY_INVALID", "Selected registry framing differs")
+        yield batch
+
+
 def run_v2_readiness_design_audit(
     config: ReadinessAuditConfig,
 ) -> dict[str, object]:
@@ -358,9 +371,7 @@ def run_v2_readiness_design_audit(
     )
     discovery_records: list[dict[str, object]] = []
     seen_registry_ids: set[bytes] = set()
-    for batch in scanner.to_batches():
-        if batch.num_rows != 1:
-            _fail("REGISTRY_INVALID", "Selected registry framing differs")
+    for batch in _nonempty_unit_batches(scanner.to_batches()):
         candidate_id = batch.column(0)[0].as_py()
         candidate = batch.column(1)[0].as_py()
         if not isinstance(candidate_id, bytes) or not isinstance(candidate, str):
