@@ -76,9 +76,11 @@ rereview job `1763656` passed exact candidate
 `656a16d3d1f33cb152ace557c26f42df047bc7d6`, and the owner accepted it as
 `STAGE_7_ACCEPTED`. None of this alters immutable v1 output or converts parser
 components into semantic or geographic truth; warning absence provides no
-trust guarantee. The old Stages 8–19 were never started. The compact evidence-
-first replacement Stage 8 design is ready for implementation but has not been
-implemented or executed; replacement Stages 9–14 remain proposed. See
+trust guarantee. The old Stages 8–19 were never started. The compact
+evidence-first replacement Stage 8 design is implemented at
+`a2544401b4b699f6c020970f3507a2ae432746c5` and ready for a separately
+authorized controlled DEVELOPMENT execution, but has not been executed or
+accepted; replacement Stages 9–14 remain proposed. See
 [PIPELINE.md](PIPELINE.md).
 
 ## Standard and native Orbis representations
@@ -123,8 +125,9 @@ Accepted stages currently use Python's `csv` and `hashlib`, PyArrow/Parquet,
 DuckDB, `unicodedata`, `ftfy`, regular-expression/Arrow operations, and SAFE
 contracts. Accepted Stage 7 DEVELOPMENT evidence uses pinned
 libpostal/pypostal. DeepParse is closed and is not a planned runtime
-dependency. Designed Stage 8 uses PyArrow/Parquet and bounded DuckDB validation
-only; it adds no pycountry, libaddressinput, or reference-data dependency.
+dependency. Implemented Stage 8 uses PyArrow/Parquet and bounded DuckDB
+validation only; it adds no pycountry, libaddressinput, or reference-data
+dependency.
 Proposed Stage 9 may evaluate pinned offline pycountry and libaddressinput
 metadata, direct GeoNames data, local Overture Maps Addresses GeoParquet,
 optional approved OSM evidence, RapidFuzz inside strong blocks, DuckDB,

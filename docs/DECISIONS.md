@@ -780,20 +780,47 @@ to change a decision or start a stage.
   work is authorized. The exact next task is a fresh Stage 8 DEVELOPMENT
   implementation session after explicit authorization.
 
+### D039 — Freeze the Stage 8 DEVELOPMENT implementation candidate
+
+- **Date:** 2026-09-01.
+- **Scope:** Stage 8 DEVELOPMENT implementation and synthetic/local validation
+  only; no protected execution.
+- **Decision:** Implement D038 unchanged at exact Git commit
+  `a2544401b4b699f6c020970f3507a2ae432746c5`. The candidate freezes contract
+  fingerprint `8b3c530e714177fe2c30a97d61dcc199b7f9efba58f3c17a291b817af0f24d5e`,
+  schema-bundle fingerprint
+  `6c8ebecd24c495dbe2ce32125ac1cb89c4a9de4905c786b774d10ad728ed392f`,
+  and label-mapping fingerprint
+  `b18167d2d5c1f1402d1bb0e92559befb92418f5f4f34df885596778a11d5c09d`.
+  It uses PyArrow/Parquet for authoritative storage and bounded nested
+  projection, DuckDB for bounded reconciliation, atomic owner-only
+  publication, and an independent reopen validator.
+- **Evidence:** Required synthetic cases, Stage 7 regressions, Ruff, strict
+  mypy, shell syntax, JSON, Markdown-link, diff, and privacy gates pass. The
+  only safe full-suite local failures are unchanged Python 3.14.3 guards under
+  the Mac's Python 3.14.7. No protected inputs, SLURM, parser, reference,
+  geocoder, HOLDOUT, or production access occurred.
+- **Status:**
+  `STAGE08_ADDRESS_EVIDENCE_IMPLEMENTATION_READY_FOR_CONTROLLED_DEVELOPMENT_EXECUTION`.
+  This is not execution authority or scientific acceptance. The exact next
+  action is separate owner authorization for one bounded Goethe-NHR
+  DEVELOPMENT materialization; a pending run must not be duplicated.
+
 ## Open decisions
 
 These questions require future stage designs and explicit approval:
 
-- Stage 8 DEVELOPMENT implementation, implementation review, and later exact
-  job authorization under D038;
+- Stage 8 exact DEVELOPMENT job authorization, execution evidence, independent
+  implementation review, and acceptance under D038/D039;
 - exact offline reference releases/licenses and blocking semantics;
 - the bounded Stage 10 hypothesis/query ladder;
 - Stage 13 scoring/calibration and contradiction policy; and
 - Stage 14 granularity-specific usability thresholds, including treatment of
   interpolated Pelias address results.
 
-Nothing in this register authorizes HOLDOUT, Stage 8 implementation/execution,
+Nothing in this register authorizes HOLDOUT, Stage 8 protected execution,
 Stage 9, geocoding, or production Stage 2 through Stage 7. Stage 7 decisions
 D023–D036 retain their stated historical DEVELOPMENT scopes; D037 alone
 records final Stage 7 DEVELOPMENT acceptance. D038 records the prospective
-Stage 8 design boundary only.
+Stage 8 design boundary; D039 records implementation without granting job
+authority.

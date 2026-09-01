@@ -2,15 +2,15 @@
 
 ## Status and authority
 
-**`STAGE08_ADDRESS_EVIDENCE_DESIGN_READY_FOR_IMPLEMENTATION`.**
+**`STAGE08_ADDRESS_EVIDENCE_IMPLEMENTATION_READY_FOR_CONTROLLED_DEVELOPMENT_EXECUTION`.**
 
-This is the prospective scientific contract for a fresh Stage 8 DEVELOPMENT
-implementation session. Stage 8 has not been implemented, executed, reviewed
-as an implementation, or accepted. This design does not authorize a
-DEVELOPMENT job, production, HOLDOUT access, Stage 9, geocoding, Pelias,
-Senzing, DeepParse, or any external address service. The next task is a fresh
-Stage 8 DEVELOPMENT implementation session and requires explicit
-authorization.
+This remains the controlling scientific contract for Stage 8 DEVELOPMENT. The
+contract is implemented at Git commit
+`a2544401b4b699f6c020970f3507a2ae432746c5` and is ready for a separately
+authorized controlled DEVELOPMENT execution. It has not been executed,
+independently reviewed as an implementation, or accepted. This status does not
+authorize a DEVELOPMENT job, production, HOLDOUT access, Stage 9, geocoding,
+Pelias, Senzing, DeepParse, or any external address service.
 
 The design is based on accepted Stage 7 candidate
 `656a16d3d1f33cb152ace557c26f42df047bc7d6`, its acceptance merge
@@ -19,6 +19,18 @@ The design is based on accepted Stage 7 candidate
 `STAGE07_EVIDENCE_ONLY_INDEPENDENT_REREVIEW_PASS`; its sanitized evidence is
 commit `356de44f3e86e37972d60cac45d01703ad1f6856`. DeepParse remains closed as
 `DEEPPARSE_INFRASTRUCTURE_PATH_NOT_JUSTIFIED` and is not a Stage 8 dependency.
+
+## Implementation candidate
+
+The implementation preserves this frozen design without changing its grains,
+field semantics, nullability, ordering, or lineage rules. It provides bounded
+PyArrow/Parquet materialization, bounded DuckDB reconciliation, immutable
+publication, and an independent reopen validator. The exact contract/profile,
+four schemas, one-to-one label namespace, upstream bindings, implementation
+SHA, synthetic/static evidence, and planned Goethe resources are recorded in
+the sanitized
+[implementation report](../../reports/development/stage08_address_evidence_implementation.md).
+No protected input was opened and no Stage 8 data fingerprint exists yet.
 
 ## Decision
 
@@ -877,10 +889,10 @@ the Stage 8 name and number while narrowing it to lossless projection and a
 mechanical parser-evidence index. Country-format/ISO lookup metadata moves to
 Stage 9; hypotheses remain Stage 10. No broader renumbering is required.
 
-Verdict: `STAGE08_ADDRESS_EVIDENCE_DESIGN_READY_FOR_IMPLEMENTATION`.
+Verdict:
+`STAGE08_ADDRESS_EVIDENCE_IMPLEMENTATION_READY_FOR_CONTROLLED_DEVELOPMENT_EXECUTION`.
 
-Exact next task: begin a **fresh Stage 8 DEVELOPMENT implementation session**
-to implement this contract, schemas, mapping, validators, synthetic tests, and
-sanitized reporting. It does not belong in this design session, and a
-DEVELOPMENT SLURM job remains separately reviewable and authorizable after the
-implementation candidate exists.
+Exact next task: after separate owner authorization, submit exactly one bounded
+Goethe-NHR DEVELOPMENT materialization from implementation commit
+`a2544401b4b699f6c020970f3507a2ae432746c5`, wait for it, and reuse its immutable
+artifact. The implementation candidate itself grants no execution authority.
