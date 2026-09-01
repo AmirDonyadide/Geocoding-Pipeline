@@ -56,7 +56,7 @@ def test_country_invariants_accept_unanimous_and_reject_conflict() -> None:
         "invalid_country_occurrence_count": 0,
         "distinct_valid_country_count": 1,
         "country_provenance_status": "COUNTRY_UNANIMOUS_VALID",
-        "unanimous_country_code": "IT",
+        "unanimous_country_code": "it",
         "libpostal_eligibility": "PARSER_ELIGIBLE_COUNTRY",
     }
     _validate_country_invariants(unanimous)
@@ -67,6 +67,50 @@ def test_country_invariants_accept_unanimous_and_reject_conflict() -> None:
         Stage07IndependentRereviewError, match="COUNTRY_APPLICABILITY_MISMATCH"
     ):
         _validate_country_invariants(inconsistent)
+
+    for unresolved in (
+        {
+            "occurrence_count": 2,
+            "valid_country_occurrence_count": 0,
+            "missing_country_occurrence_count": 2,
+            "invalid_country_occurrence_count": 0,
+            "distinct_valid_country_count": 0,
+            "country_provenance_status": "COUNTRY_MISSING",
+            "unanimous_country_code": None,
+            "libpostal_eligibility": "PARSER_ELIGIBILITY_MISSING_COUNTRY",
+        },
+        {
+            "occurrence_count": 2,
+            "valid_country_occurrence_count": 1,
+            "missing_country_occurrence_count": 1,
+            "invalid_country_occurrence_count": 0,
+            "distinct_valid_country_count": 1,
+            "country_provenance_status": "COUNTRY_PARTIAL",
+            "unanimous_country_code": None,
+            "libpostal_eligibility": "PARSER_ELIGIBILITY_PARTIAL_COUNTRY",
+        },
+        {
+            "occurrence_count": 2,
+            "valid_country_occurrence_count": 0,
+            "missing_country_occurrence_count": 1,
+            "invalid_country_occurrence_count": 1,
+            "distinct_valid_country_count": 0,
+            "country_provenance_status": "COUNTRY_INVALID",
+            "unanimous_country_code": None,
+            "libpostal_eligibility": "PARSER_ELIGIBILITY_INVALID_COUNTRY",
+        },
+        {
+            "occurrence_count": 2,
+            "valid_country_occurrence_count": 2,
+            "missing_country_occurrence_count": 0,
+            "invalid_country_occurrence_count": 0,
+            "distinct_valid_country_count": 2,
+            "country_provenance_status": "COUNTRY_CONFLICTING",
+            "unanimous_country_code": None,
+            "libpostal_eligibility": "PARSER_ELIGIBILITY_AMBIGUOUS_COUNTRY",
+        },
+    ):
+        _validate_country_invariants(unresolved)
 
 
 def test_candidate_projection_static_scan_has_no_parser_call() -> None:

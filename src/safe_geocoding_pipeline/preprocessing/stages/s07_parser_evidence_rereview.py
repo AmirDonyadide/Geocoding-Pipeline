@@ -431,7 +431,9 @@ def _validate_country_invariants(values: Mapping[str, object]) -> None:
             or distinct != 1
             or not isinstance(country, str)
             or len(country) != 2
-            or country != country.upper()
+            or not country.isascii()
+            or not country.isalpha()
+            or country != country.casefold()
         ):
             _fail("COUNTRY_STATUS_MISMATCH", "Unanimous country invariants differ")
         return
