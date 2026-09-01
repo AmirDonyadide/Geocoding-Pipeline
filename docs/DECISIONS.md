@@ -563,6 +563,30 @@ to change a decision or start a stage.
   604-candidate machine pass, 240-case semantic review, independent Stage 7
   review, Stage 8, HOLDOUT, production, geocoding, or merge.
 
+### D033 — Freeze the Stage 7 v2 machine-only validation selection contract
+
+- **Date:** 2026-09-01.
+- **Scope:** One bounded Stage 7 DEVELOPMENT machine-only rule application;
+  no semantic review.
+- **Decision:** Apply unchanged rule `stage07_component_readiness_rule_v1` to
+  the 604 semantically untouched candidates in the immutable fixed-500 frame
+  and freeze exactly 240 predicted cases under
+  `stage07_component_readiness_validation_selection_v1`. Bind the rule source
+  SHA-256, select separate ready/abstain arms with deterministic short-arm
+  transfer, balance reason/script/representation/country-frequency evidence,
+  and break all ties using domain-separated SHA-256 over candidate IDs. Text
+  and parser values may drive only the already-frozen readiness signals; they
+  never enter selection rank. Unresolved applicability is decided without
+  reading candidate/component values.
+- **Rationale:** Predictions, reasons, IDs, thresholds, and the sample identity
+  must be immutable before fresh semantic labels exist. This prevents tuning
+  or sample selection in response to review outcomes while retaining the
+  fixed-500 frame's pre-hypothesis independence.
+- **Status:** OWNER-AUTHORIZED MACHINE-ONLY EXECUTION; not yet run. Qualitative
+  inspection of the resulting 240 remains separately unauthorized. Stage 7 is
+  still `STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY`; independent review, Stage 8,
+  HOLDOUT, production, geocoding, and merge remain unauthorized.
+
 ## Open decisions
 
 These questions require future stage designs and explicit approval:

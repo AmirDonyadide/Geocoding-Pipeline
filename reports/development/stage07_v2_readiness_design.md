@@ -273,7 +273,7 @@ metadata. The fixed 500 is therefore accepted as the immutable validation
 
 ## Predeclared fresh validation design
 
-Selection contract proposed:
+Selection contract frozen for the owner-authorized machine-only pass:
 `stage07_component_readiness_validation_selection_v1`.
 
 1. Start from the 604 fixed-500 candidate IDs untouched by the existing 120.
@@ -291,9 +291,26 @@ Selection contract proposed:
    semantic review. Use the existing five-category classification vocabulary
    without changing the original 120 artifacts.
 
-The selected fingerprint cannot be computed without the separately authorized
-machine-only application of the frozen rule; it is intentionally pending rather
-than guessed in this design report.
+The implementation binds the unchanged readiness-rule source SHA-256
+`dbdaf434c68bb2110cfc76eb296f4c955f7ad950c549255c0d4e1c8aae17deb9` and
+fails closed if it differs. Candidate text and parser values are never inputs
+to selection rank. Within the abstain arm, deterministic round-robin phases
+allocate up to 40 of 120 additions to reason-code coverage, 24 to script, 18
+to representation, and 18 to country-frequency bands; remaining capacity
+maximizes country diversity and then uses a domain-separated candidate-ID
+hash. The ready arm correspondingly allocates 36, 30, and 24 additions to
+script, representation, and country-frequency-band phases before country
+diversity and hash fill. A smaller arm scales these budgets by integer floor;
+only a genuinely short arm transfers unused capacity. Reason order is the
+frozen rule order, representation and frequency-band orders are fixed, other
+category orders are deterministic, and review order is a separate
+domain-separated candidate-ID hash.
+
+The owner has authorized the machine-only application to the 604 untouched
+candidates. The selected fingerprint remains pending the protected execution
+rather than being guessed. This authorization permits deterministic rule
+signals only; it does not authorize semantic inspection of any newly selected
+candidate.
 
 Primary predeclared metrics and gates are:
 
@@ -369,17 +386,17 @@ for separately approved whole-string hypothesis generation.
 ## Authorization boundary and next decision
 
 No new protected semantic content was inspected. HOLDOUT and production were
-not accessed. The exact next DEVELOPMENT task remains in this same Stage 7
-session and requires new owner authorization for two bounded scopes:
+not accessed. The owner has now authorized machine-only rule application to
+the 604 untouched fixed-500 candidates, including their exact Stage 6
+candidate and immutable raw Stage 7 component streams solely to freeze the
+240-candidate validation selection. Qualitative inspection of those 240
+candidates remains unauthorized until their IDs, predictions, selection
+fingerprint, and thresholds have been frozen.
 
-1. machine-only rule application to the 604 untouched fixed-500 candidates,
-   including their exact Stage 6 candidate and immutable raw Stage 7 component
-   streams, solely to freeze the 240-candidate validation selection; and
-2. owner-authorized qualitative inspection of only those 240 selected
-   candidates and outputs after their IDs, predictions, selection fingerprint,
-   and thresholds are frozen.
-
-The machine-only protected operation should be one bounded Goethe SLURM job;
-it needs no parser call, network, new model, full 51,779-row nested scan,
-HOLDOUT, or production access. No future stage implementation is authorized by
-this report.
+The machine-only protected operation is limited to one bounded Goethe SLURM
+job. It needs no parser call, network, new model, HOLDOUT, production, or full
+Python materialization of the 51,779-row nested registry. The engine performs
+an ID-only population binding and returns candidate/component values to SAFE
+code only for eligible untouched IDs; unresolved candidates are decided from
+applicability metadata without reading their values. No future stage
+implementation is authorized by this report.

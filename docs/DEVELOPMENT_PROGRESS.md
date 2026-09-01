@@ -23,7 +23,9 @@ fingerprint
 DEVELOPMENT Stages 0–6 are accepted. Stage 7 v1 completed its DEVELOPMENT
 machine run but remains not ready. Its proposed v2 preserves v1 raw evidence
 and treats structural readiness as warning/abstention rather than semantic
-truth; a fresh fixed-500-framed validation remains unauthorized and unrun. The
+truth. The machine-only 604-candidate rule application and deterministic
+240-candidate selection freeze are authorized but not yet executed; semantic
+review of the resulting selection remains unauthorized. The
 old Stages 8–19 and proposed replacement Stages 8–14 are not started. Production
 Stage 0 and Stage 1 are accepted; production Stages 2–7 are not started.
 HOLDOUT is untouched and sealed.

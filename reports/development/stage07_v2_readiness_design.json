@@ -133,12 +133,34 @@
   },
   "fresh_validation": {
     "selection_contract": "stage07_component_readiness_validation_selection_v1",
+    "machine_only_rule_application_authorized": true,
+    "semantic_review_authorized": false,
     "frame_candidates": 604,
     "target_sample_size": 240,
     "target_ready": 120,
     "target_abstain": 120,
     "selection_fingerprint": null,
-    "fingerprint_state": "PENDING_SEPARATELY_AUTHORIZED_MACHINE_ONLY_RULE_APPLICATION",
+    "fingerprint_state": "PENDING_AUTHORIZED_MACHINE_ONLY_EXECUTION",
+    "readiness_rule_source_sha256": "dbdaf434c68bb2110cfc76eb296f4c955f7ad950c549255c0d4e1c8aae17deb9",
+    "selection_rank_uses_candidate_text": false,
+    "selection_rank_uses_parser_values": false,
+    "selection_algorithm": {
+      "abstain_phase_addition_budgets_at_120": {
+        "reason_code_round_robin": 40,
+        "script_round_robin": 24,
+        "representation_round_robin": 18,
+        "country_frequency_band_round_robin": 18,
+        "country_diversity_then_hash_fill": 20
+      },
+      "ready_phase_addition_budgets_at_120": {
+        "script_round_robin": 36,
+        "representation_round_robin": 30,
+        "country_frequency_band_round_robin": 24,
+        "country_diversity_then_hash_fill": 30
+      },
+      "short_arm_transfer": "COMPLETE_SHORT_ARM_THEN_TRANSFER_UNUSED_CAPACITY",
+      "tie_break": "DOMAIN_SEPARATED_SHA256_OF_CANDIDATE_ID"
+    },
     "ready_precision_minimum_percent": 95.0,
     "clear_misparse_ready_leakage_maximum_percent": 2.5,
     "clear_misparse_ready_leakage_maximum_count": 2,
@@ -160,7 +182,8 @@
   },
   "next_task": {
     "session": "SAME_STAGE_7_DEVELOPMENT_SESSION",
-    "requires_owner_authorization": true,
+    "machine_scope_owner_authorized": true,
+    "semantic_scope_owner_authorized": false,
     "machine_scope": "APPLY_FROZEN_RULE_TO_604_UNTOUCHED_FIXED500_CANDIDATES_AND_FREEZE_240_SELECTION",
     "semantic_scope": "ONLY_THE_FROZEN_240_SELECTION_AFTER_PREDICTIONS_AND_FINGERPRINT_ARE_FIXED",
     "slurm_needed": true,
