@@ -23,7 +23,8 @@ query can be inspected and reproduced.
 
 The DEVELOPMENT pipeline is accepted through Stage 7. Stage 7 is accepted as
 reproducible parser evidence, not semantic component or geographic truth.
-Later stages have not started.
+Stage 8 design is ready for implementation but has not been implemented or
+executed. Later stages have not started.
 
 | Stage | Name | Status | Data effect |
 |---:|---|---|---|
@@ -35,7 +36,8 @@ Later stages have not started.
 | 5 | Address reconstruction | **`STAGE_5_ACCEPTED`** | Appends separate clean/lower standard/native line-body candidates and compact provenance |
 | 6 | Early exact deduplication | **`STAGE_6_ACCEPTED`** | Preserves 35,000 rows and maps 69,747 occurrences to 51,779 exact candidates |
 | 7 | libpostal parsing/evidence | **`STAGE_7_ACCEPTED`** | Preserves exact raw ordered parser evidence, applicability/technical provenance, warnings, and complete map-back; components remain hypotheses only |
-| 8–14 proposed | Evidence, hypotheses, retrieval, scoring, and final granularity | **PROPOSED — NOT STARTED** | No design approval or execution authorization |
+| 8 | Lossless address-evidence projection | **DESIGN READY — NOT IMPLEMENTED** | Preserves Stage 7 and adds a reversible parser-evidence index plus complete source/representation map-back |
+| 9–14 proposed | Reference evidence, hypotheses, retrieval, scoring, and final granularity | **PROPOSED — NOT STARTED** | No design approval or execution authorization |
 
 Production Stage 0 and Stage 1 are accepted for
 `production_population_1411_v1` (1,411 files; 141,048,582 rows). Production
@@ -53,7 +55,8 @@ immutable source CSV
   -> Stage 5: separate deterministic address-line body reconstruction
   -> Stage 6: exact lowercase candidate registry + complete row map
   -> Stage 7: accepted evidence-only libpostal projection
-  -> proposed Stages 8–14: evidence, hypotheses, query QA, retrieval, and scoring
+  -> designed Stage 8: lossless evidence projection/index (not implemented)
+  -> proposed Stages 9–14: references, hypotheses, query QA, retrieval, scoring
   -> self-hosted SAFE Pelias
 ```
 
@@ -70,7 +73,7 @@ to every `stable_source_row_id_v1`.
 | `cluster/goethe_nhr/` | Reviewed SLURM and environment assets for Goethe-NHR |
 | `scripts/` | Controlled transfer and synchronization helpers |
 | `docs/` | Current project, pipeline, workflow, privacy, execution, and reproducibility documentation |
-| `docs/stages/` | Stage 0–7 scientific records and candidate evidence |
+| `docs/stages/` | Stage 0–7 accepted records and the Stage 8 prospective design |
 | `docs/history/` | Accepted source-foundation records that predate the Stage terminology |
 | `reports/development/` | Sanitized, Git-safe aggregate DEVELOPMENT evidence |
 
@@ -151,10 +154,12 @@ personal absolute paths. Sanitized evidence is available under
 
 ## Current next stage
 
-**Stage 8 design and explicit authorization only.** Stage 7 is
-`STAGE_7_ACCEPTED` on DEVELOPMENT for exact evidence preservation; it provides
-no semantic component correctness, geographic truth, or warning-absence trust
-guarantee. Stage 8 implementation/execution, HOLDOUT, production Stages 2–7,
-Senzing, and geocoding remain unauthorized and not started. See the
-[Stage 7 record](docs/stages/STAGE07_LIBPOSTAL_PARSING.md) and
+**Fresh Stage 8 DEVELOPMENT implementation session after explicit
+authorization.** Stage 7 is `STAGE_7_ACCEPTED` on DEVELOPMENT for exact
+evidence preservation; it provides no semantic component correctness,
+geographic truth, or warning-absence trust guarantee. Stage 8 design is
+`STAGE08_ADDRESS_EVIDENCE_DESIGN_READY_FOR_IMPLEMENTATION`, but implementation,
+execution, HOLDOUT, production Stages 2–7, Stage 9, Senzing, and geocoding
+remain unauthorized. See the
+[Stage 8 design](docs/stages/STAGE08_ADDRESS_EVIDENCE_PROJECTION.md) and
 [current progress](docs/DEVELOPMENT_PROGRESS.md).

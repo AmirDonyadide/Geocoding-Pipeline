@@ -173,7 +173,7 @@ The accepted sequence through Stage 7 and proposed replacement sequence are:
 5. address reconstruction;
 6. early exact deduplication;
 7. evidence-only libpostal parsing/projection;
-8. proposed lossless address-evidence projection;
+8. designed lossless address-evidence projection, not implemented;
 9. proposed offline geographic reference evidence;
 10. proposed multi-hypothesis query-plan generation;
 11. proposed global query identity/deduplication/workload QA;
@@ -187,7 +187,9 @@ systematic libpostal label/boundary failures, and the later readiness rule
 failed its frozen validation. The accepted v2 therefore preserves exact raw
 parser evidence, applicability/technical provenance, deterministic warnings,
 and full map-back without making semantic or geographic truth claims. The old
-Stages 8–19 and proposed compact replacement Stages 8–14 are not started.
+Stages 8–19 were never started. The compact replacement Stage 8 design is ready
+for implementation but is not implemented or executed; replacement Stages
+9–14 remain proposed and not started.
 Production Stage 0 and Stage 1 are accepted; production Stages 2–7 are not
 started. The detailed stage contracts and acceptance requirements are in
 [PIPELINE.md](PIPELINE.md). HOLDOUT remains untouched and sealed.
@@ -242,8 +244,8 @@ Durable decisions are in [DECISIONS.md](DECISIONS.md); current status is in
 
 ## 11. Current next action
 
-Stage 8 design and explicit authorization only. Stage 7 is
-`STAGE_7_ACCEPTED` on DEVELOPMENT under its evidence-only boundary. Production
-Stage 2 through Stage 7 remain not started and unauthorized; Stage 8
-implementation/execution, HOLDOUT, Senzing, and geocoding are also
-unauthorized.
+Fresh Stage 8 DEVELOPMENT implementation session after explicit authorization.
+Stage 7 is `STAGE_7_ACCEPTED` on DEVELOPMENT under its evidence-only boundary.
+Stage 8 design is `STAGE08_ADDRESS_EVIDENCE_DESIGN_READY_FOR_IMPLEMENTATION`;
+implementation/execution, production Stage 2 through Stage 7, HOLDOUT, Stage 9,
+Senzing, and geocoding remain unauthorized.

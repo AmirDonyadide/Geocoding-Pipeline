@@ -104,7 +104,9 @@ to change a decision or start a stage.
   component mapping, using component/country/language/script context. Blind
   English rules on native candidates are prohibited.
 - **Rationale:** Prevent semantic damage across address components and scripts.
-- **Status:** LOCKED sequence; Stage 9 is NOT STARTED.
+- **Status:** LOCKED scientific principle. The old Stage 9 number was never
+  implemented; D038 prospectively places any such derived value under the
+  Stage 10 hypothesis boundary rather than Stage 8 or Stage 9.
 
 ### D011 — Validation has closed outcomes; absence is not mismatch
 
@@ -150,8 +152,9 @@ to change a decision or start a stage.
 - **Rationale:** Library-first offline processing under reproducible privacy
   controls.
 - **Status:** Accepted-stage choices are bound by the reviewed contracts for
-  Stages 0–7. Proposed replacement Stages 8–14 are not started. pgeocode is
-  proof-of-concept only. Pandas is inspection-only.
+  Stages 0–7. D038 freezes the prospective Stage 8 tool boundary without
+  pycountry or libaddressinput. Proposed replacement Stages 9–14 are not
+  started. pgeocode is proof-of-concept only. Pandas is inspection-only.
 
 ### D015 — Protected data never leaves controlled infrastructure
 
@@ -720,19 +723,77 @@ to change a decision or start a stage.
   started and unauthorized. The exact next task is Stage 8 design and explicit
   authorization only.
 
+### D038 — Freeze Stage 8 as a lossless parser-evidence projection and index
+
+- **Date:** 2026-09-01.
+- **Scope:** Prospective Stage 8 DEVELOPMENT scientific contract only; no
+  implementation or execution.
+- **Decision:** Stage 8 is not semantic normalization or hypothesis generation.
+  It preserves the complete accepted Stage 7 v2 candidate row, publishes a
+  reversible ordered long-form parser-component evidence index, and preserves
+  a minimal exact source-row map with separate STANDARD/NATIVE candidate links.
+  Candidate-level representation scope may be `STANDARD`, `NATIVE`, or `BOTH`;
+  occurrence-level provenance remains STANDARD or NATIVE. Missing
+  representations remain explicit.
+- **Evidence taxonomy:** Every field is classified as `SOURCE_VALUE`,
+  `SOURCE_LINEAGE`, `UPSTREAM_DERIVED_REPRESENTATION`,
+  `TRUSTED_SOURCE_CONTEXT`, `PARSER_TECHNICAL_PROVENANCE`, `PARSER_EVIDENCE`,
+  `STRUCTURAL_DIAGNOSTIC`, or `MECHANICAL_INDEX`. Stage 8 publishes no
+  `HYPOTHESIS`, `REFERENCE_EVIDENCE`, `GEOCODER_RESULT`, or `ACCEPTED_MATCH`
+  field and no confidence/correctness score.
+- **Mapping:** `stage08_libpostal_label_mapping_v1` maps the 20 exact labels
+  defined by the pinned libpostal source one-to-one to visibly parser-scoped
+  SAFE evidence names. It never changes values, order, or duplicates. Any
+  other label is retained exactly with `UNMAPPED_LABEL` and a null mapped
+  concept. `house` is not narrowed to `building`; `city` is not narrowed to
+  `locality`; parser `country` is not trusted country.
+- **Status semantics:** Applicability, historical technical status, execution
+  origin, structural warnings, warning non-evaluation, mapping coverage, and
+  source-representation presence remain separate. Accepted Stage 7 did
+  historically parse country-unresolved candidates, so Stage 8 does not call
+  them unattempted. A future not-attempted state requires a new contract and
+  cannot equal `PARSED_EMPTY`. Empty parses, unknown labels, warnings,
+  unresolved country, and absent representations never mean invalid address.
+- **Metadata boundary:** Stage 8 introduces no pycountry, libaddressinput,
+  public-reference, or external-service dependency. Exact-code ISO/subdivision
+  and pinned offline country-format metadata may be considered as Stage 9
+  reference/format evidence. Fuzzy pycountry inference, runtime Address Data
+  Service calls, and Google Address Validation API are not approved.
+- **Implementation boundary:** Prospective identities are
+  `stage08_address_evidence_projection_contract_v1`,
+  `stage08_address_evidence_projection_profile_v1`,
+  `stage08_address_evidence_projection_schema_v1`, and
+  `stage08_semantic_classification_v1`. PyArrow/Parquet own typed nested and
+  long evidence; DuckDB performs bounded external reconciliation. Polars is
+  not required in v1 and pandas remains prohibited for production
+  transformations. Giant candidates are processed exactly or publication
+  fails.
+- **Architecture correction:** Keep compact Stage 8–14 numbering. Stage 8 is
+  lossless projection/index, Stage 9 is independent reference/format evidence,
+  and Stage 10 is the first hypothesis stage. This prospectively supersedes
+  the unimplemented stage-number placement in D010/D014 without rewriting
+  their scientific safeguards or historical context.
+- **Status:**
+  `STAGE08_ADDRESS_EVIDENCE_DESIGN_READY_FOR_IMPLEMENTATION`. Stage 8 is not
+  implemented, executed, independently reviewed, or accepted. No DEVELOPMENT
+  job, production, HOLDOUT, Stage 9, Pelias, geocoding, Senzing, or DeepParse
+  work is authorized. The exact next task is a fresh Stage 8 DEVELOPMENT
+  implementation session after explicit authorization.
+
 ## Open decisions
 
 These questions require future stage designs and explicit approval:
 
-- design and explicit owner authorization of Stage 8, including approval or
-  revision of the proposed compact Stages 8–14;
+- Stage 8 DEVELOPMENT implementation, implementation review, and later exact
+  job authorization under D038;
 - exact offline reference releases/licenses and blocking semantics;
 - the bounded Stage 10 hypothesis/query ladder;
 - Stage 13 scoring/calibration and contradiction policy; and
 - Stage 14 granularity-specific usability thresholds, including treatment of
   interpolated Pelias address results.
 
-Nothing in this register authorizes HOLDOUT, Stage 8, geocoding, or production
-Stage 2 through Stage 7. Stage 7 decisions D023–D036 retain their stated
-historical DEVELOPMENT scopes; D037 alone records final Stage 7 DEVELOPMENT
-acceptance.
+Nothing in this register authorizes HOLDOUT, Stage 8 implementation/execution,
+Stage 9, geocoding, or production Stage 2 through Stage 7. Stage 7 decisions
+D023–D036 retain their stated historical DEVELOPMENT scopes; D037 alone
+records final Stage 7 DEVELOPMENT acceptance. D038 records the prospective
+Stage 8 design boundary only.

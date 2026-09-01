@@ -76,8 +76,9 @@ rereview job `1763656` passed exact candidate
 `656a16d3d1f33cb152ace557c26f42df047bc7d6`, and the owner accepted it as
 `STAGE_7_ACCEPTED`. None of this alters immutable v1 output or converts parser
 components into semantic or geographic truth; warning absence provides no
-trust guarantee. The old Stages 8–19 have not started, and compact evidence-
-first replacement Stages 8–14 are proposed but not started. See
+trust guarantee. The old Stages 8–19 were never started. The compact evidence-
+first replacement Stage 8 design is ready for implementation but has not been
+implemented or executed; replacement Stages 9–14 remain proposed. See
 [PIPELINE.md](PIPELINE.md).
 
 ## Standard and native Orbis representations
@@ -122,10 +123,12 @@ Accepted stages currently use Python's `csv` and `hashlib`, PyArrow/Parquet,
 DuckDB, `unicodedata`, `ftfy`, regular-expression/Arrow operations, and SAFE
 contracts. Accepted Stage 7 DEVELOPMENT evidence uses pinned
 libpostal/pypostal. DeepParse is closed and is not a planned runtime
-dependency. Proposed future evidence stages evaluate pinned offline pycountry
-and libaddressinput metadata, direct GeoNames data, local Overture Maps
-Addresses GeoParquet, optional approved OSM evidence, RapidFuzz inside strong
-blocks, DuckDB, PyArrow/Parquet, and optional Polars transformations.
+dependency. Designed Stage 8 uses PyArrow/Parquet and bounded DuckDB validation
+only; it adds no pycountry, libaddressinput, or reference-data dependency.
+Proposed Stage 9 may evaluate pinned offline pycountry and libaddressinput
+metadata, direct GeoNames data, local Overture Maps Addresses GeoParquet,
+optional approved OSM evidence, RapidFuzz inside strong blocks, DuckDB,
+PyArrow/Parquet, and optional Polars transformations.
 Self-hosted SAFE Pelias would retain top-N features for later scoring, never
 treat the first result as truth. A planned library or dataset is not an
 implemented dependency; every new stage requires design and review before use.

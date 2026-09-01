@@ -9,6 +9,8 @@ stage.
 
 - **ACCEPTED:** implemented, evaluated, independently reviewed, and frozen on
   DEVELOPMENT.
+- **DESIGN READY — NOT IMPLEMENTED:** prospective scientific contract is
+  complete; implementation and execution still require explicit authorization.
 - **PLANNED — NOT STARTED:** conceptual placement and likely technology only.
   No accepted design or implementation exists.
 
@@ -30,11 +32,13 @@ and downstream-contract documentation. Corrected candidate
 `656a16d3d1f33cb152ace557c26f42df047bc7d6` then passed independent rereview
 job `1763656` and is accepted as `STAGE_7_ACCEPTED`. Acceptance preserves exact
 evidence; it does not establish semantic component correctness, geographic
-truth, or trust from warning absence. No Stage 8 handoff is authorized.
+truth, or trust from warning absence. Stage 8 design is now ready, but no
+implementation or execution is authorized.
 Production Stage 0 and Stage 1 are accepted for the 1,411-file population;
 production Stage 2 through Stage 6 have not started. The old Stages 8–19 have
-not started. A compact replacement Stages 8–14 is
-proposed below but is also not started. Production Stage 7 has not started.
+not started. The compact replacement Stage 8 design is ready for a fresh
+implementation session but is not implemented or executed; replacement Stages
+9–14 remain proposed and not started. Production Stage 7 has not started.
 
 ## Cross-stage scientific rules
 
@@ -66,8 +70,9 @@ proposed below but is also not started. Production Stage 7 has not started.
 11 query identity/QA -> 12 Pelias top-N -> 13 scoring -> 14 granularity/abstain
 ```
 
-Stages 8–14 are a proposed replacement, not an accepted execution order. Every
-stage still requires its own design, owner authorization, DEVELOPMENT evidence,
+Stage 8 now has a prospective design ready for implementation. Stages 9–14 are
+still a proposed replacement, not an accepted execution order. Every stage
+still requires its own design, owner authorization, DEVELOPMENT evidence,
 independent review, acceptance, and stop gate. The current prohibition on
 geocoding before the governing pre-geocoding acceptance gate remains in force.
 
@@ -244,25 +249,35 @@ geocoding before the governing pre-geocoding acceptance gate remains in force.
   does not guarantee semantic component correctness or geographic truth, and
   structural warning absence provides no trust guarantee.
 
-## Proposed replacement Stages 8–14
+## Replacement Stages 8–14
 
-This compact evidence-first design is **PROPOSED — NOT STARTED**. It separates
-source truth, parser/reference evidence, hypotheses, geocoder results, and the
-final accepted match. Full responsibilities, tool choices, and legacy mapping
-are in the
+This compact evidence-first architecture separates source truth,
+parser/reference evidence, hypotheses, geocoder results, and the final accepted
+match. Stage 8 design is ready but not implemented; Stages 9–14 remain
+**PROPOSED — NOT STARTED**. Full responsibilities, tool choices, and legacy
+mapping are in the
 [architecture redesign report](../reports/development/post_stage07_geocoding_architecture_redesign.md).
 
 ### Stage 8 — Lossless address-evidence projection
 
-- **Purpose:** Treat parser labels as hypotheses/evidence while retaining raw
-  order, duplicates, unmapped components, exact whole-string STANDARD/NATIVE
-  candidates, structural warnings, and pinned offline country-format metadata.
-  Absence of a Stage 7 warning is never semantic truth.
-- **Primary tools:** PyArrow/Parquet, pycountry, pinned offline
-  libaddressinput metadata.
-- **Acceptance:** Lossless lineage/mapping, no raw parser label treated as
-  source truth, and no claim of geographic truth.
-- **Status:** **PROPOSED — NOT STARTED**.
+- **Purpose:** Preserve the complete accepted Stage 7 row, expose a reversible
+  ordered long-form parser-evidence index, and retain exact source-row and
+  STANDARD/NATIVE map-back. A one-to-one SAFE parser-evidence name is a
+  mechanical index, not a hypothesis or verified component. Raw order,
+  duplicates, unknown labels, empty parses, country/applicability states, and
+  structural warnings remain exact and separate.
+- **Input/output grain:** Accepted Stage 7 v2 candidate evidence plus the
+  accepted Stage 6 row map; linked candidate, component, and source-map
+  relations plus a deterministic representation-occurrence view.
+- **Primary tools:** PyArrow/Parquet and bounded DuckDB validation. No
+  pycountry, libaddressinput, external reference, or Polars dependency in v1.
+- **Acceptance:** Exact upstream preservation, nested/long reversibility,
+  complete known/unmapped-label retention, complete map-back, deterministic
+  fingerprints, bounded memory, privacy, and zero semantic-trust claims.
+- **Status:**
+  **`STAGE08_ADDRESS_EVIDENCE_DESIGN_READY_FOR_IMPLEMENTATION`**. Not
+  implemented, executed, or accepted. See the
+  [Stage 8 record](stages/STAGE08_ADDRESS_EVIDENCE_PROJECTION.md).
 
 ### Stage 9 — Offline geographic reference evidence
 
@@ -270,7 +285,11 @@ are in the
   and bounded similarity within strong geographic blocks. Absence from an open
   reference is not invalidity.
 - **Primary tools/data:** pinned GeoNames, Overture Maps Addresses, optional
-  approved OSM evidence, RapidFuzz, DuckDB, PyArrow; Polars optional.
+  approved OSM evidence, RapidFuzz, DuckDB, and PyArrow; Polars optional.
+  Exact-code pycountry/subdivision metadata and pinned offline libaddressinput
+  format metadata may be considered here, not in Stage 8, under the Stage 9
+  design. Runtime Address Data Service and Google Address Validation API calls
+  remain prohibited.
 - **Acceptance:** Pinned licenses/vintages, bounded candidates, contradiction
   precision, coverage caveats, and complete evidence lineage.
 - **Status:** **PROPOSED — NOT STARTED**.

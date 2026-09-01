@@ -138,7 +138,9 @@ documentation test pass.
   Raw parser output remains hypotheses/evidence rather than semantic or
   geographic truth; absence of structural warnings gives no trust guarantee.
 - Production Stage 7: **NOT STARTED**.
-- Stage 8: **NOT STARTED** and not authorized; its next task is design and
-  explicit authorization only.
+- Stage 8:
+  **`STAGE08_ADDRESS_EVIDENCE_DESIGN_READY_FOR_IMPLEMENTATION`**. It is not
+  implemented or executed. The next task is a fresh implementation session
+  after explicit authorization; no DEVELOPMENT job is authorized.
 
 This policy grants no scientific-stage or production-run authorization.

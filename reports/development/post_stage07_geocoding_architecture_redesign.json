@@ -1,6 +1,6 @@
 {
   "version": "post_stage07_geocoding_architecture_redesign_v1",
-  "status": "PROPOSED_NOT_STARTED",
+  "status": "STAGE08_DESIGN_READY_STAGES09_THROUGH14_PROPOSED_NOT_STARTED",
   "current_stage07_status": "STAGE_7_ACCEPTED",
   "governing_philosophy": [
     "PRESERVE",
@@ -14,17 +14,29 @@
     {
       "stage": 8,
       "name": "LOSSLESS_ADDRESS_EVIDENCE_PROJECTION",
-      "replaces_old_stages": [8, 9, 10, 11]
+      "status": "STAGE08_ADDRESS_EVIDENCE_DESIGN_READY_FOR_IMPLEMENTATION",
+      "replaces_old_stages": [8],
+      "output": [
+        "CANDIDATE_EVIDENCE",
+        "ORDERED_PARSER_COMPONENT_EVIDENCE",
+        "SOURCE_CANDIDATE_MAP",
+        "REPRESENTATION_OCCURRENCE_VIEW"
+      ],
+      "emits_hypotheses": false,
+      "pycountry_dependency": false,
+      "libaddressinput_dependency": false
     },
     {
       "stage": 9,
       "name": "OFFLINE_GEOGRAPHIC_REFERENCE_EVIDENCE",
-      "replaces_old_stages": [11, 13, 14, 15, 16]
+      "replaces_old_stages": [10, 11, 13, 14, 15, 16],
+      "may_design_pinned_pycountry_exact_code_metadata": true,
+      "may_design_pinned_offline_libaddressinput_metadata": true
     },
     {
       "stage": 10,
       "name": "MULTI_HYPOTHESIS_QUERY_PLAN_GENERATION",
-      "replaces_old_stages": [16, 17, 18]
+      "replaces_old_stages": [9, 16, 17, 18]
     },
     {
       "stage": 11,
@@ -58,7 +70,7 @@
   ],
   "source_truth_overwritten": false,
   "parser_is_ground_truth": false,
-  "parser_components_are_hypotheses_and_evidence": true,
+  "parser_components_are_evidence_and_possible_later_hypothesis_input": true,
   "structural_warning_absence_implies_trust": false,
   "component_readiness_semantic_gate": false,
   "pelias_top_result_is_ground_truth": false,
@@ -68,11 +80,14 @@
   "holdout_accessed": false,
   "production_started": false,
   "geocoding_started": false,
-  "stage08_started": false,
+  "stage08_design_ready": true,
+  "stage08_implemented": false,
+  "stage08_executed": false,
   "next_task": {
-    "name": "DESIGN_AND_EXPLICITLY_AUTHORIZE_STAGE_8_ONLY",
-    "session": "STAGE_8_DESIGN_REVIEW",
+    "name": "IMPLEMENT_STAGE08_DEVELOPMENT_CONTRACT_AND_LOCAL_SYNTHETIC_VALIDATION_ONLY",
+    "session": "FRESH_STAGE_8_DEVELOPMENT_IMPLEMENTATION",
     "requires_owner_authorization": true,
-    "implementation_or_execution_authorized": false
+    "implementation_authorized": false,
+    "execution_authorized": false
   }
 }

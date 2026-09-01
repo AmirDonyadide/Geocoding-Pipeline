@@ -54,8 +54,13 @@ Stage 7: libpostal parser evidence (accepted on DEVELOPMENT)
   + complete occurrence map-back; no semantic/geographic truth guarantee
         |
         v
-Proposed Stages 8–14 (not started)
-  evidence -> hypotheses -> query identities -> top-N results
+Stage 8 design ready (not implemented or executed)
+  exact Stage 7 candidate evidence + ordered long-form parser-evidence index
+  + source-candidate map + deterministic STANDARD/NATIVE occurrence view
+        |
+        v
+Proposed Stages 9–14 (not started)
+  reference evidence -> hypotheses -> query identities -> top-N results
   -> scoring/granularity -> complete source-row mappings
 ```
 
@@ -182,7 +187,7 @@ bytes. Exact byte equality is checked inside every observed digest group, so a
 digest alone is never treated as equality proof. Stage 6 applies no additional
 normalization or parsing. The Stage 6 output is accepted on DEVELOPMENT.
 
-## Stage 7 evidence and future candidate representations
+## Stage 7 evidence and Stage 8 projection design
 
 Stage 7 is accepted on DEVELOPMENT under
 `stage07_parser_evidence_contract_v2`. It preserves all five Stage 6 registry
@@ -192,8 +197,16 @@ and complete 69,747-occurrence map-back for all 51,779 exact candidates. Its
 components remain hypotheses/evidence only; no warning status establishes
 semantic correctness or geographic truth.
 
-Proposed Stages 8–14 have not started. Their data model is constrained by these
-accepted principles:
+Stage 8 design is ready but is not implemented or executed. It preserves the
+complete Stage 7 candidate row, emits one ordered long-form evidence row per
+raw component without changing labels/values/order/duplicates, and preserves a
+source-row map with separate STANDARD/NATIVE candidate slots. The exact nested
+Stage 7 list remains authoritative. A mapped SAFE parser-evidence name remains
+`PARSER_EVIDENCE`; Stage 8 emits no hypothesis or reference result. pycountry
+and libaddressinput are deferred to the Stage 9 design boundary.
+
+The Stage 8 design and proposed Stages 9–14 are constrained by these accepted
+principles:
 
 - lowercase, reconstructed, parsed, normalized, transliterated, corrected, and
   query-ready values are separate derived representations;
