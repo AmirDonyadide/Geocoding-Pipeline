@@ -223,5 +223,6 @@ The exact reviewed candidate is
 `03bab36bc2f45d218eb289abff0ad2aed72cffd8`; its implementation is
 `f39047cc825d9baef91915478f657aefecc86d4c`. The candidate was integrated into
 `main` by fast-forward without rebasing, squashing, or rewriting history.
-Stage 6 is frozen as `STAGE_6_ACCEPTED` on DEVELOPMENT. Production Stage 2
-through Stage 6, HOLDOUT, and Stage 7 remain not started.
+Stage 6 is frozen as `STAGE_6_ACCEPTED` on DEVELOPMENT. At that acceptance
+point Stage 7 had not started; it is now separately `STAGE_7_ACCEPTED` on
+DEVELOPMENT. Production Stages 2–7 and HOLDOUT remain not started.

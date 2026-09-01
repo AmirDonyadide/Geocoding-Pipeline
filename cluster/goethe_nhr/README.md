@@ -12,14 +12,14 @@ geocoding. `benchmark_sample_v1.sbatch` and `development_reporting.sbatch`
 support the fixed benchmark/review infrastructure.
 
 `stage07_build_parser_bundle.sbatch` is a public-software-only provenance job
-for the active Stage 7 DEVELOPMENT design. It compiles exact libpostal and
+from the accepted Stage 7 DEVELOPMENT history. It compiles exact libpostal and
 pypostal commits, freezes every runtime/model artifact by content, and opens no
 protected input. Its existence does not authorize protected parsing; the later
 controlled diagnostic must require the resulting exact bundle fingerprint.
-`stage07_design_diagnostic.sbatch` and `stage07_bootstrap_env.sh` are the
-aggregate-only protected design gate. They bind accepted Stage 6, the frozen
-fixed-500 mapping, every case-variant group, every giant candidate, and the
-exact parser bundle before parsing. They do not freeze the final contract,
+`stage07_design_diagnostic.sbatch` and `stage07_bootstrap_env.sh` are historical
+aggregate-only protected design-gate assets. They bind accepted Stage 6, the
+frozen fixed-500 mapping, every case-variant group, every giant candidate, and
+the exact parser bundle before parsing. They do not freeze the final contract,
 materialize Stage 7, access HOLDOUT/production, map labels, or geocode.
 
 `stage07_supervisor_diagnostic.sbatch` is the later owner-authorized revised
@@ -31,6 +31,13 @@ candidates through an uncapped, timeout-free supervisor path with exact-input
 acknowledgment, fresh-process crash confirmation, and nullable `LargeList`
 round-trip. The replay is comparison evidence, not proposed publication
 policy. This is not a materializer or authoritative Stage 7 run.
+
+`stage07_libpostal_parsing.sbatch` and
+`stage07_parser_evidence_v2.sbatch` are the accepted DEVELOPMENT execution-
+provenance assets for immutable v1 parsing and the zero-parser-call evidence-
+only v2 projection. Their acceptance does not authorize reruns, production,
+HOLDOUT, Stage 8, Senzing, or geocoding. Stage 8 remains at design/
+authorization only.
 
 All protected/heavy jobs require an exact pushed Git SHA, a clean/exact
 worktree, `SAFE_EXECUTION_SITE=goethe-nhr`, a non-empty `SLURM_JOB_ID`, owner-only

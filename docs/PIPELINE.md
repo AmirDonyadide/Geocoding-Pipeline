@@ -12,10 +12,11 @@ stage.
 - **PLANNED — NOT STARTED:** conceptual placement and likely technology only.
   No accepted design or implementation exists.
 
-Stages 0–6 are accepted on DEVELOPMENT. Stage 7's frozen v1 contract completed
+Stages 0–7 are accepted on DEVELOPMENT. Stage 7's frozen v1 contract completed
 authoritative DEVELOPMENT parsing and machine validation, but the candidate
-remains not ready: qualitative and targeted root-cause evidence found material
-libpostal label/boundary errors. A frozen evidence-only v2 preserves the
+was not ready for semantic handoff: qualitative and targeted root-cause
+evidence found material libpostal label/boundary errors. A frozen evidence-only
+v2 preserves the
 immutable v1 raw evidence and adds trusted-country applicability plus
 deterministic structural warnings. Optimized audit job `1763358` found that
 the former warning rule catches all six known boundary failures but cannot establish
@@ -25,8 +26,11 @@ abstention all missed their predeclared thresholds. It is retained only as
 warning-feature history; evidence-only v2 publishes no semantic readiness
 gate. Its 51,779-row DEVELOPMENT projection and independent reopen validation
 passed in job `1763516`. The first independent review found only stale status
-and downstream-contract documentation; the corrected candidate now requires
-independent rereview, and no Stage 7 acceptance or Stage 8 handoff is authorized.
+and downstream-contract documentation. Corrected candidate
+`656a16d3d1f33cb152ace557c26f42df047bc7d6` then passed independent rereview
+job `1763656` and is accepted as `STAGE_7_ACCEPTED`. Acceptance preserves exact
+evidence; it does not establish semantic component correctness, geographic
+truth, or trust from warning absence. No Stage 8 handoff is authorized.
 Production Stage 0 and Stage 1 are accepted for the 1,411-file population;
 production Stage 2 through Stage 6 have not started. The old Stages 8–19 have
 not started. A compact replacement Stages 8–14 is
@@ -207,7 +211,7 @@ geocoding before the governing pre-geocoding acceptance gate remains in force.
 - **Primary libraries:** libpostal/pypostal.
 - **Data effect:** Adds derived parsed components; candidate text is preserved.
 - **Status:**
-  **`STAGE07_EVIDENCE_ONLY_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REREVIEW`**.
+  **`STAGE_7_ACCEPTED`** on DEVELOPMENT.
   Historical authoritative v1 job
   `1760221` produced all 51,779 rows and machine validation/map-back passed,
   but the 120-case qualitative review found 11 clear misparses. Targeted job
@@ -228,12 +232,17 @@ geocoding before the governing pre-geocoding acceptance gate remains in force.
   `COMPONENTS_READY`/`COMPONENTS_ABSTAIN` and treats structural reasons as
   warnings only. Evidence-only job `1763516` projected and independently
   reopened all 51,779 candidates with exact v1 preservation, complete
-  69,747-occurrence map-back, and zero parser/trust claims.
+  69,747-occurrence map-back, and zero parser/trust claims. Independent rereview
+  job `1763656` passed against exact candidate `656a16d3…`; its sanitized
+  [rereview report](../reports/development/stage07_parser_evidence_v2_independent_rereview.md)
+  is retained without merging the review harness branch.
 - **Acceptance requirement:** Pinned build/resources, reproducible offline
   execution, trusted pre-parse applicability, multilingual DEVELOPMENT
   evaluation on eligible populations, exact raw preservation, deterministic
   structural warnings without trust claims, complete map-back, and independent
-  rereview. Stage 7 does not guarantee semantic component or geographic truth.
+  rereview. These requirements are satisfied for DEVELOPMENT only. Stage 7
+  does not guarantee semantic component correctness or geographic truth, and
+  structural warning absence provides no trust guarantee.
 
 ## Proposed replacement Stages 8–14
 

@@ -49,14 +49,15 @@ The pipeline therefore establishes a controlled evidence chain:
 10. accept a result only at an explicit evidence-supported granularity, or
     remain unresolved.
 
-Stages 0–6 are implemented, independently reviewed, and accepted on
-DEVELOPMENT. Stage 7's first controlled design diagnostic correctly returned
-not ready. Its revised supervisor diagnostic then proved the prior four giant
-crashes were resource-cap dependent, and its later authoritative DEVELOPMENT
-run passed machine integrity. Stage 7 remains unaccepted because qualitative
-and targeted root-cause evidence found material systematic parsing errors. The
-country-aware applicability audit has reconciled DEVELOPMENT denominators. The
-DeepParse infrastructure path is closed as
+Stages 0–7 are implemented, independently reviewed, and accepted on
+DEVELOPMENT. Stage 7 acceptance is strictly evidence-only. Its first controlled
+design diagnostic correctly returned not ready. Its revised supervisor
+diagnostic then proved the prior four giant crashes were resource-cap
+dependent, and its later authoritative DEVELOPMENT v1 run passed machine
+integrity but failed as a semantic-truth handoff because qualitative and
+targeted root-cause evidence found material systematic parsing errors. The
+country-aware applicability audit reconciled DEVELOPMENT denominators. The
+DeepParse infrastructure path closed as
 `DEEPPARSE_INFRASTRUCTURE_PATH_NOT_JUSTIFIED`; no protected DeepParse inference
 occurred. Optimized bounded readiness audit job `1763358` found that a
 deterministic Stage 7-local screen catches all six known boundary failures but
@@ -70,10 +71,13 @@ are preserved, applicability and technical execution remain separate, and
 structural signals are warnings rather than semantic trust. Its full
 DEVELOPMENT projection and reopen validation passed for all 51,779 candidates
 in job `1763516`. Its first independent review found documentation/downstream-
-contract inconsistencies only; after that bounded correction, the evidence-only
-candidate is ready for independent rereview. None of this alters immutable v1
-output. The old Stages 8–19 have not started, and compact evidence-first
-replacement Stages 8–14 are proposed but not started. See
+contract inconsistencies only. After that bounded correction, independent
+rereview job `1763656` passed exact candidate
+`656a16d3d1f33cb152ace557c26f42df047bc7d6`, and the owner accepted it as
+`STAGE_7_ACCEPTED`. None of this alters immutable v1 output or converts parser
+components into semantic or geographic truth; warning absence provides no
+trust guarantee. The old Stages 8–19 have not started, and compact evidence-
+first replacement Stages 8–14 are proposed but not started. See
 [PIPELINE.md](PIPELINE.md).
 
 ## Standard and native Orbis representations
@@ -116,7 +120,7 @@ evidence aggregation, policy, fail-closed validation, and verified gaps.
 
 Accepted stages currently use Python's `csv` and `hashlib`, PyArrow/Parquet,
 DuckDB, `unicodedata`, `ftfy`, regular-expression/Arrow operations, and SAFE
-contracts. Current Stage 7 DEVELOPMENT evidence uses pinned
+contracts. Accepted Stage 7 DEVELOPMENT evidence uses pinned
 libpostal/pypostal. DeepParse is closed and is not a planned runtime
 dependency. Proposed future evidence stages evaluate pinned offline pycountry
 and libaddressinput metadata, direct GeoNames data, local Overture Maps

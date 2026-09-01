@@ -21,8 +21,9 @@ query can be inspected and reproduced.
 
 ## Current status
 
-The DEVELOPMENT pipeline is accepted through Stage 6. Later stages have not
-started.
+The DEVELOPMENT pipeline is accepted through Stage 7. Stage 7 is accepted as
+reproducible parser evidence, not semantic component or geographic truth.
+Later stages have not started.
 
 | Stage | Name | Status | Data effect |
 |---:|---|---|---|
@@ -33,11 +34,12 @@ started.
 | 4 | Lowercase canonical forms | **`STAGE_4_ACCEPTED`** | Appends exact Python Unicode lowercase representations; all upstream values remain unchanged |
 | 5 | Address reconstruction | **`STAGE_5_ACCEPTED`** | Appends separate clean/lower standard/native line-body candidates and compact provenance |
 | 6 | Early exact deduplication | **`STAGE_6_ACCEPTED`** | Preserves 35,000 rows and maps 69,747 occurrences to 51,779 exact candidates |
-| 7–19 | Parsing, validation, and query preparation | **NOT STARTED** | Planned derived representations only |
+| 7 | libpostal parsing/evidence | **`STAGE_7_ACCEPTED`** | Preserves exact raw ordered parser evidence, applicability/technical provenance, warnings, and complete map-back; components remain hypotheses only |
+| 8–14 proposed | Evidence, hypotheses, retrieval, scoring, and final granularity | **PROPOSED — NOT STARTED** | No design approval or execution authorization |
 
 Production Stage 0 and Stage 1 are accepted for
 `production_population_1411_v1` (1,411 files; 141,048,582 rows). Production
-Stage 2 through Stage 6 have not started.
+Stage 2 through Stage 7 have not started.
 
 ## Architecture
 
@@ -50,7 +52,8 @@ immutable source CSV
   -> Stage 4: exact derived Python Unicode lowercase
   -> Stage 5: separate deterministic address-line body reconstruction
   -> Stage 6: exact lowercase candidate registry + complete row map
-  -> Stages 7–19: planned parsing, validation, and query QA
+  -> Stage 7: accepted evidence-only libpostal projection
+  -> proposed Stages 8–14: evidence, hypotheses, query QA, retrieval, and scoring
   -> self-hosted SAFE Pelias
 ```
 
@@ -67,13 +70,13 @@ to every `stable_source_row_id_v1`.
 | `cluster/goethe_nhr/` | Reviewed SLURM and environment assets for Goethe-NHR |
 | `scripts/` | Controlled transfer and synchronization helpers |
 | `docs/` | Current project, pipeline, workflow, privacy, execution, and reproducibility documentation |
-| `docs/stages/` | Stage 0–6 scientific records and candidate evidence |
+| `docs/stages/` | Stage 0–7 scientific records and candidate evidence |
 | `docs/history/` | Accepted source-foundation records that predate the Stage terminology |
 | `reports/development/` | Sanitized, Git-safe aggregate DEVELOPMENT evidence |
 
 The older `phase01` and `phase02` package namespaces remain because accepted
 source-foundation work underpins Stage 0 and Stage 1. The active library-first
-Stage 0–6 adapters live under `src/safe_geocoding_pipeline/preprocessing/`.
+Stage 0–7 adapters live under `src/safe_geocoding_pipeline/preprocessing/`.
 
 ## DEVELOPMENT, HOLDOUT, and production
 
@@ -103,8 +106,9 @@ documentation. See [Privacy and security](docs/PRIVACY_AND_SECURITY.md).
 ## Quick start
 
 The package supports Python 3.11 or newer for local development. Reproducing
-the accepted Stage 3–6 Goethe execution requires its exact
-pinned Python 3.14.3 runtime and Unicode 16.0.0 contract.
+the accepted Stage 3–7 Goethe execution requires the exact pinned Python 3.14.3
+runtime and Unicode 16.0.0 contract plus each stage's frozen dependencies and
+artifacts.
 
 ```bash
 python3 -m venv .venv
@@ -147,10 +151,10 @@ personal absolute paths. Sanitized evidence is available under
 
 ## Current next stage
 
-**Stage 7 — libpostal parsing — DEVELOPMENT candidate not ready.** The revised
-supervisor diagnostic found that all four prior giant crashes disappear under
-an uncapped 180 GiB allocation, so the earlier 48 GiB ceiling was materially
-causal and the proposed technical-failure status cannot yet be frozen. Stage 6
-remains accepted. HOLDOUT, production Stages 2–7, Stage 8, independent review,
-and geocoding remain unauthorized and not started. See the
-[Stage 7 record](docs/stages/STAGE07_LIBPOSTAL_PARSING.md).
+**Stage 8 design and explicit authorization only.** Stage 7 is
+`STAGE_7_ACCEPTED` on DEVELOPMENT for exact evidence preservation; it provides
+no semantic component correctness, geographic truth, or warning-absence trust
+guarantee. Stage 8 implementation/execution, HOLDOUT, production Stages 2–7,
+Senzing, and geocoding remain unauthorized and not started. See the
+[Stage 7 record](docs/stages/STAGE07_LIBPOSTAL_PARSING.md) and
+[current progress](docs/DEVELOPMENT_PROGRESS.md).

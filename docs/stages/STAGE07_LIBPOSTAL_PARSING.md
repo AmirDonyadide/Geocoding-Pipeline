@@ -2,16 +2,20 @@
 
 ## Status
 
-**`STAGE07_EVIDENCE_ONLY_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REREVIEW`.**
+**`STAGE_7_ACCEPTED` on DEVELOPMENT.**
 
-This branch starts from accepted `main` commit
-`76435eb7ca5cd9a47a2a77fb36278568ba3bfc29`. Evidence-only v2 is a
-DEVELOPMENT candidate, not Stage 7 acceptance. Its first independent review at
+Exact evidence-only candidate
+`656a16d3d1f33cb152ace557c26f42df047bc7d6`, based on accepted `main` commit
+`76435eb7ca5cd9a47a2a77fb36278568ba3bfc29`, passed corrected independent
+rereview and received final owner acceptance. Its first independent review at
 evidence commit `6ea2ba2cef1a63f91a5a831755d8ecb0cd7d179f` rejected only stale
 current-status and downstream-contract documentation. Those findings have been
 corrected without changing the contract, implementation, protected output, or
-science; a fresh independent rereview is required. HOLDOUT, production Stages
-2–7, Stage 8, and geocoding remain unauthorized.
+science. Independent rereview job `1763656` returned
+`STAGE07_EVIDENCE_ONLY_INDEPENDENT_REREVIEW_PASS`; sanitized evidence is
+retained at commit `356de44f3e86e37972d60cac45d01703ad1f6856` without merging the
+review-harness branch. HOLDOUT, production Stages 2–7, Stage 8, and geocoding
+remain unauthorized.
 
 Historically, the first controlled design diagnostic exposed a material parser
 limitation before the contract/profile freeze: four of the 23 accepted candidates with at least
@@ -821,7 +825,34 @@ The original evidence-only candidate verdict was
 `STAGE07_EVIDENCE_ONLY_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REVIEW`.
 Its first independent review found only tracked documentation/downstream-
 contract inconsistencies; it did not reject the implementation or machine
-evidence. After those documentation-only corrections, the current workflow
-status is
+evidence. After those documentation-only corrections, the candidate-snapshot
+workflow status was
 `STAGE07_EVIDENCE_ONLY_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REREVIEW`.
-Independent rereview has not started.
+Independent rereview had not started at that snapshot; the final acceptance
+section below records its later completion and owner decision.
+
+## Final owner acceptance
+
+The owner accepted exact reviewed candidate
+`656a16d3d1f33cb152ace557c26f42df047bc7d6` as `STAGE_7_ACCEPTED` after
+independent Goethe verification job `1763656` completed `0:0` in `00:03:49`
+with about 2.02 GiB MaxRSS. The independent review harness identity is
+`a2fa6e99e75336155363dc1f566b34cf3da8e0a8`; its controlled aggregate
+evidence SHA-256 is
+`c0955062e5f407fdf8586f1811992a8a2e26e202295f467f41b5994b59bbc3b6`.
+
+Acceptance means exact parser evidence, applicability, technical status,
+provenance, deterministic warnings, and all 69,747 occurrence mappings are
+reproducibly preserved for all 51,779 Stage 6 candidates. Libpostal components
+remain hypotheses/evidence only. There is no semantic component correctness
+guarantee, no geographic truth guarantee, and no trust guarantee when
+structural warnings are absent.
+
+The v1 semantic-quality failure, DeepParse closure, failed
+`COMPONENTS_READY`/`COMPONENTS_ABSTAIN` readiness validation, first independent-
+review documentation failure, and corrected independent rereview pass remain
+separate historical evidence. The exact candidate was integrated by merge
+commit `b36b995809fe902fe80af25856cb24786b795b1c`; no review-harness source was
+merged. Production Stage 7, HOLDOUT, Stage 8, Senzing, and geocoding remain not
+started and unauthorized. The exact next task is Stage 8 design and explicit
+authorization only.

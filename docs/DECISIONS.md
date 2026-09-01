@@ -93,8 +93,9 @@ to change a decision or start a stage.
   reconstruction layer.
 - **Rationale:** Parsing needs a reviewed candidate boundary and line-use
   provenance.
-- **Status:** LOCKED sequence. Stages 5 and 6 are accepted on DEVELOPMENT;
-  Stage 7 is in a revised DEVELOPMENT design diagnostic under D023.
+- **Status:** LOCKED sequence. Stages 5–7 are accepted on DEVELOPMENT. Stage 7
+  acceptance is evidence-only under D037 and does not promote parser output to
+  semantic or geographic truth.
 
 ### D010 — Abbreviation normalization is component-aware and post-parsing
 
@@ -149,8 +150,8 @@ to change a decision or start a stage.
 - **Rationale:** Library-first offline processing under reproducible privacy
   controls.
 - **Status:** Accepted-stage choices are bound by the reviewed contracts for
-  Stages 0–6. Stages 7–19 remain planned. pgeocode is proof-of-concept only.
-  Pandas is inspection-only.
+  Stages 0–7. Proposed replacement Stages 8–14 are not started. pgeocode is
+  proof-of-concept only. Pandas is inspection-only.
 
 ### D015 — Protected data never leaves controlled infrastructure
 
@@ -681,21 +682,57 @@ to change a decision or start a stage.
   protected output.
 - **Status:**
   `STAGE07_EVIDENCE_ONLY_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REREVIEW`.
-  This is not Stage 7 acceptance and does not authorize Stage 8, HOLDOUT,
-  production, geocoding, or merge.
+  At that decision point this was not Stage 7 acceptance and did not authorize
+  Stage 8, HOLDOUT, production, geocoding, or merge. D037 records the later
+  independent rereview and final owner acceptance.
+
+### D037 — Accept the exact Stage 7 evidence-only DEVELOPMENT candidate
+
+- **Date:** 2026-09-01.
+- **Scope:** Final owner acceptance and main integration of Stage 7
+  DEVELOPMENT evidence only; no scientific rerun or later-stage authorization.
+- **Decision:** Accept exact reviewed candidate
+  `656a16d3d1f33cb152ace557c26f42df047bc7d6` as `STAGE_7_ACCEPTED` on
+  DEVELOPMENT. Preserve its ancestry through merge commit
+  `b36b995809fe902fe80af25856cb24786b795b1c`. Retain only the two sanitized
+  rereview report blobs from evidence commit
+  `356de44f3e86e37972d60cac45d01703ad1f6856`; do not merge the independent-
+  review harness branch or implementation.
+- **Independent evidence:** Rereview verdict
+  `STAGE07_EVIDENCE_ONLY_INDEPENDENT_REREVIEW_PASS`, Goethe job `1763656`
+  (`COMPLETED 0:0`, elapsed `00:03:49`, MaxRSS about 2.02 GiB), review harness
+  SHA `a2fa6e99e75336155363dc1f566b34cf3da8e0a8`, and controlled aggregate
+  SHA-256
+  `c0955062e5f407fdf8586f1811992a8a2e26e202295f467f41b5994b59bbc3b6`.
+- **Accepted meaning:** Exact parser evidence is reproducibly preserved;
+  applicability, technical status, provenance, deterministic warnings, and
+  complete map-back are accepted. Libpostal labels, values, and boundaries
+  remain evidence/hypotheses only. Stage 7 guarantees neither semantic
+  component correctness nor geographic truth, and absence of a structural
+  warning provides no trust guarantee.
+- **Historical preservation:** The original v1 semantic-quality findings,
+  DeepParse closure, failed `COMPONENTS_READY`/`COMPONENTS_ABSTAIN` validation,
+  first independent-review documentation failure, and successful corrected
+  rereview remain distinct, correctly classified evidence. Acceptance does not
+  relabel any failure or experiment as success.
+- **Status:** `STAGE_7_ACCEPTED` on DEVELOPMENT. Production Stage 7, HOLDOUT,
+  Stage 8, Senzing, geocoding, and every later scientific workload remain not
+  started and unauthorized. The exact next task is Stage 8 design and explicit
+  authorization only.
 
 ## Open decisions
 
 These questions require future stage designs and explicit approval:
 
-- evidence-only Stage 7 v2 independent rereview and owner acceptance decision;
-- approval or revision of the proposed compact Stages 8–14;
+- design and explicit owner authorization of Stage 8, including approval or
+  revision of the proposed compact Stages 8–14;
 - exact offline reference releases/licenses and blocking semantics;
 - the bounded Stage 10 hypothesis/query ladder;
 - Stage 13 scoring/calibration and contradiction policy; and
 - Stage 14 granularity-specific usability thresholds, including treatment of
   interpolated Pelias address results.
 
-Nothing in this register authorizes HOLDOUT, Stage 7 acceptance or independent
-review, Stage 8, geocoding, or production Stage 2 through Stage 7. Stage 7
-decisions D023–D035 authorize only their stated DEVELOPMENT scopes.
+Nothing in this register authorizes HOLDOUT, Stage 8, geocoding, or production
+Stage 2 through Stage 7. Stage 7 decisions D023–D036 retain their stated
+historical DEVELOPMENT scopes; D037 alone records final Stage 7 DEVELOPMENT
+acceptance.

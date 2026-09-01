@@ -1,7 +1,7 @@
 {
   "version": "post_stage07_geocoding_architecture_redesign_v1",
   "status": "PROPOSED_NOT_STARTED",
-  "current_stage07_status": "STAGE07_EVIDENCE_ONLY_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REREVIEW",
+  "current_stage07_status": "STAGE_7_ACCEPTED",
   "governing_philosophy": [
     "PRESERVE",
     "GENERATE_MULTIPLE_ADDRESS_HYPOTHESES",
@@ -70,8 +70,9 @@
   "geocoding_started": false,
   "stage08_started": false,
   "next_task": {
-    "name": "FRESH_STAGE07_EVIDENCE_ONLY_INDEPENDENT_REREVIEW",
-    "session": "FRESH_INDEPENDENT_REVIEW_SESSION",
-    "requires_owner_authorization": true
+    "name": "DESIGN_AND_EXPLICITLY_AUTHORIZE_STAGE_8_ONLY",
+    "session": "STAGE_8_DESIGN_REVIEW",
+    "requires_owner_authorization": true,
+    "implementation_or_execution_authorized": false
   }
 }

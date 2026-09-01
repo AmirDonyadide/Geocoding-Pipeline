@@ -1,0 +1,101 @@
+{
+  "version": "stage07_parser_evidence_v2_independent_rereview_v1",
+  "date": "2026-09-01",
+  "verdict": "STAGE07_EVIDENCE_ONLY_INDEPENDENT_REREVIEW_PASS",
+  "reviewed_candidate_sha": "656a16d3d1f33cb152ace557c26f42df047bc7d6",
+  "previous_review": {
+    "reviewed_candidate_sha": "318b70b00a52376b1b4fe865f41a789e2dd3feb9",
+    "evidence_sha": "6ea2ba2cef1a63f91a5a831755d8ecb0cd7d179f",
+    "verdict": "STAGE07_EVIDENCE_ONLY_INDEPENDENT_REVIEW_FAIL",
+    "blocking_scope": "DOCUMENTATION_AND_DOWNSTREAM_CONTRACT_ONLY"
+  },
+  "remediation_review": {
+    "stage07_science_changed": false,
+    "stage07_implementation_changed": false,
+    "protected_artifacts_changed": false,
+    "failed_readiness_history_preserved": true,
+    "component_readiness_is_current_semantic_gate": false,
+    "parser_components_are_hypotheses_and_evidence": true,
+    "absence_of_warning_implies_semantic_trust": false,
+    "stage08_handoff_is_evidence_only": true,
+    "current_status_surfaces_consistent": true
+  },
+  "independent_execution": {
+    "review_harness_sha": "a2fa6e99e75336155363dc1f566b34cf3da8e0a8",
+    "job_id": "1763656",
+    "state": "COMPLETED",
+    "exit_code": "0:0",
+    "elapsed": "00:03:49",
+    "requested_cpus": 4,
+    "requested_memory_gib": 32,
+    "max_rss_kib": 2114228,
+    "controlled_evidence_sha256": "c0955062e5f407fdf8586f1811992a8a2e26e202295f467f41b5994b59bbc3b6",
+    "controlled_evidence_mode": "0600",
+    "controlled_directory_mode": "0700",
+    "batch_rows": 32,
+    "parser_calls": 0,
+    "holdout_accessed": false,
+    "production_accessed": false,
+    "stage08_started": false
+  },
+  "review_harness_failed_attempts": [
+    {
+      "job_id": "1763560",
+      "elapsed": "00:00:06",
+      "classification": "REVIEW_HARNESS_LOGICAL_SCALAR_COMPARISON_DEFECT",
+      "scientific_evidence_produced": false
+    },
+    {
+      "job_id": "1763561",
+      "elapsed": "00:00:06",
+      "classification": "REVIEW_HARNESS_COUNTRY_CASE_CONTRACT_DEFECT",
+      "scientific_evidence_produced": false
+    }
+  ],
+  "machine_verification": {
+    "implementation_sha": "e684d84a8d68498ea790542143c8e125b3eb87b5",
+    "candidate_rows": 51779,
+    "exact_stage06_preservation": "PASS",
+    "exact_stage07_v1_raw_ordered_output_preservation": "PASS",
+    "occurrence_map_back": {
+      "total": 69747,
+      "standard": 34822,
+      "native": 34925,
+      "missing": 0,
+      "non_unique": 0
+    },
+    "applicability_status_counts": {
+      "PARSER_ELIGIBLE_COUNTRY": 50685,
+      "PARSER_ELIGIBILITY_MISSING_COUNTRY": 721,
+      "PARSER_ELIGIBILITY_PARTIAL_COUNTRY": 4,
+      "PARSER_ELIGIBILITY_INVALID_COUNTRY": 355,
+      "PARSER_ELIGIBILITY_AMBIGUOUS_COUNTRY": 14
+    },
+    "technical_status_counts": {
+      "PARSED_NONEMPTY": 51774,
+      "PARSED_EMPTY": 5
+    },
+    "country_and_technical_consistency": "PASS",
+    "warning_replay_twice_exact": "PASS",
+    "raw_preservation_digest": "188db8540fbede26647ab713dbddbae5a51362e7f20e51f25ba61dc26861ef16",
+    "warning_replay_digest": "1dafa0c59d1d0925c4458763db64bb056ea9d1b813205b0dbf3e8babc7a7e072",
+    "parser_calls": 0,
+    "semantic_trust_claims": 0,
+    "contract_fingerprint": "c9561e6d08263b2a8824ff66f2a3aa8521e3ff880759abc14173cce440ced8a4",
+    "schema_fingerprint": "b0e0e83ea3d929b7df8a6a5f64c2e8eb026395a917da90e97a98858b27e9ead2",
+    "manifest_sha256": "f58410877a7810562df7985c7316de7546d4dd8e11a647fd659c53a272e9c266"
+  },
+  "local_checks": {
+    "stage07_focused_tests": "153 passed",
+    "ruff": "PASS",
+    "strict_mypy": "PASS",
+    "shell_syntax": "PASS",
+    "json": "PASS",
+    "markdown_links": "PASS",
+    "diff_check": "PASS",
+    "privacy_and_git_hygiene": "PASS",
+    "broad_local_safe_suite": "571 passed, 24 runtime-pin failures, 4 deselected",
+    "runtime_pin_context": "local Python 3.14.7 versus repository pin 3.14.3"
+  },
+  "next_action": "Obtain explicit scientific-owner acceptance for exact candidate 656a16d3d1f33cb152ace557c26f42df047bc7d6, then integrate that exact candidate branch into main with ancestry preserved; do not merge the independent-review harness branch and do not start Stage 8 without separate authorization."
+}

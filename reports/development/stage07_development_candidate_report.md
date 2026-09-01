@@ -1,10 +1,12 @@
-# Stage 7 DEVELOPMENT evidence history and current candidate report
+# Stage 7 DEVELOPMENT evidence history and accepted-candidate report
 
 Current workflow status:
-`STAGE07_EVIDENCE_ONLY_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REREVIEW`.
-This is not Stage 7 acceptance. The first independent review found only stale
-current-status and downstream-contract documentation; those findings were
-corrected without changing Stage 7 science, code, or protected artifacts.
+`STAGE_7_ACCEPTED`. The owner accepted exact reviewed candidate
+`656a16d3d1f33cb152ace557c26f42df047bc7d6` after independent rereview verdict
+`STAGE07_EVIDENCE_ONLY_INDEPENDENT_REREVIEW_PASS`. The first independent review
+found only stale current-status and downstream-contract documentation; those
+findings were corrected without changing Stage 7 science, code, or protected
+artifacts.
 
 The controlling candidate uses contract
 `stage07_parser_evidence_contract_v2` and profile
@@ -166,7 +168,19 @@ remain unresolved. Compact replacement Stages 8–14 are proposed in the
 none is started or authorized.
 
 The later owner decision retired that semantic-trust gate and froze the
-evidence-only contract. The current candidate is
-`STAGE07_EVIDENCE_ONLY_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REREVIEW`.
-Independent rereview and a separate owner acceptance decision remain required;
-Stage 8 remains unstarted and unauthorized.
+evidence-only contract. Corrected independent rereview job `1763656` passed all
+51,779 exact candidates and 69,747 occurrence mappings with zero parser calls
+and zero semantic-trust claims. Its review harness SHA is
+`a2fa6e99e75336155363dc1f566b34cf3da8e0a8`; controlled aggregate SHA-256 is
+`c0955062e5f407fdf8586f1811992a8a2e26e202295f467f41b5994b59bbc3b6`.
+The owner accepted exact candidate `656a16d3…` as `STAGE_7_ACCEPTED`.
+
+Acceptance is limited to reproducible parser/applicability/technical/
+provenance/warning evidence and complete map-back. Libpostal components remain
+hypotheses/evidence only; Stage 7 guarantees neither semantic component
+correctness nor geographic truth, and warning absence provides no trust
+guarantee. The v1 semantic-quality failure, DeepParse closure, failed readiness
+validation, first independent-review documentation failure, and corrected
+rereview pass retain their original historical meanings. Stage 8 remains
+unstarted and unauthorized; its design and explicit authorization are the only
+next task.

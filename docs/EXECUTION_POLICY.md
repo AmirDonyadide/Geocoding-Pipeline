@@ -133,10 +133,12 @@ documentation test pass.
 - Stage 6 DEVELOPMENT: **`STAGE_6_ACCEPTED`**.
 - Production Stage 6: **NOT STARTED**.
 - Stage 7 DEVELOPMENT:
-  **`STAGE07_EVIDENCE_ONLY_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REREVIEW`**.
-  The v2 evidence contract/implementation are frozen, but Stage 7 is not
-  accepted. Raw parser output is evidence rather than semantic truth, and a
-  fresh independent rereview is required before any acceptance decision.
+  **`STAGE_7_ACCEPTED`**. Exact candidate `656a16d3…` is accepted as an
+  evidence-only DEVELOPMENT stage after independent rereview job `1763656`.
+  Raw parser output remains hypotheses/evidence rather than semantic or
+  geographic truth; absence of structural warnings gives no trust guarantee.
 - Production Stage 7: **NOT STARTED**.
+- Stage 8: **NOT STARTED** and not authorized; its next task is design and
+  explicit authorization only.
 
 This policy grants no scientific-stage or production-run authorization.

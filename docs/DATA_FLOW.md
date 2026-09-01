@@ -48,9 +48,15 @@ Stage 6: early exact deduplication (accepted on DEVELOPMENT)
   + separate exact unique-candidate registry and occurrence counts
         |
         v
-Future Stages 7–19 (not started)
-  unique candidates -> components -> evidence
-  -> candidate/query identities -> complete source-row mappings
+Stage 7: libpostal parser evidence (accepted on DEVELOPMENT)
+  exact Stage 6 candidates + exact ordered raw parser evidence
+  + applicability/technical provenance + structural warnings
+  + complete occurrence map-back; no semantic/geographic truth guarantee
+        |
+        v
+Proposed Stages 8–14 (not started)
+  evidence -> hypotheses -> query identities -> top-N results
+  -> scoring/granularity -> complete source-row mappings
 ```
 
 ## Raw source record
@@ -176,10 +182,18 @@ bytes. Exact byte equality is checked inside every observed digest group, so a
 digest alone is never treated as equality proof. Stage 6 applies no additional
 normalization or parsing. The Stage 6 output is accepted on DEVELOPMENT.
 
-## Future candidate representations
+## Stage 7 evidence and future candidate representations
 
-Stages 7–19 have not started. Their data model is constrained by these accepted
-principles:
+Stage 7 is accepted on DEVELOPMENT under
+`stage07_parser_evidence_contract_v2`. It preserves all five Stage 6 registry
+fields, immutable v1 technical status and ordered raw libpostal components,
+trusted-country applicability/provenance, deterministic structural warnings,
+and complete 69,747-occurrence map-back for all 51,779 exact candidates. Its
+components remain hypotheses/evidence only; no warning status establishes
+semantic correctness or geographic truth.
+
+Proposed Stages 8–14 have not started. Their data model is constrained by these
+accepted principles:
 
 - lowercase, reconstructed, parsed, normalized, transliterated, corrected, and
   query-ready values are separate derived representations;
@@ -208,10 +222,11 @@ outcomes are:
 
 ## Query identity and map-back
 
-Future Stage 18 creates versioned query representations; Stage 19 will assign
-query identities and deduplicate identical SAFE Pelias calls. A single unique
-query may serve multiple candidates, and a candidate may serve multiple source
-rows. The mapping chain must remain explicit:
+Under the proposed compact design, Stage 10 would create versioned query
+hypotheses and Stage 11 would assign query identities and deduplicate identical
+SAFE Pelias calls. A single unique query may serve multiple candidates, and a
+candidate may serve multiple source rows. The mapping chain must remain
+explicit:
 
 ```text
 stable_source_row_id_v1 -> candidate_id -> query_id -> geocoder attempt/result

@@ -138,7 +138,7 @@ contracts. SAFE code provides narrow orchestration, identity/provenance,
 evidence aggregation, validation semantics, conservative policy, execution
 guards, and verified gaps.
 
-Current/planned technology choices are:
+Accepted/currently proposed technology choices are:
 
 | Stage | Primary technology direction |
 |---:|---|
@@ -149,26 +149,21 @@ Current/planned technology choices are:
 | 4 | Python Unicode `lower()` |
 | 5 | SAFE bounded reconstruction; address-format metadata intentionally deferred |
 | 6 | DuckDB/Polars/hashing |
-| 7 | libpostal/pypostal |
-| 8 | libpostal plus SAFE component mapping |
-| 9 | libpostal resources/dictionaries plus SAFE component-aware policy |
-| 10 | pycountry |
-| 11 | google-i18n-address plus conservative country rules |
-| 12 | DuckDB/Polars/hashing |
-| 13 | Pinned direct GeoNames postal data and DuckDB; pgeocode POC only |
-| 14 | Overture Maps Addresses, local GeoParquet, DuckDB; optional OSM fallback |
-| 15 | RapidFuzz after geographic blocking |
-| 16 | SAFE high-precision evidence/correction engine |
-| 17 | SAFE geocoding-component selection |
-| 18 | SAFE query generation |
-| 19 | DuckDB/Polars/PyArrow/hashing |
+| 7 | Pinned libpostal/pypostal plus SAFE evidence-only projection |
+| 8 proposed | PyArrow/Parquet, pycountry, pinned offline libaddressinput metadata |
+| 9 proposed | Pinned GeoNames/Overture, optional approved OSM, RapidFuzz inside strong blocks |
+| 10 proposed | SAFE deterministic multi-hypothesis planning |
+| 11 proposed | DuckDB, PyArrow/Parquet, hashing for query identity/QA |
+| 12 proposed | Self-hosted SAFE Pelias top-N retrieval |
+| 13 proposed | SAFE evidence scoring, DuckDB, bounded RapidFuzz, Arrow/Parquet |
+| 14 proposed | SAFE final granularity/abstention policy |
 
 Pandas is permitted for small DEVELOPMENT inspection/notebooks, not production
 transformations. Planned technology does not imply implementation approval.
 
 ## 7. Stage sequence and current state
 
-The final pre-geocoding sequence is:
+The accepted sequence through Stage 7 and proposed replacement sequence are:
 
 0. source inventory;
 1. lossless ingestion;
@@ -177,30 +172,25 @@ The final pre-geocoding sequence is:
 4. lowercase canonical forms;
 5. address reconstruction;
 6. early exact deduplication;
-7. libpostal parsing;
-8. internal component mapping;
-9. component-aware abbreviation/linguistic normalization;
-10. country/subdivision normalization;
-11. country-specific address/postcode syntax validation;
-12. normalized/component-level deduplication;
-13. geographic cross-validation;
-14. street/house-number validation;
-15. constrained fuzzy matching;
-16. conservative correction;
-17. geocoding-component selection;
-18. query generation; and
-19. query deduplication plus final QA.
+7. evidence-only libpostal parsing/projection;
+8. proposed lossless address-evidence projection;
+9. proposed offline geographic reference evidence;
+10. proposed multi-hypothesis query-plan generation;
+11. proposed global query identity/deduplication/workload QA;
+12. proposed self-hosted SAFE Pelias top-N retrieval;
+13. proposed result evidence scoring/cross-query convergence; and
+14. proposed final match granularity/abstention.
 
-Stages 0–6 are implemented and accepted on DEVELOPMENT. Stage 7 remains not
-ready: its authoritative DEVELOPMENT run passed complete machine integrity,
-but qualitative and targeted root-cause evidence found systematic libpostal
-label/boundary failures. A prospective Stage 7 v2 adds structural
-readiness/abstention while treating parser output as evidence rather than
-truth. The old Stages 8–19 and proposed compact replacement Stages 8–14 are not
-started. Production Stage 0 and Stage 1 are accepted;
-production Stages 2–7 are not started. The detailed
-stage contracts and acceptance requirements are
-in [PIPELINE.md](PIPELINE.md). HOLDOUT remains untouched and sealed.
+Stages 0–7 are implemented and accepted on DEVELOPMENT. Stage 7 acceptance is
+evidence-only: its authoritative v1 run passed machine integrity but exposed
+systematic libpostal label/boundary failures, and the later readiness rule
+failed its frozen validation. The accepted v2 therefore preserves exact raw
+parser evidence, applicability/technical provenance, deterministic warnings,
+and full map-back without making semantic or geographic truth claims. The old
+Stages 8–19 and proposed compact replacement Stages 8–14 are not started.
+Production Stage 0 and Stage 1 are accepted; production Stages 2–7 are not
+started. The detailed stage contracts and acceptance requirements are in
+[PIPELINE.md](PIPELINE.md). HOLDOUT remains untouched and sealed.
 
 ## 8. DEVELOPMENT methodology
 
@@ -252,8 +242,8 @@ Durable decisions are in [DECISIONS.md](DECISIONS.md); current status is in
 
 ## 11. Current next action
 
-Stage 7 — libpostal parsing — stopped after its revised supervisor diagnostic
-showed the prior giant failures were resource-cap dependent. It remains
-unaccepted and is not ready for independent review. Stage 6 remains accepted on
-DEVELOPMENT. Production Stage 2 through Stage 7 remain not started and
+Stage 8 design and explicit authorization only. Stage 7 is
+`STAGE_7_ACCEPTED` on DEVELOPMENT under its evidence-only boundary. Production
+Stage 2 through Stage 7 remain not started and unauthorized; Stage 8
+implementation/execution, HOLDOUT, Senzing, and geocoding are also
 unauthorized.

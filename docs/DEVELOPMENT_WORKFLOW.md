@@ -19,12 +19,12 @@ design
   -> stop
 ```
 
-Stages 0–6 have completed this lifecycle on DEVELOPMENT and are accepted.
-Stage 7 stopped its first design at a material giant-candidate parser
-limitation. Its revised supervisor diagnostic then showed that all four prior
-crashes succeed without the first job's 48 GiB address-space ceiling. Both
-not-ready findings remain immutable; contract/profile freeze still has not
-occurred.
+Stages 0–7 have completed this lifecycle on DEVELOPMENT and are accepted.
+Stage 7 retains its full failed-design history: the first giant-candidate stop,
+resource-sufficient v1 execution, material semantic-quality findings, DeepParse
+closure, failed readiness validation, and first independent-review
+documentation failure. Its corrected evidence-only candidate passed
+independent rereview and is accepted without relabeling those failures.
 
 ## Design and implementation
 
@@ -108,7 +108,7 @@ reason.
 
 DEVELOPMENT acceptance and production execution are different decisions.
 Production Stage 0 and Stage 1 are accepted for the 1,411-file population.
-Production Stages 2–6 have not started. Before production Stage 2 can
+Production Stages 2–7 have not started. Before production Stage 2 can
 run, its exact launcher, commit, population binding, resources, output paths,
 and validation plan require separate review and authorization.
 

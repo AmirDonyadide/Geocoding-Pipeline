@@ -6,9 +6,10 @@ authorize Stage 8, authorize geocoding, or change the current rule that no
 geocoding workload may run before the governing pre-geocoding design is
 accepted and separately authorized.
 
-Stages 0–6 and the immutable Stage 7 v1 evidence are unchanged. Stage 7 now has
-an evidence-only v2 DEVELOPMENT candidate awaiting independent rereview. It is
-not accepted, and this proposal does not authorize Stage 8.
+Stages 0–6 and the immutable Stage 7 v1 evidence are unchanged. Exact Stage 7
+evidence-only v2 candidate `656a16d3…` passed independent rereview and is
+accepted as `STAGE_7_ACCEPTED` on DEVELOPMENT. That acceptance does not promote
+parser output to semantic/geographic truth and does not authorize Stage 8.
 
 ## Governing philosophy
 
@@ -240,9 +241,8 @@ separately approved and repository execution policy is deliberately updated.
 
 ## Exact next task and session boundary
 
-The next task is **not** Stage 8. It is a fresh independent rereview of the
-corrected Stage 7 evidence-only v2 DEVELOPMENT candidate. The failed
+The next task is **Stage 8 design and explicit authorization only**, not Stage
+8 implementation or execution. The failed
 `stage07_component_readiness_rule_v1` validation remains immutable historical
-evidence and is not a future trust-gate task. Only after Stage 7 is independently
-reviewed and separately accepted should proposed Stage 8 receive a fresh design
-session and explicit implementation authorization.
+evidence and is not a future trust-gate task. Any Stage 8 design must preserve
+the accepted Stage 7 evidence-only boundary and receive separate owner approval.
