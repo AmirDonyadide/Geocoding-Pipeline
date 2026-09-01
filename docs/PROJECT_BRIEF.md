@@ -119,15 +119,16 @@ original, proposal, reference/version, evidence, and decision.
 
 ### 5.4 Geocoding quality
 
-The preferred SAFE Pelias endpoint is `/v1/search/structured`, normally with
-`size=1`. Credentials are runtime-only, and normal concurrency is 2–4 total
-requests across the complete process.
+The proposed evidence-first architecture retains top-N SAFE Pelias results from
+structured or whole-string queries as justified, rather than automatically
+accepting the first feature. Credentials are runtime-only, and normal
+concurrency is 2–4 total requests across the complete process.
 
-An address-layer exact match without a major contradiction is expected to be
-usable. Acceptance of interpolated address matches remains open until later
-pilot/manual evidence. Street, venue, locality, localadmin, region, country,
-fallback, and other coarse results are not usable for point-level research.
-Confidence is supporting evidence, not a standalone decision rule.
+Layer, match type, accuracy, independent geographic agreement, contradictions,
+and convergence across queries are retained as separate evidence. A result is
+accepted only at an explicit supported granularity or remains unresolved; a
+lower-granularity truthful result is preferable to a false point. Confidence
+and rank are supporting evidence, not standalone decision rules.
 
 ## 6. Library-first preprocessing
 
@@ -190,9 +191,15 @@ The final pre-geocoding sequence is:
 18. query generation; and
 19. query deduplication plus final QA.
 
-Stages 0–6 are implemented and accepted on DEVELOPMENT. Stages 7–19 are not
-started. Production Stage 0 and Stage 1 are accepted; production Stages 2–6
-are not started. The detailed stage contracts and acceptance requirements are
+Stages 0–6 are implemented and accepted on DEVELOPMENT. Stage 7 remains not
+ready: its authoritative DEVELOPMENT run passed complete machine integrity,
+but qualitative and targeted root-cause evidence found systematic libpostal
+label/boundary failures. A prospective Stage 7 v2 adds structural
+readiness/abstention while treating parser output as evidence rather than
+truth. The old Stages 8–19 and proposed compact replacement Stages 8–14 are not
+started. Production Stage 0 and Stage 1 are accepted;
+production Stages 2–7 are not started. The detailed
+stage contracts and acceptance requirements are
 in [PIPELINE.md](PIPELINE.md). HOLDOUT remains untouched and sealed.
 
 ## 8. DEVELOPMENT methodology
@@ -215,7 +222,7 @@ creates a new run. Stage 3 v1/v2 is the canonical example: v1 scientific values
 were preserved, v2 corrected implementation/reporting scalability, exact
 scientific equality was proved, and a new independent review accepted v2.
 
-HOLDOUT is opened once only after the complete Stage 2–19 pipeline is frozen.
+HOLDOUT is opened once only after the complete governing pipeline is frozen.
 
 ## 9. Production and infrastructure
 
@@ -245,6 +252,8 @@ Durable decisions are in [DECISIONS.md](DECISIONS.md); current status is in
 
 ## 11. Current next action
 
-Stage 7 — libpostal parsing — is not started. Stage 6 is accepted on
-DEVELOPMENT. Production Stage 2 through Stage 6 remain not started and
+Stage 7 — libpostal parsing — stopped after its revised supervisor diagnostic
+showed the prior giant failures were resource-cap dependent. It remains
+unaccepted and is not ready for independent review. Stage 6 remains accepted on
+DEVELOPMENT. Production Stage 2 through Stage 7 remain not started and
 unauthorized.

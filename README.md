@@ -147,6 +147,10 @@ personal absolute paths. Sanitized evidence is available under
 
 ## Current next stage
 
-**Stage 7 — libpostal parsing — NOT STARTED.** Stage 6 is accepted on
-DEVELOPMENT. HOLDOUT access and production Stage 2 through Stage 6 remain
-unauthorized and not started.
+**Stage 7 — libpostal parsing — DEVELOPMENT candidate not ready.** The revised
+supervisor diagnostic found that all four prior giant crashes disappear under
+an uncapped 180 GiB allocation, so the earlier 48 GiB ceiling was materially
+causal and the proposed technical-failure status cannot yet be frozen. Stage 6
+remains accepted. HOLDOUT, production Stages 2–7, Stage 8, independent review,
+and geocoding remain unauthorized and not started. See the
+[Stage 7 record](docs/stages/STAGE07_LIBPOSTAL_PARSING.md).

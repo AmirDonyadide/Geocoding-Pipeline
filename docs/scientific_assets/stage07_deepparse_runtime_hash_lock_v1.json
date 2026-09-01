@@ -1,0 +1,29 @@
+{
+  "version": "stage07_deepparse_runtime_hash_lock_manifest_v1",
+  "hash_lock_path": "docs/scientific_assets/stage07_deepparse_runtime_hash_lock_v1.txt",
+  "hash_lock_sha256": "b8663547cc790a05a1ce2ff21810134bea2b0494b5dd17c2fe07d669fdc2aae8",
+  "package_count": 79,
+  "base_runtime_lock_path": "docs/scientific_assets/stage07_deepparse_runtime_lock_v1.txt",
+  "base_runtime_lock_sha256": "3a4fd33e5530c554125e11b040adeb97828a0381549ac8ca36ce2399711cdc83",
+  "derivation": {
+    "manifest_bound_job_1762661_report_hash_count": 74,
+    "manifest_bound_deepparse_report_sha256": "164b33ba281bc7742ee4e890544aff5dff889ba0d3ef416a82c18137aa560907",
+    "manifest_bound_torch_report_sha256": "0b2db97b2c044a524a1749e20b6deb28dca4ada56374fdd7de57317d06dec243",
+    "direct_public_wheel_hash_count": 5,
+    "direct_public_wheel_purposes": [
+      "JINJA2_REPORT_HASH_ABSENT",
+      "MARKUPSAFE_REPORT_HASH_ABSENT",
+      "PINNED_PIP_BOOTSTRAP",
+      "PINNED_SETUPTOOLS_BOOTSTRAP",
+      "PINNED_WHEEL_BOOTSTRAP"
+    ]
+  },
+  "installation_policy": {
+    "pip_require_hashes": true,
+    "pip_no_deps": true,
+    "exact_final_freeze_required": true,
+    "public_indexes_only": true
+  },
+  "public_assets_only": true,
+  "protected_inputs_opened": false
+}

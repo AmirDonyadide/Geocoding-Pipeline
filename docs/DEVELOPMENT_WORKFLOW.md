@@ -20,7 +20,11 @@ design
 ```
 
 Stages 0–6 have completed this lifecycle on DEVELOPMENT and are accepted.
-Stage 7 has not started.
+Stage 7 stopped its first design at a material giant-candidate parser
+limitation. Its revised supervisor diagnostic then showed that all four prior
+crashes succeed without the first job's 48 GiB address-space ceiling. Both
+not-ready findings remain immutable; contract/profile freeze still has not
+occurred.
 
 ## Design and implementation
 

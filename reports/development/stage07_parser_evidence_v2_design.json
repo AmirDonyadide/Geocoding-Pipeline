@@ -1,0 +1,60 @@
+{
+  "binding": {
+    "eligibility_artifact_sha256": "a6ba110c0519873af898dcec0b5188a1db2659fe31aa619613cffcfdf82e499c",
+    "eligibility_audit_manifest_sha256": "8395b0b5f8e0943dc6dd1a9c9553ea571294fc7bbe61fc9b9b1e6e8fd1cea1a6",
+    "eligibility_policy_manifest_sha256": "49dcda13e36d2692885efadffb606fa96207fc174a3385041c07af9bf0d1026a",
+    "libpostal_bundle_fingerprint": "f3c6db7e9f11ab75b2207be773e946d531dbba763008d9f7e5036d8c923dc2ae",
+    "stage06_manifest_sha256": "e1da7b8ef04b65b1ece8e710720b57a8536841766fcf9de641f889b42eadd241",
+    "stage07_v1_manifest_sha256": "98d4e9efd2e46bb725aa68d7c207065efb2089c59cdcba8bbe6ef3536d9f8f77"
+  },
+  "contract_fingerprint": "c9561e6d08263b2a8824ff66f2a3aa8521e3ff880759abc14173cce440ced8a4",
+  "contract_id": "stage07_parser_evidence_contract_v2",
+  "does_not_guarantee": [
+    "CORRECT_SEMANTIC_COMPONENT_LABELS",
+    "CORRECT_COMPONENT_BOUNDARIES",
+    "POSTAL_OR_ADDRESS_VALIDITY",
+    "GEOGRAPHIC_TRUTH",
+    "NO_WARNING_IMPLIES_SEMANTIC_CORRECTNESS"
+  ],
+  "expected_development": {
+    "candidate_rows": 51779,
+    "eligible_candidates": 50685,
+    "native_occurrences": 34925,
+    "occurrences": 69747,
+    "standard_occurrences": 34822,
+    "unresolved_candidates": 1094
+  },
+  "guarantees": [
+    "EXACT_STAGE06_CANDIDATE_PRESERVATION",
+    "EXACT_RAW_ORDERED_STAGE07_V1_LIBPOSTAL_OUTPUT_PRESERVATION",
+    "PARSER_BUNDLE_AND_LINEAGE_PROVENANCE",
+    "COUNTRY_APPLICABILITY_EVIDENCE",
+    "EXACT_HISTORICAL_TECHNICAL_EXECUTION_STATUS",
+    "DETERMINISTIC_STRUCTURAL_WARNING_FEATURES_WHERE_APPLICABLE",
+    "FULL_OCCURRENCE_MAP_BACK",
+    "NO_SOURCE_INFORMATION_LOSS"
+  ],
+  "historical_failed_readiness_rule": {
+    "id": "stage07_component_readiness_rule_v1",
+    "retained_as_semantic_gate": false,
+    "signal_source_sha256": "dbdaf434c68bb2110cfc76eb296f4c955f7ad950c549255c0d4e1c8aae17deb9"
+  },
+  "parser_calls": 0,
+  "profile_id": "stage07_parser_evidence_profile_v2",
+  "raw_components_semantics": "HYPOTHESES_AND_EVIDENCE_NOT_SOURCE_TRUTH",
+  "schema_fingerprint": "b0e0e83ea3d929b7df8a6a5f64c2e8eb026395a917da90e97a98858b27e9ead2",
+  "schema_id": "stage07_parser_evidence_schema_v2",
+  "semantic_trust_claims": 0,
+  "post_freeze_development_report": "stage07_parser_evidence_v2_development.json",
+  "status": "DESIGN_AND_IMPLEMENTATION_CONTRACT_FROZEN",
+  "structural_warning_feature_version": "stage07_structural_warning_features_v1",
+  "structural_warning_status_vocabulary": [
+    "NO_STRUCTURAL_WARNINGS_DETECTED",
+    "STRUCTURAL_WARNINGS_PRESENT",
+    "STRUCTURAL_WARNINGS_NOT_EVALUATED"
+  ],
+  "technical_status_vocabulary": [
+    "PARSED_NONEMPTY",
+    "PARSED_EMPTY"
+  ]
+}

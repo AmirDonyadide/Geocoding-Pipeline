@@ -1,0 +1,827 @@
+# Stage 7 — libpostal parsing
+
+## Status
+
+**`STAGE07_EVIDENCE_ONLY_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REREVIEW`.**
+
+This branch starts from accepted `main` commit
+`76435eb7ca5cd9a47a2a77fb36278568ba3bfc29`. Evidence-only v2 is a
+DEVELOPMENT candidate, not Stage 7 acceptance. Its first independent review at
+evidence commit `6ea2ba2cef1a63f91a5a831755d8ecb0cd7d179f` rejected only stale
+current-status and downstream-contract documentation. Those findings have been
+corrected without changing the contract, implementation, protected output, or
+science; a fresh independent rereview is required. HOLDOUT, production Stages
+2–7, Stage 8, and geocoding remain unauthorized.
+
+Historically, the first controlled design diagnostic exposed a material parser
+limitation before the contract/profile freeze: four of the 23 accepted candidates with at least
+1,000,000 code points crashed their isolated native parser process, including
+the accepted 25,920,495-code-point maximum. At that point the session stopped as
+required. Proposed names `stage07_libpostal_parsing_contract_v1` and
+`stage07_libpostal_parsing_profile_v1` were not frozen, implementation and the
+authoritative 51,779-candidate run did not begin, and no candidate was eligible
+for independent review. That historical stop is not the current v2 status.
+
+That not-ready conclusion remains immutable and historically correct at
+evidence commit `d132fd9d665995fc07743c512769e44fa7fcae0b`. The owner has now
+authorized a later revised Stage 7 design attempt, limited first to a targeted
+supervisor diagnostic over the same 23 accepted giant candidates. This does
+not retroactively pass the first design, freeze the contract/profile, accept
+Stage 7, authorize independent review, or change accepted Stage 6 science.
+
+That targeted diagnostic completed as job `1760182` from exact pushed commit
+`7e9abc43aee8285ac0cf47d8c56acd883c6f4cd4`. It reproduced the prior 19/4
+split under the original 48 GiB ceiling, then parsed all 23 exact giants
+successfully on their first uncapped attempt in a 180 GiB job. The four prior
+failures were therefore resource-cap dependent. Per the owner's stop rule, the
+technical-failure status and resource contract require reconsideration before
+contract freeze. The sanitized [revised diagnostic report](../../reports/development/stage07_supervisor_diagnostic_summary.md)
+records the aggregate evidence.
+
+## Owner-authorized revised proposal — v1 contract frozen for implementation
+
+The complete 123-group / 246-surface case diagnostic is controlling evidence:
+all ordered parses were exactly equal. The accepted
+`stage06_candidate_lower` therefore remains the sole Stage 7 parse-once key.
+Clean/case-preserving surfaces remain upstream provenance and are not added to
+the key or parsed independently in the authoritative pipeline.
+
+Every Stage 6 candidate must receive exactly one Stage 7 row. The owner’s
+resource-sufficient decision freezes fail-closed handling: an unresolved native
+parser crash aborts publication and is not a v1 row status. The v1 vocabulary is:
+
+| Status | Parser outcome | Component representation |
+|---|---|---|
+| `PARSED_NONEMPTY` | Parser returned normally with at least one component | non-null ordered list of length at least one |
+| `PARSED_EMPTY` | Parser returned normally with zero components | non-null exact empty list `[]` |
+
+A wrapper exception, malformed result, Python failure, schema error,
+publication error, crash→success retry, repeated crash, or changed technical
+failure aborts the complete publication. No size threshold skips parsing and
+no candidate timeout is part of the status contract; authoritative DEVELOPMENT
+uses a validated 180 GiB allocation with no internal address-space ceiling.
+
+The earlier `PARSER_PROCESS_CRASH` proposal remains rejected historical design
+evidence and is not part of the v1 schema.
+
+## Revised supervised execution design
+
+A synchronous parent owns one exact active candidate and one long-lived
+spawned libpostal child. Requests and results carry an internal monotonic frame
+sequence. Before calling libpostal, the child acknowledges that sequence plus
+the exact input code-point count and SHA-256. An exit before this acknowledgment
+aborts and cannot qualify as a candidate crash. The parent accepts a result
+only when sequence and input identity match, so a neighbor cannot be omitted or
+cross-wired. The child initializes the frozen parser bundle once and remains
+alive across normal candidates.
+
+If the active child terminates before returning a valid frame, the parent
+records privacy-safe exit/signal, framing, runtime, and observable memory
+metadata, starts a fresh child with the same frozen bundle, and retries the
+same exact candidate once:
+
+1. crash then the same crash signature: publish `PARSER_PROCESS_CRASH` with
+   null components;
+2. crash then success: fail with parser/execution nondeterminism; or
+3. crash then another technical outcome or different exit/signal signature:
+   fail with technical nondeterminism.
+
+The successful ordinary path is attempted once. The supervision rule applies
+to every candidate and contains no giant-specific production semantics. The
+targeted diagnostic additionally performs a third fresh attempt for each
+reproducibly crashing giant as pre-contract evidence, but the proposed
+publication contract remains exactly two attempts after an initial crash.
+
+The first diagnostic imposed a 48 GiB child address-space ceiling and retained
+only aggregate giant results. The targeted job first replays that immutable
+isolated code path to reconstruct an owner-only candidate-level 19/4 reference
+and ordered digests; its original 900-second guard and 48 GiB cap are reference
+conditions, not proposed publication policy. The revised supervisor path then
+has no per-candidate timeout or address-space ceiling and runs in a job
+requesting 180 GiB on a 191 GB Goethe node. Candidate-by-candidate comparison
+therefore tests whether the same prior failures persist under the larger
+allocation rather than freezing a failure state around a potentially fixable
+SAFE resource cap. The same parser-bundle fingerprint remains binding.
+
+## Provisional revised output representation
+
+The proposed registry continues to preserve the five Stage 6 registry columns
+exactly and append only `stage07_parse_status` plus
+`stage07_libpostal_components`. A separate published `stage07_failure_code` is
+not proposed: with one approved technical-failure state it would duplicate the
+status invariant. The internal/aggregate technical code for that state is the
+fixed public value `NATIVE_PROCESS_CRASH`; low-level attempt evidence remains
+owner-only and is not copied into the registry.
+
+The proposed nested type is a nullable Arrow
+`large_list<struct<label: large_string not null, value: large_string not
+null> not null>`. A 64-bit list offset is justified by the observed 263,385
+components in the first diagnostic and 881,338 in the uncapped giant audit,
+plus future shard scalability. `large_string`
+children avoid a 32-bit cumulative value-offset dependency within a batch.
+List order, duplicate labels, duplicate values, and exact strings remain
+authoritative. Parquet round-trip, one-row giant row groups, page sizing,
+checksums, and per-candidate construction memory must pass the targeted gate
+before this schema can be frozen.
+
+## Accepted Stage 6 input boundary
+
+Stage 7 is bound only to the immutable accepted Stage 6 DEVELOPMENT
+publication:
+
+- contract: `stage06_early_exact_deduplication_contract_v1`;
+- profile: `stage06_early_exact_deduplication_profile_v1`;
+- schema fingerprint:
+  `9c07b7a4c3f7a5c43ad457dcf6f7fe3fd746d54d82a731139905b30828b6c9ce`;
+- logical fingerprint:
+  `2f6379c0cd5dc9654c03895cae6fdd48f3a7af528158c33e44d2030c816640b6`;
+- input-binding fingerprint:
+  `6ba224d6d24c3631aae8aac69f4a362bb054f01d9e3d09327ec6b0fdd85a0e7d`;
+- manifest fingerprint:
+  `e1da7b8ef04b65b1ece8e710720b57a8536841766fcf9de641f889b42eadd241`;
+- ordered source identity:
+  `fe2a4758582c1880d2b5c62dfc5c587d865e05d13033af9f5e8208b58e2a0487`;
+- Benchmark V1 fingerprint:
+  `014a7d2a9935bb098711e62b89df2eb93dfdd0dd1ce5ac70853f010d118acedf`;
+- fixed-500 fingerprint:
+  `014f7c1373380b265f34e2ecb76614161b320e2bb972befb8f53994cc5a1dd52`;
+- 51,779 ID-sorted unique candidates; and
+- 69,747 source-representation occurrences over 35,000 DEVELOPMENT rows.
+
+The processing unit is one Stage 6 unique registry row. Stage 7 will parse
+`stage06_candidate_lower` exactly once and preserve its
+`stage06_exact_candidate_id` plus all four other registry fields exactly. It
+will not independently parse 69,747 occurrences or 35,000 source rows.
+
+## First-design scientific boundary and revision
+
+The exact parser call is intended to be:
+
+```text
+postal.parser.parse_address(stage06_candidate_lower)
+```
+
+No argument other than the exact accepted candidate is supplied. SAFE adds no
+trim, case conversion, Unicode normalization, punctuation or whitespace
+normalization, abbreviation expansion, geographic field, language hint, or
+country hint. The accepted Stage 5 body deliberately excludes postcode, city,
+region, and country; Stage 7 does not append them.
+
+Pypostal returns an ordered list of `(value, label)` tuples. The adapter will
+validate that exact wrapper contract and serialize it as an ordered Arrow list
+of non-null structs with `label` then `value` fields. It will not sort,
+deduplicate, combine repeated labels, convert the result to dictionary
+semantics, map labels to SAFE fields, or alter returned strings. Stage 8 owns
+label mapping.
+
+The first design proposed one row per Stage 6 registry row, preserving the five
+Stage 6 columns in order and appending:
+
+- non-null `stage07_parse_status`, then limited to `PARSED_NONEMPTY` or
+  `PARSED_EMPTY`; and
+- non-null `stage07_libpostal_components`, then an ordinary ordered list of non-null
+  `{label, value}` structs whose strings are non-null and exact UTF-8.
+
+An exception, malformed wrapper result, null, non-string member, invalid UTF-8
+round-trip, or partial output fails the run. Stage 7 does not synthesize a
+component or relabel a technical failure as a successful empty parse. The
+controlled diagnostic showed that this policy did not cover four real
+DEVELOPMENT candidates. The later owner decision above revises only those
+status/null semantics and the offset-width choice: confirmed native crashes
+receive `PARSER_PROCESS_CRASH` with a null `LargeList`. All other wrapper,
+schema, and publication failures remain fail-closed.
+
+## Exact frozen parser bundle
+
+The controlled environment initially had neither libpostal nor pypostal.
+Stage 7 therefore builds one self-contained public parser bundle in a scheduled
+SLURM job before protected parsing. The source choices are exact, not moving:
+
+- libpostal repository `openvenues/libpostal`, commit
+  `25099c506612b34b23b1bfe286ca6321fcf06f35`, implementation 1.1.4,
+  upstream description `v1.1.4-2-g25099c50`, installed ABI binary
+  `libpostal.so.1.0.1`;
+- upstream default libpostal model, with base/parser/language-classifier asset
+  version files all pinned to `v1.0.0` by that source commit;
+- pypostal repository `openvenues/pypostal`, commit
+  `d6666a4f6a2ae0e7b83e037a35412f0f6b45c318`, package 1.1.11, upstream
+  description `1.1-53-gd6666a4`; and
+- pypostal runtime dependency `six==1.17.0`.
+
+The default model is chosen because it is the upstream context-free default
+for a worldwide input population. The alternative Senzing model is not
+silently substituted or tuned on DEVELOPMENT. Parser quality remains subject
+to the protected diagnostic and qualitative evaluation.
+
+The bundle manifest enumerates every actual model/data file, pypostal runtime
+file, dependency file, license file, and exact shared-library binary by
+portable relative path, byte size, and SHA-256. It separately derives the
+model/data fingerprint, pypostal runtime fingerprint, shared-library hash, and
+complete `stage07_parser_bundle_fingerprint`. The scientific identity also
+binds Python 3.14.3 / Unicode 16.0.0, compiler/glibc identities, UTF-8 runtime
+settings, default no-hint parser options, and one initialization per process.
+
+The locally available code-license files are copied without interpretation:
+libpostal MIT, its bundled Sparkey Apache-2.0, and pypostal MIT. The bundle
+records any license/notice file actually present in downloaded model assets.
+If none exists, it records exactly that absence and does not guess model-data
+license terms.
+
+Bundle construction downloads public software/model assets only. It does not
+open Stage 6 or any other protected input. Publication is owner-only, complete
+content-hashed, fsynced, atomic, and immutable. Later protected jobs validate
+the exact expected bundle fingerprint before opening input and make no network
+calls while parsing.
+
+The first public-only bundle submission, SLURM job `1760085` at design commit
+`f437ec0f68e37d5cde197a97e761ad57cf201361`, failed in two seconds before
+creating a build root or output. The path guard compared realpath-resolved
+`/panfs/...` paths with the unresolved `/work/...` alias and returned
+`STAGE07_CONTROLLED_PATH_REQUIRED`. Its empty stdout and 33-byte stderr remain
+owner-only at mode `0600`. No software build, model download, protected input
+access, or parser call occurred. The minimal correction resolves the controlled
+root before comparison; any replacement uses new build/output identities and
+does not overwrite this failed attempt.
+
+The controlled Stage 7 runtime is created anew for each execution and pins
+Python 3.14.3 / Unicode 16.0.0, pip 26.2.1, setuptools 80.9.0, wheel 0.45.1,
+DuckDB 1.5.5, ftfy 6.3.1, and PyArrow 25.0.0. The exact pushed repository is
+installed editable with dependency resolution and build isolation disabled.
+Public dependency acquisition completes before any protected Stage 6 input is
+opened; protected parser execution makes no network calls.
+
+The replacement public-only bundle submission, SLURM job `1760128` at
+diagnostic commit `6ea9dd2e0560e00f80a585d7c4e7e999e9b48a47`, failed after
+17 seconds during upstream autotools bootstrap. Goethe provided libtool 2.4.6,
+but `autoreconf` did not stage the libtool macros, so automake reported
+`LIBTOOL` undefined. The owner-only logs remain mode `0600`; the failed build
+root is preserved, and no immutable bundle output was published. No protected
+input was opened and no parser call occurred. The bounded correction explicitly
+runs the installed `libtoolize --copy --force` before the unchanged upstream
+`bootstrap.sh`; the frozen build identity records the compiler, make,
+autoconf, automake, libtoolize, and pkg-config versions. A replacement must use
+new build and output identities.
+
+The next public-only bundle submission, SLURM job `1760131` at commit
+`e042b65ea7890d8870ba91214866ab4293c11670`, failed after 12 seconds because
+the compute-node image did not expose `libtoolize` (`127`) even though the
+login-node image did. Its owner-only logs and build root remain preserved; no
+bundle output was published, no protected input was opened, and no parser call
+occurred. The next bounded correction downloads the official GNU libtool 2.4.6
+release tarball inside the public-only job, requires SHA-256
+`e3bd4d5d3d025a36c21dd6af7ea818a2afcd4dfc1ea5a17b39d7854bcd0c06e3`,
+installs it under that attempt's private build root, and invokes the exact
+private `libtoolize`. It does not depend on login-node tools or modify a shared
+environment.
+
+Public-only bundle job `1760139` at commit
+`7eb16a84d9e6016f6c8ac8fce6d5bb9c0a2f334f` then failed after nine minutes
+with curl exit `28`: the compute node could clone GitHub but could not connect
+to the primary `ftp.gnu.org` HTTPS endpoint. Its logs are mode `0600`, its
+failed build root remains mode `0700`, and its intended immutable output is
+absent. No protected input or parser call occurred. The next bounded correction
+uses the public GNU mirror at `mirrors.ibiblio.org`, which serves the same
+official `libtool-2.4.6.tar.gz`; the existing required SHA-256 remains unchanged
+and therefore controls artifact identity independently of the acquisition host.
+
+Public-only bundle job `1760146` at commit
+`ff44c596e7a5d0069a92be59c55ed8b078ee09f4` reached the GNU mirror, verified
+and built libtool 2.4.6, and used the private `libtoolize` to stage libpostal's
+macros and `ltmain.sh`. It then failed after 32 seconds because upstream
+`bootstrap.sh` runs `autoreconf`, which invokes `libtoolize` again by command
+name, while the private prefix was not yet in `PATH`. No bundle output was
+published and no protected input or parser call occurred; logs and the failed
+build root remain owner-only. The bounded correction exposes only that exact
+private libtool `bin` directory to upstream bootstrap.
+
+Public-only bundle job `1760148` at commit
+`0021bbf5f94045d4ed8461691d2afd4b6dfa2478` then completed the pinned
+libtool/libpostal build and downloaded all upstream default model assets. It
+failed after 3 minutes 36 seconds on SAFE's shared-library filename assertion:
+libpostal implementation 1.1.4 installs ABI binary `libpostal.so.1.0.1`, not
+`libpostal.so.1.1.4`. The failed root and mode-`0600` logs are preserved, no
+immutable bundle was published, and no protected input or parser call occurred.
+The bounded correction binds and copies the actual installed ABI binary while
+retaining implementation version 1.1.4 as a separate provenance field.
+
+Public-only bundle job `1760150` at commit
+`d8427a1584a534052ee10b375041346fd03b4af1` passed the corrected ABI gate and
+again completed libpostal/model installation. It failed after 4 minutes 4
+seconds immediately before pypostal compilation because Bash prohibits a
+per-command assignment to the already-readonly shell variable
+`LIBPOSTAL_PREFIX`. No immutable bundle was published and no protected input or
+parser call occurred; its owner-only logs and failed root are preserved. The
+bounded correction uses `env` to pass that exact prefix to pypostal's pinned
+`setup.py` without assigning the shell variable.
+
+Public-only parser-bundle job `1760151` at commit
+`2063317745389465eb8cd62d8e5cbab50235de2a` completed in 4 minutes 35
+seconds with MaxRSS 749,652 KiB. It initialized the parser in 4,948 ms, parsed
+the public smoke fixture into two components, revalidated every artifact, and
+atomically published the owner-only immutable bundle. Exact identities are:
+
+- complete parser-bundle fingerprint:
+  `f3c6db7e9f11ab75b2207be773e946d531dbba763008d9f7e5036d8c923dc2ae`;
+- parser model/data fingerprint:
+  `0b067a2697e9f90cef92c806701c08648a1f5127c17f0f3168ecaed186dc3293`;
+- pypostal runtime fingerprint:
+  `ccc547bfdcaf391685cbb3285be9a02d84c28c7671dcafb4450d25c03920f7ff`;
+- exact `libpostal.so.1.0.1` SHA-256:
+  `3e2aa3e23b62c22b77827b47d78692d49ae3d693c07ee7ad3763e9b97438cb5e`;
+- parser-bundle manifest SHA-256:
+  `12a0080bff6b3ed2420847124eb918d91b7582214e3d4b037628bf5b9022340d`.
+
+The manifest enumerates 56 public runtime/model artifacts totaling
+2,013,605,137 bytes. Manifest and success marker reconcile exactly; all 58
+published files are mode `0600`, every directory is mode `0700`, and there are
+zero symlinks. No license/notice file was present in the downloaded upstream
+model assets, so that absence is recorded without adding a SAFE license
+interpretation. Protected inputs opened: no.
+
+## Controlled design diagnostic result
+
+The protected diagnostic ran through SLURM from exact pushed commit
+`48c66f7beb0437d7f0a6cea575c560a2a9c6c920` as job `1760156`. It validated
+the accepted Stage 6 binding and covered:
+
+1. all 613 unique candidates referenced by the frozen fixed-500 mapping;
+2. all 123 multi-clean-surface lowercase groups and both clean surfaces per
+   group;
+3. all 23 candidates at least 1,000,000 code points, including the
+   25,920,495-code-point maximum; and
+4. deterministic length, script, mixed-script, punctuation, numeric,
+   representation-provenance, singleton/repeated, and ordinary samples.
+
+Protected strings and parser outputs remained in process memory or owner-only
+diagnostic state and never entered stdout, Git, or portable evidence. The
+Git-safe [diagnostic summary](../../reports/development/stage07_design_diagnostic_summary.md)
+contains aggregate counts, distributions, labels, timing, determinism, and
+case-variant comparison results only.
+
+Every clean surface in the 123 groups is compared against its accepted
+lowercase canonical parse using ordered exact `(value, label)` equality. Any
+label, value, count, order, or empty/nonempty difference is a scientific
+conflict: the session stops before freezing the contract and does not silently
+split the Stage 6 key or parse alternate surfaces.
+
+The first protected design diagnostic, SLURM job `1760154` at commit
+`47e80fae17ca7cfabda14d189f0aebf713cef841`, validated its pinned runtime and
+bundle and entered giant-candidate parsing. It failed after 3 minutes 50
+seconds with MaxRSS 25,051,868 KiB because an isolated child closed its pipe
+without a payload and the parent allowed `EOFError` to escape. No final output
+was published; its owner-only runtime, logs, and incomplete attempt are
+preserved. The traceback contained paths and code only, no protected values.
+This is a harness failure rather than evidence that the candidate parsed
+successfully. The bounded correction treats EOF, OS-level pipe closure, or a
+malformed child payload as aggregate `PROCESS_CRASH`, allowing the diagnostic
+to complete and surface any genuine giant-parser limitation as a scientific
+conflict instead of losing the evidence.
+
+The giant candidates receive exact full-string parser calls in isolated,
+bounded compute processes so a native crash or resource failure becomes
+aggregate technical evidence instead of corrupting another candidate. There is
+no SAFE truncation, substring fallback, regex preprocessing, or inferred
+component. Any inability to parse an accepted giant candidate exactly is a
+scientific conflict requiring an explicit pipeline decision.
+
+The replacement diagnostic completed in 7 minutes 51 seconds with MaxRSS
+25,062,976 KiB. Its deterministic 986-candidate selection included all 613
+fixed-500 unique candidate IDs, all 123 multi-surface groups and 246 clean
+surfaces, all 23 giant candidates, and the required stratified samples. Its
+selection fingerprint is
+`a81995f832f89cdc5053827d6479c2170641815a44f3e64c90c9d3a6816fe3df`;
+the aggregate diagnostic evidence SHA-256 is
+`7b09fb79a6ef905c1e41d9387fc7ebfa5a24b257c8aee50d779f96aa47e32283`.
+
+The lowercase safety gate passed exactly: all 123 groups and all 246 clean
+surfaces parsed without error; 123 groups had exact ordered output equality and
+zero had label, value, count, ordering, or empty/nonempty differences. All 64
+repeat-determinism candidates matched in-process, in a fresh process, with
+batch size 1, and with reversed batch-17 input. This evidence supports the
+accepted lowercase candidate as a parse-once key for the tested groups.
+
+The parser emitted 2,481,811 components for 979 `PARSED_NONEMPTY` and three
+`PARSED_EMPTY` diagnostic candidates. Four candidates had `PROCESS_CRASH` and
+were not reclassified as empty parses. Nineteen of the 23 giant candidates
+parsed; four crashed, including the maximum accepted candidate. Consequently,
+the diagnostic gate is `SCIENTIFIC_CONFLICT` with
+`GIANT_CANDIDATE_PARSER_LIMITATION` and
+`PROTECTED_CANDIDATE_PARSER_FAILURE`.
+
+The minimum next scientific decision is an explicitly reviewed pipeline policy
+for exact accepted giant candidates. The current evidence does not authorize
+arbitrary truncation, substring parsing, silently dropping candidates,
+inventing a fake component, or treating a native crash as `PARSED_EMPTY`.
+Whether the response belongs in upstream candidate construction/deduplication
+or in an explicit Stage 7 technical-failure contract must be decided before a
+new contract/profile can be frozen. This record makes no such choice.
+
+## Targeted supervisor diagnostic result
+
+The revised implementation commit
+`7e9abc43aee8285ac0cf47d8c56acd883c6f4cd4` introduced exact-input
+acknowledgment, synchronous private IPC, a long-lived spawned parser child,
+one exact fresh retry after a native exit, privacy-safe attempt evidence, and a
+bounded one-giant-at-a-time `LargeList` Parquet audit. Before submission, 43
+focused Stage 7 tests, 218 Stage 2–7 regressions, and 485 full local-safe tests
+passed; Ruff, strict mypy over 72 source files, formatting, shell syntax, JSON,
+Markdown links, privacy checks, and `git diff --check` also passed.
+
+Job `1760182` completed with exit `0:0` in 16 minutes 3 seconds. Its immutable
+aggregate diagnostic SHA-256 is
+`a14a92feddd64dd8f2b9720e3697808d0c1164fa02b6ed72e281d5f3ae2db067`;
+the owner-only controlled evidence SHA-256 is
+`affbcdb088489f4f92b8c5972692e82f3408a0413fbf1fab0ef45c49c91cbf9c`.
+The parser bundle remained exactly
+`f3c6db7e9f11ab75b2207be773e946d531dbba763008d9f7e5036d8c923dc2ae`.
+
+The first-diagnostic code-path replay under its exact 48 GiB address-space
+ceiling reproduced 19 successes and the same four owner-only crash identities.
+The uncapped supervisor then produced 23 `PARSED_NONEMPTY` results, zero empty
+results, zero native crashes, zero restarts, zero cross-wires, and 23 exact
+input acknowledgments. All 19 prior-success ordered digests matched exactly;
+all four prior-crash candidates succeeded. The maximum accepted candidate also
+returned `PARSED_NONEMPTY` without truncation or substring parsing.
+
+The revised children reached an observed maximum 56,327,384 KiB RSS, above
+the earlier 48 GiB ceiling. This evidence establishes that the earlier cap was
+materially causal; it does not establish an intrinsic parser crash class for
+the four candidates. The contract-freeze gate is therefore
+`SCIENTIFIC_CONFLICT`, controlled by
+`PRIOR_CRASH_SUCCEEDS_WITH_REVISED_RESOURCES`.
+
+All 23 successful giant parses round-tripped exactly through the provisional
+nullable `LargeList` representation. The maximum observed component count was
+881,338, maximum output-value total was 25,187,643 code points, and the largest
+one-row Parquet audit was 7,932,166 bytes. This supports the provisional Arrow
+offset choice but does not freeze the schema.
+
+The aggregate harness stopped its optional repeat phase at the first prior
+capped-crash identity that again succeeded uncapped. Consequently its combined
+parent-survival and crash→success fields describe that cross-resource early
+stop, not a current same-resource first-crash/retry event. The complete
+uncapped first pass survived and returned valid results for all 23 candidates.
+
+The minimum scientific decision is now an explicit owner choice about both:
+
+1. the resource sufficiency contract required for exact giant parsing; and
+2. whether `PARSER_PROCESS_CRASH` remains justified as prospective resilience
+   despite no reproducible resource-sufficient DEVELOPMENT crash, or whether
+   any unexpected native crash should instead abort Stage 7 fail-closed.
+
+No such choice is made here. Accepted Stage 6 science, the lowercase parse-once
+key, exact input, and the parser bundle remain unchanged.
+
+## Work unexecuted after the targeted stop gate
+
+Because both design gates failed, no Stage 7 materializer, output schema, input
+binding, contract/profile, or materializer implementation was frozen. No authoritative
+51,779-candidate DEVELOPMENT job was submitted. Post-publication validation,
+full fixed-500 map-back verification, the risk-stratified qualitative review,
+output invariance tests, throughput projection, and output fingerprints are
+therefore not applicable. Proposed bounded streaming and single-process
+execution remain unimplemented design direction, not evidence.
+
+The estimated 208,667,272 production candidates remain planning-only. No
+production run, HOLDOUT access, Stage 8 work, or geocoding occurred.
+
+## Historical stop gate after the targeted diagnostics
+
+The first design declared `STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY` and remains
+preserved as such. The revised attempt also declares
+`STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY`. It does not declare
+`STAGE_7_ACCEPTED`, merge to `main`, begin independent review, start Stage 8,
+access HOLDOUT, start a production stage, or geocode.
+
+## Later DEVELOPMENT quality diagnosis
+
+Subsequent owner-authorized DEVELOPMENT execution produced the complete
+51,779-row Stage 7 registry, passed independent machine validation and
+fixed-500 map-back, but remained not ready after the risk-stratified
+qualitative review. The later targeted root-cause diagnostic examined only the
+11 `CLEAR_MISPARSE` and seven `QUESTIONABLE_PARSE` selections.
+
+Job `1760818` at
+`5f324fd8bbeacc1b5c9de1d249e6429796ed2c82` reproduced all 18 authoritative
+ordered parse results exactly. It found 14 distinct cases with true libpostal
+label or boundary errors, including five label-only and six boundary failures
+among all 11 clear cases. All clear cases were native, single-script inputs
+spanning five non-Latin script strata. Exact candidates remained available and
+component streams retained their lexical/numeric content, but fixed Stage 8
+label mapping could deterministically recover none of the clear cases without
+guessing.
+
+The controlling conclusion is
+`MIXED_ROOT_CAUSES_REQUIRING_TARGETED_STAGE07_DESIGN_CHANGE`. No redesign was
+implemented. The full sanitized evidence is in the
+[targeted root-cause report](../../reports/development/stage07_quality_root_cause_summary.md).
+
+## Owner-authorized context-option diagnostic
+
+The next owner decision authorizes one non-authoritative comparison of only
+libpostal context parameters that are both genuinely effective in the frozen
+bundle and backed by unambiguous accepted occurrence provenance. It does not
+authorize a new Stage 7 candidate, an authoritative rerun, a Stage 6 key
+change, inferred context, Stage 8, independent review, HOLDOUT, production, or
+geocoding.
+
+Inspection of the exact frozen public sources found an early stop condition.
+Pinned pypostal commit `d6666a4f6a2ae0e7b83e037a35412f0f6b45c318`
+exposes `parse_address(address, language=None, country=None)` and forwards both
+keywords. Pinned libpostal commit
+`25099c506612b34b23b1bfe286ca6321fcf06f35` exposes only `language` and
+`country` in its parser-options struct, but its parser implementation
+explicitly assigns both to `NULL` immediately before constructing parser
+context. The source explains that this model was trained without
+language/country and intentionally ignores the options until corresponding
+models exist.
+
+Therefore the exact frozen bundle has no effective context configuration to
+compare. SAFE will not append metadata to candidate text, fabricate a hint
+mechanism, or claim that wrapper arguments alter output. A protected
+metadata-only SLURM audit will still quantify explicit country availability
+and conflict across all accepted Stage 6 occurrence mappings and the immutable
+120-case selection. Accepted Stage 6 contains no explicit language field, so
+the audit will not infer language from script, candidate text, representation,
+or parser output. It will make zero parser calls and will not exercise the
+owner's narrowly scoped authorization for a paired LLM assessment because no
+variant outputs exist.
+
+Metadata-only SLURM job `1761212` completed this audit from exact pushed commit
+`4d0569eecbfc2b2a1e6a0ce4782036c9ccb1406d`. It verified all 51,779 accepted
+candidate IDs and 69,747 occurrence mappings without reading candidate text or
+calling the parser. Country context was unanimous and complete for 50,761
+candidates, unavailable for 1,000, partial for four, and conflicting for 14.
+Seven candidates had context differences across STANDARD/NATIVE occurrences.
+The immutable 120 selection contained 115 unanimous-country and five
+no-country candidates; all 18 clear/questionable targets had unanimous country
+context. No explicit accepted language field exists.
+
+The decision is `CONTEXT_AWARE_LIBPOSTAL_NOT_SUFFICIENT`: there is no effective
+variant under the frozen bundle, so no paired semantic assessment or
+determinism comparison was scientifically defined. If a future parser truly
+uses context, the 14 conflicting candidates would require context-aware parse
+identity rather than arbitrary majority selection. No key or artifact changed.
+See the [sanitized context diagnostic](../../reports/development/stage07_context_provenance_summary.md).
+
+## Owner-authorized second-parser diagnostic
+
+After `CONTEXT_AWARE_LIBPOSTAL_NOT_SUFFICIENT`, the owner authorized one
+non-authoritative comparison of a second mature offline parser on exactly the
+existing 120-case selection. A public-only eligibility review selected
+DeepParse `0.10.0` at source commit
+`5b17c0bccd6773044f8a61da68a7b8c91c4fd1e8` with the official BPEmb-attention
+model revision `4af74dad1d547804dfc2de8f40fb23fbbec5b811`.
+
+The selection is not an endorsement. DeepParse's official address-data
+repository says its training data were generated from libpostal data, so model
+errors may correlate with the baseline. South Korea/Hangul has direct published
+support, Japan is a weak zero-shot result, and Lao/Thai/Hebrew have only
+embedding-level multilingual coverage rather than direct address evaluation.
+These limitations are predeclared endpoints of the comparison.
+
+The bundle must be completely acquired and hashed before protected access.
+Protected inference will be offline on Goethe and pass the exact
+`stage06_candidate_lower`, with no SAFE normalization, hint, or augmentation.
+It will preserve the exact candidate and the ordered native token/tag/
+probability stream rather than converting the result into dict semantics.
+Exact repeat determinism over the 18 prior target cases is a gate. The
+immutable libpostal baseline, authoritative registry, original 120 selection,
+and qualitative classifications are not replaced.
+
+See the [public parser-candidate matrix](../../reports/development/stage07_second_parser_candidate_matrix.md).
+
+## Country-aware stabilization and prelaunch audit
+
+The owner subsequently required parser applicability and quality denominators
+to be country-aware. Trusted country is only the accepted occurrence field
+`stage04_lower_country_iso_code`; candidate text, script, parser output,
+geocoding, majority selection, first-value selection, and representation
+priority cannot supply or resolve country.
+
+The exact pinned libpostal documentation claims training over every inhabited
+country and contains no enumerable model-country manifest, so the audit does
+not invent a small whitelist or relabel quality failures as non-applicability.
+The exact DeepParse diagnostic model is restricted to its 20 documented
+training countries; zero-shot evaluation is not training eligibility.
+Missing, partial, invalid, or conflicting country provenance produces explicit
+eligibility abstention/ambiguity for a country-dependent parser.
+
+Coverage over all unique candidates, technical outcome over eligible attempted
+calls, and semantic quality over reviewed eligible candidates are reported as
+different measures. The predeclared usable semantic numerator is
+`PLAUSIBLE_PARSE + PARTIAL_BUT_USABLE_PARSE`. `PARSED_NONEMPTY` alone is never
+reported as semantic correctness.
+
+The implementation/failure audit also freezes a fail-closed prelaunch gate:
+exact clean controlled worktree, path and output topology, import closure,
+runtime completeness, native linkage, bundle/model identity, offline public
+model initialization, deterministic multilingual public smoke, permissions,
+resources, and network/privacy policy must all pass before protected DeepParse
+inference. See the
+[stabilization report](../../reports/development/stage07_stabilization_prelaunch_audit.md).
+At that stabilization checkpoint, the immutable v1 registry and
+`STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY` status remained unchanged.
+
+The first stabilization checkpoint returned `STAGE07_PRELAUNCH_GATE_FAIL`:
+public bundle job `1762078` and metadata-only eligibility job `1762293` were
+both pending and unstarted, so bundle validation, exact eligibility
+denominators, and the public compute smoke were unavailable. Neither job was
+cancelled or duplicated.
+
+The existing jobs later resolved. Metadata-only job `1762293` completed and
+independent reopen checks reconciled all 51,779 candidates, 69,747 occurrences,
+and 120 immutable review selections without candidate-text/component reads or
+parser calls. Libpostal is eligible for 50,685 unanimous-valid candidates
+(68,019 occurrences); DeepParse's trained-country set is eligible for 10,265
+candidates (16,358 occurrences). The overlapping eligible population is
+10,265 candidates. Of the immutable 120 cases, 114 are libpostal-eligible and
+20 are DeepParse-trained-country-eligible; the latter contain three original
+clear libpostal misparses, no original questionable cases, and 16 original
+plausible/partial controls.
+
+Public-only bundle job `1762078` failed pre-scientifically after its private
+runtime and pinned downloads succeeded: its Hugging Face `refs/main` cache
+entry contained the correct 40-hex revision plus a terminating newline, so
+offline `main` resolution could not locate the present checkpoint. Protected
+processing did not begin. The prepared minimum correction writes and verifies
+the exact 40-byte revision and checks offline resolver binding before model
+initialization. Corrected public-only job `1762652` subsequently validated that
+cache binding, all pinned public hashes, and offline initialization with zero
+network attempts. It then failed before bundle publication because the launcher
+passed configure values beginning with `--` as separate `argparse` value
+tokens. The build tree remains preserved, no immutable bundle output exists,
+and protected processing did not begin. Corrected public-only job `1762661` at
+`843f30c10e4fc359258869ea3904ba90fb4abe6f` passed the reviewed exact-argv
+preflight and atomically published the fully pinned 29,590-artifact bundle with
+fingerprint
+`564f8e416b7e88f0d1d94e3d486b97ae33c73cb6c065adc31f060078f84700ab`.
+
+The first public compute smoke, job `1762663`, then failed pre-scientifically
+after two seconds because its launcher did not export the required
+`SAFE_EXECUTION_SITE=goethe-nhr` marker. The fail-closed guard stopped the first
+bundle-validation call before it opened the bundle, initialized the model,
+inspected linkage, or parsed public synthetic input. This is a bounded
+orchestration-environment defect and a missing prelaunch assertion, not parser
+evidence. Replacement job `1762669` passed that guard and reached bundle reopen,
+where it found 39 `__pycache__` directories and 363 unmanifested `.pyc` files;
+it stopped before model initialization, linkage, multiprocessing, or synthetic
+parsing.
+
+Public timestamp/path/import-closure evidence establishes that this bytecode
+predates both smoke jobs. A login-side post-publication Hugging Face offline
+cache-resolution preflight invoked the Python runtime in the still-writable
+published bundle without `-B` or `PYTHONDONTWRITEBYTECODE=1`. Ordinary import
+caching mutated the tree. The controlling root cause is
+`POST_PUBLICATION_LOGIN_SIDE_PYTHON_IMPORT_MUTATED_WRITABLE_BUNDLE`: job
+`1762661` published a valid tree, and writable post-publication state—not
+DeepParse inference, Torch/model initialization, or either smoke—was the
+architectural defect.
+
+Owner decision D030 prohibits repair or reuse of that bundle and authorizes one
+fresh public-only v2 bundle only after behavioral PRELAUNCH V2 gates pass. The
+v2 design physically locks directories/executables to `0555` and ordinary files
+to `0444`, rejects all bytecode and symlinks, externalizes mutable runtime state,
+uses Python `-B` plus inherited bytecode suppression, and requires exact pre/post
+full-tree identity with zero mutation-category counts. No protected DeepParse
+inference had been submitted, so `STAGE07_PRELAUNCH_GATE_FAIL` and
+`STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY` were controlling at that prelaunch
+checkpoint.
+
+The V2 prelaunch implementation also binds the exact 79-distribution version
+lock (`3a4fd33…`) and its SHA-256 acquisition lock (`b866354…`), substantiates
+every required model/source/license identity from immutable bundle paths,
+rejects external hard links, recursively fsyncs the payload, and probes
+race-safe no-replace atomic rename semantics on the exact publication
+filesystem before scheduling. Login-node bundle checks are metadata-only;
+complete content and tree rehashing remain compute-job gates.
+
+The completed local V2 gates were committed and pushed at
+`1b6aa0c204a9e4369969b603f358763fcedec71c`, then opened in a clean detached
+controlled Goethe worktree. The mandatory exact-parent prelaunch probe failed
+before scheduling: PanFS returned `EINVAL` (errno 22) for same-parent Linux
+`renameat2(RENAME_NOREPLACE)`. The probe cleaned its temporary tree; no fresh
+build/output path was created, no SLURM job was submitted, and no protected
+input was opened. D030's final-architecture hard stop therefore applies:
+`DEEPPARSE_INFRASTRUCTURE_PATH_NOT_JUSTIFIED`. Further DeepParse bundle/smoke
+iterations are not authorized; a new owner scientific decision is required for
+libpostal semantic-readiness and conservative abstention policy.
+
+## Stage 7 v2 structural readiness design
+
+The next owner direction closes DeepParse and preserves v1 as immutable
+historical raw evidence. Prospective v2 separates parser applicability,
+technical execution, and component readiness. `COMPONENTS_ABSTAIN` prohibits
+component-dependent downstream interpretation but never drops, invalidates, or
+overwrites the exact Stage 6 candidate. `COMPONENTS_READY` means only that a
+frozen parser-local structural screen found no anomaly; it is not semantic or
+geographic truth.
+
+Initial job `1763280` timed out because its implementation unnecessarily
+scanned the full nested registry and used a quadratic fragmentation loop. The
+failure is `BOUNDED_IMPLEMENTATION_PERFORMANCE_DEFECT` and produced no
+scientific evidence. Optimized replacement job `1763358` at
+`372aad37370144d6ca85d05c56302a0af2cad4b3` completed in 84 seconds. It read
+only the existing authorized 120 review values/components and fixed-500
+metadata elsewhere; authoritative registry rows scanned/decoded, parser calls,
+network calls, new semantic cases, HOLDOUT, and production were all zero.
+
+Rule `stage07_component_readiness_rule_v1` abstained on 10/11 clear misparses,
+including all 6/6 known internal-boundary failures. It abstained on 4/5 known
+label-only failures because those cases also carried structural warnings, but
+one structurally regular label-only clear failure remained ready. The exact
+conclusion is that deterministic Stage 7-local signals are useful structural
+warnings and cannot establish semantic label correctness.
+
+The fixed 500-row source selection predates all Stage 7 quality/readiness
+hypotheses. Its Stage 6 projection contains 613 unique candidate IDs; nine
+overlap the existing 120, none overlaps the targeted 18, and 604 remained
+semantically untouched. Machine-only job `1763433` at
+`20a46610b885919b5bad113f2b5763e98bf23ca5` applied the unchanged frozen rule
+to those 604 and produced 330 ready, 122 abstain, and 152 not assessed. It then
+froze exactly 120 ready and 120 abstain cases with selection fingerprint
+`c05cecf2aa9099045adc0d5c698c7e82a6bae187ae82222817f4bfb5264c2a89`.
+At that freeze point no new semantic inspection had occurred. Sanitized
+machine-only evidence is in the
+[selection-freeze report](../../reports/development/stage07_v2_validation_selection_freeze.md).
+
+Stage 7 v2 must guarantee exact lineage/text/raw ordered parse preservation,
+trusted-country applicability, separate technical status, deterministic
+structural warnings, explicit abstention, and full map-back. It does not
+guarantee postal semantics, reference validity, geocoder success, or coordinate
+accuracy. The full sanitized design and predeclared validation thresholds are
+in the [v2 readiness report](../../reports/development/stage07_v2_readiness_design.md).
+The design status at freeze was
+`STAGE07_V2_READINESS_DESIGN_READY_FOR_FRESH_DEVELOPMENT_VALIDATION`; the
+scientific status remained `STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY`.
+
+## Fresh Stage 7 v2 DEVELOPMENT validation
+
+The owner subsequently authorized Codex semantic inspection of exactly the
+frozen 240 cases and no others. Review used the existing five-value qualitative
+vocabulary and remained blinded to readiness predictions until all decisions
+were durably frozen in owner-only untracked artifacts. The rule, selection,
+predictions, reasons, metrics, and thresholds were not changed.
+
+The classification totals were 79 plausible, 69 partial-but-usable, eight
+questionable, 41 clear misparses, and 43 upstream-corrupt/unassessable. Among
+100 assessable READY cases, 85 were usable and 10 were clear misparses. READY
+precision was therefore 85.000%, below the frozen 95.000% minimum. Clear-
+misparse leakage was 10.000% and 10 cases, above both the 2.500% and two-case
+maxima. The rule abstained on 63/148 usable parses (42.568%), above the 40.000%
+maximum. Eligible-frame abstention coverage remained non-vacuous at 122/452
+(26.991%), and structural-reason replay was exact.
+
+The fresh scientific conclusion is
+`STAGE07_V2_FRESH_DEVELOPMENT_VALIDATION_FAIL`. The rule remains useful as
+structural-warning evidence, but it is not safe to publish as the v2 gate for
+downstream structured-component consumption. These balanced-sample results are
+not an estimate of population-wide libpostal accuracy, and the rule must not be
+tuned on the validation labels. Full sanitized evidence is in the
+[fresh validation report](../../reports/development/stage07_v2_fresh_development_validation.md).
+
+At that decision point Stage 7 remained
+`STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY`, and a new owner scientific decision
+was required. That historical result remains immutable; D035 later replaced the
+prospective semantic gate with the evidence-only contract.
+
+## Controlling evidence-only v2 contract
+
+Owner decision D035 resolves the failed-readiness conflict by defining Stage 7
+as evidence production rather than semantic truth. The frozen identities are
+`stage07_parser_evidence_contract_v2` and
+`stage07_parser_evidence_profile_v2`. They project immutable Stage 6, Stage 7
+v1, and country-eligibility evidence without making a new parser call or
+modifying v1.
+
+The projection preserves all five Stage 6 registry fields, historical v1
+`PARSED_NONEMPTY`/`PARSED_EMPTY`, and the exact ordered non-null LargeList of
+raw label/value pairs. It adds trusted-country provenance/applicability and
+deterministic parser-local warning features. Warning status is one of
+`STRUCTURAL_WARNINGS_PRESENT`, `NO_STRUCTURAL_WARNINGS_DETECTED`, or
+`STRUCTURAL_WARNINGS_NOT_EVALUATED`. No `COMPONENTS_READY`,
+`COMPONENTS_ABSTAIN`, or semantic-trust field is published.
+
+This contract guarantees lineage, technical provenance, warning
+reproducibility, exact raw evidence, and complete map-back. It explicitly does
+not guarantee semantic labels, component boundaries, postal validity,
+geographic truth, or semantic correctness when no warning fires. Future Stage
+8 may use libpostal components only as hypotheses/evidence while keeping exact
+whole-string STANDARD/NATIVE candidates in parallel.
+
+Implementation and pre-publication design evidence are in the
+[evidence-only v2 report](../../reports/development/stage07_parser_evidence_v2_design.md).
+The required 51,779-row DEVELOPMENT projection and independent reopen
+validation passed in Goethe-NHR job `1763516` at exact implementation SHA
+`e684d84a8d68498ea790542143c8e125b3eb87b5`. All 51,779 candidates and 69,747
+occurrences reconciled, raw v1 evidence was exact, parser calls and semantic-
+trust claims were zero, and the manifest SHA-256 is
+`f58410877a7810562df7985c7316de7546d4dd8e11a647fd659c53a272e9c266`.
+The original evidence-only candidate verdict was
+`STAGE07_EVIDENCE_ONLY_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REVIEW`.
+Its first independent review found only tracked documentation/downstream-
+contract inconsistencies; it did not reject the implementation or machine
+evidence. After those documentation-only corrections, the current workflow
+status is
+`STAGE07_EVIDENCE_ONLY_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REREVIEW`.
+Independent rereview has not started.

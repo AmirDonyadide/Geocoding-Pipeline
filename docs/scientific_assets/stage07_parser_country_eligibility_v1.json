@@ -1,0 +1,108 @@
+{
+  "version": "stage07_parser_country_eligibility_v1",
+  "trusted_country_field": "stage04_lower_country_iso_code",
+  "country_provenance_statuses": [
+    "COUNTRY_UNANIMOUS_VALID",
+    "COUNTRY_MISSING",
+    "COUNTRY_PARTIAL",
+    "COUNTRY_INVALID",
+    "COUNTRY_CONFLICTING"
+  ],
+  "parser_eligibility_statuses": [
+    "PARSER_ELIGIBLE_COUNTRY",
+    "PARSER_NOT_APPLICABLE_COUNTRY",
+    "PARSER_ELIGIBILITY_MISSING_COUNTRY",
+    "PARSER_ELIGIBILITY_PARTIAL_COUNTRY",
+    "PARSER_ELIGIBILITY_INVALID_COUNTRY",
+    "PARSER_ELIGIBILITY_AMBIGUOUS_COUNTRY"
+  ],
+  "iso_3166_1_reference": {
+    "source": "Debian iso-codes 4.18.0-1 data/iso_3166-1.json",
+    "url": "https://sources.debian.org/data/main/i/iso-codes/4.18.0-1/data/iso_3166-1.json",
+    "sha256": "f01b812b57fba9f31ff621bf33e7c7570a01964dbeb5be2167e94decf538c89f",
+    "alpha2_code_count": 249,
+    "alpha2_codes_csv": "ad,ae,af,ag,ai,al,am,ao,aq,ar,as,at,au,aw,ax,az,ba,bb,bd,be,bf,bg,bh,bi,bj,bl,bm,bn,bo,bq,br,bs,bt,bv,bw,by,bz,ca,cc,cd,cf,cg,ch,ci,ck,cl,cm,cn,co,cr,cu,cv,cw,cx,cy,cz,de,dj,dk,dm,do,dz,ec,ee,eg,eh,er,es,et,fi,fj,fk,fm,fo,fr,ga,gb,gd,ge,gf,gg,gh,gi,gl,gm,gn,gp,gq,gr,gs,gt,gu,gw,gy,hk,hm,hn,hr,ht,hu,id,ie,il,im,in,io,iq,ir,is,it,je,jm,jo,jp,ke,kg,kh,ki,km,kn,kp,kr,kw,ky,kz,la,lb,lc,li,lk,lr,ls,lt,lu,lv,ly,ma,mc,md,me,mf,mg,mh,mk,ml,mm,mn,mo,mp,mq,mr,ms,mt,mu,mv,mw,mx,my,mz,na,nc,ne,nf,ng,ni,nl,no,np,nr,nu,nz,om,pa,pe,pf,pg,ph,pk,pl,pm,pn,pr,ps,pt,pw,py,qa,re,ro,rs,ru,rw,sa,sb,sc,sd,se,sg,sh,si,sj,sk,sl,sm,sn,so,sr,ss,st,sv,sx,sy,sz,tc,td,tf,tg,th,tj,tk,tl,tm,tn,to,tr,tt,tv,tw,tz,ua,ug,um,us,uy,uz,va,vc,ve,vg,vi,vn,vu,wf,ws,ye,yt,za,zm,zw"
+  },
+  "parsers": {
+    "LIBPOSTAL": {
+      "parser_bundle_fingerprint": "f3c6db7e9f11ab75b2207be773e946d531dbba763008d9f7e5036d8c923dc2ae",
+      "libpostal_source_commit": "25099c506612b34b23b1bfe286ca6321fcf06f35",
+      "model_flavor": "default",
+      "parser_model_version": "v1.0.0",
+      "parser_training_set_pointer": "20170304",
+      "support_definition": "DOCUMENTED_EVERY_INHABITED_COUNTRY_WORLDWIDE",
+      "enumerable_model_country_manifest_present": false,
+      "eligibility_rule": "COUNTRY_UNANIMOUS_VALID_WITHIN_DOCUMENTED_WORLDWIDE_SCOPE",
+      "source_evidence": [
+        {
+          "description": "Exact pinned README worldwide parser-training statement",
+          "url": "https://raw.githubusercontent.com/openvenues/libpostal/25099c506612b34b23b1bfe286ca6321fcf06f35/README.md",
+          "sha256": "14b9589f17f2cd88b2972d89bd98b463ed598885ec9b8778b11a8a128d7d43cb"
+        },
+        {
+          "description": "Exact pinned training-pipeline ISO country namespace",
+          "url": "https://raw.githubusercontent.com/openvenues/libpostal/25099c506612b34b23b1bfe286ca6321fcf06f35/scripts/geodata/countries/constants.py",
+          "sha256": "ab51d20fa6a7ccf1a2410de1dcf5254ebb842ff65ac0f70b709201573bacf016"
+        },
+        {
+          "description": "Exact pinned current parser training-set pointer",
+          "url": "https://raw.githubusercontent.com/openvenues/libpostal/25099c506612b34b23b1bfe286ca6321fcf06f35/current_parser_training_set",
+          "sha256": "cbea7b995117ec1810e40e5fd22a4940acd752523e482f1e7832995aab60bb9e"
+        }
+      ],
+      "interpretation": "The exact public source documents worldwide inhabited-country training but does not ship an enumerable per-country manifest for the pinned binary model. SAFE therefore records the broad documented scope and does not invent a quality-derived exclusion list."
+    },
+    "DEEPPARSE": {
+      "package_version": "0.10.0",
+      "source_commit": "5b17c0bccd6773044f8a61da68a7b8c91c4fd1e8",
+      "model_repository": "deepparse/bpemb-attention",
+      "model_revision": "4af74dad1d547804dfc2de8f40fb23fbbec5b811",
+      "support_definition": "TRAINED_COUNTRY_ONLY",
+      "zero_shot_countries_eligible": false,
+      "trained_country_set_version": "deepparse_bpemb_attention_trained_country_set_v1",
+      "trained_countries": [
+        {"documented_name": "Norway", "iso_alpha2": "no"},
+        {"documented_name": "Austria", "iso_alpha2": "at"},
+        {"documented_name": "Italy", "iso_alpha2": "it"},
+        {"documented_name": "Mexico", "iso_alpha2": "mx"},
+        {"documented_name": "United Kingdom", "iso_alpha2": "gb"},
+        {"documented_name": "Switzerland", "iso_alpha2": "ch"},
+        {"documented_name": "Germany", "iso_alpha2": "de"},
+        {"documented_name": "Denmark", "iso_alpha2": "dk"},
+        {"documented_name": "France", "iso_alpha2": "fr"},
+        {"documented_name": "Brazil", "iso_alpha2": "br"},
+        {"documented_name": "Netherlands", "iso_alpha2": "nl"},
+        {"documented_name": "Australia", "iso_alpha2": "au"},
+        {"documented_name": "Poland", "iso_alpha2": "pl"},
+        {"documented_name": "Czechia", "iso_alpha2": "cz"},
+        {"documented_name": "United States", "iso_alpha2": "us"},
+        {"documented_name": "Canada", "iso_alpha2": "ca"},
+        {"documented_name": "South Korea", "iso_alpha2": "kr"},
+        {"documented_name": "Russia", "iso_alpha2": "ru"},
+        {"documented_name": "Spain", "iso_alpha2": "es"},
+        {"documented_name": "Finland", "iso_alpha2": "fi"}
+      ],
+      "source_evidence": [
+        {
+          "description": "Exact source-revision README 20-country training and 41-country zero-shot tables",
+          "url": "https://raw.githubusercontent.com/GRAAL-Research/deepparse/5b17c0bccd6773044f8a61da68a7b8c91c4fd1e8/README.md",
+          "sha256": "b63774be22d2f168b85d59fe10ff88e71231769ba0cd12592db1463d209225f0"
+        },
+        {
+          "description": "Exact source-revision training guide distinguishing 20 trained from 41 test-only countries",
+          "url": "https://raw.githubusercontent.com/GRAAL-Research/deepparse/5b17c0bccd6773044f8a61da68a7b8c91c4fd1e8/docs/source/training_guide.rst",
+          "sha256": "2217eae8285ebddd1311bf5395cd0a2c6a51c95810587634bfc7ccfa73f4e386"
+        }
+      ]
+    }
+  },
+  "scientific_rules": {
+    "country_source": "ACCEPTED_UPSTREAM_PROVENANCE_ONLY",
+    "country_inference_from_candidate": false,
+    "majority_or_first_country_selection": false,
+    "zero_shot_equated_with_training": false,
+    "parser_non_applicability_is_parser_failure": false,
+    "coverage_technical_success_and_semantic_quality_are_separate": true,
+    "usable_parse_definition": "PLAUSIBLE_PARSE_PLUS_PARTIAL_BUT_USABLE_PARSE"
+  }
+}
