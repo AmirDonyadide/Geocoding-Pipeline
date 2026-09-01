@@ -53,10 +53,12 @@ crashes were resource-cap dependent, and its later authoritative DEVELOPMENT
 run passed machine integrity. Stage 7 remains unaccepted because qualitative
 and targeted root-cause evidence found material systematic parsing errors. The
 country-aware applicability audit now has reconciled DEVELOPMENT denominators,
-and the pinned DeepParse public bundle is now published. The fail-closed
-prelaunch gate remains blocked because the first compute smoke was rejected by
-the execution-site guard before runtime validation; none of this alters the
-immutable v1 output.
+and the DeepParse trained-country diagnostic remains infrastructure-only. Its
+first public bundle was valid at publication but was later mutated by a
+login-side Python cache-resolution import because post-publication write
+protection was absent. Both compute smokes stopped before scientific execution.
+One final public-only physically read-only bundle architecture is undergoing
+PRELAUNCH V2 validation; none of this alters the immutable v1 output.
 Stages 8–19 have not started. See
 [PIPELINE.md](PIPELINE.md).
 

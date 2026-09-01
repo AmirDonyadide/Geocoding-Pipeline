@@ -450,11 +450,50 @@ to change a decision or start a stage.
   failed two seconds after starting because its launcher omitted the required
   `SAFE_EXECUTION_SITE=goethe-nhr` marker; the execution guard stopped it before
   bundle validation, model initialization, linkage, or synthetic parsing. The
-  submission preflight had not asserted that marker. No replacement smoke was
-  submitted. The engineering result remains `STAGE07_PRELAUNCH_GATE_FAIL`.
+  submission preflight had not asserted that marker. At that checkpoint no
+  replacement smoke had been submitted. The engineering result remained
+  `STAGE07_PRELAUNCH_GATE_FAIL`.
   The authoritative Stage 7 registry is unchanged and the scientific verdict
   remains `STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY`. No independent review,
   Stage 8, HOLDOUT, production, geocoding, or merge is authorized.
+
+### D030 — Permit one final physically read-only DeepParse bundle architecture
+
+- **Date:** 2026-09-01.
+- **Scope:** Public-only Stage 7 DeepParse infrastructure stabilization; no
+  protected parser inference.
+- **Finding:** Job `1762661` published a valid bundle, but a later login-side
+  Hugging Face offline cache-resolution preflight invoked its still-writable
+  Python runtime without bytecode suppression. Before either compute smoke,
+  ordinary import caching added 363 `.pyc` files in 39 `__pycache__`
+  directories. The root cause is
+  `POST_PUBLICATION_LOGIN_SIDE_PYTHON_IMPORT_MUTATED_WRITABLE_BUNDLE`. DeepParse
+  inference, Torch/model initialization, and smoke jobs `1762663`/`1762669`
+  did not create the contamination.
+- **Decision:** Do not repair or reuse that tree. Authorize exactly one fresh
+  public-only build using manifest v2 and physically enforced post-publication
+  modes: directories and executables `0555`, ordinary files `0444`, zero
+  writable paths, zero bytecode/cache artifacts, and no symlinks. Every mutable
+  Python, Hugging Face, Transformers, Torch, XDG, HOME, and temporary path is
+  bound to a fresh owner-only external runtime-state root. Post-publication
+  Python uses `-B` and `PYTHONDONTWRITEBYTECODE=1`. A full tree identity binds
+  relative path, type, mode, size, content hash, directories, and symlink
+  policy; pre/post runtime identities and all mutation-category counts must be
+  exactly equal/zero. V2 also rejects external hard links, recursively fsyncs
+  the payload, requires target-filesystem no-replace atomic publication, binds
+  every required public model/source/license path and hash, and installs the
+  exact 79-package runtime using a SHA-256 acquisition lock with
+  `pip --require-hashes`.
+- **Stop rule:** Only after local behavioral permission/import/cache-resolution
+  tests and every PRELAUNCH V2 gate pass may one fresh public bundle build be
+  submitted. If the architecture or its one subsequent public compute smoke
+  fails substantively, stop the DeepParse infrastructure path rather than
+  enter another patch/resubmit cycle.
+- **Status:** OWNER-APPROVED FINAL INFRASTRUCTURE ARCHITECTURE. Engineering
+  remains `STAGE07_PRELAUNCH_GATE_FAIL` until execution evidence passes;
+  scientific status remains `STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY`. No
+  protected inference, independent review, Stage 8, HOLDOUT, production,
+  geocoding, or merge is authorized.
 
 ## Open decisions
 
@@ -472,4 +511,4 @@ These questions require future stage designs and explicit approval:
 
 Nothing in this register authorizes HOLDOUT, Stage 7 acceptance or independent
 review, Stage 8, geocoding, or production Stage 2 through Stage 7. Stage 7
-decisions D023–D029 authorize only their stated DEVELOPMENT scopes.
+decisions D023–D030 authorize only their stated DEVELOPMENT scopes.

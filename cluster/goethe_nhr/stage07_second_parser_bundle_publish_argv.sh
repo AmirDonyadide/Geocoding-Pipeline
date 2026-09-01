@@ -19,6 +19,7 @@ stage07_second_parser_bundle_publish_argv() {
 
   STAGE07_SECOND_PARSER_PUBLISH_ARGV=(
     "${python_executable}"
+    -B
     -m
     safe_geocoding_pipeline.preprocessing.stage07_second_parser_bundle_cli
     publish

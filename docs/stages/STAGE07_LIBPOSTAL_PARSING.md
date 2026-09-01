@@ -661,7 +661,34 @@ after two seconds because its launcher did not export the required
 bundle-validation call before it opened the bundle, initialized the model,
 inspected linkage, or parsed public synthetic input. This is a bounded
 orchestration-environment defect and a missing prelaunch assertion, not parser
-evidence. No replacement smoke or protected DeepParse inference was submitted,
-so
-`STAGE07_PRELAUNCH_GATE_FAIL` and
+evidence. Replacement job `1762669` passed that guard and reached bundle reopen,
+where it found 39 `__pycache__` directories and 363 unmanifested `.pyc` files;
+it stopped before model initialization, linkage, multiprocessing, or synthetic
+parsing.
+
+Public timestamp/path/import-closure evidence establishes that this bytecode
+predates both smoke jobs. A login-side post-publication Hugging Face offline
+cache-resolution preflight invoked the Python runtime in the still-writable
+published bundle without `-B` or `PYTHONDONTWRITEBYTECODE=1`. Ordinary import
+caching mutated the tree. The controlling root cause is
+`POST_PUBLICATION_LOGIN_SIDE_PYTHON_IMPORT_MUTATED_WRITABLE_BUNDLE`: job
+`1762661` published a valid tree, and writable post-publication state—not
+DeepParse inference, Torch/model initialization, or either smoke—was the
+architectural defect.
+
+Owner decision D030 prohibits repair or reuse of that bundle and authorizes one
+fresh public-only v2 bundle only after behavioral PRELAUNCH V2 gates pass. The
+v2 design physically locks directories/executables to `0555` and ordinary files
+to `0444`, rejects all bytecode and symlinks, externalizes mutable runtime state,
+uses Python `-B` plus inherited bytecode suppression, and requires exact pre/post
+full-tree identity with zero mutation-category counts. No protected DeepParse
+inference has been submitted, so `STAGE07_PRELAUNCH_GATE_FAIL` and
 `STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY` remain controlling.
+
+The V2 prelaunch implementation also binds the exact 79-distribution version
+lock (`3a4fd33…`) and its SHA-256 acquisition lock (`b866354…`), substantiates
+every required model/source/license identity from immutable bundle paths,
+rejects external hard links, recursively fsyncs the payload, and probes
+race-safe no-replace atomic rename semantics on the exact publication
+filesystem before scheduling. Login-node bundle checks are metadata-only;
+complete content and tree rehashing remain compute-job gates.

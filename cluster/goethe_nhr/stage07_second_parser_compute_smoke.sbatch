@@ -18,6 +18,7 @@ umask 077
 : "${STAGE07_SECOND_SMOKE_INTEGRATION_ROOT:?clean detached worktree is required}"
 : "${STAGE07_SECOND_SMOKE_BUNDLE_DIRECTORY:?immutable bundle is required}"
 : "${STAGE07_SECOND_SMOKE_BUNDLE_FINGERPRINT:?bundle fingerprint is required}"
+: "${STAGE07_SECOND_SMOKE_TREE_FINGERPRINT:?tree fingerprint is required}"
 : "${STAGE07_SECOND_SMOKE_OUTPUT_DIRECTORY:?new output is required}"
 : "${STAGE07_SECOND_SMOKE_RUNTIME_ROOT:?new runtime root is required}"
 
@@ -46,6 +47,17 @@ for controlled_path in \
 done
 [[ ! -e "${OUTPUT_DIRECTORY}" ]]
 [[ ! -e "${RUNTIME_ROOT}" ]]
+for first_path in "${OUTPUT_DIRECTORY}" "${RUNTIME_ROOT}"; do
+  for second_path in \
+    "${INTEGRATION_ROOT}" \
+    "${BUNDLE_DIRECTORY}" \
+    "${OUTPUT_DIRECTORY}" \
+    "${RUNTIME_ROOT}"; do
+    [[ "${first_path}" == "${second_path}" ]] && continue
+    [[ "${first_path}" != "${second_path}"/* ]]
+    [[ "${second_path}" != "${first_path}"/* ]]
+  done
+done
 
 readonly LOG_ROOT="${DATA_ROOT}/logs/slurm"
 readonly JOB_STDOUT="${LOG_ROOT}/${SLURM_JOB_NAME}_${SLURM_JOB_ID}.out"
@@ -59,12 +71,19 @@ cd "${INTEGRATION_ROOT}"
 [[ -z "$(git status --porcelain)" ]]
 [[ "$(git symbolic-ref -q HEAD || true)" == "" ]]
 
-install -d -m 0700 "${RUNTIME_ROOT}"
-export TMPDIR="${RUNTIME_ROOT}/tmp"
-install -d -m 0700 "${TMPDIR}"
 export PYTHONPATH="${INTEGRATION_ROOT}/src"
+readonly RUNTIME_STATE_HELPER="${INTEGRATION_ROOT}/cluster/goethe_nhr/stage07_second_parser_runtime_state.sh"
+source "${RUNTIME_STATE_HELPER}"
+stage07_second_parser_bind_runtime_state \
+  "${RUNTIME_ROOT}" \
+  "${BUNDLE_DIRECTORY}/cache"
+cd "${RUNTIME_ROOT}"
+export HF_HUB_OFFLINE=1
+export TRANSFORMERS_OFFLINE=1
+export HF_HUB_DISABLE_TELEMETRY=1
+export PYTHONDONTWRITEBYTECODE=1
 
-"${BASE_PYTHON}" \
+"${BASE_PYTHON}" -B \
   -m safe_geocoding_pipeline.preprocessing.stage07_second_parser_bundle_cli validate \
   --output-directory "${BUNDLE_DIRECTORY}" \
   --expected-second-parser-bundle-fingerprint \
@@ -72,12 +91,6 @@ export PYTHONPATH="${INTEGRATION_ROOT}/src"
 
 readonly SECOND_PYTHON="${BUNDLE_DIRECTORY}/runtime/bin/python3.13"
 [[ -x "${SECOND_PYTHON}" ]]
-export HF_HOME="${BUNDLE_DIRECTORY}/cache"
-export HF_HUB_OFFLINE=1
-export TRANSFORMERS_OFFLINE=1
-export HF_HUB_DISABLE_TELEMETRY=1
-export DO_NOT_TRACK=1
-export PYTHONDONTWRITEBYTECODE=1
 export PYTHONUTF8=1
 export PYTHONHASHSEED=0
 export OMP_NUM_THREADS=1
@@ -92,10 +105,12 @@ echo "scope=public_synthetic_compute_smoke"
 echo "network_policy=offline_denied"
 echo "protected_inputs_opened=false"
 
-"${SECOND_PYTHON}" \
+"${SECOND_PYTHON}" -B \
   -m safe_geocoding_pipeline.preprocessing.stages.s07_second_parser_smoke \
   --bundle "${BUNDLE_DIRECTORY}" \
   --bundle-fingerprint "${STAGE07_SECOND_SMOKE_BUNDLE_FINGERPRINT}" \
+  --expected-tree-fingerprint "${STAGE07_SECOND_SMOKE_TREE_FINGERPRINT}" \
   --output "${OUTPUT_DIRECTORY}/stage07_second_parser_compute_smoke.json"
 
+[[ -z "$(git -C "${INTEGRATION_ROOT}" status --porcelain)" ]]
 echo "STAGE07_SECOND_PARSER_COMPUTE_SMOKE_PASS"

@@ -430,6 +430,14 @@
       "execution_class": "PRE_SCIENTIFIC_PUBLIC_ONLY",
       "root_failure_category": "BUNDLE_CONTAMINATION_FAILURE",
       "root_failure_detail": "POSTPUBLICATION_RUNTIME_TREE_CONTAINED_39_MODE_0755_PYTHON_CACHE_DIRECTORIES_AND_363_UNMANIFESTED_PYC_FILES",
+      "contamination_root_cause": "POST_PUBLICATION_LOGIN_SIDE_PYTHON_IMPORT_MUTATED_WRITABLE_BUNDLE",
+      "bundle_valid_when_published": true,
+      "bytecode_created_before_job_1762663": true,
+      "creating_process_class": "LOGIN_SIDE_POSTPUBLICATION_HUGGINGFACE_OFFLINE_CACHE_RESOLUTION_PREFLIGHT",
+      "deep_parse_inference_implicated": false,
+      "torch_model_initialization_implicated": false,
+      "smoke_jobs_implicated": false,
+      "architectural_defect": "WRITABLE_POST_PUBLICATION_STATE",
       "protected_candidate_processing_began": false,
       "public_synthetic_processing_began": false,
       "bundle_validation_began": true,
@@ -443,7 +451,7 @@
       "bundle_unmanifested_pyc_files": 363,
       "bundle_nonprivate_directories": 39,
       "bundle_missing_manifest_files": 0,
-      "corrective_action": "OWNER_DECISION_REQUIRED_BECAUSE_THE_PUBLISHED_BUNDLE_IS_NO_LONGER_IMMUTABLE_AND_THIS_SESSION_PROHIBITS_REPAIR_OR_REBUILD",
+      "corrective_action": "OWNER_AUTHORIZED_ONE_FRESH_PHYSICALLY_READ_ONLY_BUNDLE_WITH_ALL_MUTABLE_RUNTIME_STATE_EXTERNALIZED_AND_EXACT_PRE_POST_TREE_IDENTITY",
       "correction_subsequently_validated": false,
       "validated_by_job": null
     }

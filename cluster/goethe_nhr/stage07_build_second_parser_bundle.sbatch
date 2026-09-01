@@ -19,6 +19,17 @@ umask 077
 : "${STAGE07_SECOND_BUNDLE_BUILD_ROOT:?new owner-only build root is required}"
 : "${STAGE07_SECOND_BUNDLE_OUTPUT_DIRECTORY:?new immutable output is required}"
 
+export SAFE_EXECUTION_SITE=goethe-nhr
+export PYTHONDONTWRITEBYTECODE=1
+export PYTHONUTF8=1
+export PYTHONHASHSEED=0
+export LANG=C.UTF-8
+export LC_ALL=C.UTF-8
+export PIP_CONFIG_FILE=/dev/null
+export PIP_DISABLE_PIP_VERSION_CHECK=1
+export PIP_NO_INPUT=1
+unset PIP_INDEX_URL PIP_EXTRA_INDEX_URL PIP_TRUSTED_HOST || true
+
 readonly DATA_ROOT="$(realpath -e -- \
   "/work/footprint/donyadidegan/safe_geocoding_pipeline")"
 readonly BASE_PYTHON="${DATA_ROOT}/.venv-goethe-nhr/bin/python"
@@ -39,6 +50,9 @@ readonly DEEPPARSE_WHEEL_SHA256="0e4641147f0a27875edb715248d93277082f10610f237a5
 readonly BPEMB_VERSION="0.3.6"
 readonly BPEMB_WHEEL_SHA256="6eabc133bbd0a7dbeb52b2cfed55ca5cacbb38b236ebb1f504b279a2d835e8b7"
 readonly PYTORCH_VERSION="2.7.1+cpu"
+readonly RUNTIME_LOCK_SHA256="3a4fd33e5530c554125e11b040adeb97828a0381549ac8ca36ce2399711cdc83"
+readonly RUNTIME_HASH_LOCK_SHA256="b8663547cc790a05a1ce2ff21810134bea2b0494b5dd17c2fe07d669fdc2aae8"
+readonly RUNTIME_HASH_LOCK_MANIFEST_SHA256="78b1c6e277461c72c893789d9fa2dc91a3fd89c757a8b7026a9c237a28459f32"
 readonly MODEL_REVISION="4af74dad1d547804dfc2de8f40fb23fbbec5b811"
 readonly MODEL_CONFIG_URL="https://huggingface.co/deepparse/bpemb-attention/resolve/${MODEL_REVISION}/config.json"
 readonly MODEL_CONFIG_SHA256="60155c61595e5e968a860ff40ebf777979d80b4afd923333f121d342375dc219"
@@ -81,6 +95,13 @@ for controlled_path in "${INTEGRATION_ROOT}" "${BUILD_ROOT}" "${OUTPUT_DIRECTORY
 done
 [[ ! -e "${BUILD_ROOT}" ]]
 [[ ! -e "${OUTPUT_DIRECTORY}" ]]
+for first_path in "${BUILD_ROOT}" "${OUTPUT_DIRECTORY}"; do
+  for second_path in "${INTEGRATION_ROOT}" "${BUILD_ROOT}" "${OUTPUT_DIRECTORY}"; do
+    [[ "${first_path}" == "${second_path}" ]] && continue
+    [[ "${first_path}" != "${second_path}"/* ]]
+    [[ "${second_path}" != "${first_path}"/* ]]
+  done
+done
 
 cd "${INTEGRATION_ROOT}"
 readonly ACTUAL_COMMIT="$(git rev-parse HEAD)"
@@ -88,6 +109,24 @@ readonly ACTUAL_COMMIT="$(git rev-parse HEAD)"
 [[ -z "$(git status --porcelain)" ]]
 [[ "$(git symbolic-ref -q HEAD || true)" == "" ]]
 [[ -x "${BASE_PYTHON}" ]]
+readonly RUNTIME_LOCK="${INTEGRATION_ROOT}/docs/scientific_assets/stage07_deepparse_runtime_lock_v1.txt"
+readonly RUNTIME_HASH_LOCK="${INTEGRATION_ROOT}/docs/scientific_assets/stage07_deepparse_runtime_hash_lock_v1.txt"
+readonly RUNTIME_HASH_LOCK_MANIFEST="${INTEGRATION_ROOT}/docs/scientific_assets/stage07_deepparse_runtime_hash_lock_v1.json"
+[[ -f "${RUNTIME_LOCK}" ]]
+[[ -f "${RUNTIME_HASH_LOCK}" ]]
+[[ -f "${RUNTIME_HASH_LOCK_MANIFEST}" ]]
+printf '%s  %s\n' "${RUNTIME_LOCK_SHA256}" "${RUNTIME_LOCK}" | \
+  sha256sum --check --strict -
+printf '%s  %s\n' "${RUNTIME_HASH_LOCK_SHA256}" "${RUNTIME_HASH_LOCK}" | \
+  sha256sum --check --strict -
+printf '%s  %s\n' "${RUNTIME_HASH_LOCK_MANIFEST_SHA256}" \
+  "${RUNTIME_HASH_LOCK_MANIFEST}" | sha256sum --check --strict -
+export PYTHONPATH="${INTEGRATION_ROOT}/src"
+"${BASE_PYTHON}" -B - <<'PY'
+from safe_geocoding_pipeline.execution_policy import require_goethe_nhr_slurm
+
+require_goethe_nhr_slurm("stage07-public-second-parser-bundle")
+PY
 
 install -d -m 0700 "${BUILD_ROOT}"
 readonly PYTHON_ARCHIVE="${BUILD_ROOT}/${PYTHON_ARCHIVE_NAME}"
@@ -100,12 +139,6 @@ readonly SQLITE_ARCHIVE="${PUBLIC_DOWNLOADS}/${SQLITE_ARCHIVE_NAME}"
 readonly SQLITE_SOURCE="${BUILD_ROOT}/sqlite-autoconf-3460100"
 readonly SQLITE_PREFIX="${BUILD_ROOT}/sqlite-prefix"
 install -d -m 0700 "${PIP_CACHE}" "${PUBLIC_DOWNLOADS}" "${CACHE_ROOT}"
-
-export PYTHONDONTWRITEBYTECODE=1
-export PYTHONUTF8=1
-export PYTHONHASHSEED=0
-export LANG=C.UTF-8
-export LC_ALL=C.UTF-8
 
 curl --fail --location --retry 3 --output "${PYTHON_ARCHIVE}" "${PYTHON_URL}"
 printf '%s  %s\n' "${PYTHON_SHA256}" "${PYTHON_ARCHIVE}" | sha256sum --check --strict -
@@ -134,7 +167,7 @@ make install
 
 readonly SECOND_PYTHON="${PYTHON_PREFIX}/bin/python3.13"
 [[ -x "${SECOND_PYTHON}" ]]
-"${SECOND_PYTHON}" - <<'PY'
+"${SECOND_PYTHON}" -B - <<'PY'
 import _hashlib
 import _ssl
 import bz2
@@ -146,20 +179,19 @@ import zlib
 
 assert sqlite3.sqlite_version == "3.46.1", sqlite3.sqlite_version
 PY
-"${SECOND_PYTHON}" -m pip install --quiet --no-compile \
-  pip==26.2.1 setuptools==80.9.0 wheel==0.45.1
-
 export PIP_CACHE_DIR="${PIP_CACHE}"
-"${SECOND_PYTHON}" -m pip install --quiet --no-compile \
-  --report "${PUBLIC_DOWNLOADS}/pip-torch-install-report.json" \
+"${SECOND_PYTHON}" -B -m pip install --quiet --no-compile \
+  --no-deps \
+  --require-hashes \
+  --report "${PUBLIC_DOWNLOADS}/pip-runtime-hash-lock-install-report.json" \
   --index-url https://download.pytorch.org/whl/cpu \
-  "torch==${PYTORCH_VERSION}"
-"${SECOND_PYTHON}" -m pip install --quiet --no-compile \
-  --report "${PUBLIC_DOWNLOADS}/pip-deepparse-install-report.json" \
-  "deepparse==${DEEPPARSE_VERSION}" "bpemb==${BPEMB_VERSION}"
-"${SECOND_PYTHON}" -m pip check
+  --extra-index-url https://pypi.org/simple \
+  --requirement "${RUNTIME_HASH_LOCK}"
+"${SECOND_PYTHON}" -B -m pip check
 
-"${SECOND_PYTHON}" -m pip download --quiet --no-deps \
+"${SECOND_PYTHON}" -B -m pip download --quiet --no-deps \
+  --only-binary=:all: \
+  --index-url https://pypi.org/simple \
   --dest "${PUBLIC_DOWNLOADS}" \
   "deepparse==${DEEPPARSE_VERSION}" "bpemb==${BPEMB_VERSION}"
 readonly DEEPPARSE_WHEEL="${PUBLIC_DOWNLOADS}/deepparse-${DEEPPARSE_VERSION}-py3-none-any.whl"
@@ -195,9 +227,15 @@ printf '%s  %s\n' "${BPEMB_EMBEDDING_SHA256}" \
   "${BPEMB_CACHE}/multi.wiki.bpe.vs100000.d300.w2v.bin" | \
   sha256sum --check --strict -
 
-"${SECOND_PYTHON}" -m pip freeze --all > "${PUBLIC_DOWNLOADS}/pip-freeze.txt"
-"${SECOND_PYTHON}" -m pip list --format=json > "${PUBLIC_DOWNLOADS}/pip-list.json"
-"${SECOND_PYTHON}" - <<'PY' > "${PUBLIC_DOWNLOADS}/runtime-identity.json"
+"${SECOND_PYTHON}" -B -m pip freeze --all > "${PUBLIC_DOWNLOADS}/pip-freeze.txt"
+cmp "${RUNTIME_LOCK}" "${PUBLIC_DOWNLOADS}/pip-freeze.txt"
+cp "${RUNTIME_LOCK}" "${PUBLIC_DOWNLOADS}/stage07_deepparse_runtime_lock_v1.txt"
+cp "${RUNTIME_HASH_LOCK}" \
+  "${PUBLIC_DOWNLOADS}/stage07_deepparse_runtime_hash_lock_v1.txt"
+cp "${RUNTIME_HASH_LOCK_MANIFEST}" \
+  "${PUBLIC_DOWNLOADS}/stage07_deepparse_runtime_hash_lock_v1.json"
+"${SECOND_PYTHON}" -B -m pip list --format=json > "${PUBLIC_DOWNLOADS}/pip-list.json"
+"${SECOND_PYTHON}" -B - <<'PY' > "${PUBLIC_DOWNLOADS}/runtime-identity.json"
 import json
 import platform
 import sqlite3
@@ -223,7 +261,7 @@ export DO_NOT_TRACK=1
 export OMP_NUM_THREADS=1
 export MKL_NUM_THREADS=1
 export OPENBLAS_NUM_THREADS=1
-"${SECOND_PYTHON}" - <<'PY'
+"${SECOND_PYTHON}" -B - <<'PY'
 import os
 
 from huggingface_hub import try_to_load_from_cache
@@ -238,7 +276,7 @@ for filename in ("config.json", "model.safetensors"):
     assert isinstance(resolved, str), filename
 print("public_huggingface_cache_binding=PASS")
 PY
-"${SECOND_PYTHON}" - <<'PY'
+"${SECOND_PYTHON}" -B - <<'PY'
 import random
 import socket
 
@@ -370,14 +408,12 @@ if find "${STAGING_DIRECTORY}" \( -name __pycache__ -o -name '*.pyc' -o -name '*
   exit 1
 fi
 find "${STAGING_DIRECTORY}" -type d -exec chmod 0700 {} +
-find "${STAGING_DIRECTORY}" -type f -exec chmod 0600 {} +
-find "${STAGING_DIRECTORY}/runtime/bin" -maxdepth 1 -type f -exec chmod 0700 {} +
+find "${STAGING_DIRECTORY}" -type f ! -perm /111 -exec chmod 0600 {} +
+find "${STAGING_DIRECTORY}" -type f -perm /111 -exec chmod 0700 {} +
 
 readonly COMPILER_IDENTITY="$(printf '%s; %s' \
   "$(gcc --version | head -n 1)" "$(make --version | head -n 1)")"
 readonly GLIBC_IDENTITY="$(getconf GNU_LIBC_VERSION)"
-export PYTHONPATH="${INTEGRATION_ROOT}/src"
-export SAFE_EXECUTION_SITE=goethe-nhr
 readonly PUBLISH_ARGV_HELPER="${INTEGRATION_ROOT}/cluster/goethe_nhr/stage07_second_parser_bundle_publish_argv.sh"
 source "${PUBLISH_ARGV_HELPER}"
 stage07_second_parser_bundle_publish_argv \
@@ -388,23 +424,55 @@ stage07_second_parser_bundle_publish_argv \
   "${COMPILER_IDENTITY}" \
   "${GLIBC_IDENTITY}" \
   "${PYTHON_CONFIGURE_ARGUMENTS[@]}"
+readonly RUNTIME_STATE_HELPER="${INTEGRATION_ROOT}/cluster/goethe_nhr/stage07_second_parser_runtime_state.sh"
+source "${RUNTIME_STATE_HELPER}"
+readonly PUBLICATION_RUNTIME_ROOT="${BUILD_ROOT}/publication-runtime-state"
+stage07_second_parser_bind_runtime_state \
+  "${PUBLICATION_RUNTIME_ROOT}" \
+  "${STAGING_DIRECTORY}/cache"
+cd "${PUBLICATION_RUNTIME_ROOT}"
 readonly PUBLISH_OUTPUT="$("${STAGE07_SECOND_PARSER_PUBLISH_ARGV[@]}")"
 printf '%s\n' "${PUBLISH_OUTPUT}"
 readonly BUNDLE_FINGERPRINT="$(printf '%s\n' "${PUBLISH_OUTPUT}" | \
   awk -F= '$1 == "stage07_second_parser_bundle_fingerprint" {print $2}')"
+readonly BUNDLE_TREE_FINGERPRINT="$(printf '%s\n' "${PUBLISH_OUTPUT}" | \
+  awk -F= '$1 == "stage07_second_parser_complete_tree_fingerprint" {print $2}')"
 [[ "${BUNDLE_FINGERPRINT}" =~ ^[0-9a-f]{64}$ ]]
+[[ "${BUNDLE_TREE_FINGERPRINT}" =~ ^[0-9a-f]{64}$ ]]
 
-"${BASE_PYTHON}" \
+readonly POSTPUBLICATION_RUNTIME_ROOT="${BUILD_ROOT}/postpublication-runtime-state"
+stage07_second_parser_bind_runtime_state \
+  "${POSTPUBLICATION_RUNTIME_ROOT}" \
+  "${OUTPUT_DIRECTORY}/cache"
+cd "${POSTPUBLICATION_RUNTIME_ROOT}"
+
+readonly VALIDATION_OUTPUT="$("${BASE_PYTHON}" -B \
   -m safe_geocoding_pipeline.preprocessing.stage07_second_parser_bundle_cli validate \
   --output-directory "${OUTPUT_DIRECTORY}" \
-  --expected-second-parser-bundle-fingerprint "${BUNDLE_FINGERPRINT}"
+  --expected-second-parser-bundle-fingerprint "${BUNDLE_FINGERPRINT}")"
+printf '%s\n' "${VALIDATION_OUTPUT}"
+readonly VALIDATED_TREE_FINGERPRINT="$(printf '%s\n' "${VALIDATION_OUTPUT}" | \
+  awk -F= '$1 == "stage07_second_parser_complete_tree_fingerprint" {print $2}')"
+[[ "${VALIDATED_TREE_FINGERPRINT}" == "${BUNDLE_TREE_FINGERPRINT}" ]]
+if find "${OUTPUT_DIRECTORY}" -perm /222 -print -quit | grep -q .; then
+  echo "STAGE07_SECOND_PARSER_WRITABLE_BUNDLE_PATH_PROHIBITED" >&2
+  exit 1
+fi
+if find "${OUTPUT_DIRECTORY}" \
+  \( -name __pycache__ -o -name '*.pyc' -o -name '*.pyo' \) \
+  -print -quit | grep -q .; then
+  echo "STAGE07_SECOND_PARSER_BYTECODE_CACHE_PROHIBITED" >&2
+  exit 1
+fi
 
 readonly PUBLISHED_PYTHON="${OUTPUT_DIRECTORY}/runtime/bin/python3.13"
 [[ -x "${PUBLISHED_PYTHON}" ]]
-export HF_HOME="${OUTPUT_DIRECTORY}/cache"
-"${PUBLISHED_PYTHON}" - <<'PY'
+"${PUBLISHED_PYTHON}" -B - <<'PY'
+import os
 import socket
 import sqlite3
+
+from huggingface_hub import try_to_load_from_cache
 
 def deny_network(*args, **kwargs):
     raise AssertionError("NETWORK_ACCESS_DENIED_DURING_PUBLISHED_SMOKE")
@@ -412,6 +480,14 @@ def deny_network(*args, **kwargs):
 socket.create_connection = deny_network
 socket.socket.connect = deny_network
 assert sqlite3.sqlite_version == "3.46.1", sqlite3.sqlite_version
+for filename in ("config.json", "model.safetensors"):
+    resolved = try_to_load_from_cache(
+        "deepparse/bpemb-attention",
+        filename,
+        cache_dir=os.environ["STAGE07_SECOND_PARSER_MODEL_CACHE"],
+        revision="main",
+    )
+    assert isinstance(resolved, str), filename
 from deepparse.parser import AddressParser
 
 parser = AddressParser(
@@ -419,7 +495,7 @@ parser = AddressParser(
     attention_mechanism=True,
     device="cpu",
     verbose=False,
-    cache_dir=__import__("os").environ["HF_HOME"],
+    cache_dir=os.environ["STAGE07_SECOND_PARSER_MODEL_CACHE"],
     offline=True,
 )
 parsed = parser("20 published synthetic road", with_prob=True, pre_processors=[])
@@ -427,6 +503,18 @@ assert parsed.raw_address == "20 published synthetic road"
 assert parsed.address_parsed_components
 print("published_offline_smoke=PASS")
 PY
+
+readonly POST_VALIDATION_OUTPUT="$("${BASE_PYTHON}" -B \
+  -m safe_geocoding_pipeline.preprocessing.stage07_second_parser_bundle_cli validate \
+  --output-directory "${OUTPUT_DIRECTORY}" \
+  --expected-second-parser-bundle-fingerprint "${BUNDLE_FINGERPRINT}")"
+readonly POST_VALIDATION_TREE_FINGERPRINT="$(printf '%s\n' \
+  "${POST_VALIDATION_OUTPUT}" | awk -F= \
+  '$1 == "stage07_second_parser_complete_tree_fingerprint" {print $2}')"
+[[ "${POST_VALIDATION_TREE_FINGERPRINT}" == "${BUNDLE_TREE_FINGERPRINT}" ]]
+echo "postpublication_tree_fingerprint_match=true"
+echo "postpublication_bundle_mutations=0"
+[[ -z "$(git -C "${INTEGRATION_ROOT}" status --porcelain)" ]]
 
 echo "public_assets_only=true"
 echo "protected_inputs_opened=false"

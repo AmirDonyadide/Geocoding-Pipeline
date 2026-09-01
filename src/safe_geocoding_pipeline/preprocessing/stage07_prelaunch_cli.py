@@ -25,6 +25,9 @@ def _submission_parser(
     parser.add_argument("--expected-git-sha", required=True)
     parser.add_argument("--new-path", action="append", default=[], type=Path)
     parser.add_argument("--required-path", action="append", default=[], type=Path)
+    parser.add_argument(
+        "--read-only-bundle-path", action="append", default=[], type=Path
+    )
     parser.add_argument("--eligibility-manifest", required=True, type=Path)
     parser.add_argument("--launcher", required=True, type=Path)
     parser.add_argument("--requested-memory-gib", required=True, type=int)
@@ -44,6 +47,8 @@ def _bundle_parser(
     parser = subparsers.add_parser("bundle")
     parser.add_argument("--bundle-directory", required=True, type=Path)
     parser.add_argument("--expected-bundle-fingerprint", required=True)
+    parser.add_argument("--expected-smoke-git-sha", required=True)
+    parser.add_argument("--expected-smoke-job-id", required=True)
     parser.add_argument("--smoke-evidence", type=Path)
 
 
@@ -62,6 +67,7 @@ def main() -> int:
                     expected_git_sha=args.expected_git_sha,
                     new_paths=tuple(args.new_path),
                     required_paths=tuple(args.required_path),
+                    read_only_bundle_paths=tuple(args.read_only_bundle_path),
                     eligibility_manifest_path=args.eligibility_manifest,
                     launcher_path=args.launcher,
                     requested_memory_gib=args.requested_memory_gib,
@@ -84,6 +90,8 @@ def main() -> int:
                 BundlePreflightConfig(
                     bundle_directory=args.bundle_directory,
                     expected_bundle_fingerprint=args.expected_bundle_fingerprint,
+                    expected_smoke_git_sha=args.expected_smoke_git_sha,
+                    expected_smoke_job_id=args.expected_smoke_job_id,
                     smoke_evidence_path=args.smoke_evidence,
                 )
             )

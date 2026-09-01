@@ -50,6 +50,14 @@ def _print_outcome(result: SecondParserBundleOutcome) -> None:
     print(f"stage07_second_parser_manifest_sha256={result.manifest_sha256}")
     print(f"stage07_second_parser_bundle_artifacts={result.artifact_count}")
     print(f"stage07_second_parser_bundle_bytes={result.total_size_bytes}")
+    print(
+        "stage07_second_parser_complete_tree_fingerprint="
+        f"{result.complete_tree_fingerprint}"
+    )
+    print(
+        "stage07_second_parser_complete_tree_entries="
+        f"{result.complete_tree_entry_count}"
+    )
 
 
 def main(argv: Sequence[str] | None = None) -> int:
