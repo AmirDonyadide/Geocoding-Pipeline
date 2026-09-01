@@ -1,0 +1,34 @@
+{
+  "candidate_sha": "318b70b00a52376b1b4fe865f41a789e2dd3feb9",
+  "controlled_inputs_opened": false,
+  "goethe_job_submitted": false,
+  "implementation_sha": "e684d84a8d68498ea790542143c8e125b3eb87b5",
+  "independent_review_version": "stage07_parser_evidence_v2_independent_review_v1",
+  "local_checks": {
+    "candidate_focused_pytest": "PASS_6_OF_6",
+    "candidate_python_strict_mypy": "PASS",
+    "candidate_python_ruff": "PASS",
+    "candidate_slurm_shell_syntax": "PASS",
+    "failed_readiness_evidence_blob_preservation": "PASS",
+    "git_diff_check": "PASS",
+    "json_syntax": "PASS",
+    "parser_entry_point_static_scan": "PASS_ZERO_CALLS"
+  },
+  "material_findings": [
+    {
+      "check": 10,
+      "code": "DOWNSTREAM_CONTRACT_REINTRODUCES_REJECTED_READINESS_GATE",
+      "severity": "P1",
+      "summary": "The tracked post-Stage-7 architecture still requires COMPONENTS_READY and describes trusted mapped components even though evidence-only v2 publishes no readiness field and explicitly forbids no-warning-as-trust semantics."
+    },
+    {
+      "check": 12,
+      "code": "CURRENT_STAGE07_STATUS_AND_REPORTS_CONTRADICT",
+      "severity": "P1",
+      "summary": "Several current status, execution-policy, stage-record, and generic candidate-report surfaces still say Stage 7 is not ready or unfrozen while the evidence-only v2 report says it is ready for independent review."
+    }
+  ],
+  "protected_parser_calls": 0,
+  "review_scope": "GIT_CANDIDATE_AND_LOCAL_PUBLIC_SYNTHETIC_GATES",
+  "verdict": "STAGE07_EVIDENCE_ONLY_INDEPENDENT_REVIEW_FAIL"
+}
