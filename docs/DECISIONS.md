@@ -582,9 +582,17 @@ to change a decision or start a stage.
   must be immutable before fresh semantic labels exist. This prevents tuning
   or sample selection in response to review outcomes while retaining the
   fixed-500 frame's pre-hypothesis independence.
-- **Status:** OWNER-AUTHORIZED MACHINE-ONLY EXECUTION; not yet run. Qualitative
-  inspection of the resulting 240 remains separately unauthorized. Stage 7 is
-  still `STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY`; independent review, Stage 8,
+- **Execution evidence:** Job `1763433` at exact SHA
+  `20a46610b885919b5bad113f2b5763e98bf23ca5` completed the machine-only pass
+  in 28 seconds. Across 604 candidates the frozen rule produced 330
+  `COMPONENTS_READY`, 122 `COMPONENTS_ABSTAIN`, and 152 `NOT_ASSESSED`, then
+  froze exactly 120 READY and 120 ABSTAIN cases. The selection fingerprint is
+  `c05cecf2aa9099045adc0d5c698c7e82a6bae187ae82222817f4bfb5264c2a89`.
+  No semantic inspection, parser call, network call, HOLDOUT, production, or
+  Stage 8 access occurred.
+- **Status:** MACHINE-ONLY SELECTION FROZEN. Qualitative inspection of the
+  protected 240 remains separately unauthorized. Stage 7 is still
+  `STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY`; independent review, Stage 8,
   HOLDOUT, production, geocoding, and merge remain unauthorized.
 
 ## Open decisions

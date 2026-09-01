@@ -101,7 +101,16 @@
     "fixed500_candidate_frame": 613,
     "fixed500_overlap_existing_120": 9,
     "fixed500_remaining_unreviewed": 604,
-    "fresh_validation_authorized": false
+    "fresh_validation_machine_job": "1763433",
+    "fresh_validation_machine_sha": "20a46610b885919b5bad113f2b5763e98bf23ca5",
+    "fresh_validation_frame_ready": 330,
+    "fresh_validation_frame_abstain": 122,
+    "fresh_validation_frame_not_assessed": 152,
+    "fresh_validation_selection_ready": 120,
+    "fresh_validation_selection_abstain": 120,
+    "fresh_validation_selection_fingerprint": "c05cecf2aa9099045adc0d5c698c7e82a6bae187ae82222817f4bfb5264c2a89",
+    "fresh_validation_machine_completed": true,
+    "fresh_validation_semantic_review_authorized": false
   },
   "post_stage07_architecture": {
     "status": "PROPOSED_NOT_STARTED",

@@ -12,7 +12,7 @@ are in the linked stage records and sanitized reports.
 | 4 | Lowercase canonical forms | **`STAGE_4_ACCEPTED`** | Job `1759421`; independent job `1759473`; 35,000 → 35,000; exact Python `str.lower()`; [report](../reports/development/stage04_summary.md) | **NOT STARTED** |
 | 5 | Address reconstruction | **`STAGE_5_ACCEPTED`** | Job `1759603`; independent job `1759692`; 35,000 → 35,000; exact reconstruction and six accepted non-damaging boundary limitations in a 179-row risk scope; [report](../reports/development/stage05_summary.md); [Stage 5 record](stages/STAGE05_ADDRESS_RECONSTRUCTION.md) | **NOT STARTED** |
 | 6 | Early exact deduplication | **`STAGE_6_ACCEPTED`** | Job `1759819`; independent job `1760055`; 35,000 → 35,000; 69,747 occurrences → 51,779 unique exact candidates; zero collision/map-back/fixed-500 mismatches; [report](../reports/development/stage06_summary.md); [Stage 6 record](stages/STAGE06_EARLY_EXACT_DEDUPLICATION.md) | **NOT STARTED** |
-| 7 | libpostal parsing/evidence | **`STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY`** | Authoritative job `1760221` and validation/fixed-500 jobs passed machine integrity; qualitative/root-cause evidence found material parser-quality errors. Country-aware eligibility job `1762293` passed. DeepParse is closed as `DEEPPARSE_INFRASTRUCTURE_PATH_NOT_JUSTIFIED`; no protected inference occurred. Optimized v2 readiness job `1763358` caught all six known boundary failures but leaked one label-only clear failure, establishing a useful structural-warning layer rather than semantic truth. The design is ready for fresh validation only. [candidate report](../reports/development/stage07_development_candidate_report.md); [v2 readiness design](../reports/development/stage07_v2_readiness_design.md); [root-cause report](../reports/development/stage07_quality_root_cause_summary.md); [Stage 7 record](stages/STAGE07_LIBPOSTAL_PARSING.md) | **NOT STARTED** |
+| 7 | libpostal parsing/evidence | **`STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY`** | Authoritative job `1760221` and validation/fixed-500 jobs passed machine integrity; qualitative/root-cause evidence found material parser-quality errors. Country-aware eligibility job `1762293` passed. DeepParse is closed as `DEEPPARSE_INFRASTRUCTURE_PATH_NOT_JUSTIFIED`; no protected inference occurred. Optimized v2 readiness job `1763358` established a useful structural-warning layer rather than semantic truth. Machine-only job `1763433` froze an untouched 240-case validation sample (120 READY/120 ABSTAIN) before semantic review. [candidate report](../reports/development/stage07_development_candidate_report.md); [v2 readiness design](../reports/development/stage07_v2_readiness_design.md); [selection freeze](../reports/development/stage07_v2_validation_selection_freeze.md); [root-cause report](../reports/development/stage07_quality_root_cause_summary.md); [Stage 7 record](stages/STAGE07_LIBPOSTAL_PARSING.md) | **NOT STARTED** |
 | 8–14 proposed | Evidence → hypotheses → Pelias top-N → scoring → granularity/abstention | **PROPOSED — NOT STARTED** | Compact replacement for the old unstarted 8–19 plan; [architecture redesign](../reports/development/post_stage07_geocoding_architecture_redesign.md) | **NOT STARTED** |
 
 Benchmark V1 contains 35,000 DEVELOPMENT and 15,000 sealed HOLDOUT rows from
@@ -23,9 +23,9 @@ fingerprint
 DEVELOPMENT Stages 0–6 are accepted. Stage 7 v1 completed its DEVELOPMENT
 machine run but remains not ready. Its proposed v2 preserves v1 raw evidence
 and treats structural readiness as warning/abstention rather than semantic
-truth. The machine-only 604-candidate rule application and deterministic
-240-candidate selection freeze are authorized but not yet executed; semantic
-review of the resulting selection remains unauthorized. The
+truth. Machine-only job `1763433` applied the unchanged frozen rule to the 604
+untouched fixed-frame candidates and froze a deterministic 240-case selection;
+semantic review of that selection remains unauthorized. The
 old Stages 8–19 and proposed replacement Stages 8–14 are not started. Production
 Stage 0 and Stage 1 are accepted; production Stages 2–7 are not started.
 HOLDOUT is untouched and sealed.

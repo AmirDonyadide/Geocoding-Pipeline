@@ -306,11 +306,15 @@ frozen rule order, representation and frequency-band orders are fixed, other
 category orders are deterministic, and review order is a separate
 domain-separated candidate-ID hash.
 
-The owner has authorized the machine-only application to the 604 untouched
-candidates. The selected fingerprint remains pending the protected execution
-rather than being guessed. This authorization permits deterministic rule
-signals only; it does not authorize semantic inspection of any newly selected
-candidate.
+Machine-only job `1763433` at
+`20a46610b885919b5bad113f2b5763e98bf23ca5` applied the unchanged rule to all
+604 untouched candidates. It produced 330 ready, 122 abstain, and 152 not
+assessed, then froze exactly 120 ready and 120 abstain candidates. The selected
+fingerprint is
+`c05cecf2aa9099045adc0d5c698c7e82a6bae187ae82222817f4bfb5264c2a89`.
+Candidate text and parser values never entered selection ranking; semantic
+inspection remained zero. Full aggregate evidence is in the
+[selection-freeze report](stage07_v2_validation_selection_freeze.md).
 
 Primary predeclared metrics and gates are:
 
@@ -386,17 +390,15 @@ for separately approved whole-string hypothesis generation.
 ## Authorization boundary and next decision
 
 No new protected semantic content was inspected. HOLDOUT and production were
-not accessed. The owner has now authorized machine-only rule application to
-the 604 untouched fixed-500 candidates, including their exact Stage 6
-candidate and immutable raw Stage 7 component streams solely to freeze the
-240-candidate validation selection. Qualitative inspection of those 240
-candidates remains unauthorized until their IDs, predictions, selection
-fingerprint, and thresholds have been frozen.
+not accessed. The authorized machine-only rule application is complete; the
+240 candidate IDs, predictions, reasons, selection fingerprint, metrics, and
+thresholds are frozen in owner-only artifacts. Qualitative inspection of those
+240 candidates remains unauthorized pending an explicit owner decision.
 
-The machine-only protected operation is limited to one bounded Goethe SLURM
-job. It needs no parser call, network, new model, HOLDOUT, production, or full
-Python materialization of the 51,779-row nested registry. The engine performs
-an ID-only population binding and returns candidate/component values to SAFE
-code only for eligible untouched IDs; unresolved candidates are decided from
-applicability metadata without reading their values. No future stage
-implementation is authorized by this report.
+Job `1763433` used no parser call, network, new model, HOLDOUT, production, or
+full Python materialization of the 51,779-row nested registry. The engine
+performed an ID-only population binding and returned candidate/component
+values to SAFE code only for 452 eligible untouched IDs; the 152 unresolved
+candidates were decided from applicability metadata without reading their
+values. No future stage implementation or semantic review is authorized by
+this report.

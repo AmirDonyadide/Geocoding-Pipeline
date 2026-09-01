@@ -113,11 +113,15 @@ label-only clear failures remained structurally ready. This supports a useful
 parser-local warning/abstention layer but not a claim of semantic correctness.
 
 The fixed-500 candidate projection contains 613 IDs, with nine overlapping the
-existing 120 and none overlapping the targeted 18; 604 remain unreviewed. It
-is suitable as an immutable fresh-validation frame after a separately
-authorized machine-only rule pass freezes a 240-case balanced selection. The
-full status model, reason codes, schema, metrics, thresholds, and authorization
-boundary are in the [v2 readiness design](stage07_v2_readiness_design.md).
+existing 120 and none overlapping the targeted 18; 604 were untouched by
+semantic review. Machine-only job `1763433` applied the unchanged frozen rule
+to those 604 and froze a 240-case balanced selection (120 ready/120 abstain),
+fingerprinted as
+`c05cecf2aa9099045adc0d5c698c7e82a6bae187ae82222817f4bfb5264c2a89`.
+Semantic review remains unauthorized. The full status model, reason codes,
+schema, metrics, thresholds, and authorization boundary are in the
+[v2 readiness design](stage07_v2_readiness_design.md), with execution evidence
+in the [selection-freeze report](stage07_v2_validation_selection_freeze.md).
 
 The post-Stage-7 philosophy is now parser-as-evidence: preserve source truth,
 generate multiple hypotheses, retrieve top-N self-hosted Pelias candidates,

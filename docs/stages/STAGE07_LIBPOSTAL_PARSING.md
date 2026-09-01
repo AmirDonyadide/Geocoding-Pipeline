@@ -732,12 +732,14 @@ warnings and cannot establish semantic label correctness.
 
 The fixed 500-row source selection predates all Stage 7 quality/readiness
 hypotheses. Its Stage 6 projection contains 613 unique candidate IDs; nine
-overlap the existing 120, none overlaps the targeted 18, and 604 remain
-semantically untouched. It is suitable as an immutable validation frame after
-the now-owner-authorized machine-only pass applies the frozen rule and freezes
-a 240-candidate balanced ready/abstain selection. The exact algorithm and
-unchanged rule-source hash are frozen in code before execution. No new semantic
-inspection is authorized yet.
+overlap the existing 120, none overlaps the targeted 18, and 604 remained
+semantically untouched. Machine-only job `1763433` at
+`20a46610b885919b5bad113f2b5763e98bf23ca5` applied the unchanged frozen rule
+to those 604 and produced 330 ready, 122 abstain, and 152 not assessed. It then
+froze exactly 120 ready and 120 abstain cases with selection fingerprint
+`c05cecf2aa9099045adc0d5c698c7e82a6bae187ae82222817f4bfb5264c2a89`.
+No new semantic inspection occurred or is authorized yet. Sanitized evidence
+is in the [selection-freeze report](../../reports/development/stage07_v2_validation_selection_freeze.md).
 
 Stage 7 v2 must guarantee exact lineage/text/raw ordered parse preservation,
 trusted-country applicability, separate technical status, deterministic
