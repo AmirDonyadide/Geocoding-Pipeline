@@ -15,13 +15,16 @@ stage.
 Stages 0–6 are accepted on DEVELOPMENT. Stage 7's frozen v1 contract completed
 authoritative DEVELOPMENT parsing and machine validation, but the candidate
 remains not ready: qualitative and targeted root-cause evidence found material
-systematic libpostal label/boundary errors across multiple native non-Latin
-strata. Parser applicability is now being audited from trusted country
-provenance with parser-specific coverage denominators and a mandatory
-prelaunch gate. No Stage 7 acceptance or Stage 8 handoff is authorized.
+libpostal label/boundary errors. A prospective v2 preserves the immutable v1
+raw evidence and adds trusted-country applicability plus deterministic
+structural readiness/abstention. Optimized audit job `1763358` found that this
+warning rule catches all six known boundary failures but cannot establish
+semantic label truth. Fresh validation is required. No Stage 7 acceptance or
+Stage 8 handoff is authorized.
 Production Stage 0 and Stage 1 are accepted for the 1,411-file population;
 production Stage 2 through Stage 6 have not started. DEVELOPMENT and production
-Stages 8–19 have not started, and production Stage 7 has not started.
+The old Stages 8–19 have not started. A compact replacement Stages 8–14 is
+proposed below but is also not started. Production Stage 7 has not started.
 
 ## Cross-stage scientific rules
 
@@ -44,17 +47,19 @@ Stages 8–19 have not started, and production Stage 7 has not started.
 ## Dependency flow
 
 ```text
-0 -> 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10 -> 11
-                                             |                 |
-                                             +---------> 12 <-+
-                                                         |
-                                                         v
-13 -> 14 -> 15 -> 16 -> 17 -> 18 -> 19 -> self-hosted SAFE Pelias
+0 -> 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
+                                  |
+                                  v
+8 evidence projection -> 9 reference evidence -> 10 hypotheses
+                                                    |
+                                                    v
+11 query identity/QA -> 12 Pelias top-N -> 13 scoring -> 14 granularity/abstain
 ```
 
-The linear stage numbers are the governing order. The diagram highlights that
-component mapping and normalization feed later normalized deduplication. Every
-stage consumes an accepted predecessor and must stop at its own review gate.
+Stages 8–14 are a proposed replacement, not an accepted execution order. Every
+stage still requires its own design, owner authorization, DEVELOPMENT evidence,
+independent review, acceptance, and stop gate. The current prohibition on
+geocoding before the governing pre-geocoding acceptance gate remains in force.
 
 ## Stage 0 — Source inventory
 
@@ -186,11 +191,13 @@ stage consumes an accepted predecessor and must stop at its own review gate.
 
 ## Stage 7 — libpostal parsing
 
-- **Purpose:** Parse standard and native reconstructed candidates into address
-  components independently.
+- **Purpose:** Preserve exact candidate/parser evidence, decide trusted-country
+  applicability, and attach deterministic parser-local structural warnings.
+  The parser is evidence, not postal truth.
 - **Input:** Accepted unique Stage 6 candidates.
-- **Output:** Versioned libpostal labels, values, parse status, and evidence for
-  each representation.
+- **Output:** Versioned exact ordered libpostal labels/values, applicability and
+  technical statuses, parser provenance, and component readiness/abstention
+  evidence for each candidate and representation map-back.
 - **Primary libraries:** libpostal/pypostal.
 - **Data effect:** Adds derived parsed components; candidate text is preserved.
 - **Status:** **`STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY`**. Authoritative job
@@ -200,14 +207,109 @@ stage consumes an accepted predecessor and must stop at its own review gate.
   boundary errors and selected conclusion
   `MIXED_ROOT_CAUSES_REQUIRING_TARGETED_STAGE07_DESIGN_CHANGE`. Country-aware
   stabilization treats libpostal's documented worldwide scope separately from
-  DeepParse's exact 20-country training set, and keeps coverage, technical
-  success, and semantic quality as separate denominators.
+  semantic quality and keeps applicability, technical success, structural
+  readiness, and semantic quality as separate concepts. The DeepParse path is
+  closed as `DEEPPARSE_INFRASTRUCTURE_PATH_NOT_JUSTIFIED`. Optimized bounded
+  v2 audit job `1763358` caught all six known boundary failures, but one of five
+  label-only clear failures remained structurally ready. The prospective rule
+  is ready only for fresh DEVELOPMENT validation.
 - **Acceptance requirement:** Pinned build/resources, reproducible offline
   execution, trusted pre-parse applicability, multilingual DEVELOPMENT
-  evaluation on eligible populations, failure/abstention preservation,
-  prelaunch gate, and independent review.
+  evaluation on eligible populations, exact raw preservation, deterministic
+  structural warnings, explicit abstention, fresh validation, and independent
+  review. Stage 7 does not guarantee semantic component or geographic truth.
 
-## Stage 8 — Internal component mapping
+## Proposed replacement Stages 8–14
+
+This compact evidence-first design is **PROPOSED — NOT STARTED**. It separates
+source truth, parser/reference evidence, hypotheses, geocoder results, and the
+final accepted match. Full responsibilities, tool choices, and legacy mapping
+are in the
+[architecture redesign report](../reports/development/post_stage07_geocoding_architecture_redesign.md).
+
+### Stage 8 — Lossless address-evidence projection
+
+- **Purpose:** Map only structurally ready parser evidence into the fixed SAFE
+  component superset; retain raw order, duplicates, unmapped components, exact
+  candidates, abstention, and pinned offline country-format metadata.
+- **Primary tools:** PyArrow/Parquet, pycountry, pinned offline
+  libaddressinput metadata.
+- **Acceptance:** Lossless lineage/mapping, no component trust for abstained
+  rows, and no claim of geographic truth.
+- **Status:** **PROPOSED — NOT STARTED**.
+
+### Stage 9 — Offline geographic reference evidence
+
+- **Purpose:** Add country/postcode/locality/admin/street/house-number evidence
+  and bounded similarity within strong geographic blocks. Absence from an open
+  reference is not invalidity.
+- **Primary tools/data:** pinned GeoNames, Overture Maps Addresses, optional
+  approved OSM evidence, RapidFuzz, DuckDB, PyArrow; Polars optional.
+- **Acceptance:** Pinned licenses/vintages, bounded candidates, contradiction
+  precision, coverage caveats, and complete evidence lineage.
+- **Status:** **PROPOSED — NOT STARTED**.
+
+### Stage 10 — Multi-hypothesis query-plan generation
+
+- **Purpose:** Generate bounded deterministic whole-string and evidence-backed
+  structured hypotheses while keeping source truth immutable.
+- **Primary tools:** SAFE rules plus accepted Stages 8–9 evidence.
+- **Acceptance:** Explicit hypothesis identity/type/reason, complete map-back,
+  no overwrite, multilingual review, and bounded query ladders.
+- **Status:** **PROPOSED — NOT STARTED**.
+
+### Stage 11 — Global query identity, deduplication, and workload QA
+
+- **Purpose:** Execute identical endpoint/parameter queries once, retain every
+  hypothesis/source map-back, and freeze a separately authorizable workload.
+- **Primary tools:** DuckDB, PyArrow/Parquet, hashing; Polars optional.
+- **Acceptance:** Canonical key/collision contract, exact totality/map-back,
+  privacy, bounded resources/concurrency, and explicit pre-geocoding approval.
+- **Status:** **PROPOSED — NOT STARTED**.
+
+### Stage 12 — Self-hosted SAFE Pelias top-N retrieval
+
+- **Purpose:** Execute only an accepted, separately authorized Stage 11
+  workload and retain top-N results plus complete request/response provenance.
+  The first result is not final truth.
+- **Primary tool:** self-hosted SAFE Pelias, with total normal concurrency 2–4.
+- **Acceptance:** Exact workload identity, privacy/authentication, bounded
+  retries, complete results/errors, and no implicit match acceptance.
+- **Status:** **PROPOSED — NOT STARTED; NOT AUTHORIZED**.
+
+### Stage 13 — Result evidence scoring and cross-query convergence
+
+- **Purpose:** Rank top-N features against trusted country, postcode,
+  locality/admin, street, house number, representation agreement, independent
+  references, parser evidence, contradictions, and query convergence.
+- **Primary tools:** DuckDB, bounded RapidFuzz, SAFE scoring policy,
+  Arrow/Parquet.
+- **Acceptance:** Predeclared evidence/contradiction policy, deterministic
+  ranking, DEVELOPMENT calibration/ablation, bias analysis, and review. No
+  numeric weights are frozen here.
+- **Status:** **PROPOSED — NOT STARTED**.
+
+### Stage 14 — Final match, granularity, and abstention
+
+- **Purpose:** Accept only the strongest evidence-supported granularity or
+  return `UNRESOLVED`; a truthful postcode/locality result is preferable to a
+  false rooftop point.
+- **Output granularity:** `EXACT_ADDRESS`, `STREET_ADDRESS`, `STREET`,
+  `POSTCODE`, `LOCALITY`, `ADMIN`, or `UNRESOLVED` plus coordinates, winning
+  query/result, supporting/contradicting evidence, and fallback provenance.
+- **Acceptance:** Predeclared granularity thresholds, high-precision
+  DEVELOPMENT evidence, complete source-row lineage, and independent review.
+- **Status:** **PROPOSED — NOT STARTED**.
+
+## Legacy unstarted Stages 8–19 — superseded proposal
+
+The following decomposition was never implemented. It is retained as
+historical planning context and is proposed for replacement by compact Stages
+8–14 above. Its scientific safeguards—losslessness, bounded matching,
+absence-not-invalidity, query deduplication, and explicit review—remain inputs
+to the replacement design.
+
+### Legacy Stage 8 — Internal component mapping
 
 - **Purpose:** Map libpostal output to a stable SAFE component schema.
 - **Input:** Accepted Stage 7 labels and candidates.
@@ -218,7 +320,7 @@ stage consumes an accepted predecessor and must stop at its own review gate.
 - **Acceptance requirement:** Versioned mapping, complete/unmapped label
   accounting, no silent component loss, DEVELOPMENT review, and acceptance.
 
-## Stage 9 — Component-aware abbreviation and linguistic normalization
+### Legacy Stage 9 — Component-aware abbreviation and linguistic normalization
 
 - **Purpose:** Normalize linguistic variants only when component, country,
   language, and script make the operation defensible.
@@ -232,7 +334,7 @@ stage consumes an accepted predecessor and must stop at its own review gate.
 - **Acceptance requirement:** Pinned resources, component-scoped rules,
   multilingual error analysis, raw/mapped preservation, and independent review.
 
-## Stage 10 — Country and subdivision normalization
+### Legacy Stage 10 — Country and subdivision normalization
 
 - **Purpose:** Resolve recognized country/subdivision codes and names without
   inferring uncertain geography.
@@ -244,7 +346,7 @@ stage consumes an accepted predecessor and must stop at its own review gate.
 - **Acceptance requirement:** Pinned version, code-system policy, ambiguity and
   historical-value handling, coverage metrics, and independent review.
 
-## Stage 11 — Country-specific address and postcode syntax validation
+### Legacy Stage 11 — Country-specific address and postcode syntax validation
 
 - **Purpose:** Check component format against conservative country rules.
 - **Input:** Accepted Stage 10 geography and normalized components.
@@ -256,7 +358,7 @@ stage consumes an accepted predecessor and must stop at its own review gate.
   `INVALID_FORMAT` precision review, no absence-as-invalid inference, and
   independent acceptance.
 
-## Stage 12 — Normalized/component-level deduplication
+### Legacy Stage 12 — Normalized/component-level deduplication
 
 - **Purpose:** Collapse scientifically equivalent normalized candidates while
   preserving all representations and source mappings.
@@ -269,7 +371,7 @@ stage consumes an accepted predecessor and must stop at its own review gate.
 - **Acceptance requirement:** Key contract and collision tests, map-back and row
   reconciliation, evidence retention, and independent acceptance.
 
-## Stage 13 — Geographic cross-validation
+### Legacy Stage 13 — Geographic cross-validation
 
 - **Purpose:** Evaluate postcode/country/locality/region agreement using pinned
   independent reference evidence.
@@ -283,7 +385,7 @@ stage consumes an accepted predecessor and must stop at its own review gate.
   ambiguity semantics, strong-positive-evidence definition for `MISMATCH`,
   coverage/bias evaluation, and independent acceptance.
 
-## Stage 14 — Street and house-number validation
+### Legacy Stage 14 — Street and house-number validation
 
 - **Purpose:** Seek positive evidence that street, house number, and geography
   coexist plausibly.
@@ -296,7 +398,7 @@ stage consumes an accepted predecessor and must stop at its own review gate.
 - **Acceptance requirement:** Approved spatial source/license/vintage, local
   protected execution, precision-focused joins, coverage caveats, and review.
 
-## Stage 15 — Constrained fuzzy matching
+### Legacy Stage 15 — Constrained fuzzy matching
 
 - **Purpose:** Compare plausible variants only inside strong geographic blocks.
 - **Input:** Accepted Stage 14 candidates and blocking evidence.
@@ -307,7 +409,7 @@ stage consumes an accepted predecessor and must stop at its own review gate.
 - **Acceptance requirement:** Approved blocking and thresholds, false-positive
   analysis across countries/scripts, bounded candidate counts, and review.
 
-## Stage 16 — Conservative correction
+### Legacy Stage 16 — Conservative correction
 
 - **Purpose:** Accept only high-precision correction proposals supported by
   multiple compatible evidence sources.
@@ -321,7 +423,7 @@ stage consumes an accepted predecessor and must stop at its own review gate.
   precision evaluation, contradiction safeguards, qualitative review, and
   independent acceptance.
 
-## Stage 17 — Geocoding-component selection
+### Legacy Stage 17 — Geocoding-component selection
 
 - **Purpose:** Choose components appropriate for point-level geocoding while
   avoiding recipient/person/floor/unit noise unless justified.
@@ -333,7 +435,7 @@ stage consumes an accepted predecessor and must stop at its own review gate.
 - **Acceptance requirement:** Approved inclusion/omission policy, country and
   representation analysis, traceability, and independent review.
 
-## Stage 18 — Query generation
+### Legacy Stage 18 — Query generation
 
 - **Purpose:** Generate a small deterministic query plan for self-hosted SAFE
   Pelias.
@@ -347,7 +449,7 @@ stage consumes an accepted predecessor and must stop at its own review gate.
   ladder, privacy/authentication review, exact logging contract, and review
   before any geocoder workload.
 
-## Stage 19 — Query deduplication and final QA
+### Legacy Stage 19 — Query deduplication and final QA
 
 - **Purpose:** Execute identical queries once, verify final workload integrity,
   and preserve complete result map-back.
@@ -361,11 +463,13 @@ stage consumes an accepted predecessor and must stop at its own review gate.
   counts, no protected leakage, reviewed concurrency/workload plan, and
   explicit acceptance before geocoding.
 
-## SAFE Pelias boundary
+## Current SAFE Pelias boundary
 
-Geocoding begins only after Stage 19 acceptance and a separate production
-authorization. The preferred endpoint is `/v1/search/structured`, normally
-with `size=1`. Credentials are protected runtime configuration. Total normal
-concurrency is 2–4 requests across the entire process. A returned feature is
-evaluated using layer, match type, input/output geographic agreement, and
-contradictions; confidence alone is insufficient.
+No geocoding is authorized by the proposed renumbering. Under the current
+repository rule, geocoding begins only after Stage 19 acceptance and a separate
+exact-workload authorization. If compact Stages 8–14 are later approved, that
+execution rule must be deliberately reconciled before proposed Stage 12 can
+run. Total normal concurrency remains 2–4 requests across the complete
+process. Top-N features must be retained and evaluated using independent
+agreement, layer, match type, accuracy, and contradictions; confidence and
+rank alone are insufficient.

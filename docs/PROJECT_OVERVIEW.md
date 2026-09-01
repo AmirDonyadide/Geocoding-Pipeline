@@ -35,16 +35,19 @@ positions do not have fixed meanings worldwide, `id` is not assumed globally
 unique, and postal codes must remain strings. Directly concatenating raw fields
 would hide assumptions and make geocoder behavior difficult to interpret.
 
-The pre-geocoding pipeline therefore establishes a controlled evidence chain:
+The pipeline therefore establishes a controlled evidence chain:
 
 1. verify and fingerprint the source population;
 2. ingest every logical CSV record without loss;
 3. preserve stable source identity and provenance;
 4. create only explicit derived values;
 5. build standard and native candidates separately;
-6. validate components conservatively using independent evidence;
-7. deduplicate candidates and queries without deleting source rows; and
-8. submit only approved, versioned queries to self-hosted SAFE Pelias.
+6. preserve parser output as evidence and abstain from unsafe structural use;
+7. generate multiple versioned address/query hypotheses;
+8. validate hypotheses and geocoder results with independent evidence;
+9. deduplicate candidates and queries without deleting source rows; and
+10. accept a result only at an explicit evidence-supported granularity, or
+    remain unresolved.
 
 Stages 0–6 are implemented, independently reviewed, and accepted on
 DEVELOPMENT. Stage 7's first controlled design diagnostic correctly returned
@@ -52,16 +55,15 @@ not ready. Its revised supervisor diagnostic then proved the prior four giant
 crashes were resource-cap dependent, and its later authoritative DEVELOPMENT
 run passed machine integrity. Stage 7 remains unaccepted because qualitative
 and targeted root-cause evidence found material systematic parsing errors. The
-country-aware applicability audit now has reconciled DEVELOPMENT denominators,
-and the DeepParse trained-country diagnostic remains infrastructure-only. Its
-first public bundle was valid at publication but was later mutated by a
-login-side Python cache-resolution import because post-publication write
-protection was absent. Both compute smokes stopped before scientific execution.
-The final public-only physically read-only architecture passed local V2 gates,
-but its exact Goethe prelaunch stopped before scheduling because PanFS rejected
-the required no-replace atomic rename with `EINVAL`. The DeepParse infrastructure
-path is therefore not justified; none of this alters the immutable v1 output.
-Stages 8–19 have not started. See
+country-aware applicability audit has reconciled DEVELOPMENT denominators. The
+DeepParse infrastructure path is closed as
+`DEEPPARSE_INFRASTRUCTURE_PATH_NOT_JUSTIFIED`; no protected DeepParse inference
+occurred. Optimized bounded readiness audit job `1763358` found that a
+deterministic Stage 7-local screen catches all six known boundary failures but
+cannot guarantee semantic label correctness. The prospective v2 design is
+ready for fresh DEVELOPMENT validation only; none of this alters the immutable
+v1 output. The old Stages 8–19 have not started, and compact evidence-first
+replacement Stages 8–14 are proposed but not started. See
 [PIPELINE.md](PIPELINE.md).
 
 ## Standard and native Orbis representations
@@ -105,12 +107,14 @@ evidence aggregation, policy, fail-closed validation, and verified gaps.
 Accepted stages currently use Python's `csv` and `hashlib`, PyArrow/Parquet,
 DuckDB, `unicodedata`, `ftfy`, regular-expression/Arrow operations, and SAFE
 contracts. Current Stage 7 DEVELOPMENT evidence uses pinned
-libpostal/pypostal and is evaluating one pinned DeepParse model only as a
-country-eligible diagnostic. Other planned libraries include pycountry,
-google-i18n-address, direct pinned GeoNames postal data, local Overture Maps
-Addresses GeoParquet, RapidFuzz, Polars, and optional OSM evidence. A planned
-library is not an implemented dependency; every new stage requires design and
-review before use.
+libpostal/pypostal. DeepParse is closed and is not a planned runtime
+dependency. Proposed future evidence stages evaluate pinned offline pycountry
+and libaddressinput metadata, direct GeoNames data, local Overture Maps
+Addresses GeoParquet, optional approved OSM evidence, RapidFuzz inside strong
+blocks, DuckDB, PyArrow/Parquet, and optional Polars transformations.
+Self-hosted SAFE Pelias would retain top-N features for later scoring, never
+treat the first result as truth. A planned library or dataset is not an
+implemented dependency; every new stage requires design and review before use.
 
 Pandas is limited to small DEVELOPMENT inspection and notebooks. Production
 transformations use bounded, columnar or database-oriented execution.
@@ -127,7 +131,7 @@ design -> review -> implement -> synthetic tests -> 35k DEVELOPMENT run
 
 Rejected candidates remain immutable evidence. A minimal fix produces a new
 run and new review; it does not overwrite or relabel the rejected result.
-HOLDOUT is opened once only after the complete Stage 2–19 pipeline is frozen.
+HOLDOUT is opened once only after the complete governing pipeline is frozen.
 
 ## DEVELOPMENT and production separation
 
@@ -145,15 +149,19 @@ through SLURM on Goethe-NHR after separate authorization.
 ## SAFE Pelias role
 
 SAFE Pelias is self-hosted within the protected execution environment and is
-used only after query construction and final QA. The preferred endpoint is
-`/v1/search/structured`, normally with `size=1`. Authentication is runtime-only
-and never logged. Normal concurrency is 2–4 total requests across the complete
-process, not per worker or job.
+used only after an accepted query registry, final workload QA, and separate
+exact-workload authorization. The proposed architecture retains top-N results
+from structured or whole-string queries as justified; it does not accept the
+first feature automatically. Authentication is runtime-only and never logged.
+Normal concurrency is 2–4 total requests across the complete process, not per
+worker or job.
 
-An exact address-layer result without a major contradiction is expected to be
-usable. Acceptance of interpolated address results remains an open scientific
-policy until later evidence. Street, venue, locality, administrative, region,
-country, and fallback results are not usable for point-level research.
+Result layer, match type, accuracy, independent component/geographic
+agreement, contradictions, and cross-query convergence are retained. Final
+acceptance is explicit at `EXACT_ADDRESS`, `STREET_ADDRESS`, `STREET`,
+`POSTCODE`, `LOCALITY`, `ADMIN`, or `UNRESOLVED`; a lower-granularity truthful
+result is preferable to a false point. Which granularities are usable for a
+particular research endpoint remains a later predeclared scientific policy.
 
 ## Documentation map
 

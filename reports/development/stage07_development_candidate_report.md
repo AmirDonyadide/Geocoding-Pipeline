@@ -94,3 +94,39 @@ none without guessing. The controlling diagnosis is
 
 See the sanitized [root-cause report](stage07_quality_root_cause_summary.md).
 No redesign was implemented and a new owner scientific decision is required.
+
+## Prospective v2 readiness/abstention
+
+DeepParse is closed under `DEEPPARSE_INFRASTRUCTURE_PATH_NOT_JUSTIFIED` and no
+protected DeepParse inference occurred. Stage 7 v1 remains immutable.
+
+Optimized bounded audit job `1763358` at
+`372aad37370144d6ca85d05c56302a0af2cad4b3` evaluated prospective
+`stage07_component_readiness_rule_v1` using only the existing authorized 120
+semantic cases and fixed-500 metadata outside them. It completed in 84 seconds
+without scanning/decoding the authoritative nested registry, making a parser
+call, or accessing HOLDOUT/production.
+
+The rule predicted 69 ready, 45 abstain, and six not assessed. It abstained on
+10/11 clear misparses, including all 6/6 known boundary failures; one of five
+label-only clear failures remained structurally ready. This supports a useful
+parser-local warning/abstention layer but not a claim of semantic correctness.
+
+The fixed-500 candidate projection contains 613 IDs, with nine overlapping the
+existing 120 and none overlapping the targeted 18; 604 remain unreviewed. It
+is suitable as an immutable fresh-validation frame after a separately
+authorized machine-only rule pass freezes a 240-case balanced selection. The
+full status model, reason codes, schema, metrics, thresholds, and authorization
+boundary are in the [v2 readiness design](stage07_v2_readiness_design.md).
+
+The post-Stage-7 philosophy is now parser-as-evidence: preserve source truth,
+generate multiple hypotheses, retrieve top-N self-hosted Pelias candidates,
+score them against independent evidence, and accept an explicit granularity or
+remain unresolved. Compact replacement Stages 8–14 are proposed in the
+[architecture redesign](post_stage07_geocoding_architecture_redesign.md), but
+none is started or authorized.
+
+Current statuses remain:
+
+- `STAGE07_V2_READINESS_DESIGN_READY_FOR_FRESH_DEVELOPMENT_VALIDATION`; and
+- `STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY`.

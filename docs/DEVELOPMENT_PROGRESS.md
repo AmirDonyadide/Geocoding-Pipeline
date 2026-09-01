@@ -12,8 +12,8 @@ are in the linked stage records and sanitized reports.
 | 4 | Lowercase canonical forms | **`STAGE_4_ACCEPTED`** | Job `1759421`; independent job `1759473`; 35,000 → 35,000; exact Python `str.lower()`; [report](../reports/development/stage04_summary.md) | **NOT STARTED** |
 | 5 | Address reconstruction | **`STAGE_5_ACCEPTED`** | Job `1759603`; independent job `1759692`; 35,000 → 35,000; exact reconstruction and six accepted non-damaging boundary limitations in a 179-row risk scope; [report](../reports/development/stage05_summary.md); [Stage 5 record](stages/STAGE05_ADDRESS_RECONSTRUCTION.md) | **NOT STARTED** |
 | 6 | Early exact deduplication | **`STAGE_6_ACCEPTED`** | Job `1759819`; independent job `1760055`; 35,000 → 35,000; 69,747 occurrences → 51,779 unique exact candidates; zero collision/map-back/fixed-500 mismatches; [report](../reports/development/stage06_summary.md); [Stage 6 record](stages/STAGE06_EARLY_EXACT_DEDUPLICATION.md) | **NOT STARTED** |
-| 7 | libpostal parsing | **`STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY`** | Authoritative job `1760221` and validation/fixed-500 jobs passed machine integrity; qualitative/root-cause evidence found material parser-quality errors, and context-aware libpostal is unavailable. Country-aware eligibility job `1762293` passed. Public-only bundle job `1762661` was later mutated by a login-side post-publication Python import because its tree remained writable; smoke jobs `1762663`/`1762669` stopped before scientific execution. The final read-only V2 approach passed local gates but its exact prelaunch stopped before scheduling because PanFS rejected `renameat2(RENAME_NOREPLACE)` with `EINVAL`; `DEEPPARSE_INFRASTRUCTURE_PATH_NOT_JUSTIFIED` now controls. No protected DeepParse inference was submitted. [candidate report](../reports/development/stage07_development_candidate_report.md); [root-cause report](../reports/development/stage07_quality_root_cause_summary.md); [context diagnostic](../reports/development/stage07_context_provenance_summary.md); [stabilization audit](../reports/development/stage07_stabilization_prelaunch_audit.md); [Stage 7 record](stages/STAGE07_LIBPOSTAL_PARSING.md) | **NOT STARTED** |
-| 8–19 | Remaining pre-geocoding stages | **NOT STARTED** | No implementation or DEVELOPMENT run | **NOT STARTED** |
+| 7 | libpostal parsing/evidence | **`STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY`** | Authoritative job `1760221` and validation/fixed-500 jobs passed machine integrity; qualitative/root-cause evidence found material parser-quality errors. Country-aware eligibility job `1762293` passed. DeepParse is closed as `DEEPPARSE_INFRASTRUCTURE_PATH_NOT_JUSTIFIED`; no protected inference occurred. Optimized v2 readiness job `1763358` caught all six known boundary failures but leaked one label-only clear failure, establishing a useful structural-warning layer rather than semantic truth. The design is ready for fresh validation only. [candidate report](../reports/development/stage07_development_candidate_report.md); [v2 readiness design](../reports/development/stage07_v2_readiness_design.md); [root-cause report](../reports/development/stage07_quality_root_cause_summary.md); [Stage 7 record](stages/STAGE07_LIBPOSTAL_PARSING.md) | **NOT STARTED** |
+| 8–14 proposed | Evidence → hypotheses → Pelias top-N → scoring → granularity/abstention | **PROPOSED — NOT STARTED** | Compact replacement for the old unstarted 8–19 plan; [architecture redesign](../reports/development/post_stage07_geocoding_architecture_redesign.md) | **NOT STARTED** |
 
 Benchmark V1 contains 35,000 DEVELOPMENT and 15,000 sealed HOLDOUT rows from
 the permanent 1,405-file population. The fixed 500-row qualitative subset has
@@ -21,8 +21,9 @@ fingerprint
 `014f7c1373380b265f34e2ecb76614161b320e2bb972befb8f53994cc5a1dd52`.
 
 DEVELOPMENT Stages 0–6 are accepted. Stage 7 v1 completed its DEVELOPMENT
-machine run but remains not ready because targeted qualitative evidence found
-genuine label and boundary failures that fixed Stage 8 mapping cannot safely
-repair without guessing. Stages 8–19 are not started. Production
+machine run but remains not ready. Its proposed v2 preserves v1 raw evidence
+and treats structural readiness as warning/abstention rather than semantic
+truth; a fresh fixed-500-framed validation remains unauthorized and unrun. The
+old Stages 8–19 and proposed replacement Stages 8–14 are not started. Production
 Stage 0 and Stage 1 are accepted; production Stages 2–7 are not started.
 HOLDOUT is untouched and sealed.

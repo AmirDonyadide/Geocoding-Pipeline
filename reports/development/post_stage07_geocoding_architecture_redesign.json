@@ -1,0 +1,74 @@
+{
+  "version": "post_stage07_geocoding_architecture_redesign_v1",
+  "status": "PROPOSED_NOT_STARTED",
+  "current_stage07_status": "STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY",
+  "governing_philosophy": [
+    "PRESERVE",
+    "GENERATE_MULTIPLE_ADDRESS_HYPOTHESES",
+    "VALIDATE_WITH_INDEPENDENT_GEOGRAPHIC_EVIDENCE",
+    "GEOCODE_MULTIPLE_QUERIES",
+    "SCORE_AND_RANK_RESULTS",
+    "ACCEPT_AT_EXPLICIT_GRANULARITY_OR_ABSTAIN"
+  ],
+  "stages": [
+    {
+      "stage": 8,
+      "name": "LOSSLESS_ADDRESS_EVIDENCE_PROJECTION",
+      "replaces_old_stages": [8, 9, 10, 11]
+    },
+    {
+      "stage": 9,
+      "name": "OFFLINE_GEOGRAPHIC_REFERENCE_EVIDENCE",
+      "replaces_old_stages": [11, 13, 14, 15, 16]
+    },
+    {
+      "stage": 10,
+      "name": "MULTI_HYPOTHESIS_QUERY_PLAN_GENERATION",
+      "replaces_old_stages": [16, 17, 18]
+    },
+    {
+      "stage": 11,
+      "name": "GLOBAL_QUERY_IDENTITY_DEDUPLICATION_AND_WORKLOAD_QA",
+      "replaces_old_stages": [12, 19]
+    },
+    {
+      "stage": 12,
+      "name": "SELF_HOSTED_SAFE_PELIAS_TOP_N_RETRIEVAL",
+      "replaces_old_stages": []
+    },
+    {
+      "stage": 13,
+      "name": "RESULT_EVIDENCE_SCORING_AND_CROSS_QUERY_CONVERGENCE",
+      "replaces_old_stages": []
+    },
+    {
+      "stage": 14,
+      "name": "FINAL_MATCH_GRANULARITY_AND_ABSTENTION_DECISION",
+      "replaces_old_stages": []
+    }
+  ],
+  "final_granularity_vocabulary": [
+    "EXACT_ADDRESS",
+    "STREET_ADDRESS",
+    "STREET",
+    "POSTCODE",
+    "LOCALITY",
+    "ADMIN",
+    "UNRESOLVED"
+  ],
+  "source_truth_overwritten": false,
+  "parser_is_ground_truth": false,
+  "pelias_top_result_is_ground_truth": false,
+  "numeric_scoring_weights_frozen": false,
+  "google_address_validation_api": false,
+  "external_paid_validation_api": false,
+  "holdout_accessed": false,
+  "production_started": false,
+  "geocoding_started": false,
+  "stage08_started": false,
+  "next_task": {
+    "name": "FRESH_STAGE07_V2_COMPONENT_READINESS_VALIDATION",
+    "session": "SAME_STAGE_7_DEVELOPMENT_SESSION",
+    "requires_owner_authorization": true
+  }
+}

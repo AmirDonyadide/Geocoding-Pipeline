@@ -703,3 +703,47 @@ input was opened. D030's final-architecture hard stop therefore applies:
 `DEEPPARSE_INFRASTRUCTURE_PATH_NOT_JUSTIFIED`. Further DeepParse bundle/smoke
 iterations are not authorized; a new owner scientific decision is required for
 libpostal semantic-readiness and conservative abstention policy.
+
+## Stage 7 v2 structural readiness design
+
+The next owner direction closes DeepParse and preserves v1 as immutable
+historical raw evidence. Prospective v2 separates parser applicability,
+technical execution, and component readiness. `COMPONENTS_ABSTAIN` prohibits
+component-dependent downstream interpretation but never drops, invalidates, or
+overwrites the exact Stage 6 candidate. `COMPONENTS_READY` means only that a
+frozen parser-local structural screen found no anomaly; it is not semantic or
+geographic truth.
+
+Initial job `1763280` timed out because its implementation unnecessarily
+scanned the full nested registry and used a quadratic fragmentation loop. The
+failure is `BOUNDED_IMPLEMENTATION_PERFORMANCE_DEFECT` and produced no
+scientific evidence. Optimized replacement job `1763358` at
+`372aad37370144d6ca85d05c56302a0af2cad4b3` completed in 84 seconds. It read
+only the existing authorized 120 review values/components and fixed-500
+metadata elsewhere; authoritative registry rows scanned/decoded, parser calls,
+network calls, new semantic cases, HOLDOUT, and production were all zero.
+
+Rule `stage07_component_readiness_rule_v1` abstained on 10/11 clear misparses,
+including all 6/6 known internal-boundary failures. It abstained on 4/5 known
+label-only failures because those cases also carried structural warnings, but
+one structurally regular label-only clear failure remained ready. The exact
+conclusion is that deterministic Stage 7-local signals are useful structural
+warnings and cannot establish semantic label correctness.
+
+The fixed 500-row source selection predates all Stage 7 quality/readiness
+hypotheses. Its Stage 6 projection contains 613 unique candidate IDs; nine
+overlap the existing 120, none overlaps the targeted 18, and 604 remain
+semantically untouched. It is suitable as an immutable validation frame after
+a separately authorized machine-only pass applies the frozen rule and freezes
+a 240-candidate balanced ready/abstain selection. No new semantic inspection is
+authorized yet.
+
+Stage 7 v2 must guarantee exact lineage/text/raw ordered parse preservation,
+trusted-country applicability, separate technical status, deterministic
+structural warnings, explicit abstention, and full map-back. It does not
+guarantee postal semantics, reference validity, geocoder success, or coordinate
+accuracy. The full sanitized design and predeclared validation thresholds are
+in the [v2 readiness report](../../reports/development/stage07_v2_readiness_design.md).
+The design status is
+`STAGE07_V2_READINESS_DESIGN_READY_FOR_FRESH_DEVELOPMENT_VALIDATION`; the
+scientific status remains `STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY`.

@@ -180,7 +180,10 @@ to change a decision or start a stage.
   for point-level research.
 - **Rationale:** Geocoder availability is distinct from location precision and
   scientific validity.
-- **Status:** LOCKED except interpolated-address acceptance remains open.
+- **Status:** Historical future-geocoding rule. D032 prospectively supersedes
+  the `size=1` and blanket coarse-result treatment with top-N retention and an
+  explicit evidence-supported granularity decision. No geocoding is authorized
+  until the proposed replacement architecture and execution gate are accepted.
 
 ### D018 — Production Stage 3 requires a separate launcher review
 
@@ -519,20 +522,59 @@ to change a decision or start a stage.
   independent review, Stage 8, HOLDOUT, production, geocoding, merge, further
   bundle build, or compute smoke is authorized.
 
+### D032 — Treat parser output as evidence and validate a structural abstention layer
+
+- **Date:** 2026-09-01.
+- **Scope:** Stage 7 v2 DEVELOPMENT design and proposed unstarted post-Stage-7
+  architecture only.
+- **Decision:** Keep Stage 7 v1 immutable and close DeepParse. Design a new v2
+  that separates trusted-country applicability, technical execution, and
+  component readiness. Preserve exact Stage 6 candidates and exact ordered raw
+  libpostal output. Rule `stage07_component_readiness_rule_v1` abstains on
+  empty parses, unresolved applicability, lexical/numeric stream anomalies,
+  failed ordered alignment, token-internal boundaries/fragments, excessive
+  within-run fragmentation, and adjacent repeated labels at internal
+  boundaries. `COMPONENTS_READY` means structurally usable parser evidence, not
+  semantic or geographic truth; `COMPONENTS_ABSTAIN` never drops or invalidates
+  the address.
+- **Evidence:** Optimized bounded job `1763358` at
+  `372aad37370144d6ca85d05c56302a0af2cad4b3` used only the already-authorized
+  120 semantic cases and fixed-500 metadata elsewhere. It completed in 84
+  seconds without scanning the 51,779-row nested registry. The rule abstained
+  on 10/11 clear misparses, including all 6/6 known boundary failures, but one
+  label-only failure remained ready. Semantic label errors with regular
+  structure are not reliably detectable from Stage 7-local evidence.
+- **Validation decision:** The fixed 500-row selection predates the readiness
+  hypothesis. Its candidate projection contains 613 IDs, overlaps the existing
+  120 by nine and the targeted 18 by zero, leaving 604 untouched. It is the
+  immutable validation frame, not an already-stratified review sample. A
+  separately authorized machine-only rule application must freeze a 240-case
+  balanced ready/abstain selection before any new semantic review.
+- **Future architecture:** Propose compact Stages 8–14: lossless evidence
+  projection, offline reference evidence, multiple hypotheses, global query
+  identity/QA, self-hosted Pelias top-N retrieval, deterministic evidence
+  scoring/convergence, and final granularity/abstention. The old Stages 8–19
+  were never started and are proposed for replacement; their scientific
+  safeguards remain. The current no-geocoding gate remains controlling until
+  the redesign is separately approved and execution policy is deliberately
+  reconciled.
+- **Status:** `STAGE07_V2_READINESS_DESIGN_READY_FOR_FRESH_DEVELOPMENT_VALIDATION`
+  and `STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY`. This does not authorize the
+  604-candidate machine pass, 240-case semantic review, independent Stage 7
+  review, Stage 8, HOLDOUT, production, geocoding, or merge.
+
 ## Open decisions
 
 These questions require future stage designs and explicit approval:
 
-- the Stage 7 design decision after the D028/D029 eligibility-matched
-  second-parser diagnostic;
-- country-specific Stage 11 coverage and syntax policy;
-- reference versions/licenses and blocking semantics for Stages 13–15;
-- exact high-precision correction policy for Stage 16;
-- Stage 17 component inclusion/omission policy;
-- Stage 18 controlled query ladder; and
-- whether interpolated address-layer Pelias results are usable for the final
-  point-level analysis.
+- fresh Stage 7 v2 validation under D032 and its subsequent independent review;
+- approval or revision of the proposed compact Stages 8–14;
+- exact offline reference releases/licenses and blocking semantics;
+- the bounded Stage 10 hypothesis/query ladder;
+- Stage 13 scoring/calibration and contradiction policy; and
+- Stage 14 granularity-specific usability thresholds, including treatment of
+  interpolated Pelias address results.
 
 Nothing in this register authorizes HOLDOUT, Stage 7 acceptance or independent
 review, Stage 8, geocoding, or production Stage 2 through Stage 7. Stage 7
-decisions D023–D031 authorize only their stated DEVELOPMENT scopes.
+decisions D023–D032 authorize only their stated DEVELOPMENT scopes.

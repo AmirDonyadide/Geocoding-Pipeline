@@ -83,6 +83,33 @@
     "third_party_api_used": false,
     "protected_artifacts_owner_only_untracked": true
   },
+  "v2_readiness_design": {
+    "status": "STAGE07_V2_READINESS_DESIGN_READY_FOR_FRESH_DEVELOPMENT_VALIDATION",
+    "rule_id": "stage07_component_readiness_rule_v1",
+    "optimized_audit_job": "1763358",
+    "optimized_audit_sha": "372aad37370144d6ca85d05c56302a0af2cad4b3",
+    "authorized_discovery_cases": 120,
+    "ready": 69,
+    "abstain": 45,
+    "not_assessed": 6,
+    "clear_misparse_abstained": 10,
+    "clear_misparse_ready_leakage": 1,
+    "boundary_clear_abstained": 6,
+    "boundary_clear_total": 6,
+    "label_only_clear_abstained_by_other_signals": 4,
+    "label_only_clear_total": 5,
+    "fixed500_candidate_frame": 613,
+    "fixed500_overlap_existing_120": 9,
+    "fixed500_remaining_unreviewed": 604,
+    "fresh_validation_authorized": false
+  },
+  "post_stage07_architecture": {
+    "status": "PROPOSED_NOT_STARTED",
+    "proposed_stage_range": "8-14",
+    "old_stage_range": "8-19",
+    "old_stage_design_executed": false,
+    "geocoding_authorized": false
+  },
   "holdout_accessed": false,
   "production_started": false,
   "stage8_started": false,
