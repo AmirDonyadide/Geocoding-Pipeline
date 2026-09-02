@@ -1,0 +1,25 @@
+{
+  "affected_candidate_sha": "70e3de9536aee7074e27018d39e0164f3a2200ae",
+  "affected_executable_sha": "bdea7232a3f92ebd381be87610b753b8e4c35481",
+  "blocking_defect": "FINAL identity is checked before parent fsync and final reopen validation but is not checked again afterward, so a byte-identical replacement directory with a different device/inode can be adopted as the invocation-owned publication.",
+  "defect_class": "publication",
+  "goethe_review_job_submitted": false,
+  "historical_candidate_modified": false,
+  "independent_control": {
+    "final_validator_passed": true,
+    "owned_identity_retained": true,
+    "real_rename_effect_verified_before_injected_exception": true,
+    "result": "SUCCESS"
+  },
+  "independent_falsification": {
+    "captured_owned_identity_equal_to_returned_final_identity": false,
+    "complete_final_reopen_validation_passed": true,
+    "parent_directory_fsync_succeeded": true,
+    "real_rename_effect_verified_before_injected_exception": true,
+    "returned_final_passed_stage08_validator": true,
+    "result": "SUCCESS"
+  },
+  "protected_artifact_accessed": false,
+  "reviewed_candidate_remained_unchanged": true,
+  "verdict": "STAGE08_ADDRESS_EVIDENCE_INDEPENDENT_REREVIEW_FAIL"
+}
