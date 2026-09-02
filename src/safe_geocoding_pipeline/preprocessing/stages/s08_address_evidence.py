@@ -296,7 +296,7 @@ class _PublicationPhase(str, Enum):
     POST_RENAME_PRE_PARENT_FSYNC = "POST_RENAME_PRE_PARENT_FSYNC"
     PARENT_FSYNC = "PARENT_FSYNC"
     POSTPUBLICATION_VALIDATION = "POSTPUBLICATION_VALIDATION"
-    COMPLETE = "COMPLETE"
+    FINAL_OWNERSHIP_VERIFICATION = "FINAL_OWNERSHIP_VERIFICATION"
 
 
 def _canonical_json(value: object) -> bytes:
@@ -1853,6 +1853,18 @@ def _verify_post_rename_state(
         )
 
 
+def _verify_final_publication_ownership(
+    final: Path, expected_identity: tuple[int, int]
+) -> None:
+    """Bind terminal success to the exact no-follow attempt identity."""
+    final_present, final_identity = _publication_path_presence_and_identity(final)
+    if not final_present or final_identity != expected_identity:
+        _fail(
+            "STAGE08_FINAL_OWNERSHIP_MISMATCH",
+            "The final path no longer references the owned Stage 8 publication",
+        )
+
+
 def _demote_owned_publication(
     observation: _PublicationPathObservation,
     *,
@@ -2248,6 +2260,7 @@ def materialize_stage08(config: Stage08Config) -> Stage08Outcome:
     attempt_identity: tuple[int, int] | None = None
     publication_phase = _PublicationPhase.PRE_RENAME
     outcome: Stage08Outcome | None = None
+    umask_restored = False
     try:
         temporary.mkdir(mode=0o700)
         attempt_identity = _directory_identity_if_present(temporary)
@@ -2698,9 +2711,20 @@ def materialize_stage08(config: Stage08Config) -> Stage08Outcome:
             expected_manifest_sha256=manifest_sha,
             config=replace(config, controlled_execution=False),
         )
-        publication_phase = _PublicationPhase.COMPLETE
+        prepared_outcome = replace(
+            outcome,
+            publication_validation_milliseconds=round(
+                (time.perf_counter() - prepublication_started) * 1_000
+            ),
+        )
+        os.umask(old_umask)
+        umask_restored = True
+        publication_phase = _PublicationPhase.FINAL_OWNERSHIP_VERIFICATION
+        _verify_final_publication_ownership(config.output_directory, attempt_identity)
+        return prepared_outcome
     except BaseException as error:
         current_error = error
+        outcome = None
         try:
             observation = _observe_publication_paths(temporary, config.output_directory)
         except BaseException as observation_error:
@@ -2725,6 +2749,30 @@ def materialize_stage08(config: Stage08Config) -> Stage08Outcome:
             except BaseException as adoption_error:
                 current_error = adoption_error
                 outcome = None
+        if outcome is not None:
+            if attempt_identity is None:
+                _fail(
+                    "STAGE08_PUBLICATION_STATE_INVALID",
+                    "An adopted publication has no captured attempt identity",
+                )
+            try:
+                prepared_outcome = replace(
+                    outcome,
+                    publication_validation_milliseconds=round(
+                        (time.perf_counter() - prepublication_started) * 1_000
+                    ),
+                )
+                os.umask(old_umask)
+                umask_restored = True
+                publication_phase = _PublicationPhase.FINAL_OWNERSHIP_VERIFICATION
+                _verify_final_publication_ownership(
+                    config.output_directory, attempt_identity
+                )
+            except BaseException as terminal_error:
+                current_error = terminal_error
+                outcome = None
+            else:
+                return prepared_outcome
         if outcome is None:
             if attempt_identity is not None:
                 try:
@@ -2744,17 +2792,11 @@ def materialize_stage08(config: Stage08Config) -> Stage08Outcome:
                     ) from cleanup_error
             _raise_stage08_materialization_error(current_error)
     finally:
-        os.umask(old_umask)
-    if outcome is None:
-        _fail(
-            "STAGE08_PUBLICATION_STATE_INVALID",
-            "Stage 8 completed without an explicit terminal outcome",
-        )
-    return replace(
-        outcome,
-        publication_validation_milliseconds=round(
-            (time.perf_counter() - prepublication_started) * 1_000
-        ),
+        if not umask_restored:
+            os.umask(old_umask)
+    _fail(
+        "STAGE08_PUBLICATION_STATE_INVALID",
+        "Stage 8 completed without an explicit terminal outcome",
     )
 
 

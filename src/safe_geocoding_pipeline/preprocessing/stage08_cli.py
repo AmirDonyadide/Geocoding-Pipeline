@@ -11,10 +11,15 @@ from typing import Sequence
 from ..execution_policy import ExecutionPolicyError, require_goethe_nhr_slurm
 from .stages.s08_address_evidence import (
     Stage08Config,
+    Stage08Outcome,
     Stage08ValidationError,
     materialize_stage08,
     validate_stage08_bundle,
 )
+
+
+_MATERIALIZED_STATUS = "STAGE08_ADDRESS_EVIDENCE_IMPLEMENTATION_CANDIDATE_MATERIALIZED"
+_VALIDATED_STATUS = "STAGE08_ADDRESS_EVIDENCE_PUBLISHED_VALIDATION_PASS"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -67,6 +72,60 @@ def _config(args: argparse.Namespace) -> Stage08Config:
     )
 
 
+def _serialize_result(command: str, outcome: Stage08Outcome) -> str:
+    """Serialize only the already-computed, privacy-safe terminal result."""
+    status = _MATERIALIZED_STATUS if command == "materialize" else _VALIDATED_STATUS
+    return "\n".join(
+        (
+            f"status={status}",
+            f"candidate_rows={outcome.candidate_rows}",
+            f"component_rows={outcome.component_rows}",
+            f"source_rows={outcome.source_rows}",
+            f"occurrence_rows={outcome.occurrence_rows}",
+            f"manifest_sha256={outcome.manifest_sha256}",
+            f"logical_dataset_sha256={outcome.logical_dataset_sha256}",
+            f"contract_fingerprint={outcome.contract_fingerprint}",
+            f"schema_bundle_fingerprint={outcome.schema_bundle_fingerprint}",
+            "parser_calls=0",
+            "semantic_trust_fields=0",
+            "reference_lookups=0",
+            "network_calls=0",
+            "",
+        )
+    )
+
+
+def _quarantine_failed_standard_stream(name: str, stream: object) -> None:
+    """Prevent interpreter-shutdown flush from retrying a known-broken stream."""
+    try:
+        if getattr(sys, name, None) is stream:
+            setattr(sys, name, None)
+    except BaseException:
+        pass
+
+
+def _best_effort_diagnostic(message: str) -> None:
+    stream = sys.stderr
+    try:
+        stream.write(message)
+        stream.flush()
+    except BaseException:
+        _quarantine_failed_standard_stream("stderr", stream)
+
+
+def _present_success(command: str, outcome: Stage08Outcome) -> None:
+    """Best-effort presentation that cannot reverse publication success."""
+    stream = sys.stdout
+    try:
+        stream.write(_serialize_result(command, outcome))
+        stream.flush()
+    except BaseException:
+        _quarantine_failed_standard_stream("stdout", stream)
+        _best_effort_diagnostic(
+            "warning=STAGE08_RESULT_PRESENTATION_FAILED_AFTER_SUCCESS\n"
+        )
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
@@ -74,31 +133,16 @@ def main(argv: Sequence[str] | None = None) -> int:
         config = _config(args)
         if args.command == "materialize":
             outcome = materialize_stage08(config)
-            print(
-                "status=STAGE08_ADDRESS_EVIDENCE_IMPLEMENTATION_CANDIDATE_MATERIALIZED"
-            )
         else:
             outcome = validate_stage08_bundle(
                 config.output_directory,
                 expected_manifest_sha256=args.expected_manifest_sha256,
                 config=config,
             )
-            print("status=STAGE08_ADDRESS_EVIDENCE_PUBLISHED_VALIDATION_PASS")
-        print(f"candidate_rows={outcome.candidate_rows}")
-        print(f"component_rows={outcome.component_rows}")
-        print(f"source_rows={outcome.source_rows}")
-        print(f"occurrence_rows={outcome.occurrence_rows}")
-        print(f"manifest_sha256={outcome.manifest_sha256}")
-        print(f"logical_dataset_sha256={outcome.logical_dataset_sha256}")
-        print(f"contract_fingerprint={outcome.contract_fingerprint}")
-        print(f"schema_bundle_fingerprint={outcome.schema_bundle_fingerprint}")
-        print("parser_calls=0")
-        print("semantic_trust_fields=0")
-        print("reference_lookups=0")
-        print("network_calls=0")
     except (ExecutionPolicyError, Stage08ValidationError) as error:
-        print(f"error={error}", file=sys.stderr)
+        _best_effort_diagnostic(f"error={error}\n")
         return 1
+    _present_success(args.command, outcome)
     return 0
 
 

@@ -1,16 +1,23 @@
 from __future__ import annotations
 
 import ast
+import io
 import json
+import os
+import shutil
 import stat
+import subprocess
+import sys
 from dataclasses import replace
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 
+from safe_geocoding_pipeline.preprocessing import stage08_cli
 from safe_geocoding_pipeline.preprocessing.stages import s08_address_evidence as stage08
 from safe_geocoding_pipeline.preprocessing.stages.s06_exact_deduplication import (
     row_map_schema,
@@ -342,6 +349,78 @@ def _assert_reader_rejects_incomplete(root: Path, config: Stage08Config) -> None
             expected_manifest_sha256="0" * 64,
             config=replace(config, output_directory=root),
         )
+
+
+def _assert_reader_accepts(root: Path, config: Stage08Config) -> stage08.Stage08Outcome:
+    success = json.loads(
+        (root / stage08.STAGE08_SUCCESS_NAME).read_text(encoding="utf-8")
+    )
+    return validate_stage08_bundle(
+        root,
+        expected_manifest_sha256=success["manifest_sha256"],
+        config=replace(config, output_directory=root),
+    )
+
+
+def _replace_final_with_byte_identical_tree(
+    final: Path, *, suffix: str
+) -> tuple[Path, tuple[int, int], tuple[int, int]]:
+    owned_identity = stage08._directory_identity_if_present(final)
+    assert owned_identity is not None
+    replacement = final.parent / f"replacement-{suffix}"
+    retained_owned = final.parent / f"owned-{suffix}"
+    shutil.copytree(final, replacement)
+    final.rename(retained_owned)
+    replacement.rename(final)
+    replacement_identity = stage08._directory_identity_if_present(final)
+    assert replacement_identity is not None
+    assert replacement_identity != owned_identity
+    return retained_owned, owned_identity, replacement_identity
+
+
+class _FailingTextStream:
+    def __init__(self, *, fail_write: bool = False, fail_flush: bool = False) -> None:
+        self.fail_write = fail_write
+        self.fail_flush = fail_flush
+        self.value = ""
+        self.flush_calls = 0
+
+    def write(self, value: str) -> int:
+        if self.fail_write:
+            raise OSError("synthetic write failure")
+        self.value += value
+        return len(value)
+
+    def flush(self) -> None:
+        self.flush_calls += 1
+        if self.fail_flush:
+            raise OSError("synthetic flush failure")
+
+
+def _configure_cli_for_materialization(
+    monkeypatch: pytest.MonkeyPatch, config: Stage08Config
+) -> None:
+    parser = SimpleNamespace(
+        parse_args=lambda _: SimpleNamespace(command="materialize")
+    )
+    monkeypatch.setattr(stage08_cli, "build_parser", lambda: parser)
+    monkeypatch.setattr(stage08_cli, "require_goethe_nhr_slurm", lambda _: None)
+    monkeypatch.setattr(stage08_cli, "_config", lambda _: config)
+
+
+def _synthetic_outcome(output_directory: Path) -> stage08.Stage08Outcome:
+    return stage08.Stage08Outcome(
+        output_directory=output_directory,
+        manifest_sha256="1" * 64,
+        logical_dataset_sha256="2" * 64,
+        contract_fingerprint="3" * 64,
+        schema_bundle_fingerprint="4" * 64,
+        candidate_rows=6,
+        component_rows=26,
+        source_rows=8,
+        occurrence_rows=10,
+        metrics={},
+    )
 
 
 def test_frozen_schemas_mapping_and_semantic_taxonomy_are_exact() -> None:
@@ -915,6 +994,401 @@ def test_postpublication_reopen_failure_demotes_success_to_incomplete(
             expected_manifest_sha256="0" * 64,
             config=config,
         )
+
+
+@pytest.mark.parametrize(
+    "replacement_boundary",
+    (
+        "during_parent_fsync",
+        "before_final_reopen",
+        "during_final_reopen",
+        "before_final_ownership_check",
+    ),
+)
+def test_byte_identical_different_inode_replacement_never_returns_success(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    replacement_boundary: str,
+) -> None:
+    config, validated = _fixture(tmp_path)
+    monkeypatch.setattr(stage08, "_validated_inputs", lambda _: validated)
+    real_fsync = getattr(stage08, "_fsync_directory")
+    real_validate = stage08.validate_stage08_bundle
+    real_topology = stage08._topology
+    real_final_ownership = stage08._verify_final_publication_ownership
+    replacement: tuple[Path, tuple[int, int], tuple[int, int]] | None = None
+
+    def replace_once() -> None:
+        nonlocal replacement
+        if replacement is None:
+            replacement = _replace_final_with_byte_identical_tree(
+                config.output_directory, suffix=replacement_boundary
+            )
+
+    def fsync_directory(path: Path) -> None:
+        if (
+            replacement_boundary == "during_parent_fsync"
+            and path == config.output_directory.parent
+            and config.output_directory.is_dir()
+        ):
+            replace_once()
+        real_fsync(path)
+
+    def validate_published(
+        output_directory: Path, **kwargs: Any
+    ) -> stage08.Stage08Outcome:
+        if (
+            replacement_boundary == "before_final_reopen"
+            and output_directory == config.output_directory
+        ):
+            replace_once()
+        return real_validate(output_directory, **kwargs)
+
+    def topology(path: Path) -> tuple[set[str], set[str]]:
+        if (
+            replacement_boundary == "during_final_reopen"
+            and path == config.output_directory
+        ):
+            replace_once()
+        return real_topology(path)
+
+    def final_ownership(final: Path, expected_identity: tuple[int, int]) -> None:
+        if replacement_boundary == "before_final_ownership_check":
+            replace_once()
+        real_final_ownership(final, expected_identity)
+
+    monkeypatch.setattr(stage08, "_fsync_directory", fsync_directory)
+    monkeypatch.setattr(stage08, "validate_stage08_bundle", validate_published)
+    monkeypatch.setattr(stage08, "_topology", topology)
+    monkeypatch.setattr(stage08, "_verify_final_publication_ownership", final_ownership)
+
+    with pytest.raises(
+        Stage08ValidationError, match="STAGE08_FINAL_OWNERSHIP_MISMATCH"
+    ):
+        materialize_stage08(config)
+
+    assert replacement is not None
+    retained_owned, owned_identity, replacement_identity = replacement
+    assert not tuple(
+        config.output_directory.parent.glob(
+            f".{config.output_directory.name}.*.in_progress"
+        )
+    )
+    assert stage08._directory_identity_if_present(retained_owned) == owned_identity
+    assert (
+        stage08._directory_identity_if_present(config.output_directory)
+        == replacement_identity
+    )
+    assert (config.output_directory / stage08.STAGE08_SUCCESS_NAME).is_file()
+    assert not (config.output_directory / stage08.STAGE08_IN_PROGRESS_NAME).exists()
+    assert (retained_owned / stage08.STAGE08_SUCCESS_NAME).is_file()
+    assert not (retained_owned / stage08.STAGE08_IN_PROGRESS_NAME).exists()
+    reopened = _assert_reader_accepts(config.output_directory, config)
+    retained_reopened = _assert_reader_accepts(retained_owned, config)
+    assert reopened.logical_dataset_sha256 == retained_reopened.logical_dataset_sha256
+    assert reopened.manifest_sha256 == retained_reopened.manifest_sha256
+
+
+def test_symlink_replacement_before_final_ownership_check_fails_without_demotion(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config, validated = _fixture(tmp_path)
+    monkeypatch.setattr(stage08, "_validated_inputs", lambda _: validated)
+    real_final_ownership = stage08._verify_final_publication_ownership
+    retained_owned = config.output_directory.parent / "owned-before-symlink"
+
+    def replace_with_symlink(final: Path, expected_identity: tuple[int, int]) -> None:
+        final.rename(retained_owned)
+        final.symlink_to(retained_owned.name, target_is_directory=True)
+        real_final_ownership(final, expected_identity)
+
+    monkeypatch.setattr(
+        stage08, "_verify_final_publication_ownership", replace_with_symlink
+    )
+    with pytest.raises(
+        Stage08ValidationError, match="STAGE08_FINAL_OWNERSHIP_MISMATCH"
+    ):
+        materialize_stage08(config)
+
+    assert config.output_directory.is_symlink()
+    assert (retained_owned / stage08.STAGE08_SUCCESS_NAME).is_file()
+    assert not (retained_owned / stage08.STAGE08_IN_PROGRESS_NAME).exists()
+    _assert_reader_accepts(retained_owned, config)
+    with pytest.raises(Stage08ValidationError):
+        _assert_reader_accepts(config.output_directory, config)
+
+
+def test_final_ownership_failure_demotes_only_unchanged_owned_tree(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config, validated = _fixture(tmp_path)
+    monkeypatch.setattr(stage08, "_validated_inputs", lambda _: validated)
+    owned_identity: tuple[int, int] | None = None
+
+    def reject_owned(final: Path, expected_identity: tuple[int, int]) -> None:
+        nonlocal owned_identity
+        owned_identity = expected_identity
+        assert stage08._directory_identity_if_present(final) == expected_identity
+        raise Stage08ValidationError(
+            "INJECTED_FINAL_OWNERSHIP_FAILURE", "synthetic ownership rejection"
+        )
+
+    monkeypatch.setattr(stage08, "_verify_final_publication_ownership", reject_owned)
+    with pytest.raises(
+        Stage08ValidationError, match="INJECTED_FINAL_OWNERSHIP_FAILURE"
+    ):
+        materialize_stage08(config)
+
+    assert owned_identity is not None
+    assert (
+        stage08._directory_identity_if_present(config.output_directory)
+        == owned_identity
+    )
+    _assert_reader_rejects_incomplete(config.output_directory, config)
+
+
+def test_final_ownership_check_is_last_rejection_capable_publication_operation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config, validated = _fixture(tmp_path)
+    monkeypatch.setattr(stage08, "_validated_inputs", lambda _: validated)
+    real_fsync = getattr(stage08, "_fsync_directory")
+    real_validate = stage08.validate_stage08_bundle
+    real_final_ownership = stage08._verify_final_publication_ownership
+    trace: list[str] = []
+
+    def fsync_directory(path: Path) -> None:
+        real_fsync(path)
+        if path == config.output_directory.parent and config.output_directory.is_dir():
+            trace.append("parent_fsync")
+
+    def validate_published(
+        output_directory: Path, **kwargs: Any
+    ) -> stage08.Stage08Outcome:
+        outcome = real_validate(output_directory, **kwargs)
+        if output_directory == config.output_directory:
+            trace.append("final_reopen_validation")
+        return outcome
+
+    def final_ownership(final: Path, expected_identity: tuple[int, int]) -> None:
+        assert trace[-2:] == ["parent_fsync", "final_reopen_validation"]
+        real_final_ownership(final, expected_identity)
+        trace.append("final_ownership")
+
+    monkeypatch.setattr(stage08, "_fsync_directory", fsync_directory)
+    monkeypatch.setattr(stage08, "validate_stage08_bundle", validate_published)
+    monkeypatch.setattr(stage08, "_verify_final_publication_ownership", final_ownership)
+    outcome = materialize_stage08(config)
+
+    assert outcome.output_directory == config.output_directory
+    assert trace == ["parent_fsync", "final_reopen_validation", "final_ownership"]
+    _assert_reader_accepts(config.output_directory, config)
+
+
+def test_real_rename_then_raise_adoption_rechecks_final_ownership_last(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config, validated = _fixture(tmp_path)
+    monkeypatch.setattr(stage08, "_validated_inputs", lambda _: validated)
+    real_publish = stage08._atomic_publish_directory
+    real_validate = stage08.validate_stage08_bundle
+    real_final_ownership = stage08._verify_final_publication_ownership
+    trace: list[str] = []
+
+    def rename_then_raise(source: Path, destination: Path) -> None:
+        real_publish(source, destination)
+        raise OSError("synthetic post-effect rename failure")
+
+    def validate_published(
+        output_directory: Path, **kwargs: Any
+    ) -> stage08.Stage08Outcome:
+        outcome = real_validate(output_directory, **kwargs)
+        if output_directory == config.output_directory:
+            trace.append("adoption_final_reopen_validation")
+        return outcome
+
+    def final_ownership(final: Path, expected_identity: tuple[int, int]) -> None:
+        assert trace[-1] == "adoption_final_reopen_validation"
+        real_final_ownership(final, expected_identity)
+        trace.append("final_ownership")
+
+    monkeypatch.setattr(stage08, "_atomic_publish_directory", rename_then_raise)
+    monkeypatch.setattr(stage08, "validate_stage08_bundle", validate_published)
+    monkeypatch.setattr(stage08, "_verify_final_publication_ownership", final_ownership)
+    outcome = materialize_stage08(config)
+
+    assert outcome.output_directory == config.output_directory
+    assert trace == ["adoption_final_reopen_validation", "final_ownership"]
+    _assert_reader_accepts(config.output_directory, config)
+
+
+def test_cli_stdout_first_write_failure_after_real_publication_returns_success(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config, validated = _fixture(tmp_path)
+    monkeypatch.setattr(stage08, "_validated_inputs", lambda _: validated)
+    _configure_cli_for_materialization(monkeypatch, config)
+    stdout = _FailingTextStream(fail_write=True)
+    stderr = io.StringIO()
+    monkeypatch.setattr(sys, "stdout", stdout)
+    monkeypatch.setattr(sys, "stderr", stderr)
+
+    assert stage08_cli.main([]) == 0
+
+    assert sys.stdout is None
+    assert "STAGE08_RESULT_PRESENTATION_FAILED_AFTER_SUCCESS" in stderr.getvalue()
+    final_identity = stage08._directory_identity_if_present(config.output_directory)
+    assert final_identity is not None
+    reopened = _assert_reader_accepts(config.output_directory, config)
+    assert reopened.output_directory == config.output_directory
+    assert (
+        stage08._directory_identity_if_present(config.output_directory)
+        == final_identity
+    )
+    assert not (config.output_directory / stage08.STAGE08_IN_PROGRESS_NAME).exists()
+
+
+@pytest.mark.parametrize("failure", ("write", "flush", "serialize"))
+def test_cli_postcommit_presentation_failures_preserve_success_status(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    failure: str,
+) -> None:
+    config, _ = _fixture(tmp_path)
+    outcome = _synthetic_outcome(config.output_directory)
+    _configure_cli_for_materialization(monkeypatch, config)
+    monkeypatch.setattr(stage08_cli, "materialize_stage08", lambda _: outcome)
+    stdout = _FailingTextStream(
+        fail_write=failure == "write", fail_flush=failure == "flush"
+    )
+    stderr = io.StringIO()
+    monkeypatch.setattr(sys, "stdout", stdout)
+    monkeypatch.setattr(sys, "stderr", stderr)
+    if failure == "serialize":
+        monkeypatch.setattr(
+            stage08_cli,
+            "_serialize_result",
+            lambda *_: (_ for _ in ()).throw(RuntimeError("synthetic serialization")),
+        )
+
+    assert stage08_cli.main([]) == 0
+    assert sys.stdout is None
+    assert "STAGE08_RESULT_PRESENTATION_FAILED_AFTER_SUCCESS" in stderr.getvalue()
+
+
+def test_cli_stderr_failure_after_stdout_failure_is_nonrecursive_success(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config, _ = _fixture(tmp_path)
+    outcome = _synthetic_outcome(config.output_directory)
+    _configure_cli_for_materialization(monkeypatch, config)
+    monkeypatch.setattr(stage08_cli, "materialize_stage08", lambda _: outcome)
+    monkeypatch.setattr(sys, "stdout", _FailingTextStream(fail_write=True))
+    monkeypatch.setattr(sys, "stderr", _FailingTextStream(fail_write=True))
+
+    assert stage08_cli.main([]) == 0
+    assert sys.stdout is None
+    assert sys.stderr is None
+
+
+def test_cli_ordinary_successful_reporting_is_serialized_and_flushed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config, _ = _fixture(tmp_path)
+    outcome = _synthetic_outcome(config.output_directory)
+    _configure_cli_for_materialization(monkeypatch, config)
+    monkeypatch.setattr(stage08_cli, "materialize_stage08", lambda _: outcome)
+    stdout = _FailingTextStream()
+    monkeypatch.setattr(sys, "stdout", stdout)
+
+    assert stage08_cli.main([]) == 0
+
+    assert stdout.flush_calls == 1
+    assert stdout.value.startswith(
+        "status=STAGE08_ADDRESS_EVIDENCE_IMPLEMENTATION_CANDIDATE_MATERIALIZED\n"
+    )
+    assert "candidate_rows=6\n" in stdout.value
+    assert stdout.value.endswith("network_calls=0\n")
+
+
+@pytest.mark.parametrize(
+    "error",
+    (
+        Stage08ValidationError(
+            "INJECTED_PRECOMMIT_FAILURE", "synthetic materialization failure"
+        ),
+        Stage08ValidationError(
+            "INJECTED_PREPUBLICATION_FAILURE", "synthetic prepublication failure"
+        ),
+    ),
+)
+def test_cli_prepublication_failures_cannot_be_converted_to_success(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    error: Stage08ValidationError,
+) -> None:
+    config, _ = _fixture(tmp_path)
+    _configure_cli_for_materialization(monkeypatch, config)
+    presented = False
+
+    def fail_materialization(_: Stage08Config) -> stage08.Stage08Outcome:
+        raise error
+
+    def present(*_: object) -> None:
+        nonlocal presented
+        presented = True
+
+    monkeypatch.setattr(stage08_cli, "materialize_stage08", fail_materialization)
+    monkeypatch.setattr(stage08_cli, "_present_success", present)
+    stderr = io.StringIO()
+    monkeypatch.setattr(sys, "stderr", stderr)
+
+    assert stage08_cli.main([]) == 1
+    assert error.code in stderr.getvalue()
+    assert presented is False
+
+
+def test_cli_process_exits_zero_when_explicit_stdout_flush_fails(
+    tmp_path: Path,
+) -> None:
+    script = """
+import sys
+from types import SimpleNamespace
+from pathlib import Path
+from safe_geocoding_pipeline.preprocessing import stage08_cli
+from safe_geocoding_pipeline.preprocessing.stages.s08_address_evidence import Stage08Outcome
+
+class BrokenStdout:
+    def write(self, value):
+        return len(value)
+    def flush(self):
+        raise OSError("synthetic process flush failure")
+
+stage08_cli.build_parser = lambda: SimpleNamespace(
+    parse_args=lambda _: SimpleNamespace(command="materialize")
+)
+stage08_cli.require_goethe_nhr_slurm = lambda _: None
+stage08_cli._config = lambda _: object()
+stage08_cli.materialize_stage08 = lambda _: Stage08Outcome(
+    output_directory=Path("synthetic"), manifest_sha256="1" * 64,
+    logical_dataset_sha256="2" * 64, contract_fingerprint="3" * 64,
+    schema_bundle_fingerprint="4" * 64, candidate_rows=1, component_rows=1,
+    source_rows=1, occurrence_rows=1, metrics={}
+)
+sys.stdout = BrokenStdout()
+raise SystemExit(stage08_cli.main([]))
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        cwd=tmp_path,
+        env={**os.environ, "PYTHONPATH": str(Path(__file__).parents[1] / "src")},
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0
+    assert "STAGE08_RESULT_PRESENTATION_FAILED_AFTER_SUCCESS" in result.stderr
 
 
 def test_lossless_projection_reversibility_unknown_duplicates_and_mapback(
