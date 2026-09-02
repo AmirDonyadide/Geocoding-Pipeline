@@ -806,21 +806,59 @@ to change a decision or start a stage.
   action is separate owner authorization for one bounded Goethe-NHR
   DEVELOPMENT materialization; a pending run must not be duplicated.
 
+### D040 — Freeze the Stage 8 DEVELOPMENT materialization candidate
+
+- **Date:** 2026-09-02.
+- **Scope:** Stage 8 DEVELOPMENT execution evidence and candidate freeze only;
+  no independent review or acceptance.
+- **Decision:** Reuse the single immutable job `1763747` artifact produced by
+  executable commit `a2544401b4b699f6c020970f3507a2ae432746c5`. Bind manifest
+  SHA-256 `bdf86738fb071e38b2ad090f4627a821149352fb1490e62b76e5819aa915bcf9`
+  and logical dataset SHA-256
+  `9c9d431c2c1b92712e0cb372f2661ad48f4fe8758dc0327d25aef90ab2c2d526`.
+  No second materialization is justified or authorized.
+- **Reconciliation:** The immutable candidate contains 51,779 candidates,
+  6,106,088 ordered component rows, 35,000 source rows, and 69,747 occurrence
+  mappings (34,822 STANDARD; 34,925 NATIVE). It preserves 51,774
+  `PARSED_NONEMPTY` and five `PARSED_EMPTY` states. All components use the
+  frozen mapping in this input; unmapped, dangling, component-count-mismatch,
+  and occurrence-count-mismatch totals are zero. Reversibility and every frozen
+  validation field passed.
+- **Scheduler accounting:** The launcher and `ReqCPUS` requested four CPUs;
+  `AllocCPUS` records 80 because `general1` is
+  `OverSubscribe=EXCLUSIVE` and the assigned node has 80 CPUs. Stage 8 remained
+  one task with `--cpus-per-task=4`; DuckDB remained at four threads and an 8GB
+  cap. Batch `TotalCPU` was 948.969 seconds over 918 seconds elapsed, about
+  1.034 used core-equivalents on average. The whole-node allocation/accounting
+  difference is operational, not 80-way application concurrency, and is not
+  material to scientific validity or boundedness.
+- **Privacy and semantics:** Parser, reference, network, and geocoder calls are
+  zero; semantic-trust fields are zero; HOLDOUT and production access are
+  false. Atomic publication, prepublication reopen validation, owner-only
+  permissions, and exact accepted Stage 6/7 bindings passed. Parser evidence
+  remains evidence rather than truth.
+- **Status:**
+  `STAGE08_ADDRESS_EVIDENCE_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REVIEW`.
+  The next action is a fresh independent Stage 8 critical-review session. This
+  decision does not accept Stage 8 or authorize another job, Stage 9, HOLDOUT,
+  production, reference services, or geocoding.
+
 ## Open decisions
 
 These questions require future stage designs and explicit approval:
 
-- Stage 8 exact DEVELOPMENT job authorization, execution evidence, independent
-  implementation review, and acceptance under D038/D039;
+- Stage 8 fresh independent critical review and acceptance decision under
+  D038–D040;
 - exact offline reference releases/licenses and blocking semantics;
 - the bounded Stage 10 hypothesis/query ladder;
 - Stage 13 scoring/calibration and contradiction policy; and
 - Stage 14 granularity-specific usability thresholds, including treatment of
   interpolated Pelias address results.
 
-Nothing in this register authorizes HOLDOUT, Stage 8 protected execution,
-Stage 9, geocoding, or production Stage 2 through Stage 7. Stage 7 decisions
+Nothing in this register authorizes HOLDOUT, another Stage 8 protected
+execution, Stage 9, geocoding, or production Stage 2 through Stage 7. Stage 7
+decisions
 D023–D036 retain their stated historical DEVELOPMENT scopes; D037 alone
 records final Stage 7 DEVELOPMENT acceptance. D038 records the prospective
-Stage 8 design boundary; D039 records implementation without granting job
-authority.
+Stage 8 design boundary; D039 records implementation; D040 freezes the single
+DEVELOPMENT artifact without granting acceptance or later-stage authority.

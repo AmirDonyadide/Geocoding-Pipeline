@@ -173,7 +173,8 @@ The accepted sequence through Stage 7 and proposed replacement sequence are:
 5. address reconstruction;
 6. early exact deduplication;
 7. evidence-only libpostal parsing/projection;
-8. implemented lossless address-evidence projection, not executed or accepted;
+8. materialized lossless address-evidence projection, awaiting independent
+   review;
 9. proposed offline geographic reference evidence;
 10. proposed multi-hypothesis query-plan generation;
 11. proposed global query identity/deduplication/workload QA;
@@ -188,9 +189,10 @@ failed its frozen validation. The accepted v2 therefore preserves exact raw
 parser evidence, applicability/technical provenance, deterministic warnings,
 and full map-back without making semantic or geographic truth claims. The old
 Stages 8–19 were never started under the old architecture. The compact
-replacement Stage 8 design is implemented at
-`a2544401b4b699f6c020970f3507a2ae432746c5` but is not executed or accepted;
-replacement Stages 9–14 remain proposed and not started.
+replacement Stage 8 DEVELOPMENT candidate was materialized by job `1763747`
+at exact executable `a2544401b4b699f6c020970f3507a2ae432746c5`; it is awaiting
+fresh independent review and is not accepted. Replacement Stages 9–14 remain
+proposed and not started.
 Production Stage 0 and Stage 1 are accepted; production Stages 2–7 are not
 started. The detailed stage contracts and acceptance requirements are in
 [PIPELINE.md](PIPELINE.md). HOLDOUT remains untouched and sealed.
@@ -245,9 +247,9 @@ Durable decisions are in [DECISIONS.md](DECISIONS.md); current status is in
 
 ## 11. Current next action
 
-Exactly one bounded Goethe-NHR Stage 8 DEVELOPMENT materialization after
-separate owner authorization. Stage 7 is `STAGE_7_ACCEPTED` on DEVELOPMENT
-under its evidence-only boundary. Stage 8 is
-`STAGE08_ADDRESS_EVIDENCE_IMPLEMENTATION_READY_FOR_CONTROLLED_DEVELOPMENT_EXECUTION`;
-execution, production Stage 2 through Stage 7, HOLDOUT, Stage 9, Senzing, and
-geocoding remain unauthorized.
+Begin a fresh independent Stage 8 critical-review session against immutable job
+`1763747`. Stage 7 is `STAGE_7_ACCEPTED` on DEVELOPMENT under its evidence-only
+boundary. Stage 8 is
+`STAGE08_ADDRESS_EVIDENCE_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REVIEW`;
+acceptance, another Stage 8 job, production Stage 2 through Stage 7, HOLDOUT,
+Stage 9, Senzing, and geocoding remain unauthorized.

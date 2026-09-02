@@ -1,0 +1,69 @@
+{
+  "report_version": "stage08_address_evidence_development_candidate_report_v1",
+  "verdict": "STAGE08_ADDRESS_EVIDENCE_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REVIEW",
+  "branch": "stage08-address-evidence-implementation",
+  "reporting_base_sha": "d00878813898db7c09907754b613cf9d927c338f",
+  "executable_sha": "a2544401b4b699f6c020970f3507a2ae432746c5",
+  "job_id": "1763747",
+  "manifest_sha256": "bdf86738fb071e38b2ad090f4627a821149352fb1490e62b76e5819aa915bcf9",
+  "logical_dataset_sha256": "9c9d431c2c1b92712e0cb372f2661ad48f4fe8758dc0327d25aef90ab2c2d526",
+  "execution_report": "reports/development/stage08_address_evidence_development.json",
+  "candidate_evidence": {
+    "exact_counts_reconciled": true,
+    "exact_stage06_stage07_bindings": true,
+    "component_index_reversibility": "PASS",
+    "all_frozen_validation_fields": "PASS",
+    "publication_and_permissions": "PASS",
+    "bounded_resource_behavior": "PASS",
+    "privacy": "PASS",
+    "semantic_trust_claims": 0,
+    "later_stage_behavior": 0
+  },
+  "scheduler_accounting": {
+    "requested_cpus": 4,
+    "req_cpus": 4,
+    "alloc_cpus": 80,
+    "actual_configured_stage08_concurrency": 4,
+    "duckdb_threads": 4,
+    "partition_policy": "OverSubscribe=EXCLUSIVE",
+    "explanation": "SLURM allocated/accounted the complete 80-CPU node; the one-task Stage 8 application remained configured for four CPUs and four DuckDB threads.",
+    "scientific_validity_materiality": "NOT_MATERIAL"
+  },
+  "implementation_blob_identity": {
+    "status": "PASS",
+    "frozen_against": "a2544401b4b699f6c020970f3507a2ae432746c5",
+    "blobs": {
+      "cluster/goethe_nhr/stage08_address_evidence.sbatch": "a39e1538d875e5d3c1adbf24405303f86c0a3505",
+      "pyproject.toml": "305887f0bff2fc9dacd36f01ea1ed9e555c7db8d",
+      "src/safe_geocoding_pipeline/preprocessing/stage08_cli.py": "db30dad989f57704ae47cd58866c949da3def31e",
+      "src/safe_geocoding_pipeline/preprocessing/stages/s08_address_evidence.py": "bd261c5cf109246186945eea8a5e0339987049cf",
+      "tests/test_stage08_address_evidence.py": "85c15e300a191a50aac03d83891a32d3ee7de52c"
+    }
+  },
+  "finalization_gates": {
+    "focused_stage08_tests": "7 passed",
+    "relevant_stage07_regressions": "34 passed",
+    "ruff": "PASS",
+    "strict_mypy_src": "PASS",
+    "strict_mypy_stage08_tests": "PASS",
+    "shell_syntax": "PASS",
+    "json": "PASS",
+    "markdown_links": "PASS",
+    "git_diff_check": "PASS",
+    "privacy_tracked_data": "PASS",
+    "implementation_blob_identity": "PASS"
+  },
+  "authorization_boundaries": {
+    "second_stage08_job_submitted": false,
+    "holdout_access": false,
+    "production_access": false,
+    "stage09_started": false,
+    "geocoding": false,
+    "parser_rerun": false,
+    "reference_services": false,
+    "implementation_or_science_changed": false,
+    "independent_review_started": false,
+    "stage08_accepted": false
+  },
+  "next_action": "FRESH independent Stage 8 critical-review session."
+}

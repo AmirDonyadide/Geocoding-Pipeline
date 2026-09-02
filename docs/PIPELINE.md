@@ -35,15 +35,15 @@ and downstream-contract documentation. Corrected candidate
 `656a16d3d1f33cb152ace557c26f42df047bc7d6` then passed independent rereview
 job `1763656` and is accepted as `STAGE_7_ACCEPTED`. Acceptance preserves exact
 evidence; it does not establish semantic component correctness, geographic
-truth, or trust from warning absence. Stage 8 is implemented at
-`a2544401b4b699f6c020970f3507a2ae432746c5`, but no protected execution is
-authorized and it is not accepted.
+truth, or trust from warning absence. Stage 8 DEVELOPMENT job `1763747`
+completed from exact executable
+`a2544401b4b699f6c020970f3507a2ae432746c5`; the candidate is ready for fresh
+independent critical review but is not accepted.
 Production Stage 0 and Stage 1 are accepted for the 1,411-file population;
 production Stage 2 through Stage 6 have not started. The old Stages 8–19 have
-not started. The compact replacement Stage 8 implementation is ready for one
-separately authorized controlled DEVELOPMENT execution but has not been
-executed; replacement Stages 9–14 remain proposed and not started. Production
-Stage 7 has not started.
+not started. The compact replacement Stage 8 DEVELOPMENT candidate is
+materialized and immutable; replacement Stages 9–14 remain proposed and not
+started. Production Stage 7 has not started.
 
 ## Cross-stage scientific rules
 
@@ -75,12 +75,12 @@ Stage 7 has not started.
 11 query identity/QA -> 12 Pelias top-N -> 13 scoring -> 14 granularity/abstain
 ```
 
-Stage 8 now has an implementation candidate ready for separately authorized
-controlled DEVELOPMENT execution. Stages 9–14 are still a proposed
-replacement, not an accepted execution order. Every stage still requires its
-own design, owner authorization, DEVELOPMENT evidence, independent review,
-acceptance, and stop gate. The current prohibition on geocoding before the
-governing pre-geocoding acceptance gate remains in force.
+Stage 8 now has an immutable DEVELOPMENT candidate ready for a fresh
+independent critical review. Stages 9–14 are still a proposed replacement, not
+an accepted execution order. Every stage still requires its own design, owner
+authorization, DEVELOPMENT evidence, independent review, acceptance, and stop
+gate. The current prohibition on geocoding before the governing pre-geocoding
+acceptance gate remains in force.
 
 ## Stage 0 — Source inventory
 
@@ -259,7 +259,8 @@ governing pre-geocoding acceptance gate remains in force.
 
 This compact evidence-first architecture separates source truth,
 parser/reference evidence, hypotheses, geocoder results, and the final accepted
-match. Stage 8 is implemented but not executed or accepted; Stages 9–14 remain
+match. Stage 8 is materialized but not independently reviewed or accepted;
+Stages 9–14 remain
 **PROPOSED — NOT STARTED**. Full responsibilities, tool choices, and legacy
 mapping are in the
 [architecture redesign report](../reports/development/post_stage07_geocoding_architecture_redesign.md).
@@ -281,11 +282,13 @@ mapping are in the
   complete known/unmapped-label retention, complete map-back, deterministic
   fingerprints, bounded memory, privacy, and zero semantic-trust claims.
 - **Status:**
-  **`STAGE08_ADDRESS_EVIDENCE_IMPLEMENTATION_READY_FOR_CONTROLLED_DEVELOPMENT_EXECUTION`**.
-  Implemented at `a2544401b4b699f6c020970f3507a2ae432746c5`; not executed or
-  accepted. See the
-  [Stage 8 record](stages/STAGE08_ADDRESS_EVIDENCE_PROJECTION.md) and sanitized
-  [implementation report](../reports/development/stage08_address_evidence_implementation.md).
+  **`STAGE08_ADDRESS_EVIDENCE_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REVIEW`**.
+  Job `1763747` completed at executable
+  `a2544401b4b699f6c020970f3507a2ae432746c5`; not accepted. See the
+  [Stage 8 record](stages/STAGE08_ADDRESS_EVIDENCE_PROJECTION.md), sanitized
+  [execution report](../reports/development/stage08_address_evidence_development.md),
+  and
+  [candidate report](../reports/development/stage08_address_evidence_development_candidate_report.md).
 
 ### Stage 9 — Offline geographic reference evidence
 

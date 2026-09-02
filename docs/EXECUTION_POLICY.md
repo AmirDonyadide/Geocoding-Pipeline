@@ -139,10 +139,10 @@ documentation test pass.
   geographic truth; absence of structural warnings gives no trust guarantee.
 - Production Stage 7: **NOT STARTED**.
 - Stage 8:
-  **`STAGE08_ADDRESS_EVIDENCE_IMPLEMENTATION_READY_FOR_CONTROLLED_DEVELOPMENT_EXECUTION`**.
-  It is implemented at
-  `a2544401b4b699f6c020970f3507a2ae432746c5` but not executed or accepted. The
-  next task is exactly one bounded Goethe-NHR DEVELOPMENT materialization after
-  separate owner authorization; no DEVELOPMENT job is authorized here.
+  **`STAGE08_ADDRESS_EVIDENCE_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REVIEW`**.
+  The one authorized DEVELOPMENT materialization completed as job `1763747`
+  from executable `a2544401b4b699f6c020970f3507a2ae432746c5`. It is not accepted.
+  No second Stage 8 job is authorized; the next task is a fresh independent
+  critical-review session.
 
 This policy grants no scientific-stage or production-run authorization.

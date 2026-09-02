@@ -2,15 +2,16 @@
 
 ## Status and authority
 
-**`STAGE08_ADDRESS_EVIDENCE_IMPLEMENTATION_READY_FOR_CONTROLLED_DEVELOPMENT_EXECUTION`.**
+**`STAGE08_ADDRESS_EVIDENCE_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REVIEW`.**
 
 This remains the controlling scientific contract for Stage 8 DEVELOPMENT. The
-contract is implemented at Git commit
-`a2544401b4b699f6c020970f3507a2ae432746c5` and is ready for a separately
-authorized controlled DEVELOPMENT execution. It has not been executed,
-independently reviewed as an implementation, or accepted. This status does not
-authorize a DEVELOPMENT job, production, HOLDOUT access, Stage 9, geocoding,
-Pelias, Senzing, DeepParse, or any external address service.
+contract was implemented at Git commit
+`a2544401b4b699f6c020970f3507a2ae432746c5`. The single authorized controlled
+DEVELOPMENT materialization completed as job `1763747` and is ready for fresh
+independent critical review. It has not been independently reviewed or
+accepted. This status does not authorize another DEVELOPMENT job, production,
+HOLDOUT access, Stage 9, geocoding, Pelias, Senzing, DeepParse, or any external
+address service.
 
 The design is based on accepted Stage 7 candidate
 `656a16d3d1f33cb152ace557c26f42df047bc7d6`, its acceptance merge
@@ -30,7 +31,28 @@ four schemas, one-to-one label namespace, upstream bindings, implementation
 SHA, synthetic/static evidence, and planned Goethe resources are recorded in
 the sanitized
 [implementation report](../../reports/development/stage08_address_evidence_implementation.md).
-No protected input was opened and no Stage 8 data fingerprint exists yet.
+That report preserves the pre-execution implementation state.
+
+## DEVELOPMENT candidate evidence
+
+Goethe-NHR job `1763747` completed `0:0` in 15m18s from the byte-identical
+executable commit `a2544401b4b699f6c020970f3507a2ae432746c5`. Its immutable
+manifest SHA-256 is
+`bdf86738fb071e38b2ad090f4627a821149352fb1490e62b76e5819aa915bcf9` and its
+logical dataset SHA-256 is
+`9c9d431c2c1b92712e0cb372f2661ad48f4fe8758dc0327d25aef90ab2c2d526`.
+The exact 51,779 candidates, 6,106,088 ordered components, 35,000 source rows,
+and 69,747 representation occurrences reconciled with zero dangling,
+component-count, or occurrence-count mismatches. All frozen validation fields,
+reversibility, atomic publication, and owner-only permissions passed.
+
+The sanitized
+[execution report](../../reports/development/stage08_address_evidence_development.md)
+binds contract/schema/upstream identities, topology, runtime, privacy, and
+scheduler evidence. `AllocCPUS=80` is exclusive-node scheduler accounting:
+`general1` is `OverSubscribe=EXCLUSIVE`, the allocated node has 80 CPUs, while
+the job requested four CPUs and ran one task with DuckDB at four threads. It is
+not 80-way application concurrency and is not material to scientific validity.
 
 ## Decision
 
@@ -890,9 +912,9 @@ mechanical parser-evidence index. Country-format/ISO lookup metadata moves to
 Stage 9; hypotheses remain Stage 10. No broader renumbering is required.
 
 Verdict:
-`STAGE08_ADDRESS_EVIDENCE_IMPLEMENTATION_READY_FOR_CONTROLLED_DEVELOPMENT_EXECUTION`.
+`STAGE08_ADDRESS_EVIDENCE_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REVIEW`.
 
-Exact next task: after separate owner authorization, submit exactly one bounded
-Goethe-NHR DEVELOPMENT materialization from implementation commit
-`a2544401b4b699f6c020970f3507a2ae432746c5`, wait for it, and reuse its immutable
-artifact. The implementation candidate itself grants no execution authority.
+Exact next task: begin a **fresh independent Stage 8 critical-review session**
+against the immutable job `1763747` artifact and exact reporting candidate.
+Do not rerun Stage 8, alter the artifact, start Stage 9, or treat this candidate
+status as acceptance.

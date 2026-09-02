@@ -15,11 +15,11 @@ independent review records acceptance.
 | 5 | [Address reconstruction](STAGE05_ADDRESS_RECONSTRUCTION.md) | `STAGE_5_ACCEPTED` | NOT STARTED |
 | 6 | [Early exact deduplication](STAGE06_EARLY_EXACT_DEDUPLICATION.md) | `STAGE_6_ACCEPTED` | NOT STARTED |
 | 7 | [libpostal parsing/evidence](STAGE07_LIBPOSTAL_PARSING.md) | `STAGE_7_ACCEPTED` | NOT STARTED |
-| 8 | [Lossless address-evidence projection](STAGE08_ADDRESS_EVIDENCE_PROJECTION.md) | `STAGE08_ADDRESS_EVIDENCE_IMPLEMENTATION_READY_FOR_CONTROLLED_DEVELOPMENT_EXECUTION`; not executed or accepted | NOT STARTED |
+| 8 | [Lossless address-evidence projection](STAGE08_ADDRESS_EVIDENCE_PROJECTION.md) | `STAGE08_ADDRESS_EVIDENCE_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REVIEW`; not accepted | NOT STARTED |
 
 Replacement Stages 9–14 remain proposed in
-[the pipeline specification](../PIPELINE.md). Stage 8 has an implementation
-candidate and a sanitized
-[implementation report](../../reports/development/stage08_address_evidence_implementation.md),
-but it is not executed, independently reviewed as an implementation, or
-accepted.
+[the pipeline specification](../PIPELINE.md). Stage 8 job `1763747` produced an
+immutable DEVELOPMENT candidate with a sanitized
+[execution report](../../reports/development/stage08_address_evidence_development.md)
+and [candidate report](../../reports/development/stage08_address_evidence_development_candidate_report.md),
+but it is not independently reviewed or accepted.

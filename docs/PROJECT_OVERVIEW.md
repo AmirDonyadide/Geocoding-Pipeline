@@ -77,10 +77,11 @@ rereview job `1763656` passed exact candidate
 `STAGE_7_ACCEPTED`. None of this alters immutable v1 output or converts parser
 components into semantic or geographic truth; warning absence provides no
 trust guarantee. The old Stages 8–19 were never started. The compact
-evidence-first replacement Stage 8 design is implemented at
-`a2544401b4b699f6c020970f3507a2ae432746c5` and ready for a separately
-authorized controlled DEVELOPMENT execution, but has not been executed or
-accepted; replacement Stages 9–14 remain proposed. See
+evidence-first replacement Stage 8 DEVELOPMENT candidate was materialized by
+job `1763747` at exact executable
+`a2544401b4b699f6c020970f3507a2ae432746c5`. Exact reversibility and all frozen
+validators passed; it is ready for fresh independent review but is not
+accepted. Replacement Stages 9–14 remain proposed. See
 [PIPELINE.md](PIPELINE.md).
 
 ## Standard and native Orbis representations
