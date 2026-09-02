@@ -193,13 +193,17 @@ replacement Stage 8 DEVELOPMENT candidate was materialized by job `1763747`
 at exact executable `a2544401b4b699f6c020970f3507a2ae432746c5`. Independent
 review rejected exact reporting candidate
 `adde81d2237e99993222994ce56efb0d74f7c2d3` for a publication-state defect
-and the then-stale Stage 8/Stage 9 technology row. The publication
-implementation is repaired at
-`bd89a032eb6fcf16a7515e0bd2991165d87246b1`; repaired job `1763984` passed
-exact reconciliation and terminal-publication validation and now awaits fresh
-independent rereview. Job `1763747` remains immutable historical DEVELOPMENT
-evidence for the old executable and cannot validate the repair. Replacement
-Stages 9–14 remain proposed and not started.
+and the then-stale Stage 8/Stage 9 technology row. The first publication
+implementation repair is `bd89a032eb6fcf16a7515e0bd2991165d87246b1`;
+repaired job `1763984` passed exact scientific reconciliation. Independent
+rereview of reporting candidate `fdf2f8c…` then found a post-effect rename
+failure hole. Second repair `bdea7232a3f92ebd381be87610b753b8e4c35481`
+reconciles the actual temporary/final filesystem state and adopts an owned
+final-only publication only after parent fsync and complete final reopen
+validation. It is ready for one separately authorized controlled DEVELOPMENT
+reexecution. Jobs `1763747` and `1763984` remain immutable historical
+DEVELOPMENT evidence for their exact executables and cannot validate the new
+repair. Replacement Stages 9–14 remain proposed and not started.
 Production Stage 0 and Stage 1 are accepted; production Stages 2–7 are not
 started. The detailed stage contracts and acceptance requirements are in
 [PIPELINE.md](PIPELINE.md). HOLDOUT remains untouched and sealed.
@@ -255,9 +259,11 @@ Durable decisions are in [DECISIONS.md](DECISIONS.md); current status is in
 ## 11. Current next action
 
 Stage 8 is
-`STAGE08_ADDRESS_EVIDENCE_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REREVIEW`
-at executable `bd89a032eb6fcf16a7515e0bd2991165d87246b1`, job `1763984`, and
-manifest `d521240b42a40b9c1408f0f7241583bc76b7779e4107179e73fdcb7c7a69e119`.
-It is not accepted. The exact next action is: **FRESH INDEPENDENT STAGE 8
-REREVIEW OF THIS REPAIRED CANDIDATE.** No second Stage 8 job, production Stage
-2 through Stage 7, HOLDOUT, Stage 9, Senzing, or geocoding is authorized.
+`STAGE08_ADDRESS_EVIDENCE_IMPLEMENTATION_READY_FOR_CONTROLLED_DEVELOPMENT_REEXECUTION`
+at executable `bdea7232a3f92ebd381be87610b753b8e4c35481`. Job `1763984` and
+manifest `d521240b42a40b9c1408f0f7241583bc76b7779e4107179e73fdcb7c7a69e119`
+remain historical evidence for executable `bd89a032…`; Stage 8 is not
+accepted. The exact next action requiring separate owner authorization is:
+**AUTHORIZE EXACTLY ONE NEW CONTROLLED STAGE 8 DEVELOPMENT MATERIALIZATION AT
+THE NEW EXECUTABLE SHA.** No Stage 8 job, production Stage 2 through Stage 7,
+HOLDOUT, Stage 9, Senzing, or geocoding is authorized by this status.

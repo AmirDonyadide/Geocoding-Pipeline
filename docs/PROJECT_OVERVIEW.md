@@ -87,12 +87,17 @@ validation, and one current architecture table still placed pycountry and
 libaddressinput in Stage 8. The bounded fix is executable
 `bd89a032eb6fcf16a7515e0bd2991165d87246b1`. Repaired DEVELOPMENT job
 `1763984` published manifest `d521240b…`, reproduced the frozen logical dataset
-`9c9d431c…`, and passed the repaired prepublication/terminal/postpublication
-state checks. It is now the authoritative repaired candidate awaiting fresh
-independent rereview. Job `1763747` remains immutable historical evidence for
-the old executable and does not validate the repair. Replacement Stages 9–14
-remain proposed. Current Stage 8 status is
-`STAGE08_ADDRESS_EVIDENCE_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REREVIEW`.
+`9c9d431c…`, and passed the first repair's tests for executable `bd89a032…`.
+Independent rereview then failed exact reporting candidate `fdf2f8c…` because
+a real rename followed by an exception could leave reader-visible success while
+the invocation reported failure. The second bounded repair is executable
+`bdea7232a3f92ebd381be87610b753b8e4c35481`; it reconciles both temporary
+and final paths by captured filesystem identity and adopts final-only state
+only after parent fsync and complete independent reopen validation. Jobs
+`1763747` and `1763984` remain immutable historical evidence for their exact
+executables and cannot validate this repair. Replacement Stages 9–14 remain
+proposed. Current Stage 8 status is
+`STAGE08_ADDRESS_EVIDENCE_IMPLEMENTATION_READY_FOR_CONTROLLED_DEVELOPMENT_REEXECUTION`.
 See
 [PIPELINE.md](PIPELINE.md).
 

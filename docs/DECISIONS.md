@@ -941,13 +941,75 @@ to change a decision or start a stage.
   This is not Stage 8 acceptance. The exact next action is **FRESH INDEPENDENT
   STAGE 8 REREVIEW OF THIS REPAIRED CANDIDATE.**
 
+### D043 — Reject the first repair after rereview and reconcile ambiguous rename
+
+- **Date:** 2026-09-02.
+- **Scope:** Second bounded Stage 8 DEVELOPMENT publication remediation after
+  independent rereview; code, synthetic tests, and current-facing sanitized
+  documentation only. No protected execution or scientific redesign.
+- **Independent finding:** Exact reporting candidate
+  `fdf2f8c78781a6bdb5dad637af5954ae81cf331d` at executable
+  `bd89a032eb6fcf16a7515e0bd2991165d87246b1` received
+  `STAGE08_ADDRESS_EVIDENCE_INDEPENDENT_REREVIEW_FAIL`. A rename wrapper could
+  perform the real final rename and then raise before Python-side state was
+  updated. Cleanup then examined only the vanished temporary path and returned
+  failure while the final path still had `_SUCCESS.json`, lacked
+  `_IN_PROGRESS`, and satisfied the repository's success definition.
+- **Decision:** Reject the candidate; do not merge or accept it. Adopt
+  completed publication only for the narrowly proven ambiguous-rename case.
+  Executable `bdea7232a3f92ebd381be87610b753b8e4c35481` captures the temporary
+  directory device/inode identity before commit and classifies all four
+  temporary/final presence combinations without following symlinks. A
+  final-only path may be adopted only when it has that exact identity, its
+  parent fsync succeeds, and the complete final bundle independently reopens
+  and validates. Before-effect failures and all other owned failure trees are
+  demoted to success absent and `_IN_PROGRESS` present. Both-path,
+  neither-path, wrong-identity, symlink, parent-fsync, and postpublication
+  validation failures are never adopted; unrelated paths are not modified.
+- **Terminal semantics:** The filesystem, rather than a Python path variable,
+  is authoritative after an ambiguous rename result. Success is returned only
+  after the final publication independently validates. Failure cleanup is
+  identity-guarded and idempotent, inspects both paths, and cannot relabel or
+  corrupt an unrelated publication. This closes pre-effect, post-effect,
+  immediate-interrupt, parent-fsync, postpublication-validation, and partial
+  cleanup boundaries without adding a third reader-visible terminal state.
+- **Scientific preservation:** Stage 8 contracts, four schemas, semantic
+  classes, exact 20-label mapping, Stage 6/7 bindings, candidate/component/
+  source/occurrence grains, occurrence/parser-evidence semantics, and the
+  Stage 8/9 scientific boundary are unchanged. Contract, schema-bundle,
+  mapping, and individual schema fingerprints exactly match `bd89a032…`.
+  Pycountry and libaddressinput remain potential Stage 9 evidence only.
+- **Historical evidence:** Original executable `a2544401…`, job `1763747`,
+  the first independent-review failure, first repair `bd89a032…`, job
+  `1763984`, its successful scientific reconciliation, and the second
+  independent-rereview failure remain truthful immutable history. Neither job
+  nor artifact is called corrupt; each is evidence only for its exact
+  executable and cannot validate `bdea7232…`.
+- **Local evidence:** Stage 8 focused tests pass 28/28, including actual rename
+  then raise, immediate post-rename interrupt, parent-fsync failure,
+  postpublication reopen failure, every temporary/final presence state,
+  partial/idempotent demotion, unrelated-path preservation, and normal
+  publication. Relevant Stage 7 tests pass 54/54 and the runnable Stage 2
+  atomic-publication regression passes. The safe full suite has 595 passes,
+  24 expected exact Python 3.14.3 guard failures under local Python 3.14.7,
+  and four deselections. Ruff, changed-file format, strict source/Stage 8
+  mypy, shell syntax, JSON, Markdown links, diff, and privacy/tracked-data
+  gates pass; no runtime guard was weakened.
+- **Status:**
+  `STAGE08_ADDRESS_EVIDENCE_IMPLEMENTATION_READY_FOR_CONTROLLED_DEVELOPMENT_REEXECUTION`.
+  This is not a materialized candidate and does not authorize execution,
+  independent review, Stage 9, HOLDOUT, production, reference work, or
+  geocoding. The exact next action requiring separate owner authorization is:
+  **AUTHORIZE EXACTLY ONE NEW CONTROLLED STAGE 8 DEVELOPMENT MATERIALIZATION AT
+  THE NEW EXECUTABLE SHA.**
+
 ## Open decisions
 
 These questions require future stage designs and explicit approval:
 
-- fresh independent Stage 8 rereview of repaired executable
-  `bd89a032eb6fcf16a7515e0bd2991165d87246b1`, job `1763984`, and manifest
-  `d521240b…` under D038–D042;
+- exactly one separately authorized controlled Stage 8 DEVELOPMENT
+  materialization at executable `bdea7232a3f92ebd381be87610b753b8e4c35481`
+  under D043;
 - exact offline reference releases/licenses and blocking semantics;
 - the bounded Stage 10 hypothesis/query ladder;
 - Stage 13 scoring/calibration and contradiction policy; and
@@ -961,5 +1023,6 @@ D023–D036 retain their stated historical DEVELOPMENT scopes; D037 alone
 records final Stage 7 DEVELOPMENT acceptance. D038 records the prospective
 Stage 8 design boundary; D039/D040 record the rejected implementation and its
 single historical artifact; D041 records rejection and bounded implementation
-remediation; and D042 freezes the repaired DEVELOPMENT candidate without
-granting acceptance or later-stage authority.
+remediation; D042 freezes the first repaired DEVELOPMENT candidate without
+granting acceptance or later-stage authority; and D043 records the failed
+independent rereview plus the second bounded publication remediation.

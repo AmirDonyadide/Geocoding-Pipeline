@@ -2,7 +2,7 @@
 
 ## Status and authority
 
-**`STAGE08_ADDRESS_EVIDENCE_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REREVIEW`.**
+**`STAGE08_ADDRESS_EVIDENCE_IMPLEMENTATION_READY_FOR_CONTROLLED_DEVELOPMENT_REEXECUTION`.**
 
 This remains the controlling scientific contract for Stage 8 DEVELOPMENT. The
 first implementation at Git commit
@@ -15,11 +15,16 @@ assignment. The bounded publication repair is executable
 `bd89a032eb6fcf16a7515e0bd2991165d87246b1`. Repaired DEVELOPMENT job
 `1763984` published manifest
 `d521240b42a40b9c1408f0f7241583bc76b7779e4107179e73fdcb7c7a69e119`,
-passed exact reconciliation and repaired terminal-publication validation, and
-is now the authoritative candidate for fresh independent rereview. It is not
-accepted. This status does not authorize another DEVELOPMENT job, production,
-HOLDOUT access, Stage 9, geocoding, Pelias, Senzing, DeepParse, or any external
-address service.
+and passed exact scientific reconciliation for `bd89a032…`. Independent
+rereview then failed reporting candidate
+`fdf2f8c78781a6bdb5dad637af5954ae81cf331d`: the final rename could take
+effect and then raise before Python-side publication-tree state changed,
+leaving a reader-visible successful final artifact while the invocation
+reported failure. The second bounded repair is executable
+`bdea7232a3f92ebd381be87610b753b8e4c35481`. It is ready for one
+separately authorized controlled DEVELOPMENT reexecution and is not accepted.
+This status does not itself authorize that job, production, HOLDOUT access,
+Stage 9, geocoding, Pelias, Senzing, DeepParse, or any external address service.
 
 The design is based on accepted Stage 7 candidate
 `656a16d3d1f33cb152ace557c26f42df047bc7d6`, its acceptance merge
@@ -29,27 +34,38 @@ The design is based on accepted Stage 7 candidate
 commit `356de44f3e86e37972d60cac45d01703ad1f6856`. DeepParse remains closed as
 `DEEPPARSE_INFRASTRUCTURE_PATH_NOT_JUSTIFIED` and is not a Stage 8 dependency.
 
-## Repaired implementation
+## Second repaired implementation
 
 The implementation preserves this frozen design without changing its grains,
 field semantics, nullability, ordering, or lineage rules. It provides bounded
 PyArrow/Parquet materialization, bounded DuckDB reconciliation, immutable
-publication, and an independent reopen validator. The repaired state machine
-keeps `_IN_PROGRESS` through artifact/manifest fsync and complete
-prepublication reopen validation; only then may it write `_SUCCESS.json`,
-remove `_IN_PROGRESS`, fsync the terminal tree, atomically rename, fsync the
-parent, and reopen the publication. Any failure after success-marker creation
-during that transition or immediate post-publication validation demotes the
-retained tree to explicit incomplete state without `_SUCCESS.json`. Exact
-repair evidence and the authorized Goethe resource boundary are recorded in the sanitized
-[remediation report](../../reports/development/stage08_address_evidence_remediation.md).
-The original [implementation report](../../reports/development/stage08_address_evidence_implementation.md)
-remains historical pre-execution evidence for the rejected executable.
+publication, and an independent reopen validator. The first repair remains
+intact: `_IN_PROGRESS` stays present through artifact/manifest fsync and the
+complete prepublication reopen validation; only then may `_SUCCESS.json` be
+written and `_IN_PROGRESS` removed.
 
-## Authoritative repaired-candidate DEVELOPMENT evidence
+The second repair captures the temporary attempt's non-symlink device/inode
+identity before the commit boundary and explicitly classifies both temporary
+and final paths after an ambiguous rename outcome. A final-only state is
+adopted as success only during the rename/immediate-post-rename phases, only
+when the final directory is the captured attempt, and only after parent fsync
+plus complete independent published reopen validation. Parent-fsync failure or
+postpublication validation failure remains fatal and demotes the identity-
+matching owned tree. Demotion removes `_SUCCESS.json`, ensures the exact
+`_IN_PROGRESS` marker, re-observes post-effect cleanup mutations, preserves
+owner-only modes, and is idempotent. Symlinks are never followed, and an
+unrelated final publication is never overwritten, adopted, or demoted.
 
-Job `1763984` completed `0:0` in 15m36s from the exact clean detached repaired
-executable. Its immutable output is
+The sanitized [second remediation report](../../reports/development/stage08_address_evidence_publication_remediation_v2.md)
+records the complete crash-consistency audit. The
+[first remediation report](../../reports/development/stage08_address_evidence_remediation.md)
+and original [implementation report](../../reports/development/stage08_address_evidence_implementation.md)
+remain historical evidence for their exact executables.
+
+## Historical first-repair DEVELOPMENT evidence
+
+Job `1763984` completed `0:0` in 15m36s from the exact clean detached first-
+repair executable. Its immutable output is
 `/work/footprint/donyadidegan/safe_geocoding_pipeline/derived/controlled/stage08/development/stage08_development_20260902T080150Z_bd89a032eb6f`.
 The success marker binds manifest SHA-256
 `d521240b42a40b9c1408f0f7241583bc76b7779e4107179e73fdcb7c7a69e119`
@@ -71,7 +87,9 @@ perform the post-publication reopen validation. The final tree has no
 [execution report](../../reports/development/stage08_address_evidence_development.md)
 and [candidate report](../../reports/development/stage08_address_evidence_development_candidate_report.md)
 freeze the complete aggregate, topology, scheduler, input-binding, and
-publication evidence.
+publication evidence for executable `bd89a032…`. Independent rereview's
+post-effect rename finding does not assert this artifact corrupt, but the job
+cannot validate executable `bdea7232…`.
 
 ## Historical rejected-candidate DEVELOPMENT evidence
 
@@ -737,11 +755,21 @@ A run publishes to a new immutable controlled directory:
 Directories are `0700`; files are `0600`. The output target must not exist.
 Writing occurs in a new private sibling attempt directory. Content, schemas,
 logical/physical hashes, row counts, foreign keys, permissions, and reopen
-validation must pass before fsync and atomic publication. Collision fails
-closed. A failed attempt is retained under its distinct attempt identity and
-is never relabeled or overwritten as success. `_SUCCESS.json` is written last
-inside the temporary tree and binds the manifest SHA-256 and dataset logical
-fingerprint.
+validation must pass before terminal publication. Collision fails closed. A
+failed attempt is retained under its distinct attempt identity and is never
+relabeled or overwritten as success. `_SUCCESS.json` is created only after
+prepublication reopen validation and binds the manifest SHA-256 and dataset
+logical fingerprint.
+
+The terminal commit boundary is driven by observable filesystem state. The
+implementation captures the attempt directory identity, transitions to the
+success/no-in-progress marker set, fsyncs the temporary tree, renames it, fsyncs
+the parent, and validates the final tree. An exception from the rename is
+ambiguous: only a final-only directory with the captured identity may be
+adopted, and only after the parent fsync and complete published validator pass.
+All other owned failure trees are demoted to success absent and `_IN_PROGRESS`
+present. Both temporary and final paths are inspected without following
+symlinks; unrelated paths are preserved.
 
 The manifest contains no protected values. It records exact upstream
 identities, contract/profile/schema/taxonomy/mapping versions and fingerprints,
@@ -962,8 +990,10 @@ mechanical parser-evidence index. Country-format/ISO lookup metadata moves to
 Stage 9; hypotheses remain Stage 10. No broader renumbering is required.
 
 Verdict:
-`STAGE08_ADDRESS_EVIDENCE_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REREVIEW`.
+`STAGE08_ADDRESS_EVIDENCE_IMPLEMENTATION_READY_FOR_CONTROLLED_DEVELOPMENT_REEXECUTION`.
 
-Exact next action: **FRESH INDEPENDENT STAGE 8 REREVIEW OF THIS REPAIRED
-CANDIDATE.** Do not submit another Stage 8 job, alter job `1763747` or its
-artifact, start Stage 9, or treat candidate readiness as acceptance.
+Exact next action requiring separate owner authorization: **AUTHORIZE EXACTLY
+ONE NEW CONTROLLED STAGE 8 DEVELOPMENT MATERIALIZATION AT THE NEW EXECUTABLE
+SHA.** Do not submit it without that authorization, alter jobs `1763747` or
+`1763984` or their artifacts, start Stage 9, or treat implementation readiness
+as acceptance.

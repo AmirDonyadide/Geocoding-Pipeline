@@ -42,10 +42,16 @@ reporting candidate `adde81d2237e99993222994ce56efb0d74f7c2d3` for a
 publication terminal-state defect and stale Stage 8/Stage 9 technology wording.
 The bounded repair is executable
 `bd89a032eb6fcf16a7515e0bd2991165d87246b1`. Repaired DEVELOPMENT job
-`1763984` passed exact scientific reconciliation and the corrected terminal
-publication flow. The resulting candidate awaits fresh independent rereview,
-not acceptance. Job `1763747` remains immutable historical evidence for the
-old executable and does not validate the repair.
+`1763984` passed exact scientific reconciliation and the first corrected
+terminal-publication flow for executable `bd89a032…`. Independent rereview
+then failed reporting candidate `fdf2f8c…` because a rename could take effect
+and subsequently raise before Python-side state changed, leaving a successful
+final tree while reporting failure. Second repair executable `bdea7232…`
+reconciles both paths by captured filesystem identity and adopts final-only
+state only after parent fsync plus complete published reopen validation. It is
+ready for one separately authorized controlled DEVELOPMENT reexecution, not
+acceptance. Jobs `1763747` and `1763984` remain immutable historical evidence
+for their exact executables and cannot validate the new repair.
 Production Stage 0 and Stage 1 are accepted for the 1,411-file population;
 production Stage 2 through Stage 6 have not started. The old Stages 8–19 have
 not started. The first compact replacement Stage 8 DEVELOPMENT candidate is
@@ -83,8 +89,9 @@ Production Stage 7 has not started.
 11 query identity/QA -> 12 Pelias top-N -> 13 scoring -> 14 granularity/abstain
 ```
 
-Stage 8 now has one repaired DEVELOPMENT candidate awaiting fresh independent
-rereview. Stages 9–14 are still a proposed replacement, not an accepted
+Stage 8 now has a second repaired implementation awaiting separately authorized
+controlled DEVELOPMENT reexecution. Stages 9–14 are still a proposed
+replacement, not an accepted
 execution order. Every stage still
 requires its own design, owner
 authorization, DEVELOPMENT evidence, independent review, acceptance, and stop
@@ -292,15 +299,19 @@ mapping are in the
   complete known/unmapped-label retention, complete map-back, deterministic
   fingerprints, bounded memory, privacy, and zero semantic-trust claims.
 - **Status:**
-  **`STAGE08_ADDRESS_EVIDENCE_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REREVIEW`**.
+  **`STAGE08_ADDRESS_EVIDENCE_IMPLEMENTATION_READY_FOR_CONTROLLED_DEVELOPMENT_REEXECUTION`**.
   Job `1763747` completed at old executable
   `a2544401b4b699f6c020970f3507a2ae432746c5` and remains immutable historical
   evidence after independent-review failure. Publication repair executable
   `bd89a032eb6fcf16a7515e0bd2991165d87246b1` completed repaired job `1763984`
-  with manifest `d521240b…` and exact reconciliation. See the
+  with manifest `d521240b…` and exact reconciliation, but independent rereview
+  found the post-effect rename hole. Second repair `bdea7232…` requires a new
+  controlled materialization before another review. See the
   [Stage 8 record](stages/STAGE08_ADDRESS_EVIDENCE_PROJECTION.md), sanitized
   [execution report](../reports/development/stage08_address_evidence_development.md), and
   [remediation report](../reports/development/stage08_address_evidence_remediation.md).
+  The [second publication-remediation report](../reports/development/stage08_address_evidence_publication_remediation_v2.md)
+  records the complete crash-consistency audit and new readiness boundary.
 
 ### Stage 9 — Offline geographic reference evidence
 

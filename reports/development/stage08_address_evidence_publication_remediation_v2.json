@@ -1,0 +1,137 @@
+{
+  "report_version": "stage08_address_evidence_publication_remediation_report_v2",
+  "verdict": "STAGE08_ADDRESS_EVIDENCE_IMPLEMENTATION_READY_FOR_CONTROLLED_DEVELOPMENT_REEXECUTION",
+  "scope": "SECOND_BOUNDED_DEVELOPMENT_PUBLICATION_REMEDIATION_ONLY",
+  "source_control": {
+    "branch": "stage08-address-evidence-publication-remediation-v2",
+    "required_base_commit": "fdf2f8c78781a6bdb5dad637af5954ae81cf331d",
+    "executable_commit": "bdea7232a3f92ebd381be87610b753b8e4c35481",
+    "first_remediation_executable_commit": "bd89a032eb6fcf16a7515e0bd2991165d87246b1"
+  },
+  "independent_rereview": {
+    "verdict": "STAGE08_ADDRESS_EVIDENCE_INDEPENDENT_REREVIEW_FAIL",
+    "failed_reporting_candidate": "fdf2f8c78781a6bdb5dad637af5954ae81cf331d",
+    "affected_executable": "bd89a032eb6fcf16a7515e0bd2991165d87246b1",
+    "affected_job": "1763984",
+    "blocker": "POST_EFFECT_RENAME_EXCEPTION_LEFT_READER_VISIBLE_SUCCESS",
+    "artifact_corrupt_asserted": false
+  },
+  "publication_policy": {
+    "resolution_class": "A_ADOPT_COMPLETED_PUBLICATION",
+    "adoptable_phases": [
+      "RENAME_OUTCOME_AMBIGUOUS",
+      "POST_RENAME_PRE_PARENT_FSYNC"
+    ],
+    "adoption_requires": [
+      "TEMP_ABSENT_FINAL_PRESENT",
+      "FINAL_DIRECTORY_IDENTITY_EQUALS_CAPTURED_ATTEMPT_DEVICE_AND_INODE",
+      "PUBLICATION_PARENT_FSYNC_PASS",
+      "COMPLETE_INDEPENDENT_PUBLISHED_REOPEN_VALIDATION_PASS"
+    ],
+    "parent_fsync_failure_is_fatal": true,
+    "postpublication_validation_failure_is_fatal": true,
+    "failure_success_marker_absent": true,
+    "failure_in_progress_marker_present": true,
+    "no_hidden_terminal_state": true
+  },
+  "observable_path_states": {
+    "TEMP_PRESENT_FINAL_ABSENT": "DEMOTE_OWNED_TEMP_AND_FAIL",
+    "TEMP_ABSENT_FINAL_PRESENT": "ADOPT_ONLY_IN_ALLOWED_PHASE_WITH_OWNERSHIP_PARENT_FSYNC_AND_FULL_VALIDATION_OTHERWISE_DEMOTE_OWNED_FINAL_AND_FAIL",
+    "TEMP_PRESENT_FINAL_PRESENT": "NEVER_ADOPT_DEMOTE_ONLY_IDENTITY_MATCHING_ATTEMPT_PRESERVE_UNRELATED_PATH",
+    "TEMP_ABSENT_FINAL_ABSENT": "FAIL_WITH_NO_SUCCESS_AT_CANONICAL_PATHS",
+    "symlink_policy": "PRESENT_BUT_NEVER_FOLLOWED_OR_ADOPTED"
+  },
+  "demotion": {
+    "identity_guarded": true,
+    "success_removed_before_in_progress_creation": true,
+    "post_effect_mutations_reobserved": true,
+    "idempotent": true,
+    "owner_only_permissions_preserved": true,
+    "unrelated_publication_mutated": false
+  },
+  "verification": {
+    "stage08_focused": "28 passed",
+    "real_rename_then_raise": "passed and adopted only after parent fsync plus complete final reopen validation",
+    "rename_raise_before_effect": "passed and retained exact incomplete temporary state",
+    "immediate_post_rename_interrupt": "passed and adopted only after complete reconciliation",
+    "parent_directory_fsync_failure": "passed and demoted final tree",
+    "postpublication_reopen_failure": "passed and demoted final tree",
+    "failed_adoption_validation": "passed and emitted no success result",
+    "demotion_post_effect_mutation_failures": "passed",
+    "four_path_states": "passed",
+    "idempotent_cleanup": "passed",
+    "unrelated_final_and_symlink_preservation": "passed",
+    "normal_publication": "passed unchanged",
+    "relevant_stage07": "54 passed",
+    "runnable_earlier_atomic_publication": "1 passed",
+    "runtime_guarded_earlier_atomic_publication": "4 stopped at unchanged Python 3.14.3 guards under local Python 3.14.7",
+    "safe_full_local_suite": "595 passed, 24 expected runtime-pin failures, 4 deselected protected-payload tests",
+    "ruff": "passed",
+    "ruff_format_changed_python": "passed",
+    "strict_mypy": "passed over 98 source/test targets",
+    "shell_syntax": "passed",
+    "json_validity": "passed",
+    "markdown_local_links": "passed",
+    "git_diff_check": "passed",
+    "privacy_and_tracked_data": "passed"
+  },
+  "scientific_identity": {
+    "contract_fingerprint": "8b3c530e714177fe2c30a97d61dcc199b7f9efba58f3c17a291b817af0f24d5e",
+    "schema_bundle_fingerprint": "6c8ebecd24c495dbe2ce32125ac1cb89c4a9de4905c786b774d10ad728ed392f",
+    "label_mapping_fingerprint": "b18167d2d5c1f1402d1bb0e92559befb92418f5f4f34df885596778a11d5c09d",
+    "schema_fingerprints": {
+      "candidate_evidence": "b1d56ea33c22e639ab798581c5533b1a0981ef5452dce5cb24e168d4a684bd4c",
+      "parser_component_evidence": "112fb17c2afac27b941d30f57fe5c1bb2e46d779f89bdf2efbd8c719a3b87ccf",
+      "source_candidate_map": "884eb8456fc6ee84a699a9e2371224e5c709363daac0febc5975f911bf48c398",
+      "representation_occurrence_v1": "df1cac9b6d9f86ffb76d1ea744fc64f15149c9e33fef980213286b91b2d02038"
+    },
+    "schemas_changed": false,
+    "mapping_changed": false,
+    "semantic_classes_changed": false,
+    "stage06_stage07_bindings_changed": false,
+    "candidate_component_source_occurrence_grains_changed": false,
+    "parser_or_occurrence_semantics_changed": false,
+    "stage08_stage09_boundary_changed": false,
+    "first_remediation_prepublication_guarantee_preserved": true
+  },
+  "historical_evidence": {
+    "original_executable": "a2544401b4b699f6c020970f3507a2ae432746c5",
+    "original_job": "1763747",
+    "first_remediation_executable": "bd89a032eb6fcf16a7515e0bd2991165d87246b1",
+    "first_remediation_job": "1763984",
+    "jobs_corrupt_asserted": false,
+    "jobs_eligible_to_validate_new_executable": false,
+    "controlled_artifacts_modified": false
+  },
+  "privacy": {
+    "protected_stage06_or_stage07_values_opened": false,
+    "controlled_stage08_artifact_opened": false,
+    "holdout_accessed": false,
+    "production_accessed": false,
+    "slurm_submitted": false,
+    "parser_calls": 0,
+    "reference_calls": 0,
+    "geocoder_calls": 0,
+    "external_service_calls": 0
+  },
+  "proposed_controlled_development_reexecution": {
+    "authorization_required": true,
+    "jobs": 1,
+    "nodes": 1,
+    "tasks": 1,
+    "cpus_per_task": 4,
+    "memory_gib": 32,
+    "walltime": "04:00:00",
+    "duckdb_memory_limit": "8GB",
+    "duckdb_threads": 4,
+    "input_batch_rows": 16,
+    "candidate_output_batch_rows": 32,
+    "component_batch_rows": 65536,
+    "target_batch_bytes": 134217728,
+    "candidate_shard_rows": 2048,
+    "component_shard_rows": 500000,
+    "source_shard_rows": 4096,
+    "new_immutable_run_identity_required": true
+  },
+  "next_action_requiring_owner_authorization": "AUTHORIZE EXACTLY ONE NEW CONTROLLED STAGE 8 DEVELOPMENT MATERIALIZATION AT THE NEW EXECUTABLE SHA."
+}

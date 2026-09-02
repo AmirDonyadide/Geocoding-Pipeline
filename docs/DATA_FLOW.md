@@ -208,10 +208,14 @@ parser-evidence name remains `PARSER_EVIDENCE`; Stage 8 emits no hypothesis or
 reference result. pycountry and libaddressinput are deferred to the Stage 9
 design boundary. Independent review rejected reporting candidate `adde81d…`
 for publication-state ordering and stale current architecture wording.
-Repaired executable `bd89a03…` produced authoritative candidate job `1763984`;
-its exact reconciliation and repaired publication-state checks pass, but it is
-not independently rereviewed or accepted. Job `1763747` remains immutable
-historical evidence for the old executable only and does not validate the
+First repair executable `bd89a03…` produced candidate job `1763984`; its exact
+scientific reconciliation passed. Independent rereview then found that a real
+rename followed by an exception could leave a reader-visible success while the
+invocation reported failure. Second repair `bdea7232…` reconciles both
+temporary and final paths by captured filesystem identity and permits adoption
+only after parent fsync plus complete final reopen validation. It has not been
+materialized or accepted. Jobs `1763747` and `1763984` remain immutable
+historical evidence for their exact executables and do not validate the new
 repair.
 
 The Stage 8 implementation and proposed Stages 9–14 are constrained by these
