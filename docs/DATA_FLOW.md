@@ -54,7 +54,7 @@ Stage 7: libpostal parser evidence (accepted on DEVELOPMENT)
   + complete occurrence map-back; no semantic/geographic truth guarantee
         |
         v
-Stage 8 DEVELOPMENT candidate ready for independent review (not accepted)
+Stage 8 repaired implementation awaiting authorized DEVELOPMENT reexecution
   exact Stage 7 candidate evidence + ordered long-form parser-evidence index
   + source-candidate map + deterministic STANDARD/NATIVE occurrence view
         |
@@ -197,15 +197,20 @@ and complete 69,747-occurrence map-back for all 51,779 exact candidates. Its
 components remain hypotheses/evidence only; no warning status establishes
 semantic correctness or geographic truth.
 
-Stage 8 job `1763747` materialized the DEVELOPMENT candidate and passed exact
-count, binding, reversibility, publication, and privacy validation. It
+Stage 8 job `1763747` materialized the first DEVELOPMENT candidate and passed
+exact count, binding, reversibility, publication, and privacy validation for
+old executable `a2544401b4b699f6c020970f3507a2ae432746c5`. It
 preserves the complete Stage 7 candidate row, emits one ordered long-form
 evidence row per raw component without changing labels/values/order/duplicates,
 and preserves a source-row map with separate STANDARD/NATIVE candidate slots.
 The exact nested Stage 7 list remains authoritative. A mapped SAFE
 parser-evidence name remains `PARSER_EVIDENCE`; Stage 8 emits no hypothesis or
 reference result. pycountry and libaddressinput are deferred to the Stage 9
-design boundary. Stage 8 is not independently reviewed or accepted.
+design boundary. Independent review rejected reporting candidate `adde81d…`
+for publication-state ordering and stale current architecture wording. The
+repair at executable `bd89a03…` has no controlled artifact and is not ready for
+independent review or acceptance. Job `1763747` remains immutable historical
+evidence for the old executable only.
 
 The Stage 8 implementation and proposed Stages 9–14 are constrained by these
 accepted principles:

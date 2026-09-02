@@ -2,16 +2,21 @@
 
 ## Status and authority
 
-**`STAGE08_ADDRESS_EVIDENCE_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REVIEW`.**
+**`STAGE08_ADDRESS_EVIDENCE_IMPLEMENTATION_READY_FOR_CONTROLLED_DEVELOPMENT_REEXECUTION`.**
 
 This remains the controlling scientific contract for Stage 8 DEVELOPMENT. The
-contract was implemented at Git commit
-`a2544401b4b699f6c020970f3507a2ae432746c5`. The single authorized controlled
-DEVELOPMENT materialization completed as job `1763747` and is ready for fresh
-independent critical review. It has not been independently reviewed or
-accepted. This status does not authorize another DEVELOPMENT job, production,
-HOLDOUT access, Stage 9, geocoding, Pelias, Senzing, DeepParse, or any external
-address service.
+first implementation at Git commit
+`a2544401b4b699f6c020970f3507a2ae432746c5` produced controlled DEVELOPMENT
+job `1763747`. Independent review rejected exact reporting candidate
+`adde81d2237e99993222994ce56efb0d74f7c2d3` because its publication-state
+ordering could expose success before prepublication reopen validation and
+because `docs/PROJECT_BRIEF.md` retained a stale Stage 8 reference-tool
+assignment. The bounded publication repair is executable
+`bd89a032eb6fcf16a7515e0bd2991165d87246b1`. It has not been executed on
+protected DEVELOPMENT data and is not ready for independent review or
+acceptance. This status does not authorize another DEVELOPMENT job,
+production, HOLDOUT access, Stage 9, geocoding, Pelias, Senzing, DeepParse, or
+any external address service.
 
 The design is based on accepted Stage 7 candidate
 `656a16d3d1f33cb152ace557c26f42df047bc7d6`, its acceptance merge
@@ -21,19 +26,24 @@ The design is based on accepted Stage 7 candidate
 commit `356de44f3e86e37972d60cac45d01703ad1f6856`. DeepParse remains closed as
 `DEEPPARSE_INFRASTRUCTURE_PATH_NOT_JUSTIFIED` and is not a Stage 8 dependency.
 
-## Implementation candidate
+## Repaired implementation
 
 The implementation preserves this frozen design without changing its grains,
 field semantics, nullability, ordering, or lineage rules. It provides bounded
 PyArrow/Parquet materialization, bounded DuckDB reconciliation, immutable
-publication, and an independent reopen validator. The exact contract/profile,
-four schemas, one-to-one label namespace, upstream bindings, implementation
-SHA, synthetic/static evidence, and planned Goethe resources are recorded in
-the sanitized
-[implementation report](../../reports/development/stage08_address_evidence_implementation.md).
-That report preserves the pre-execution implementation state.
+publication, and an independent reopen validator. The repaired state machine
+keeps `_IN_PROGRESS` through artifact/manifest fsync and complete
+prepublication reopen validation; only then may it write `_SUCCESS.json`,
+remove `_IN_PROGRESS`, fsync the terminal tree, atomically rename, fsync the
+parent, and reopen the publication. Any failure after success-marker creation
+during that transition or immediate post-publication validation demotes the
+retained tree to explicit incomplete state without `_SUCCESS.json`. Exact
+repair evidence and planned Goethe resources are recorded in the sanitized
+[remediation report](../../reports/development/stage08_address_evidence_remediation.md).
+The original [implementation report](../../reports/development/stage08_address_evidence_implementation.md)
+remains historical pre-execution evidence for the rejected executable.
 
-## DEVELOPMENT candidate evidence
+## Historical rejected-candidate DEVELOPMENT evidence
 
 Goethe-NHR job `1763747` completed `0:0` in 15m18s from the byte-identical
 executable commit `a2544401b4b699f6c020970f3507a2ae432746c5`. Its immutable
@@ -45,6 +55,9 @@ The exact 51,779 candidates, 6,106,088 ordered components, 35,000 source rows,
 and 69,747 representation occurrences reconciled with zero dangling,
 component-count, or occurrence-count mismatches. All frozen validation fields,
 reversibility, atomic publication, and owner-only permissions passed.
+Those scientific reconciliation results remain valid evidence for the old
+executable. The job and artifact remain immutable, but executable repair makes
+them ineligible to serve as the final Stage 8 candidate.
 
 The sanitized
 [execution report](../../reports/development/stage08_address_evidence_development.md)
@@ -912,9 +925,9 @@ mechanical parser-evidence index. Country-format/ISO lookup metadata moves to
 Stage 9; hypotheses remain Stage 10. No broader renumbering is required.
 
 Verdict:
-`STAGE08_ADDRESS_EVIDENCE_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REVIEW`.
+`STAGE08_ADDRESS_EVIDENCE_IMPLEMENTATION_READY_FOR_CONTROLLED_DEVELOPMENT_REEXECUTION`.
 
-Exact next task: begin a **fresh independent Stage 8 critical-review session**
-against the immutable job `1763747` artifact and exact reporting candidate.
-Do not rerun Stage 8, alter the artifact, start Stage 9, or treat this candidate
-status as acceptance.
+Exact next action requiring separate owner authorization: **AUTHORIZE ONE NEW
+CONTROLLED STAGE 8 DEVELOPMENT MATERIALIZATION AT THE NEW EXECUTABLE SHA.** Do
+not submit it in this remediation session, alter job `1763747` or its artifact,
+start Stage 9, or treat implementation readiness as acceptance.

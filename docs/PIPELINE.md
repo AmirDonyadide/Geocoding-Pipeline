@@ -37,13 +37,20 @@ job `1763656` and is accepted as `STAGE_7_ACCEPTED`. Acceptance preserves exact
 evidence; it does not establish semantic component correctness, geographic
 truth, or trust from warning absence. Stage 8 DEVELOPMENT job `1763747`
 completed from exact executable
-`a2544401b4b699f6c020970f3507a2ae432746c5`; the candidate is ready for fresh
-independent critical review but is not accepted.
+`a2544401b4b699f6c020970f3507a2ae432746c5`. Independent review rejected exact
+reporting candidate `adde81d2237e99993222994ce56efb0d74f7c2d3` for a
+publication terminal-state defect and stale Stage 8/Stage 9 technology wording.
+The bounded repair is executable
+`bd89a032eb6fcf16a7515e0bd2991165d87246b1` and is ready only for a separately
+authorized controlled DEVELOPMENT reexecution, not independent review or
+acceptance. Job `1763747` remains immutable historical evidence for the old
+executable.
 Production Stage 0 and Stage 1 are accepted for the 1,411-file population;
 production Stage 2 through Stage 6 have not started. The old Stages 8–19 have
-not started. The compact replacement Stage 8 DEVELOPMENT candidate is
-materialized and immutable; replacement Stages 9–14 remain proposed and not
-started. Production Stage 7 has not started.
+not started. The first compact replacement Stage 8 DEVELOPMENT candidate is
+rejected and immutable; its repaired implementation has not been
+rematerialized. Replacement Stages 9–14 remain proposed and not started.
+Production Stage 7 has not started.
 
 ## Cross-stage scientific rules
 
@@ -75,9 +82,10 @@ started. Production Stage 7 has not started.
 11 query identity/QA -> 12 Pelias top-N -> 13 scoring -> 14 granularity/abstain
 ```
 
-Stage 8 now has an immutable DEVELOPMENT candidate ready for a fresh
-independent critical review. Stages 9–14 are still a proposed replacement, not
-an accepted execution order. Every stage still requires its own design, owner
+Stage 8 now has a repaired implementation awaiting separate authorization for
+one new controlled DEVELOPMENT materialization. Stages 9–14 are still a
+proposed replacement, not an accepted execution order. Every stage still
+requires its own design, owner
 authorization, DEVELOPMENT evidence, independent review, acceptance, and stop
 gate. The current prohibition on geocoding before the governing pre-geocoding
 acceptance gate remains in force.
@@ -259,7 +267,8 @@ acceptance gate remains in force.
 
 This compact evidence-first architecture separates source truth,
 parser/reference evidence, hypotheses, geocoder results, and the final accepted
-match. Stage 8 is materialized but not independently reviewed or accepted;
+match. The first Stage 8 candidate is rejected and its repaired implementation
+has not been rematerialized, independently reviewed, or accepted;
 Stages 9–14 remain
 **PROPOSED — NOT STARTED**. Full responsibilities, tool choices, and legacy
 mapping are in the
@@ -282,13 +291,15 @@ mapping are in the
   complete known/unmapped-label retention, complete map-back, deterministic
   fingerprints, bounded memory, privacy, and zero semantic-trust claims.
 - **Status:**
-  **`STAGE08_ADDRESS_EVIDENCE_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REVIEW`**.
-  Job `1763747` completed at executable
-  `a2544401b4b699f6c020970f3507a2ae432746c5`; not accepted. See the
+  **`STAGE08_ADDRESS_EVIDENCE_IMPLEMENTATION_READY_FOR_CONTROLLED_DEVELOPMENT_REEXECUTION`**.
+  Job `1763747` completed at old executable
+  `a2544401b4b699f6c020970f3507a2ae432746c5` and remains immutable historical
+  evidence after independent-review failure. Publication repair executable
+  `bd89a032eb6fcf16a7515e0bd2991165d87246b1` has not been run. See the
   [Stage 8 record](stages/STAGE08_ADDRESS_EVIDENCE_PROJECTION.md), sanitized
-  [execution report](../reports/development/stage08_address_evidence_development.md),
+  historical [execution report](../reports/development/stage08_address_evidence_development.md),
   and
-  [candidate report](../reports/development/stage08_address_evidence_development_candidate_report.md).
+  [remediation report](../reports/development/stage08_address_evidence_remediation.md).
 
 ### Stage 9 — Offline geographic reference evidence
 

@@ -80,8 +80,18 @@ trust guarantee. The old Stages 8–19 were never started. The compact
 evidence-first replacement Stage 8 DEVELOPMENT candidate was materialized by
 job `1763747` at exact executable
 `a2544401b4b699f6c020970f3507a2ae432746c5`. Exact reversibility and all frozen
-validators passed; it is ready for fresh independent review but is not
-accepted. Replacement Stages 9–14 remain proposed. See
+validators passed for that executable, but independent review rejected exact
+reporting candidate `adde81d2237e99993222994ce56efb0d74f7c2d3`: the
+publication state machine could expose success before prepublication reopen
+validation, and one current architecture table still placed pycountry and
+libaddressinput in Stage 8. The bounded fix is executable
+`bd89a032eb6fcf16a7515e0bd2991165d87246b1`. It requires one separately
+authorized controlled DEVELOPMENT reexecution before a new candidate can be
+reported or independently reviewed. Job `1763747` remains immutable historical
+evidence for the old executable, not a final repaired candidate. Replacement
+Stages 9–14 remain proposed. Current Stage 8 status is
+`STAGE08_ADDRESS_EVIDENCE_IMPLEMENTATION_READY_FOR_CONTROLLED_DEVELOPMENT_REEXECUTION`.
+See
 [PIPELINE.md](PIPELINE.md).
 
 ## Standard and native Orbis representations

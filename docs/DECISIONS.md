@@ -843,12 +843,64 @@ to change a decision or start a stage.
   decision does not accept Stage 8 or authorize another job, Stage 9, HOLDOUT,
   production, reference services, or geocoding.
 
+### D041 — Reject the first Stage 8 candidate and repair terminal publication
+
+- **Date:** 2026-09-02.
+- **Scope:** Bounded Stage 8 DEVELOPMENT remediation after independent review;
+  code, synthetic tests, and current-facing documentation only. No protected
+  execution or scientific redesign.
+- **Independent finding:** Exact reporting candidate
+  `adde81d2237e99993222994ce56efb0d74f7c2d3` at executable
+  `a2544401b4b699f6c020970f3507a2ae432746c5` received
+  `STAGE08_ADDRESS_EVIDENCE_INDEPENDENT_REVIEW_FAIL`. First, it created
+  `_SUCCESS.json` and removed `_IN_PROGRESS` before required prepublication
+  reopen validation, so an injected validation failure could leave a failed
+  attempt represented as successful. Second, the current technology table in
+  `docs/PROJECT_BRIEF.md` incorrectly assigned pycountry and offline
+  libaddressinput metadata to Stage 8 instead of Stage 9.
+- **Decision:** Reject the candidate; do not merge or accept it. Repair only
+  terminal publication at exact executable
+  `bd89a032eb6fcf16a7515e0bd2991165d87246b1`. `_IN_PROGRESS` now remains
+  present through materialization, artifact/manifest fsync, and the complete
+  prospective scientific/integrity reopen validation. `_SUCCESS.json` is
+  created only after that validation passes. Marker removal, terminal-directory
+  fsync, atomic rename, parent-directory fsync, and immediate post-publication
+  reopen failures all demote the retained tree to explicit incomplete state
+  with no success marker. The standalone published validator remains
+  non-mutating and rejects later corruption/tampering.
+- **Scientific preservation:** The contract/profile, four schemas, semantic
+  taxonomy, exact 20-label mapping, input bindings, field meanings, status
+  vocabularies, ordering, nullability, and candidate/component/source/occurrence
+  grains are unchanged. Stage 8 remains lossless projection/index only; Stage
+  9 is the potential offline reference/format-evidence boundary for pycountry
+  and libaddressinput where scientifically justified.
+- **Historical evidence:** Job `1763747` and its immutable artifact remain
+  scientifically reconciled DEVELOPMENT evidence for the old executable. They
+  are not relabeled scientifically invalid, modified, deleted, accepted, or
+  eligible to validate the repaired executable. The failed review and both
+  exact blocking findings remain distinct history.
+- **Local evidence:** Stage 8 focused tests pass 17/17, including injected
+  prepublication validation, prospective marker, artifact/manifest corruption,
+  marker removal, fsync, rename, parent-fsync, and post-publication tamper
+  boundaries. Unaffected Stage 2/7/8 and earlier publication regressions pass
+  60/60. The safe full suite has 584 passes, 24 expected exact Python 3.14.3
+  guard failures under local Python 3.14.7, and four deselections. Ruff,
+  changed-file format, strict mypy, shell syntax, JSON, Markdown links, diff,
+  and privacy/tracked-data gates pass; no runtime guard was weakened.
+- **Status:**
+  `STAGE08_ADDRESS_EVIDENCE_IMPLEMENTATION_READY_FOR_CONTROLLED_DEVELOPMENT_REEXECUTION`.
+  This is not a new materialized candidate and does not authorize execution or
+  independent review. The exact next action requiring separate owner
+  authorization is: **AUTHORIZE ONE NEW CONTROLLED STAGE 8 DEVELOPMENT
+  MATERIALIZATION AT THE NEW EXECUTABLE SHA.**
+
 ## Open decisions
 
 These questions require future stage designs and explicit approval:
 
-- Stage 8 fresh independent critical review and acceptance decision under
-  D038–D040;
+- one new controlled Stage 8 DEVELOPMENT materialization at executable
+  `bd89a032eb6fcf16a7515e0bd2991165d87246b1`, followed by sanitized reporting
+  and a fresh independent critical review under D038–D041;
 - exact offline reference releases/licenses and blocking semantics;
 - the bounded Stage 10 hypothesis/query ladder;
 - Stage 13 scoring/calibration and contradiction policy; and
@@ -860,5 +912,7 @@ execution, Stage 9, geocoding, or production Stage 2 through Stage 7. Stage 7
 decisions
 D023–D036 retain their stated historical DEVELOPMENT scopes; D037 alone
 records final Stage 7 DEVELOPMENT acceptance. D038 records the prospective
-Stage 8 design boundary; D039 records implementation; D040 freezes the single
-DEVELOPMENT artifact without granting acceptance or later-stage authority.
+Stage 8 design boundary; D039 records the rejected implementation; D040 freezes
+its single DEVELOPMENT artifact; and D041 records rejection and bounded
+implementation remediation without granting reexecution or later-stage
+authority.

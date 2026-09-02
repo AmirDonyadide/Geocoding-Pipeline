@@ -150,8 +150,8 @@ Accepted/currently proposed technology choices are:
 | 5 | SAFE bounded reconstruction; address-format metadata intentionally deferred |
 | 6 | DuckDB/Polars/hashing |
 | 7 | Pinned libpostal/pypostal plus SAFE evidence-only projection |
-| 8 proposed | PyArrow/Parquet, pycountry, pinned offline libaddressinput metadata |
-| 9 proposed | Pinned GeoNames/Overture, optional approved OSM, RapidFuzz inside strong blocks |
+| 8 | PyArrow/Parquet and bounded DuckDB for lossless typed evidence projection/index; no reference validation |
+| 9 proposed | Potential pinned offline pycountry/libaddressinput metadata where scientifically justified; pinned GeoNames/Overture, optional approved OSM, and RapidFuzz inside strong blocks |
 | 10 proposed | SAFE deterministic multi-hypothesis planning |
 | 11 proposed | DuckDB, PyArrow/Parquet, hashing for query identity/QA |
 | 12 proposed | Self-hosted SAFE Pelias top-N retrieval |
@@ -173,8 +173,8 @@ The accepted sequence through Stage 7 and proposed replacement sequence are:
 5. address reconstruction;
 6. early exact deduplication;
 7. evidence-only libpostal parsing/projection;
-8. materialized lossless address-evidence projection, awaiting independent
-   review;
+8. lossless address-evidence projection implementation repaired after a failed
+   independent review and awaiting a separately authorized reexecution;
 9. proposed offline geographic reference evidence;
 10. proposed multi-hypothesis query-plan generation;
 11. proposed global query identity/deduplication/workload QA;
@@ -190,9 +190,14 @@ parser evidence, applicability/technical provenance, deterministic warnings,
 and full map-back without making semantic or geographic truth claims. The old
 Stages 8–19 were never started under the old architecture. The compact
 replacement Stage 8 DEVELOPMENT candidate was materialized by job `1763747`
-at exact executable `a2544401b4b699f6c020970f3507a2ae432746c5`; it is awaiting
-fresh independent review and is not accepted. Replacement Stages 9–14 remain
-proposed and not started.
+at exact executable `a2544401b4b699f6c020970f3507a2ae432746c5`. Independent
+review rejected exact reporting candidate
+`adde81d2237e99993222994ce56efb0d74f7c2d3` for a publication-state defect
+and this stale Stage 8/Stage 9 technology row. The publication implementation
+is repaired at `bd89a032eb6fcf16a7515e0bd2991165d87246b1`; job `1763747`
+remains immutable historical DEVELOPMENT evidence for the old executable and
+cannot validate the repair. Replacement Stages 9–14 remain proposed and not
+started.
 Production Stage 0 and Stage 1 are accepted; production Stages 2–7 are not
 started. The detailed stage contracts and acceptance requirements are in
 [PIPELINE.md](PIPELINE.md). HOLDOUT remains untouched and sealed.
@@ -247,9 +252,11 @@ Durable decisions are in [DECISIONS.md](DECISIONS.md); current status is in
 
 ## 11. Current next action
 
-Begin a fresh independent Stage 8 critical-review session against immutable job
-`1763747`. Stage 7 is `STAGE_7_ACCEPTED` on DEVELOPMENT under its evidence-only
-boundary. Stage 8 is
-`STAGE08_ADDRESS_EVIDENCE_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REVIEW`;
-acceptance, another Stage 8 job, production Stage 2 through Stage 7, HOLDOUT,
-Stage 9, Senzing, and geocoding remain unauthorized.
+Stage 8 is
+`STAGE08_ADDRESS_EVIDENCE_IMPLEMENTATION_READY_FOR_CONTROLLED_DEVELOPMENT_REEXECUTION`
+at executable `bd89a032eb6fcf16a7515e0bd2991165d87246b1`; it is not ready
+for independent review or acceptance because the changed executable requires a
+new controlled DEVELOPMENT artifact. The exact next action requiring separate
+owner authorization is: **AUTHORIZE ONE NEW CONTROLLED STAGE 8 DEVELOPMENT
+MATERIALIZATION AT THE NEW EXECUTABLE SHA.** Production Stage 2 through Stage
+7, HOLDOUT, Stage 9, Senzing, and geocoding remain unauthorized.

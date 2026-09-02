@@ -23,8 +23,10 @@ query can be inspected and reproduced.
 
 The DEVELOPMENT pipeline is accepted through Stage 7. Stage 7 is accepted as
 reproducible parser evidence, not semantic component or geographic truth.
-Stage 8 design is ready for implementation but has not been implemented or
-executed. Later stages have not started.
+The first Stage 8 candidate failed independent review. Its publication
+implementation is repaired and locally validated but requires one separately
+authorized controlled DEVELOPMENT reexecution before another candidate or
+review. Later stages have not started.
 
 | Stage | Name | Status | Data effect |
 |---:|---|---|---|
@@ -36,7 +38,7 @@ executed. Later stages have not started.
 | 5 | Address reconstruction | **`STAGE_5_ACCEPTED`** | Appends separate clean/lower standard/native line-body candidates and compact provenance |
 | 6 | Early exact deduplication | **`STAGE_6_ACCEPTED`** | Preserves 35,000 rows and maps 69,747 occurrences to 51,779 exact candidates |
 | 7 | libpostal parsing/evidence | **`STAGE_7_ACCEPTED`** | Preserves exact raw ordered parser evidence, applicability/technical provenance, warnings, and complete map-back; components remain hypotheses only |
-| 8 | Lossless address-evidence projection | **DESIGN READY — NOT IMPLEMENTED** | Preserves Stage 7 and adds a reversible parser-evidence index plus complete source/representation map-back |
+| 8 | Lossless address-evidence projection | **`STAGE08_ADDRESS_EVIDENCE_IMPLEMENTATION_READY_FOR_CONTROLLED_DEVELOPMENT_REEXECUTION`** | Preserves Stage 7 and adds a reversible parser-evidence index plus complete source/representation map-back; repaired SHA has no controlled artifact |
 | 9–14 proposed | Reference evidence, hypotheses, retrieval, scoring, and final granularity | **PROPOSED — NOT STARTED** | No design approval or execution authorization |
 
 Production Stage 0 and Stage 1 are accepted for
@@ -55,7 +57,7 @@ immutable source CSV
   -> Stage 5: separate deterministic address-line body reconstruction
   -> Stage 6: exact lowercase candidate registry + complete row map
   -> Stage 7: accepted evidence-only libpostal projection
-  -> designed Stage 8: lossless evidence projection/index (not implemented)
+  -> repaired Stage 8: lossless evidence projection/index (awaiting authorized reexecution)
   -> proposed Stages 9–14: references, hypotheses, query QA, retrieval, scoring
   -> self-hosted SAFE Pelias
 ```
@@ -73,7 +75,7 @@ to every `stable_source_row_id_v1`.
 | `cluster/goethe_nhr/` | Reviewed SLURM and environment assets for Goethe-NHR |
 | `scripts/` | Controlled transfer and synchronization helpers |
 | `docs/` | Current project, pipeline, workflow, privacy, execution, and reproducibility documentation |
-| `docs/stages/` | Stage 0–7 accepted records and the Stage 8 prospective design |
+| `docs/stages/` | Stage 0–7 accepted records and the active Stage 8 contract/remediation status |
 | `docs/history/` | Accepted source-foundation records that predate the Stage terminology |
 | `reports/development/` | Sanitized, Git-safe aggregate DEVELOPMENT evidence |
 
@@ -152,14 +154,17 @@ personal absolute paths. Sanitized evidence is available under
 - [Accepted stage records](docs/stages/README.md)
 - [Historical records](docs/history/README.md)
 
-## Current next stage
+## Current next action
 
-**Fresh Stage 8 DEVELOPMENT implementation session after explicit
-authorization.** Stage 7 is `STAGE_7_ACCEPTED` on DEVELOPMENT for exact
-evidence preservation; it provides no semantic component correctness,
-geographic truth, or warning-absence trust guarantee. Stage 8 design is
-`STAGE08_ADDRESS_EVIDENCE_DESIGN_READY_FOR_IMPLEMENTATION`, but implementation,
-execution, HOLDOUT, production Stages 2–7, Stage 9, Senzing, and geocoding
-remain unauthorized. See the
+Stage 8 is
+**`STAGE08_ADDRESS_EVIDENCE_IMPLEMENTATION_READY_FOR_CONTROLLED_DEVELOPMENT_REEXECUTION`**
+at executable `bd89a032eb6fcf16a7515e0bd2991165d87246b1`. The rejected
+candidate/reporting SHA `adde81d2237e99993222994ce56efb0d74f7c2d3`, old
+executable `a2544401b4b699f6c020970f3507a2ae432746c5`, and job `1763747`
+remain immutable historical evidence; the old job cannot validate the repair.
+The exact next action requiring separate owner authorization is **AUTHORIZE ONE
+NEW CONTROLLED STAGE 8 DEVELOPMENT MATERIALIZATION AT THE NEW EXECUTABLE SHA**.
+HOLDOUT, production Stages 2–7, Stage 9, Senzing, and geocoding remain
+unauthorized. See the
 [Stage 8 design](docs/stages/STAGE08_ADDRESS_EVIDENCE_PROJECTION.md) and
 [current progress](docs/DEVELOPMENT_PROGRESS.md).
