@@ -7,7 +7,7 @@
   relevant documentation before acting.
 - Design and obtain explicit review/approval before implementing a stage. Stop
   after every stage; evidence is not permission to continue.
-- Stages 0–3 are accepted on DEVELOPMENT. Stage 4 and production Stage 2 are
+- Stages 0–8 are accepted on DEVELOPMENT. Stage 9 and production Stage 2 are
   not started and require separate explicit authorization.
 - Preserve accepted/rejected scientific history. Do not rebase, squash, or
   rewrite the Stage 3 v1/v2 ancestry.

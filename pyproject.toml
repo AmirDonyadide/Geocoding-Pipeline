@@ -29,7 +29,6 @@ safe-geocoding-stage07-review = "safe_geocoding_pipeline.preprocessing.stage07_r
 safe-geocoding-stage07-quality = "safe_geocoding_pipeline.preprocessing.stage07_quality_cli:main"
 safe-geocoding-stage07-context = "safe_geocoding_pipeline.preprocessing.stage07_context_cli:main"
 safe-geocoding-stage07-eligibility = "safe_geocoding_pipeline.preprocessing.stage07_eligibility_cli:main"
-safe-geocoding-stage07-prelaunch = "safe_geocoding_pipeline.preprocessing.stage07_prelaunch_cli:main"
 safe-geocoding-stage07-v2-readiness = "safe_geocoding_pipeline.preprocessing.stage07_v2_readiness_cli:main"
 safe-geocoding-stage07-v2-validation-selection = "safe_geocoding_pipeline.preprocessing.stage07_v2_validation_selection_cli:main"
 safe-geocoding-stage08 = "safe_geocoding_pipeline.preprocessing.stage08_cli:main"
@@ -58,16 +57,10 @@ strict = true
 
 [[tool.mypy.overrides]]
 module = [
-    "deepparse",
-    "deepparse.*",
-    "numpy",
-    "numpy.*",
     "postal",
     "postal.*",
     "pyarrow",
     "pyarrow.*",
-    "torch",
-    "torch.*",
 ]
 ignore_missing_imports = true
 
