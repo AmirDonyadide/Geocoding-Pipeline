@@ -144,8 +144,11 @@ logs/slurm/
 .vscode/
 .idea/
 
-# Large generated reports
-reports/generated/
+# Large generated reports. Keep generated run directories and arbitrary payloads
+# ignored while allowing the nine sanitized acceptance summaries and their index.
+reports/generated/*
+!reports/generated/README.md
+!reports/generated/stage[0-9][0-9].json
 
 !tests/fixtures/
 !tests/fixtures/synthetic_*.csv

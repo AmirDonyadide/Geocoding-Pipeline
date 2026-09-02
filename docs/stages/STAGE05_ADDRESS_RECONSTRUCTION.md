@@ -195,4 +195,4 @@ The harness remains reachable through the immutable annotated tag
 The bound protected human attestation validated successfully with SHA-256
 `5981777021e55280278270c9821d9b02ccbd3fc0fd6711f11e0b833bed24cee8`.
 Full aggregate metrics, performance, attempt history, and privacy gates are in
-the [sanitized Stage 5 report](../../reports/development/stage05_summary.md).
+the authoritative [Stage 5 report](../../reports/development/stage05.md).

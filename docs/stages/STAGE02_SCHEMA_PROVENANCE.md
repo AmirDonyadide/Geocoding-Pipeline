@@ -59,8 +59,8 @@ HOLDOUT exclusion, and sanitized-report allowlisting.
 
 Goethe job `1758833` processed all 35,000 DEVELOPMENT rows and retained all
 incoming values/identities while adding the four structural fields. Full
-quantitative evidence is in
-[`reports/development/stage02_summary.md`](../../reports/development/stage02_summary.md).
+quantitative evidence is in the authoritative
+[Stage 2 report](../../reports/development/stage02.md).
 The protected fixed-500 view uses the same deterministic identities documented
 in [INSPECTING_RESULTS.md](../INSPECTING_RESULTS.md).
 

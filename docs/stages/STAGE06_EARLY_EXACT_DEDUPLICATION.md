@@ -196,7 +196,7 @@ Candidate-ID derivation took 0.721 seconds, row-map materialization 7.335
 seconds, registry aggregation 6.446 seconds, core materialization 13.816
 seconds, and immediate publication validation 22.618 seconds. DuckDB reported
 no spill. The aggregate evidence and complete performance record are in the
-[sanitized Stage 6 report](../../reports/development/stage06_summary.md).
+[authoritative Stage 6 report](../../reports/development/stage06.md).
 
 ## Independent acceptance
 

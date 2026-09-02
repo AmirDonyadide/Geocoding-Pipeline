@@ -1,0 +1,104 @@
+{
+  "report_version": "stage_acceptance_summary_v1",
+  "stage": 5,
+  "stage_name": "Address reconstruction",
+  "status": "STAGE_5_ACCEPTED",
+  "scope": "DEVELOPMENT",
+  "accepted": true,
+  "provenance": {
+    "candidate_sha": "97bd7fa74da358e81133ac4d38232931762d3e78",
+    "executable_sha": "cd0a5ae91c3602ec20e34f7c419f1ac76f0b9160",
+    "merge_sha": null,
+    "jobs": [
+      {
+        "job_id": "1759603",
+        "role": "AUTHORITATIVE_DEVELOPMENT",
+        "status": "COMPLETED"
+      },
+      {
+        "job_id": "1759692",
+        "role": "INDEPENDENT_REVIEW",
+        "status": "COMPLETED"
+      }
+    ]
+  },
+  "inputs": {
+    "upstream_stage": 4,
+    "contract": "stage05_address_reconstruction_contract_v2",
+    "profile": "stage05_address_reconstruction_profile_v2",
+    "upstream_logical": "054c66701f854a0108938170e1cb9bcee8a772f7fed29b82cda53c71aa9747ec",
+    "upstream_schema": "dafb4f78b8bfce3120b6f4f7ae8cb44883f4c3a9cfd94b3137871b83c0ed5cbc",
+    "upstream_manifest": "17a4854cddd8929b65ea79402f1a4f12a1574b720c1921567b577f23e152d1f3"
+  },
+  "outputs": {
+    "logical_grain": "ONE_ROW_PER_SOURCE_RECORD",
+    "fields_added": 10,
+    "separator": "U+0020",
+    "standard_native_separate": true,
+    "geographic_fields_appended": false
+  },
+  "counts": {
+    "input_rows": 35000,
+    "output_rows": 35000,
+    "added_rows": 0,
+    "dropped_rows": 0,
+    "duplicate_identities": 0,
+    "standard_available": 34822,
+    "native_available": 34925,
+    "both": 34747,
+    "standard_only": 75,
+    "native_only": 178,
+    "neither": 0,
+    "both_exact_equal_lowercase": 17913,
+    "both_different_lowercase": 16834,
+    "independent_review_rows": 179,
+    "independent_correct": 136,
+    "independent_valid_redundant": 37,
+    "independent_questionable_boundary": 6,
+    "independent_questionable_order": 0,
+    "independent_semantic_damage": 0
+  },
+  "fingerprints": {
+    "logical": "ba5829621fc15347d7cd4e168a48587bab896cd0be98924627876ae853dfaff2",
+    "schema": "63d4cdb3707eda65c67cc5196891fa5005adce2b12eb7109554793c48c5303c3",
+    "input_binding": "7e68c33f7daa482b442eca82c00c6904ec5e38bec1b3fc598d5be4d52a6bcb9f",
+    "manifest": "fd945163e3be0242c43b98972350904631279cb99f366baadb0a3094ab6a1fc5",
+    "ordered_stable_identity": "fe2a4758582c1880d2b5c62dfc5c587d865e05d13033af9f5e8208b58e2a0487",
+    "benchmark_v1": "014a7d2a9935bb098711e62b89df2eb93dfdd0dd1ce5ac70853f010d118acedf",
+    "fixed_500": "014f7c1373380b265f34e2ecb76614161b320e2bb972befb8f53994cc5a1dd52"
+  },
+  "validation": {
+    "all_upstream_fields_unchanged": "PASS",
+    "identity_and_order_exact": "PASS",
+    "reconstruction_mismatches": 0,
+    "audit_mismatches": 0,
+    "idempotence_mismatches": 0,
+    "atomic_owner_only_publication": "PASS"
+  },
+  "independent_review": {
+    "status": "PASS",
+    "job_id": "1759692",
+    "harness_sha": "cbafa0acd20dc3fa03ccd3db8c1f62104529666a",
+    "attestation_sha256": "5981777021e55280278270c9821d9b02ccbd3fc0fd6711f11e0b833bed24cee8",
+    "qualitative_scope_fingerprint": "801fe9820cae9ae6a9aaf03b0bffcd5c3b8c316fd32b0bc1d4470ef99fd554f5"
+  },
+  "historical_events": [
+    {
+      "event_id": "STAGE05_V1_SEPARATOR_REJECTED",
+      "status": "REJECTED",
+      "executable_sha": "e69ccaaebbaeff73d88dd43018904671ee6005dd",
+      "job_id": "1759565",
+      "separator": "COMMA_U0020",
+      "fixed_500_questionable_boundaries": 4,
+      "scientific_change_in_v2": "SEPARATOR_ONLY"
+    }
+  ],
+  "prohibited_activity": {
+    "holdout_accessed": false,
+    "unauthorized_production_access": false,
+    "stage09_started": false,
+    "parsing_calls": 0,
+    "geocoding_calls": 0,
+    "external_service_calls": 0
+  }
+}

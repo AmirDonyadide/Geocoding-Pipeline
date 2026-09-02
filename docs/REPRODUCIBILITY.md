@@ -165,4 +165,7 @@ fingerprints, job/commit identities, and non-sensitive resource metrics. They
 provide portable progress evidence without attempting to reproduce protected
 row content. Full scientific reproduction requires authorized access to the
 controlled input and immutable artifacts; documentation alone never grants
-that access.
+that access. The [authoritative human reports](../reports/development/README.md)
+and [machine-readable summaries](../reports/generated/README.md) provide exactly
+one accepted record of each Stage 0–8; superseded detailed reports remain in
+Git history.

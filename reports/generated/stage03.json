@@ -1,0 +1,92 @@
+{
+  "report_version": "stage_acceptance_summary_v1",
+  "stage": 3,
+  "stage_name": "Safe text cleaning",
+  "status": "STAGE_3_ACCEPTED",
+  "scope": "DEVELOPMENT",
+  "accepted": true,
+  "provenance": {
+    "candidate_sha": "82e945a2f41b61e4deff4c28fff4a02ef2af047a",
+    "executable_sha": "278414573fd465e261f3b9131c45fb564b93622d",
+    "merge_sha": "958dddc8a9769977453ea5588e6861b62162090a",
+    "jobs": [
+      {
+        "job_id": "1759269",
+        "role": "AUTHORITATIVE_DEVELOPMENT",
+        "status": "COMPLETED"
+      },
+      {
+        "job_id": "1759272",
+        "role": "INDEPENDENT_REVIEW",
+        "status": "COMPLETED"
+      }
+    ]
+  },
+  "inputs": {
+    "upstream_stage": 2,
+    "contract": "stage03_safe_text_cleaning_contract_v1",
+    "profile": "stage03_safe_text_cleaning_profile_v1",
+    "input_binding": "6a2a28d276884511f5b8f63f40d14d6b7f4bf4397aa09289c53acdb92a661e6f",
+    "upstream_manifest": "260b77fea50bc2db1bfb10dca8339cb33bcb2e2aad7de9c07ed55a71dec0d419"
+  },
+  "outputs": {
+    "logical_grain": "ONE_ROW_PER_SOURCE_RECORD",
+    "clean_fields_added": 12,
+    "audit_fields_added": 2,
+    "physical_format": "PARQUET"
+  },
+  "counts": {
+    "input_rows": 35000,
+    "output_rows": 35000,
+    "total_cleanable_fields": 420000,
+    "changed_rows": 1281,
+    "changed_fields": 1795,
+    "encoding_repairs": 9,
+    "punctuation_codepoint_changes": 9,
+    "semantic_punctuation_normalizations": 0,
+    "idempotence_failures": 0,
+    "added_rows": 0,
+    "dropped_rows": 0,
+    "duplicate_identities": 0
+  },
+  "fingerprints": {
+    "logical": "38df499bfaf61883832a9c718adf4cf92cfcea753337df68fa2e89afb6051bdb",
+    "schema": "fc991ef63bd80a754114ecae6a9d3c4cf1f33a35a28581fea997edd2e4565c9b",
+    "manifest": "8f70745e31185abce52fdc1685c2b767f90874c21596152ea0463ec6677478d4",
+    "ordered_stable_identity": "fe2a4758582c1880d2b5c62dfc5c587d865e05d13033af9f5e8208b58e2a0487",
+    "review_artifact": "e2233bad584662d4b9881b1fe14f3f4bc58a0f893b33d8fc3ed41a0bda70d987",
+    "benchmark_v1": "014a7d2a9935bb098711e62b89df2eb93dfdd0dd1ce5ac70853f010d118acedf",
+    "fixed_500": "014f7c1373380b265f34e2ecb76614161b320e2bb972befb8f53994cc5a1dd52"
+  },
+  "validation": {
+    "all_upstream_fields_unchanged": "PASS",
+    "v1_v2_scientific_values_equal": "PASS",
+    "v1_v2_reason_codes_equal": "PASS",
+    "fixed_500_equal": "PASS",
+    "bounded_memory": "PASS",
+    "atomic_owner_only_publication": "PASS"
+  },
+  "independent_review": {
+    "status": "PASS",
+    "job_id": "1759272",
+    "evidence_sha256": null
+  },
+  "historical_events": [
+    {
+      "event_id": "STAGE03_V1_REJECTED",
+      "status": "REJECTED",
+      "candidate_sha": "9ed24cea8626b9cd674377636fe1d51e3cd6b456",
+      "executable_sha": "8446190d1153aeb507678d0de18d027f89f0ec8d",
+      "job_id": "1759109",
+      "scientific_values_later_reproduced_exactly": true,
+      "failure_class": "IMPLEMENTATION_VALIDATION_REPORTING"
+    }
+  ],
+  "prohibited_activity": {
+    "holdout_accessed": false,
+    "unauthorized_production_access": false,
+    "stage09_started": false,
+    "geocoding_calls": 0,
+    "external_service_calls": 0
+  }
+}

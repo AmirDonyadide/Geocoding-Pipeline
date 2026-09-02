@@ -18,21 +18,11 @@ independent review records acceptance.
 | 8 | [Lossless address-evidence projection](STAGE08_ADDRESS_EVIDENCE_PROJECTION.md) | `STAGE_8_ACCEPTED`; candidate `231cdbf9…`, executable `c04cb972…`, job `1764273`, independent job `1764376` | NOT STARTED |
 
 Replacement Stages 9–14 remain proposed in
-[the pipeline specification](../PIPELINE.md). Stage 8 jobs `1763747` and
-`1763984` are frozen as historical evidence for their exact executables in the
-sanitized
-[execution report](../../reports/development/stage08_address_evidence_development.md)
-and [candidate report](../../reports/development/stage08_address_evidence_development_candidate_report.md).
-They also retain job `1763747` and its rejected old executable as immutable
-historical evidence. The [remediation report](../../reports/development/stage08_address_evidence_remediation.md)
-records the first publication fix. The
-[second remediation report](../../reports/development/stage08_address_evidence_publication_remediation_v2.md)
-records the second failed rereview and post-effect rename repair. Job `1764219`
-and its [candidate report](../../reports/development/stage08_address_evidence_publication_remediation_v2_candidate_report.md)
-remain historical after the third failed rereview. The
-[third remediation report](../../reports/development/stage08_address_evidence_publication_remediation_v3.md)
-records the post-commit CLI-status and final-ownership repair. Exact candidate
-`231cdbf9…` passed corrected independent rereview job `1764376`; the
-[sanitized rereview](../../reports/development/stage08_address_evidence_independent_rereview.md)
-records zero candidate defects and preserves review-only RH-001 separately.
-The next task is the full Stages 0–8 pipeline audit before Stage 9.
+[the pipeline specification](../PIPELINE.md). The authoritative
+[Stage 8 report](../../reports/development/stage08.md) consolidates jobs
+`1763747`, `1763984`, `1764219`, and accepted job `1764273`; all publication
+remediations; corrected independent rereview job `1764376`; and review-only
+RH-001 without relabeling any historical failure. Its
+[machine summary](../../reports/generated/stage08.json) provides the exact
+structured evidence. The next task is the full Stages 0–8 pipeline audit before
+Stage 9.

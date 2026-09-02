@@ -219,7 +219,7 @@ The focused Stage 4 suite passed 50 tests. The policy-compliant local-safe suite
 passed 380 tests with four controlled production-transfer tests deselected.
 Ruff, mypy, changed-file formatting, `git diff --check`, shell syntax, Markdown
 links, and the tracked/protected-data audit passed. See the Git-safe aggregate
-[summary](../../reports/development/stage04_summary.md).
+[Stage 4 report](../../reports/development/stage04.md).
 
 ## Production and later-stage status
 

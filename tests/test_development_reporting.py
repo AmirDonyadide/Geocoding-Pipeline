@@ -48,7 +48,6 @@ from safe_geocoding_pipeline.preprocessing.reporting.summary import (
     SanitizedStageSummary,
     render_summary_json,
     render_summary_markdown,
-    validate_sanitized_summary_payload,
 )
 from safe_geocoding_pipeline.preprocessing.stages.s02_harmonization import (
     Stage02InputArtifact,
@@ -265,44 +264,6 @@ def test_reporting_api_is_stage_neutral_deterministic_and_allowlisted() -> None:
         render_summary_json(
             _summary(metric_groups={"ROW_INTEGRITY": {"RAW_STREET": 1}})
         )
-
-
-def test_committed_stage02_summary_is_canonical_and_git_safe() -> None:
-    repository = Path(__file__).resolve().parents[1]
-    json_path = repository / "reports" / "development" / "stage02_summary.json"
-    markdown_path = repository / "reports" / "development" / "stage02_summary.md"
-    payload = json.loads(json_path.read_text(encoding="utf-8"))
-    summary = validate_sanitized_summary_payload(payload)
-    assert json_path.read_text(encoding="utf-8") == render_summary_json(summary)
-    assert markdown_path.read_text(encoding="utf-8") == render_summary_markdown(summary)
-    portable = json_path.read_text() + markdown_path.read_text()
-    for forbidden in (
-        "street_address_line_1",
-        "source_file",
-        "stable_source_row_id_v1",
-        "Fictional Secret Address",
-    ):
-        assert forbidden not in portable
-
-
-def test_committed_review_subset_summary_is_canonical_and_git_safe() -> None:
-    repository = Path(__file__).resolve().parents[1]
-    json_path = repository / "reports" / "development" / "review_subset_v1_summary.json"
-    markdown_path = (
-        repository / "reports" / "development" / "review_subset_v1_summary.md"
-    )
-    payload = json.loads(json_path.read_text(encoding="utf-8"))
-    summary = validate_sanitized_summary_payload(payload)
-    assert json_path.read_text(encoding="utf-8") == render_summary_json(summary)
-    assert markdown_path.read_text(encoding="utf-8") == render_summary_markdown(summary)
-    portable = json_path.read_text() + markdown_path.read_text()
-    for forbidden in (
-        "street_address_line_1",
-        "source_file",
-        "stable_source_row_id_v1",
-        "Fictional Secret Address",
-    ):
-        assert forbidden not in portable
 
 
 def _source_row(index: int) -> dict[str, str]:

@@ -1,0 +1,106 @@
+{
+  "report_version": "stage_acceptance_summary_v1",
+  "stage": 2,
+  "stage_name": "Schema and provenance harmonization",
+  "status": "STAGE_2_ACCEPTED",
+  "scope": "DEVELOPMENT",
+  "accepted": true,
+  "provenance": {
+    "candidate_sha": null,
+    "executable_sha": "6432c72ca496852551d3f9d4e9084632cf2766af",
+    "merge_sha": null,
+    "jobs": [
+      {
+        "job_id": "1758833",
+        "role": "AUTHORITATIVE_DEVELOPMENT",
+        "status": "COMPLETED"
+      },
+      {
+        "job_id": "1758910",
+        "role": "FIXED_500_REVIEW_SUBSET_MATERIALIZATION",
+        "status": "COMPLETED"
+      }
+    ]
+  },
+  "inputs": {
+    "upstream_stage": 1,
+    "contract": "stage02_schema_provenance_harmonization_contract_v1",
+    "binding": "stage02_input_binding_v1",
+    "benchmark_v1": "014a7d2a9935bb098711e62b89df2eb93dfdd0dd1ce5ac70853f010d118acedf",
+    "incoming_fields": 22
+  },
+  "outputs": {
+    "logical_grain": "ONE_ROW_PER_SOURCE_RECORD",
+    "incoming_fields_preserved": 22,
+    "derived_fields_added": 4,
+    "physical_format": "PARQUET"
+  },
+  "counts": {
+    "input_rows": 35000,
+    "output_rows": 35000,
+    "added_rows": 0,
+    "dropped_rows": 0,
+    "duplicate_identities": 0,
+    "fixed_review_rows": 500,
+    "fixed_review_country_strata_available": 269,
+    "fixed_review_country_strata_represented": 269,
+    "fixed_review_source_files": 243,
+    "fixed_review_quota_shortfalls": 0,
+    "availability": {
+      "both": 34747,
+      "native_only": 178,
+      "standard_only": 75,
+      "neither": 0
+    },
+    "standard_nonempty_source_lines": {
+      "0": 178,
+      "1": 14991,
+      "2": 16889,
+      "3": 2698,
+      "4": 244
+    },
+    "native_nonempty_source_lines": {
+      "0": 75,
+      "1": 15032,
+      "2": 16912,
+      "3": 2700,
+      "4": 281
+    }
+  },
+  "fingerprints": {
+    "logical": "ff95021bd2f4b2994e9e2a766f32e792e29797a128dc64fa3aef100ff9f5ca72",
+    "schema": "3c4a2d616ab6dacf57f42fff7e84175a48fbd50c6a060046434593c5aefa74d4",
+    "benchmark_v1": "014a7d2a9935bb098711e62b89df2eb93dfdd0dd1ce5ac70853f010d118acedf",
+    "fixed_500": "014f7c1373380b265f34e2ecb76614161b320e2bb972befb8f53994cc5a1dd52",
+    "fixed_500_schema": "bd3446085e3382d5fdbedd9483a4332ff26d2e5211a03f4b019c765534cfcc51"
+  },
+  "validation": {
+    "raw_fields_unchanged": "PASS",
+    "stable_identities_preserved": "PASS",
+    "input_identity_bound": "PASS",
+    "schema_anomalies": 0,
+    "unexpected_nulls": 0,
+    "invariant_violations": 0,
+    "atomic_owner_only_publication": "PASS"
+  },
+  "independent_review": {
+    "status": "PASS",
+    "job_id": null,
+    "evidence_sha256": null
+  },
+  "historical_events": [
+    {
+      "event_id": "DEVELOPMENT_REVIEW_SUBSET_V1_MATERIALIZED",
+      "executable_sha": "0cc5077ca80e23c69f15cb37dd29bf010d080958",
+      "job_id": "1758910",
+      "status": "ACCEPTED_FIXED_REVIEW_INFRASTRUCTURE"
+    }
+  ],
+  "prohibited_activity": {
+    "holdout_accessed": false,
+    "unauthorized_production_access": false,
+    "stage09_started": false,
+    "geocoding_calls": 0,
+    "external_service_calls": 0
+  }
+}

@@ -1,0 +1,201 @@
+{
+  "report_version": "stage_acceptance_summary_v1",
+  "stage": 7,
+  "stage_name": "libpostal parsing and parser evidence",
+  "status": "STAGE_7_ACCEPTED",
+  "scope": "DEVELOPMENT",
+  "accepted": true,
+  "provenance": {
+    "candidate_sha": "656a16d3d1f33cb152ace557c26f42df047bc7d6",
+    "executable_sha": "e684d84a8d68498ea790542143c8e125b3eb87b5",
+    "merge_sha": "b36b995809fe902fe80af25856cb24786b795b1c",
+    "jobs": [
+      {
+        "job_id": "1760151",
+        "role": "PARSER_BUNDLE_BUILD",
+        "status": "COMPLETED"
+      },
+      {
+        "job_id": "1760221",
+        "role": "AUTHORITATIVE_LIBPOSTAL_V1_EXECUTION",
+        "status": "COMPLETED"
+      },
+      {
+        "job_id": "1760226",
+        "role": "V1_INDEPENDENT_VALIDATION",
+        "status": "COMPLETED"
+      },
+      {
+        "job_id": "1760494",
+        "role": "V1_QUALITATIVE_REVIEW",
+        "status": "COMPLETED"
+      },
+      {
+        "job_id": "1763516",
+        "role": "AUTHORITATIVE_EVIDENCE_ONLY_V2",
+        "status": "COMPLETED"
+      },
+      {
+        "job_id": "1763656",
+        "role": "INDEPENDENT_REREVIEW",
+        "status": "COMPLETED"
+      }
+    ]
+  },
+  "inputs": {
+    "upstream_stage": 6,
+    "contract": "stage07_parser_evidence_contract_v2",
+    "profile": "stage07_parser_evidence_profile_v2",
+    "schema": "stage07_parser_evidence_schema_v2",
+    "stage06_manifest": "e1da7b8ef04b65b1ece8e710720b57a8536841766fcf9de641f889b42eadd241",
+    "stage07_v1_manifest": "98d4e9efd2e46bb725aa68d7c207065efb2089c59cdcba8bbe6ef3536d9f8f77",
+    "country_eligibility_artifact": "a6ba110c0519873af898dcec0b5188a1db2659fe31aa619613cffcfdf82e499c",
+    "country_eligibility_audit_manifest": "8395b0b5f8e0943dc6dd1a9c9553ea571294fc7bbe61fc9b9b1e6e8fd1cea1a6",
+    "country_eligibility_policy_manifest": "49dcda13e36d2692885efadffb606fa96207fc174a3385041c07af9bf0d1026a",
+    "parser": {
+      "libpostal_commit": "25099c506612b34b23b1bfe286ca6321fcf06f35",
+      "libpostal_version": "1.1.4",
+      "libpostal_shared_library_sha256": "3e2aa3e23b62c22b77827b47d78692d49ae3d693c07ee7ad3763e9b97438cb5e",
+      "pypostal_commit": "d6666a4f6a2ae0e7b83e037a35412f0f6b45c318",
+      "pypostal_version": "1.1.11",
+      "six_version": "1.17.0",
+      "model_asset_version": "v1.0.0",
+      "bundle_fingerprint": "f3c6db7e9f11ab75b2207be773e946d531dbba763008d9f7e5036d8c923dc2ae"
+    }
+  },
+  "outputs": {
+    "candidate_grain": "ONE_ROW_PER_STAGE06_EXACT_CANDIDATE",
+    "component_representation": "ORDERED_RAW_LABEL_VALUE_EVIDENCE",
+    "execution_origin": "REUSED_IMMUTABLE_STAGE07_V1",
+    "country_applicability_provenance": true,
+    "structural_warnings_are_semantic_trust": false,
+    "semantic_readiness_fields_published": false,
+    "occurrence_map_back_complete": true
+  },
+  "counts": {
+    "candidate_rows": 51779,
+    "occurrences": 69747,
+    "standard_occurrences": 34822,
+    "native_occurrences": 34925,
+    "parsed_nonempty": 51774,
+    "parsed_empty": 5,
+    "parser_crashes_in_authoritative_v1": 0,
+    "ordered_components": 6106088,
+    "maximum_components_per_candidate": 881338,
+    "maximum_candidate_codepoints": 25920495,
+    "applicability": {
+      "eligible": 50685,
+      "missing_country": 721,
+      "partial_country": 4,
+      "invalid_country": 355,
+      "ambiguous_country": 14
+    },
+    "structural_warning_status": {
+      "no_warnings_detected": 33811,
+      "warnings_present": 16874,
+      "not_evaluated": 1094
+    },
+    "v1_semantic_review": {
+      "reviewed": 120,
+      "plausible": 30,
+      "partial_but_usable": 41,
+      "questionable": 7,
+      "clear_misparse": 11,
+      "upstream_corrupt_or_unassessable": 31
+    },
+    "targeted_root_cause": {
+      "reviewed": 18,
+      "true_libpostal_error_cases": 14,
+      "true_label_error_cases": 6,
+      "true_boundary_error_cases": 9
+    },
+    "accepted_projection_parser_calls": 0,
+    "semantic_trust_claims": 0
+  },
+  "fingerprints": {
+    "contract": "c9561e6d08263b2a8824ff66f2a3aa8521e3ff880759abc14173cce440ced8a4",
+    "schema": "b0e0e83ea3d929b7df8a6a5f64c2e8eb026395a917da90e97a98858b27e9ead2",
+    "logical": "0f0706c1396803737f22845837753878bfd2e8b3f9af59b48cfcc1b8c5774530",
+    "manifest": "f58410877a7810562df7985c7316de7546d4dd8e11a647fd659c53a272e9c266",
+    "parser_bundle": "f3c6db7e9f11ab75b2207be773e946d531dbba763008d9f7e5036d8c923dc2ae",
+    "parser_model": "0b067a2697e9f90cef92c806701c08648a1f5127c17f0f3168ecaed186dc3293",
+    "pypostal_runtime": "ccc547bfdcaf391685cbb3285be9a02d84c28c7671dcafb4450d25c03920f7ff",
+    "parser_bundle_manifest": "12a0080bff6b3ed2420847124eb918d91b7582214e3d4b037628bf5b9022340d",
+    "raw_preservation_digest": "188db8540fbede26647ab713dbddbae5a51362e7f20e51f25ba61dc26861ef16",
+    "warning_replay_digest": "1dafa0c59d1d0925c4458763db64bb056ea9d1b813205b0dbf3e8babc7a7e072"
+  },
+  "validation": {
+    "exact_stage06_preservation": "PASS",
+    "exact_stage07_v1_raw_preservation": "PASS",
+    "country_and_technical_consistency": "PASS",
+    "warning_replay_twice_exact": "PASS",
+    "occurrence_map_missing": 0,
+    "occurrence_map_non_unique": 0,
+    "parser_components_are_trustworthy_structured_components": false,
+    "absence_of_warning_implies_trust": false,
+    "deep_parse_path_status": "DEEPPARSE_INFRASTRUCTURE_PATH_NOT_JUSTIFIED"
+  },
+  "independent_review": {
+    "status": "PASS",
+    "verdict": "STAGE07_EVIDENCE_ONLY_INDEPENDENT_REREVIEW_PASS",
+    "job_id": "1763656",
+    "harness_sha": "a2fa6e99e75336155363dc1f566b34cf3da8e0a8",
+    "evidence_commit": "356de44f3e86e37972d60cac45d01703ad1f6856",
+    "evidence_sha256": "c0955062e5f407fdf8586f1811992a8a2e26e202295f467f41b5994b59bbc3b6"
+  },
+  "historical_events": [
+    {
+      "event_id": "STAGE07_GIANT_RESOURCE_CEILING",
+      "diagnostic_job": "1760156",
+      "crashes_under_48_gib": 4,
+      "giant_candidates": 23,
+      "resolution_job": "1760182",
+      "successful_under_180_gib": 23,
+      "accepted_parser_failure_status": false
+    },
+    {
+      "event_id": "STAGE07_SEMANTIC_DIAGNOSTIC_FAIL",
+      "job_id": "1760818",
+      "conclusion": "MIXED_ROOT_CAUSES_REQUIRING_TARGETED_STAGE07_DESIGN_CHANGE",
+      "successful_parse_implies_trustworthy_components": false
+    },
+    {
+      "event_id": "STAGE07_COUNTRY_CONTEXT_PROVENANCE",
+      "job_id": "1761212",
+      "parser_context_hints_effective": false,
+      "applicability_kept_separate": true
+    },
+    {
+      "event_id": "STAGE07_DEEPPARSE_PATH_CLOSED",
+      "status": "DEEPPARSE_INFRASTRUCTURE_PATH_NOT_JUSTIFIED",
+      "protected_inference_calls": 0
+    },
+    {
+      "event_id": "STAGE07_READINESS_RULE_REJECTED",
+      "audit_job": "1763358",
+      "selection_job": "1763433",
+      "selection_fingerprint": "c05cecf2aa9099045adc0d5c698c7e82a6bae187ae82222817f4bfb5264c2a89",
+      "reviewed": 240,
+      "ready_precision_percent": 85.0,
+      "clear_misparse_leakage_percent": 10.0,
+      "usable_abstention_numerator": 63,
+      "usable_abstention_denominator": 148,
+      "status_fields_retired": true
+    },
+    {
+      "event_id": "STAGE07_FIRST_REVIEW_DOCUMENTATION_FAIL",
+      "candidate_sha": "318b70b00a52376b1b4fe865f41a789e2dd3feb9",
+      "evidence_commit": "6ea2ba2cef1a63f91a5a831755d8ecb0cd7d179f",
+      "blocking_scope": "DOCUMENTATION_AND_DOWNSTREAM_CONTRACT_ONLY",
+      "stage07_science_changed_in_remediation": false
+    }
+  ],
+  "prohibited_activity": {
+    "holdout_accessed": false,
+    "unauthorized_production_access": false,
+    "stage09_started": false,
+    "deep_parse_inference_calls": 0,
+    "geocoding_calls": 0,
+    "external_service_calls": 0
+  }
+}

@@ -96,12 +96,10 @@ before materializer return remain nonzero. This does not claim protection from
 external `SIGKILL`, power loss, kernel failure, or hostile mutation after the
 last ownership stat/return.
 
-The sanitized [third remediation report](../../reports/development/stage08_address_evidence_publication_remediation_v3.md)
-records the complete 19-step publication/CLI state machine. The
-[second remediation report](../../reports/development/stage08_address_evidence_publication_remediation_v2.md),
-[first remediation report](../../reports/development/stage08_address_evidence_remediation.md)
-and original [implementation report](../../reports/development/stage08_address_evidence_implementation.md)
-remain historical evidence for their exact executables.
+The authoritative [Stage 8 report](../../reports/development/stage08.md)
+consolidates the complete publication/CLI remediation history. The detailed
+former implementation and remediation reports remain available through Git
+history for their exact executables.
 
 ## Authoritative third-remediation DEVELOPMENT candidate
 
@@ -147,13 +145,12 @@ The launcher requested four CPUs and 32 GiB; DuckDB used four threads and an
 `general1 OverSubscribe=EXCLUSIVE` and the assigned 80-CPU node; it is not
 application concurrency.
 
-The sanitized
-[execution report](../../reports/development/stage08_address_evidence_publication_remediation_v3_development.md)
-and [candidate report](../../reports/development/stage08_address_evidence_publication_remediation_v3_candidate_report.md)
-freeze the complete aggregate, topology, scheduler, input-binding,
-publication-terminal, and historical evidence. Post-commit reporting faults,
-real-rename-then-raise, and identity-replacement faults were challenged by the
-corrected independent rereview summarized below.
+The authoritative [Stage 8 report](../../reports/development/stage08.md) and its
+[machine summary](../../reports/generated/stage08.json) freeze the aggregate,
+topology, scheduler, input-binding, publication-terminal, and historical
+evidence. Post-commit reporting faults, real-rename-then-raise, and identity-
+replacement faults were challenged by the corrected independent rereview
+summarized below.
 
 ## Independent rereview and owner acceptance
 
@@ -177,7 +174,8 @@ infrastructure-incomplete checks are zero.
 Review-harness defect RH-001 was caused only by an invalid cross-job
 device/inode equality assumption. It was corrected in the review harness and
 is not a Stage 8 candidate or artifact defect. Its failed review-only job and
-sanitized report remain preserved beside the [successful rereview](../../reports/development/stage08_address_evidence_independent_rereview.md).
+successful corrected rereview are consolidated in the
+[authoritative Stage 8 report](../../reports/development/stage08.md).
 
 The accepted candidate remains bound to executable
 `c04cb97214a9f1e5d2b80512c756400321eefa80`, authoritative DEVELOPMENT job
@@ -226,12 +224,10 @@ and atomic/owner-only publication claims pass.
 Policy-A post-effect rename adoption and post-validation ownership were not
 fault-injected during this protected execution. The later independent rereview
 falsified the ownership invariant with a byte-identical different-inode
-replacement. The
-sanitized [execution report](../../reports/development/stage08_address_evidence_publication_remediation_v2_development.md)
-and [candidate report](../../reports/development/stage08_address_evidence_publication_remediation_v2_candidate_report.md)
-freeze the complete aggregate, topology, scheduler, input-binding,
-publication, and historical evidence for executable `bdea7232…`; they do not
-validate `c04cb972…`.
+replacement. The [authoritative Stage 8 report](../../reports/development/stage08.md)
+preserves the aggregate, topology, scheduler, input-binding, publication, and
+historical evidence for executable `bdea7232…`; that job does not validate
+`c04cb972…`.
 
 ## Historical first-repair DEVELOPMENT evidence
 
@@ -254,13 +250,12 @@ Prepublication reopen validation completed with `_IN_PROGRESS` present and
 remove the incomplete marker, fsync, atomically publish, fsync the parent, and
 perform the post-publication reopen validation. The final tree has no
 `_IN_PROGRESS`, no incomplete sibling, and no symlink; all directories are
-`0700`, all files are `0600`, and stderr is empty. The sanitized
-[execution report](../../reports/development/stage08_address_evidence_development.md)
-and [candidate report](../../reports/development/stage08_address_evidence_development_candidate_report.md)
-freeze the complete aggregate, topology, scheduler, input-binding, and
-publication evidence for executable `bd89a032…`. Independent rereview's
-post-effect rename finding does not assert this artifact corrupt, but the job
-cannot validate executable `bdea7232…`.
+`0700`, all files are `0600`, and stderr is empty. The
+[authoritative Stage 8 report](../../reports/development/stage08.md) preserves
+the complete aggregate, topology, scheduler, input-binding, and publication
+evidence for executable `bd89a032…`. Independent rereview's post-effect rename
+finding does not assert this artifact corrupt, but the job cannot validate
+executable `bdea7232…`.
 
 ## Historical rejected-candidate DEVELOPMENT evidence
 

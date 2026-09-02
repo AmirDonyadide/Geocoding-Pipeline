@@ -100,8 +100,8 @@ Goethe job `1759272`, which reproduced the complete aggregates, preservation,
 v1/v2 equality, review equality, and adversarial/bounded-memory evidence. Final
 integration commit `958dddc8a9769977453ea5588e6861b62162090a` records acceptance.
 
-See the Git-safe aggregate report at
-[`reports/development/stage03_summary.md`](../../reports/development/stage03_summary.md).
+See the authoritative Git-safe
+[Stage 3 report](../../reports/development/stage03.md).
 
 ## Production status
 

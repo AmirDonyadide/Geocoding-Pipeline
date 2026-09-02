@@ -276,13 +276,17 @@ Checkpoint only at file transaction boundaries. A resume may skip a completed fi
 
 ## Source outputs
 
-Generated outputs are written under:
+At the time of the historical Phase 1 workflow, generated outputs were written
+under:
 
 ```text
 reports/generated/phase01/<run_id>/
 ```
 
-They remain outside Git and contain no raw row/address content.
+They remained outside Git and contained no raw row/address content. The
+obsolete local Phase report tree is not part of the current reporting
+structure; accepted facts now appear in the authoritative
+[Stage 0 report](../../../reports/development/stage00.md).
 
 ### `phase01_run.json`
 

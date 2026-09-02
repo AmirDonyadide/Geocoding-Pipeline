@@ -59,11 +59,19 @@ by this reporting contract.
 
 ## Portable summaries and privacy
 
-Git-safe summaries follow `development_sanitized_summary_v1`. Their exact
-top-level schema, metric groups, metric categories, checks, and interpretation
-text are allowlisted in code. Values are aggregate non-negative integers or
-reviewed identities/statuses. Raw address fields, selected identities, source
-filenames, and arbitrary free text cannot enter the renderer.
+The historical per-execution Git-safe summaries follow
+`development_sanitized_summary_v1`. Their exact top-level schema, metric
+groups, metric categories, checks, and interpretation text are allowlisted in
+code. Values are aggregate non-negative integers or reviewed
+identities/statuses. Raw address fields, selected identities, source filenames,
+and arbitrary free text cannot enter the renderer.
+
+After Stage 8 acceptance, accepted facts from those execution summaries were
+consolidated into the current reporting structure: one authoritative human
+report at `reports/development/stageXX.md` and one machine-readable acceptance
+summary at `reports/generated/stageXX.json` for each Stage 0–8. Historical
+renderer filenames remain execution-interface details, not a second current
+report hierarchy. The [reports index](../reports/README.md) is authoritative.
 
 Protected directories are `0700`; protected files are `0600`; publication is
 atomic and page-checksum read-back is mandatory. The Mac copy lives below the
@@ -84,11 +92,14 @@ For each accepted DEVELOPMENT stage:
 2. bind the fixed subset fingerprint and exact stable identities;
 3. create a new immutable protected per-stage view without rewriting earlier
    raw or derived columns;
-4. generate a Git-safe aggregate summary through the allowlisted renderer;
+4. generate Git-safe aggregate execution evidence through the allowlisted
+   renderer;
 5. compare the same 500 rows qualitatively while evaluating all 35,000 rows
-   quantitatively.
+   quantitatively; and
+6. after acceptance, consolidate supported facts into the single stage report
+   and generated acceptance summary without retaining competing current files.
 
-This framework is evaluation infrastructure. Stages 3–5 later used the same
-fixed identities and are now separately accepted on DEVELOPMENT; the reporting
-framework did not itself authorize those stages. It does not authorize Stage 6
-or production Stage 2.
+This framework is evaluation infrastructure. Stages 3–8 later used or bound the
+same fixed identities as applicable and are separately accepted on DEVELOPMENT;
+the reporting framework did not itself authorize them. It does not authorize
+Stage 9, HOLDOUT, or production Stage 2.

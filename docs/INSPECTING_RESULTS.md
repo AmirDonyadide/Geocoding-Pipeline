@@ -10,10 +10,10 @@ Completed stages are evaluated through three complementary evidence layers.
 2. **Fixed 500-row DEVELOPMENT review subset.** The same deterministic source
    rows are followed across stages for protected human before/after inspection.
    The subset does not replace full-DEVELOPMENT evaluation.
-3. **Sanitized Git-safe reports.** Allowlisted aggregates, fingerprints,
-   statuses, and interpretation text are committed under
-   `reports/development/`. They contain no row-level source values or stable
-   identities.
+3. **Sanitized Git-safe reports.** The authoritative human explanation for
+   each accepted stage is committed under `reports/development/`; the matching
+   structured evidence is under `reports/generated/`. Neither class contains
+   row-level source values or stable identities.
 
 Every stage comparison is keyed by `stable_source_row_id_v1`. Never compare by
 row position alone unless the artifact contract explicitly proves the same
@@ -21,18 +21,13 @@ ordered identity stream.
 
 ## What is in Git
 
-The current sanitized reports are:
-
-- [`review_subset_v1_summary.md`](../reports/development/review_subset_v1_summary.md):
-  fixed-500 selection coverage and fingerprint;
-- [`stage02_summary.md`](../reports/development/stage02_summary.md): Stage 2
-  35,000-row preservation and structural-field evidence; and
-- [`stage03_summary.md`](../reports/development/stage03_summary.md): Stage 3
-  cleaning, preservation, reason, performance, and v1/v2 evidence.
-
-The paired JSON files are intended for machine-readable inspection. These
-reports are sufficient for status and aggregate review, but not for viewing
-individual protected records.
+The [reports index](../reports/README.md) is the single entry point. Open exactly
+one `reports/development/stageXX.md` file to understand a stage and its accepted
+history. Use exactly one `reports/generated/stageXX.json` file for machine-
+readable SHAs, jobs, counts, fingerprints, validation, and review evidence.
+These reports support status and aggregate audit; they never expose individual
+protected records. The fixed-500 selection fingerprint is consolidated into
+the relevant stage summaries rather than maintained as a competing report.
 
 ## Protected Stage 2 review artifact
 
@@ -140,12 +135,17 @@ is normally needed only to inspect Stage 2-only provenance fields.
 
 ## Inspecting each completed stage
 
-| Stage | Full DEVELOPMENT evidence | Fixed-500 evidence | Sanitized record |
-|---:|---|---|---|
-| 0 | Accepted population scope, file/row inventory, schema/parser evidence | Not a row-transform comparison | Stage record and historical Phase 1 report |
-| 1 | Lossless ingestion manifest, logical fingerprint, reconciliation | Source identity is the downstream join foundation | Stage record and protected manifests |
-| 2 | 35,000-to-35,000 preservation and derived-structure metrics | `stage02_review.parquet` | `stage02_summary.{md,json}` |
-| 3 | 35,000-row cleaning/reason/performance and v1/v2 equality metrics | `stage03_review.parquet` | `stage03_summary.{md,json}` |
+| Stage | Full DEVELOPMENT evidence | Fixed-500 or qualitative evidence | Human report | Machine summary |
+|---:|---|---|---|---|
+| 0 | Population scope, file/row inventory, schema/parser evidence | Not a row-transform comparison | [Stage 0](../reports/development/stage00.md) | [JSON](../reports/generated/stage00.json) |
+| 1 | Lossless ingestion, identity, manifest, and reconciliation | Identity is the downstream join foundation | [Stage 1](../reports/development/stage01.md) | [JSON](../reports/generated/stage01.json) |
+| 2 | 35,000-to-35,000 preservation and structural metrics | `stage02_review.parquet` | [Stage 2](../reports/development/stage02.md) | [JSON](../reports/generated/stage02.json) |
+| 3 | Cleaning, reasons, preservation, and v1/v2 equality | `stage03_review.parquet` | [Stage 3](../reports/development/stage03.md) | [JSON](../reports/generated/stage03.json) |
+| 4 | Exact Python lowercase and preservation | Protected fixed-500 comparison | [Stage 4](../reports/development/stage04.md) | [JSON](../reports/generated/stage04.json) |
+| 5 | Neutral line reconstruction and preservation | 179-row risk review | [Stage 5](../reports/development/stage05.md) | [JSON](../reports/generated/stage05.json) |
+| 6 | Exact registry, collisions, counts, and complete map-back | Machine-verified fixed-500 mapping | [Stage 6](../reports/development/stage06.md) | [JSON](../reports/generated/stage06.json) |
+| 7 | Pinned parser evidence, applicability, warnings, and map-back | 120-case diagnostic and failed 240-case readiness experiment | [Stage 7](../reports/development/stage07.md) | [JSON](../reports/generated/stage07.json) |
+| 8 | Lossless projection, reversibility, publication, and map-back | Corrected independent rereview | [Stage 8](../reports/development/stage08.md) | [JSON](../reports/generated/stage08.json) |
 
 Stage records under [`docs/stages/`](stages/README.md) explain the exact
 accepted evidence and production status.

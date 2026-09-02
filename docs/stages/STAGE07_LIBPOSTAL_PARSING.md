@@ -39,7 +39,7 @@ split under the original 48 GiB ceiling, then parsed all 23 exact giants
 successfully on their first uncapped attempt in a 180 GiB job. The four prior
 failures were therefore resource-cap dependent. Per the owner's stop rule, the
 technical-failure status and resource contract require reconsideration before
-contract freeze. The sanitized [revised diagnostic report](../../reports/development/stage07_supervisor_diagnostic_summary.md)
+contract freeze. The authoritative [Stage 7 report](../../reports/development/stage07.md)
 records the aggregate evidence.
 
 ## Owner-authorized revised proposal — v1 contract frozen for implementation
@@ -358,7 +358,7 @@ the accepted Stage 6 binding and covered:
 
 Protected strings and parser outputs remained in process memory or owner-only
 diagnostic state and never entered stdout, Git, or portable evidence. The
-Git-safe [diagnostic summary](../../reports/development/stage07_design_diagnostic_summary.md)
+Git-safe [Stage 7 report](../../reports/development/stage07.md)
 contains aggregate counts, distributions, labels, timing, determinism, and
 case-variant comparison results only.
 
@@ -518,7 +518,7 @@ guessing.
 The controlling conclusion is
 `MIXED_ROOT_CAUSES_REQUIRING_TARGETED_STAGE07_DESIGN_CHANGE`. No redesign was
 implemented. The full sanitized evidence is in the
-[targeted root-cause report](../../reports/development/stage07_quality_root_cause_summary.md).
+[authoritative Stage 7 report](../../reports/development/stage07.md).
 
 ## Owner-authorized context-option diagnostic
 
@@ -566,7 +566,7 @@ variant under the frozen bundle, so no paired semantic assessment or
 determinism comparison was scientifically defined. If a future parser truly
 uses context, the 14 conflicting candidates would require context-aware parse
 identity rather than arbitrary majority selection. No key or artifact changed.
-See the [sanitized context diagnostic](../../reports/development/stage07_context_provenance_summary.md).
+See the [authoritative Stage 7 report](../../reports/development/stage07.md).
 
 ## Owner-authorized second-parser diagnostic
 
@@ -593,7 +593,7 @@ Exact repeat determinism over the 18 prior target cases is a gate. The
 immutable libpostal baseline, authoritative registry, original 120 selection,
 and qualitative classifications are not replaced.
 
-See the [public parser-candidate matrix](../../reports/development/stage07_second_parser_candidate_matrix.md).
+See the [authoritative Stage 7 report](../../reports/development/stage07.md).
 
 ## Country-aware stabilization and prelaunch audit
 
@@ -623,7 +623,7 @@ runtime completeness, native linkage, bundle/model identity, offline public
 model initialization, deterministic multilingual public smoke, permissions,
 resources, and network/privacy policy must all pass before protected DeepParse
 inference. See the
-[stabilization report](../../reports/development/stage07_stabilization_prelaunch_audit.md).
+[authoritative Stage 7 report](../../reports/development/stage07.md).
 At that stabilization checkpoint, the immutable v1 registry and
 `STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY` status remained unchanged.
 
@@ -747,14 +747,14 @@ froze exactly 120 ready and 120 abstain cases with selection fingerprint
 `c05cecf2aa9099045adc0d5c698c7e82a6bae187ae82222817f4bfb5264c2a89`.
 At that freeze point no new semantic inspection had occurred. Sanitized
 machine-only evidence is in the
-[selection-freeze report](../../reports/development/stage07_v2_validation_selection_freeze.md).
+[authoritative Stage 7 report](../../reports/development/stage07.md).
 
 Stage 7 v2 must guarantee exact lineage/text/raw ordered parse preservation,
 trusted-country applicability, separate technical status, deterministic
 structural warnings, explicit abstention, and full map-back. It does not
 guarantee postal semantics, reference validity, geocoder success, or coordinate
 accuracy. The full sanitized design and predeclared validation thresholds are
-in the [v2 readiness report](../../reports/development/stage07_v2_readiness_design.md).
+in the [authoritative Stage 7 report](../../reports/development/stage07.md).
 The design status at freeze was
 `STAGE07_V2_READINESS_DESIGN_READY_FOR_FRESH_DEVELOPMENT_VALIDATION`; the
 scientific status remained `STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY`.
@@ -782,7 +782,7 @@ structural-warning evidence, but it is not safe to publish as the v2 gate for
 downstream structured-component consumption. These balanced-sample results are
 not an estimate of population-wide libpostal accuracy, and the rule must not be
 tuned on the validation labels. Full sanitized evidence is in the
-[fresh validation report](../../reports/development/stage07_v2_fresh_development_validation.md).
+[authoritative Stage 7 report](../../reports/development/stage07.md).
 
 At that decision point Stage 7 remained
 `STAGE_7_DEVELOPMENT_CANDIDATE_NOT_READY`, and a new owner scientific decision
@@ -814,7 +814,7 @@ geographic truth, or semantic correctness when no warning fires. Future Stage
 whole-string STANDARD/NATIVE candidates in parallel.
 
 Implementation and pre-publication design evidence are in the
-[evidence-only v2 report](../../reports/development/stage07_parser_evidence_v2_design.md).
+[authoritative Stage 7 report](../../reports/development/stage07.md).
 The required 51,779-row DEVELOPMENT projection and independent reopen
 validation passed in Goethe-NHR job `1763516` at exact implementation SHA
 `e684d84a8d68498ea790542143c8e125b3eb87b5`. All 51,779 candidates and 69,747

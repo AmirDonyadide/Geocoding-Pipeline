@@ -271,9 +271,9 @@ acceptance gate remains in force.
   warnings only. Evidence-only job `1763516` projected and independently
   reopened all 51,779 candidates with exact v1 preservation, complete
   69,747-occurrence map-back, and zero parser/trust claims. Independent rereview
-  job `1763656` passed against exact candidate `656a16d3…`; its sanitized
-  [rereview report](../reports/development/stage07_parser_evidence_v2_independent_rereview.md)
-  is retained without merging the review harness branch.
+  job `1763656` passed against exact candidate `656a16d3…`; the authoritative
+  [Stage 7 report](../reports/development/stage07.md) consolidates that rereview
+  without merging the review harness branch.
 - **Acceptance requirement:** Pinned build/resources, reproducible offline
   execution, trusted pre-parse applicability, multilingual DEVELOPMENT
   evaluation on eligible populations, exact raw preservation, deterministic
@@ -289,10 +289,10 @@ parser/reference evidence, hypotheses, geocoder results, and the final accepted
 match. The first three Stage 8 candidates are rejected. The third-remediation
 candidate from job `1764273` passed corrected independent rereview job
 `1764376` with zero candidate defects and is accepted as `STAGE_8_ACCEPTED`.
-Stages 9–14 remain
-**PROPOSED — NOT STARTED**. Full responsibilities, tool choices, and legacy
-mapping are in the
-[architecture redesign report](../reports/development/post_stage07_geocoding_architecture_redesign.md).
+Stages 9–14 remain **PROPOSED — NOT STARTED**. Their responsibilities, tool
+choices, and legacy mapping are maintained in this pipeline specification; the
+accepted transition boundary is summarized in the authoritative
+[Stage 8 report](../reports/development/stage08.md).
 
 ### Stage 8 — Lossless address-evidence projection
 
@@ -324,24 +324,15 @@ mapping are in the
   ownership-recheck defects. Third repair executable `c04cb972…` closes only
   those terminal defects. Authorized job `1764273` published manifest
   `2a50bd8c…`, the unchanged logical dataset `9c9d431c…`, and exact scientific
-  and v3 terminal-publication reconciliation. See the
-  [Stage 8 record](stages/STAGE08_ADDRESS_EVIDENCE_PROJECTION.md), sanitized
-  [historical first execution report](../reports/development/stage08_address_evidence_development.md),
-  and [first remediation report](../reports/development/stage08_address_evidence_remediation.md).
-  The [second publication-remediation report](../reports/development/stage08_address_evidence_publication_remediation_v2.md)
-  records the complete crash-consistency audit. The
-  [second-remediation candidate report](../reports/development/stage08_address_evidence_publication_remediation_v2_candidate_report.md)
-  freezes historical job `1764219`. The
-  [third remediation report](../reports/development/stage08_address_evidence_publication_remediation_v3.md)
-  records the new terminal contract. The
-  [v3 execution report](../reports/development/stage08_address_evidence_publication_remediation_v3_development.md)
-  records job `1764273`, and the
-  [v3 candidate report](../reports/development/stage08_address_evidence_publication_remediation_v3_candidate_report.md)
-  freezes job `1764273`. Corrected independent rereview commit `f8a456f…`,
-  [sanitized evidence](../reports/development/stage08_address_evidence_independent_rereview.md),
-  and job `1764376` passed with zero candidate defects. Review-only RH-001 is
-  preserved separately from Stage 8 candidate history. The next task is the
-  full Stages 0–8 pipeline audit before Stage 9; Stage 9 has not started.
+  and v3 terminal-publication reconciliation. Corrected independent rereview
+  commit `f8a456f…` and job `1764376` passed with zero candidate defects.
+  Review-only RH-001 remains distinct from candidate history. The complete
+  concise lineage is in the authoritative
+  [Stage 8 report](../reports/development/stage08.md), with structured evidence
+  in its [JSON summary](../reports/generated/stage08.json). The detailed stage
+  contract remains in the
+  [Stage 8 record](stages/STAGE08_ADDRESS_EVIDENCE_PROJECTION.md). The next task
+  is the full Stages 0–8 pipeline audit before Stage 9; Stage 9 has not started.
 
 ### Stage 9 — Offline geographic reference evidence
 

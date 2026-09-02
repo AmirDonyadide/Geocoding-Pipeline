@@ -52,7 +52,7 @@ evidence for their exact executables only. Stage 9 has not started.
 
 Production Stage 0 and Stage 1 are accepted for
 `production_population_1411_v1` (1,411 files; 141,048,582 rows). Production
-Stage 2 through Stage 7 have not started.
+Stage 2 through Stage 8 have not started.
 
 ## Architecture
 
@@ -86,7 +86,8 @@ to every `stable_source_row_id_v1`.
 | `docs/` | Current project, pipeline, workflow, privacy, execution, and reproducibility documentation |
 | `docs/stages/` | Stage 0–8 accepted records and their frozen contracts/history |
 | `docs/history/` | Accepted source-foundation records that predate the Stage terminology |
-| `reports/development/` | Sanitized, Git-safe aggregate DEVELOPMENT evidence |
+| `reports/development/` | One human-readable authoritative DEVELOPMENT report per accepted Stage 0–8 |
+| `reports/generated/` | One machine-readable sanitized evidence summary per accepted Stage 0–8 |
 
 The older `phase01` and `phase02` package namespaces remain because accepted
 source-foundation work underpins Stage 0 and Stage 1. The active library-first
@@ -142,9 +143,9 @@ python3 -m mypy src tests
 Protected inputs and derived artifacts are environment-specific and ignored by
 Git. Typical controlled roots are `data/controlled/` locally and
 `derived/controlled/` on Goethe-NHR. Do not create portable configuration with
-personal absolute paths. Sanitized evidence is available under
-`reports/development/`; protected same-row inspection is explained in
-[Inspecting results](docs/INSPECTING_RESULTS.md).
+personal absolute paths. Start with the [reports index](reports/README.md) for
+the authoritative human and machine evidence; protected same-row inspection is
+explained in [Inspecting results](docs/INSPECTING_RESULTS.md).
 
 ## Documentation
 
@@ -162,6 +163,7 @@ personal absolute paths. Sanitized evidence is available under
 - [Benchmark V1](docs/BENCHMARK_SAMPLE.md)
 - [Accepted stage records](docs/stages/README.md)
 - [Historical records](docs/history/README.md)
+- [Accepted Stage 0–8 reports](reports/README.md)
 
 ## Current next action
 

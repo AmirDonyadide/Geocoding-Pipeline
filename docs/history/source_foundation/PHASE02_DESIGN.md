@@ -286,7 +286,8 @@ The controlled staging run contains:
 - `dataset_manifest.json`: source/output mappings, hashes, sizes, row counts, schema fingerprint, semantic digests, versions, and per-file status;
 - `_SUCCESS.json`: final gate record containing run ID, manifest hash, Git commit, file/row/byte totals, and completion time.
 
-Generated reports belong under `reports/generated/phase02/<run_id>/`:
+At the time of the historical Phase 2 workflow, generated reports were written
+under `reports/generated/phase02/<run_id>/`:
 
 - `phase02_run.json`;
 - `phase02_file_validation.csv`;
@@ -295,7 +296,12 @@ Generated reports belong under `reports/generated/phase02/<run_id>/`:
 - `phase02_failures.csv.gz`;
 - `phase02_summary.md`.
 
-Reports contain counts, paths relative to approved roots, hashes, versions, statuses, error codes, timings, and resource metrics. They never contain raw addresses, native values, city values, postcode values, raw IDs, full rows, or value previews.
+Those reports contained counts, paths relative to approved roots, hashes,
+versions, statuses, error codes, timings, and resource metrics. They never
+contained raw addresses, native values, city values, postcode values, raw IDs,
+full rows, or value previews. The obsolete local Phase report tree is not part
+of the current reporting structure; accepted facts now appear in the
+authoritative [Stage 1 report](../../../reports/development/stage01.md).
 
 ## Error handling and privacy
 

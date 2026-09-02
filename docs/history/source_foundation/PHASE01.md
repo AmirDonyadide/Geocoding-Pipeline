@@ -24,7 +24,11 @@ This report contains aggregate diagnostics only. It contains no raw address, nat
 | Exact source bytes | 3,285,318,564 |
 | Exact logical data records | 20,600,000 |
 
-Generated artifacts are under `reports/generated/phase01/phase01_20260810T151626Z_7df9bc8f/` and remain outside Git.
+The historical run originally wrote local artifacts below
+`reports/generated/phase01/phase01_20260810T151626Z_7df9bc8f/`. That obsolete
+local report tree is no longer retained after Stage 0–8 report consolidation;
+the accepted Stage 0 facts are in the authoritative
+[Stage 0 report](../../../reports/development/stage00.md).
 
 ## Artifact validation
 

@@ -1,0 +1,68 @@
+{
+  "report_version": "stage_acceptance_summary_v1",
+  "stage": 1,
+  "stage_name": "Lossless ingestion",
+  "status": "STAGE_1_ACCEPTED",
+  "scope": "DEVELOPMENT",
+  "accepted": true,
+  "provenance": {
+    "candidate_sha": null,
+    "executable_sha": null,
+    "merge_sha": null,
+    "jobs": []
+  },
+  "inputs": {
+    "upstream_stage": 0,
+    "benchmark_v1": "014a7d2a9935bb098711e62b89df2eb93dfdd0dd1ce5ac70853f010d118acedf",
+    "source_fields": 15,
+    "source_format": "CSV_LOGICAL_RECORDS"
+  },
+  "outputs": {
+    "physical_format": "PARQUET",
+    "logical_grain": "ONE_ROW_PER_SOURCE_LOGICAL_RECORD",
+    "source_fields_preserved": 15,
+    "provenance_fields_added": 7,
+    "total_fields": 22,
+    "production_status": "NEW_STAGE1_1411_ACCEPTED"
+  },
+  "counts": {
+    "development_rows": 35000,
+    "benchmark_holdout_rows_sealed": 15000,
+    "production_files": 1411,
+    "production_rows": 141048582
+  },
+  "fingerprints": {
+    "benchmark_v1": "014a7d2a9935bb098711e62b89df2eb93dfdd0dd1ce5ac70853f010d118acedf",
+    "production_adoption_sha256": "01809a1ea9d65c574b91f28a938fc27a7eda3e89c7b52252797c7cf0c7c6d9df",
+    "production_logical": "d68cc9990d476e8b7adbb3df53f158d9a73efe4a0f4a8407a2ab6a2f0d98a763",
+    "production_manifest": "1fb6176d8eff6dfe71c3c02c1e36e00d35937c7bc662234b7620289d4b055bd7",
+    "development_logical": null
+  },
+  "validation": {
+    "source_values_exact": "PASS",
+    "stable_identity_formula": "PASS",
+    "stable_identity_unique": "PASS",
+    "semantic_digest_reconciliation": "PASS",
+    "parquet_checksum_readback": "PASS",
+    "atomic_owner_only_publication": "PASS"
+  },
+  "independent_review": {
+    "status": "PASS",
+    "job_id": null,
+    "evidence_sha256": null
+  },
+  "historical_events": [
+    {
+      "event_id": "LEGACY_PHASE02_REPORT_HIERARCHY_CONSOLIDATED",
+      "classification": "REPORTING_ONLY",
+      "accepted_converter_lineage_preserved": true
+    }
+  ],
+  "prohibited_activity": {
+    "holdout_accessed": false,
+    "unauthorized_production_access": false,
+    "stage09_started": false,
+    "geocoding_calls": 0,
+    "external_service_calls": 0
+  }
+}

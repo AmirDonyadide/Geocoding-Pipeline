@@ -1,0 +1,66 @@
+{
+  "report_version": "stage_acceptance_summary_v1",
+  "stage": 0,
+  "stage_name": "Source inventory",
+  "status": "STAGE_0_ACCEPTED",
+  "scope": "DEVELOPMENT",
+  "accepted": true,
+  "provenance": {
+    "candidate_sha": null,
+    "executable_sha": null,
+    "merge_sha": null,
+    "jobs": []
+  },
+  "inputs": {
+    "scope_contract": "stage00_population_scope_v1",
+    "source_format": "CSV",
+    "authoritative_parser": "PYTHON_STRICT_CSV_LOGICAL_RECORDS",
+    "development_population_files": 1405,
+    "development_population_rows": 140448582
+  },
+  "outputs": {
+    "development_inventory": "ACCEPTED",
+    "transformed_row_dataset": false,
+    "production_status": "NEW_STAGE0_1411_ACCEPTED",
+    "production_population": "production_population_1411_v1"
+  },
+  "counts": {
+    "development_population_files": 1405,
+    "development_population_rows": 140448582,
+    "benchmark_development_rows": 35000,
+    "benchmark_holdout_rows_sealed": 15000,
+    "production_files": 1411,
+    "production_rows": 141048582
+  },
+  "fingerprints": {
+    "benchmark_v1": "014a7d2a9935bb098711e62b89df2eb93dfdd0dd1ce5ac70853f010d118acedf",
+    "development_candidate": null,
+    "production_population": null
+  },
+  "validation": {
+    "exact_population_scope": "PASS",
+    "csv_logical_record_counts": "PASS",
+    "source_hashes_and_schema": "PASS",
+    "raw_sources_unchanged": true,
+    "atomic_owner_only_evidence": "PASS"
+  },
+  "independent_review": {
+    "status": "PASS",
+    "job_id": null,
+    "evidence_sha256": null
+  },
+  "historical_events": [
+    {
+      "event_id": "LEGACY_PHASE01_REPORT_HIERARCHY_CONSOLIDATED",
+      "classification": "REPORTING_ONLY",
+      "accepted_scanner_lineage_preserved": true
+    }
+  ],
+  "prohibited_activity": {
+    "holdout_accessed": false,
+    "unauthorized_production_access": false,
+    "stage09_started": false,
+    "geocoding_calls": 0,
+    "external_service_calls": 0
+  }
+}
