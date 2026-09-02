@@ -76,8 +76,39 @@ rereview job `1763656` passed exact candidate
 `656a16d3d1f33cb152ace557c26f42df047bc7d6`, and the owner accepted it as
 `STAGE_7_ACCEPTED`. None of this alters immutable v1 output or converts parser
 components into semantic or geographic truth; warning absence provides no
-trust guarantee. The old Stages 8–19 have not started, and compact evidence-
-first replacement Stages 8–14 are proposed but not started. See
+trust guarantee. The old Stages 8–19 were never started. The compact
+evidence-first replacement Stage 8 DEVELOPMENT candidate was materialized by
+job `1763747` at exact executable
+`a2544401b4b699f6c020970f3507a2ae432746c5`. Exact reversibility and all frozen
+validators passed for that executable, but independent review rejected exact
+reporting candidate `adde81d2237e99993222994ce56efb0d74f7c2d3`: the
+publication state machine could expose success before prepublication reopen
+validation, and one current architecture table still placed pycountry and
+libaddressinput in Stage 8. The bounded fix is executable
+`bd89a032eb6fcf16a7515e0bd2991165d87246b1`. Repaired DEVELOPMENT job
+`1763984` published manifest `d521240b…`, reproduced the frozen logical dataset
+`9c9d431c…`, and passed the first repair's tests for executable `bd89a032…`.
+Independent rereview then failed exact reporting candidate `fdf2f8c…` because
+a real rename followed by an exception could leave reader-visible success while
+the invocation reported failure. The second bounded repair is executable
+`bdea7232a3f92ebd381be87610b753b8e4c35481`; it reconciles both temporary
+and final paths by captured filesystem identity and adopts final-only state
+only after parent fsync and complete independent reopen validation. Authorized
+job `1764219` then materialized executable `bdea7232…`; manifest `346ea27a…`,
+unchanged logical dataset `9c9d431c…`, every frozen validator, and the ordinary
+publication path reconciled exactly. Independent rereview then failed candidate
+`70e3de95…`: post-commit stdout failure produced a failure exit, and policy-A
+ownership was not rechecked after parent fsync/final validation. Third repair
+executable `c04cb97214a9f1e5d2b80512c756400321eefa80` separates publication
+from presentation status and makes a final no-follow identity verification the
+last rejection-capable publication operation. Authorized job `1764273`
+published manifest `2a50bd8c…`, the unchanged logical dataset `9c9d431c…`,
+and exact scientific and v3 terminal reconciliation. Jobs `1763747`, `1763984`,
+and `1764219` remain immutable historical evidence for their exact executables
+and cannot validate the new candidate. Replacement Stages 9–14 remain
+proposed. Current Stage 8 status is
+`STAGE08_ADDRESS_EVIDENCE_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REREVIEW`.
+See
 [PIPELINE.md](PIPELINE.md).
 
 ## Standard and native Orbis representations
@@ -122,10 +153,13 @@ Accepted stages currently use Python's `csv` and `hashlib`, PyArrow/Parquet,
 DuckDB, `unicodedata`, `ftfy`, regular-expression/Arrow operations, and SAFE
 contracts. Accepted Stage 7 DEVELOPMENT evidence uses pinned
 libpostal/pypostal. DeepParse is closed and is not a planned runtime
-dependency. Proposed future evidence stages evaluate pinned offline pycountry
-and libaddressinput metadata, direct GeoNames data, local Overture Maps
-Addresses GeoParquet, optional approved OSM evidence, RapidFuzz inside strong
-blocks, DuckDB, PyArrow/Parquet, and optional Polars transformations.
+dependency. Implemented Stage 8 uses PyArrow/Parquet and bounded DuckDB
+validation only; it adds no pycountry, libaddressinput, or reference-data
+dependency.
+Proposed Stage 9 may evaluate pinned offline pycountry and libaddressinput
+metadata, direct GeoNames data, local Overture Maps Addresses GeoParquet,
+optional approved OSM evidence, RapidFuzz inside strong blocks, DuckDB,
+PyArrow/Parquet, and optional Polars transformations.
 Self-hosted SAFE Pelias would retain top-N features for later scoring, never
 treat the first result as truth. A planned library or dataset is not an
 implemented dependency; every new stage requires design and review before use.

@@ -138,7 +138,22 @@ documentation test pass.
   Raw parser output remains hypotheses/evidence rather than semantic or
   geographic truth; absence of structural warnings gives no trust guarantee.
 - Production Stage 7: **NOT STARTED**.
-- Stage 8: **NOT STARTED** and not authorized; its next task is design and
-  explicit authorization only.
+- Stage 8:
+  **`STAGE08_ADDRESS_EVIDENCE_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REREVIEW`**.
+  Independent review rejected the candidate backed by job `1763747` and old
+  executable `a2544401b4b699f6c020970f3507a2ae432746c5`. Publication repair
+  executable `bd89a032eb6fcf16a7515e0bd2991165d87246b1` completed repaired
+  DEVELOPMENT job `1763984`; exact scientific reconciliation passed. A later
+  independent rereview failed reporting candidate `fdf2f8c…` on a post-effect
+  rename boundary. Second repair executable `bdea7232…` completed exactly one
+  authorized DEVELOPMENT materialization as job `1764219`; exact scientific
+  and ordinary-path publication reconciliation passed, but independent
+  rereview found post-commit CLI-status and final-ownership-recheck defects.
+  Third repair executable `c04cb972…` closes only those defects. Jobs
+  `1763747`, `1763984`, and `1764219` are historical evidence only and do not
+  validate it. Exactly one authorized DEVELOPMENT materialization completed as
+  job `1764273`; its scientific and v3 terminal reconciliation passed. No new
+  Stage 8 job is authorized; the exact next action is fresh independent
+  rereview of the `c04cb972…` candidate.
 
 This policy grants no scientific-stage or production-run authorization.

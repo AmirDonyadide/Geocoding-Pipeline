@@ -9,6 +9,11 @@ stage.
 
 - **ACCEPTED:** implemented, evaluated, independently reviewed, and frozen on
   DEVELOPMENT.
+- **DESIGN READY — NOT IMPLEMENTED:** prospective scientific contract is
+  complete; implementation and execution still require explicit authorization.
+- **IMPLEMENTATION READY — NOT EXECUTED:** the reviewed design is implemented
+  and synthetic/local gates pass; protected execution still requires separate
+  explicit authorization.
 - **PLANNED — NOT STARTED:** conceptual placement and likely technology only.
   No accepted design or implementation exists.
 
@@ -30,11 +35,38 @@ and downstream-contract documentation. Corrected candidate
 `656a16d3d1f33cb152ace557c26f42df047bc7d6` then passed independent rereview
 job `1763656` and is accepted as `STAGE_7_ACCEPTED`. Acceptance preserves exact
 evidence; it does not establish semantic component correctness, geographic
-truth, or trust from warning absence. No Stage 8 handoff is authorized.
+truth, or trust from warning absence. Stage 8 DEVELOPMENT job `1763747`
+completed from exact executable
+`a2544401b4b699f6c020970f3507a2ae432746c5`. Independent review rejected exact
+reporting candidate `adde81d2237e99993222994ce56efb0d74f7c2d3` for a
+publication terminal-state defect and stale Stage 8/Stage 9 technology wording.
+The bounded repair is executable
+`bd89a032eb6fcf16a7515e0bd2991165d87246b1`. Repaired DEVELOPMENT job
+`1763984` passed exact scientific reconciliation and the first corrected
+terminal-publication flow for executable `bd89a032…`. Independent rereview
+then failed reporting candidate `fdf2f8c…` because a rename could take effect
+and subsequently raise before Python-side state changed, leaving a successful
+final tree while reporting failure. Second repair executable `bdea7232…`
+reconciles both paths by captured filesystem identity and adopts final-only
+state only after parent fsync plus complete published reopen validation.
+Authorized job `1764219` published manifest `346ea27a…` and the unchanged
+logical dataset `9c9d431c…`; all frozen validators and ordinary-path
+publication checks passed. Independent rereview then failed candidate
+`70e3de95…` because a post-commit stdout exception produced a nonzero exit and
+because policy-A ownership was not rechecked after parent fsync/final reopen.
+Third repair executable `c04cb972…` separates publication and presentation
+status and ends publication with a final no-follow identity check. Authorized
+job `1764273` published manifest `2a50bd8c…` and the unchanged logical dataset
+`9c9d431c…`; every frozen scientific and v3 terminal-publication check passed.
+Jobs `1763747`, `1763984`, and `1764219` remain immutable historical evidence for
+their exact executables and cannot validate the new candidate.
 Production Stage 0 and Stage 1 are accepted for the 1,411-file population;
 production Stage 2 through Stage 6 have not started. The old Stages 8–19 have
-not started. A compact replacement Stages 8–14 is
-proposed below but is also not started. Production Stage 7 has not started.
+not started. The first three compact replacement Stage 8 DEVELOPMENT
+candidates remain rejected and immutable; the third-remediation candidate is
+materialized and awaiting independent rereview. Replacement Stages 9–14 remain
+proposed and not started.
+Production Stage 7 has not started.
 
 ## Cross-stage scientific rules
 
@@ -66,10 +98,14 @@ proposed below but is also not started. Production Stage 7 has not started.
 11 query identity/QA -> 12 Pelias top-N -> 13 scoring -> 14 granularity/abstain
 ```
 
-Stages 8–14 are a proposed replacement, not an accepted execution order. Every
-stage still requires its own design, owner authorization, DEVELOPMENT evidence,
-independent review, acceptance, and stop gate. The current prohibition on
-geocoding before the governing pre-geocoding acceptance gate remains in force.
+Stage 8 now has a third-remediation DEVELOPMENT candidate awaiting fresh
+independent rereview. Stages 9–14 are still a proposed replacement, not an
+accepted
+execution order. Every stage still
+requires its own design, owner
+authorization, DEVELOPMENT evidence, independent review, acceptance, and stop
+gate. The current prohibition on geocoding before the governing pre-geocoding
+acceptance gate remains in force.
 
 ## Stage 0 — Source inventory
 
@@ -244,25 +280,61 @@ geocoding before the governing pre-geocoding acceptance gate remains in force.
   does not guarantee semantic component correctness or geographic truth, and
   structural warning absence provides no trust guarantee.
 
-## Proposed replacement Stages 8–14
+## Replacement Stages 8–14
 
-This compact evidence-first design is **PROPOSED — NOT STARTED**. It separates
-source truth, parser/reference evidence, hypotheses, geocoder results, and the
-final accepted match. Full responsibilities, tool choices, and legacy mapping
-are in the
+This compact evidence-first architecture separates source truth,
+parser/reference evidence, hypotheses, geocoder results, and the final accepted
+match. The first three Stage 8 candidates are rejected. The third-remediation
+candidate from job `1764273` has been materialized and frozen, but it has not
+been independently rereviewed or accepted. Stages 9–14 remain
+**PROPOSED — NOT STARTED**. Full responsibilities, tool choices, and legacy
+mapping are in the
 [architecture redesign report](../reports/development/post_stage07_geocoding_architecture_redesign.md).
 
 ### Stage 8 — Lossless address-evidence projection
 
-- **Purpose:** Treat parser labels as hypotheses/evidence while retaining raw
-  order, duplicates, unmapped components, exact whole-string STANDARD/NATIVE
-  candidates, structural warnings, and pinned offline country-format metadata.
-  Absence of a Stage 7 warning is never semantic truth.
-- **Primary tools:** PyArrow/Parquet, pycountry, pinned offline
-  libaddressinput metadata.
-- **Acceptance:** Lossless lineage/mapping, no raw parser label treated as
-  source truth, and no claim of geographic truth.
-- **Status:** **PROPOSED — NOT STARTED**.
+- **Purpose:** Preserve the complete accepted Stage 7 row, expose a reversible
+  ordered long-form parser-evidence index, and retain exact source-row and
+  STANDARD/NATIVE map-back. A one-to-one SAFE parser-evidence name is a
+  mechanical index, not a hypothesis or verified component. Raw order,
+  duplicates, unknown labels, empty parses, country/applicability states, and
+  structural warnings remain exact and separate.
+- **Input/output grain:** Accepted Stage 7 v2 candidate evidence plus the
+  accepted Stage 6 row map; linked candidate, component, and source-map
+  relations plus a deterministic representation-occurrence view.
+- **Primary tools:** PyArrow/Parquet and bounded DuckDB validation. No
+  pycountry, libaddressinput, external reference, or Polars dependency in v1.
+- **Acceptance:** Exact upstream preservation, nested/long reversibility,
+  complete known/unmapped-label retention, complete map-back, deterministic
+  fingerprints, bounded memory, privacy, and zero semantic-trust claims.
+- **Status:**
+  **`STAGE08_ADDRESS_EVIDENCE_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REREVIEW`**.
+  Job `1763747` completed at old executable
+  `a2544401b4b699f6c020970f3507a2ae432746c5` and remains immutable historical
+  evidence after independent-review failure. Publication repair executable
+  `bd89a032eb6fcf16a7515e0bd2991165d87246b1` completed repaired job `1763984`
+  with manifest `d521240b…` and exact reconciliation, but independent rereview
+  found the post-effect rename hole. Second repair `bdea7232…` completed
+  authorized job `1764219` with manifest `346ea27a…`, unchanged logical
+  dataset `9c9d431c…`, and exact ordinary-path publication reconciliation, but
+  independent rereview found the post-commit CLI-status and missing final-
+  ownership-recheck defects. Third repair executable `c04cb972…` closes only
+  those terminal defects. Authorized job `1764273` published manifest
+  `2a50bd8c…`, the unchanged logical dataset `9c9d431c…`, and exact scientific
+  and v3 terminal-publication reconciliation. See the
+  [Stage 8 record](stages/STAGE08_ADDRESS_EVIDENCE_PROJECTION.md), sanitized
+  [historical first execution report](../reports/development/stage08_address_evidence_development.md),
+  and [first remediation report](../reports/development/stage08_address_evidence_remediation.md).
+  The [second publication-remediation report](../reports/development/stage08_address_evidence_publication_remediation_v2.md)
+  records the complete crash-consistency audit. The
+  [second-remediation candidate report](../reports/development/stage08_address_evidence_publication_remediation_v2_candidate_report.md)
+  freezes historical job `1764219`. The
+  [third remediation report](../reports/development/stage08_address_evidence_publication_remediation_v3.md)
+  records the new terminal contract. The
+  [v3 execution report](../reports/development/stage08_address_evidence_publication_remediation_v3_development.md)
+  records job `1764273`, and the
+  [v3 candidate report](../reports/development/stage08_address_evidence_publication_remediation_v3_candidate_report.md)
+  freezes job `1764273`. Fresh independent rereview is the only next action.
 
 ### Stage 9 — Offline geographic reference evidence
 
@@ -270,7 +342,11 @@ are in the
   and bounded similarity within strong geographic blocks. Absence from an open
   reference is not invalidity.
 - **Primary tools/data:** pinned GeoNames, Overture Maps Addresses, optional
-  approved OSM evidence, RapidFuzz, DuckDB, PyArrow; Polars optional.
+  approved OSM evidence, RapidFuzz, DuckDB, and PyArrow; Polars optional.
+  Exact-code pycountry/subdivision metadata and pinned offline libaddressinput
+  format metadata may be considered here, not in Stage 8, under the Stage 9
+  design. Runtime Address Data Service and Google Address Validation API calls
+  remain prohibited.
 - **Acceptance:** Pinned licenses/vintages, bounded candidates, contradiction
   precision, coverage caveats, and complete evidence lineage.
 - **Status:** **PROPOSED — NOT STARTED**.

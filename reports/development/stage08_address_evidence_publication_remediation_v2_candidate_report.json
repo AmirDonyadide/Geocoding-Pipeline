@@ -1,0 +1,113 @@
+{
+  "report_version": "stage08_address_evidence_development_candidate_freeze_v2",
+  "verdict": "STAGE08_ADDRESS_EVIDENCE_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REREVIEW",
+  "candidate": {
+    "executable_sha": "bdea7232a3f92ebd381be87610b753b8e4c35481",
+    "job_id": "1764219",
+    "output_root": "/work/footprint/donyadidegan/safe_geocoding_pipeline/derived/controlled/stage08/development/stage08_development_20260902T112644Z_bdea7232a3f9",
+    "manifest_sha256": "346ea27ad60c1e00ef29c1126b2744f38049c1fa7d062647ab6df04e3330dee6",
+    "logical_dataset_sha256": "9c9d431c2c1b92712e0cb372f2661ad48f4fe8758dc0327d25aef90ab2c2d526",
+    "execution_report": "stage08_address_evidence_publication_remediation_v2_development.json"
+  },
+  "accepted_bindings": {
+    "stage07_manifest_sha256": "f58410877a7810562df7985c7316de7546d4dd8e11a647fd659c53a272e9c266",
+    "stage07_logical_dataset_sha256": "0f0706c1396803737f22845837753878bfd2e8b3f9af59b48cfcc1b8c5774530",
+    "stage06_manifest_sha256": "e1da7b8ef04b65b1ece8e710720b57a8536841766fcf9de641f889b42eadd241",
+    "stage06_logical_dataset_sha256": "2f6379c0cd5dc9654c03895cae6fdd48f3a7af528158c33e44d2030c816640b6",
+    "stage06_row_map_logical_sha256": "1ff9067c521ae93d28c300d7120a03c39681ce7830bf23b6619e2ca6129a4fe1",
+    "stage06_input_binding_sha256": "6ba224d6d24c3631aae8aac69f4a362bb054f01d9e3d09327ec6b0fdd85a0e7d"
+  },
+  "aggregate_reconciliation": {
+    "candidates": 51779,
+    "ordered_parser_components": 6106088,
+    "source_rows": 35000,
+    "occurrences": 69747,
+    "standard": 34822,
+    "native": 34925,
+    "dangling_components": 0,
+    "component_count_mismatches": 0,
+    "occurrence_count_mismatches": 0,
+    "unmapped_components": 0,
+    "all_frozen_scientific_validation_fields": "PASS"
+  },
+  "scientific_identity": {
+    "contract_fingerprint": "8b3c530e714177fe2c30a97d61dcc199b7f9efba58f3c17a291b817af0f24d5e",
+    "schema_bundle_fingerprint": "6c8ebecd24c495dbe2ce32125ac1cb89c4a9de4905c786b774d10ad728ed392f",
+    "label_mapping_fingerprint": "b18167d2d5c1f1402d1bb0e92559befb92418f5f4f34df885596778a11d5c09d",
+    "schema_fingerprints_unchanged": true,
+    "relation_logical_fingerprints_unchanged": true,
+    "mapping_unchanged": true,
+    "grains_unchanged": true,
+    "stage08_stage09_boundary_unchanged": true
+  },
+  "publication_freeze": {
+    "policy": "A_ADOPT_COMPLETED_PUBLICATION",
+    "path_exercised": "ORDINARY_SUCCESSFUL_PUBLICATION",
+    "post_effect_rename_fault_injected": false,
+    "prepublication_reopen_before_terminal_success": "PASS",
+    "validated_temporary_tree_ready": "PASS",
+    "parent_directory_fsync": "PASS",
+    "postpublication_reopen_validation": "PASS",
+    "success_marker_binding": "PASS",
+    "in_progress_absent": true,
+    "incomplete_sibling_count": 0,
+    "directories_0700": 8,
+    "files_0600": 52,
+    "symlinks": 0,
+    "atomic_publication": "PASS",
+    "owner_only_publication": "PASS",
+    "stderr_bytes": 0
+  },
+  "runtime_and_resources": {
+    "python": "3.14.3",
+    "unicode": "16.0.0",
+    "pyarrow": "25.0.0",
+    "duckdb": "1.5.5",
+    "requested_cpus": 4,
+    "requested_memory_gib": 32,
+    "duckdb_threads": 4,
+    "duckdb_memory_limit": "8GB",
+    "max_rss_kib": 1785464,
+    "elapsed": "00:15:10",
+    "exit_code": "0:0",
+    "allocated_cpus": 80,
+    "allocated_cpus_interpretation": "EXCLUSIVE_NODE_ALLOCATION_NOT_APPLICATION_CONCURRENCY"
+  },
+  "privacy": {
+    "parser_calls": 0,
+    "reference_lookups": 0,
+    "network_calls": 0,
+    "semantic_trust_fields": 0,
+    "holdout_access": false,
+    "production_access": false,
+    "additional_protected_execution": false
+  },
+  "historical_relation": {
+    "job_1763747_executable": "a2544401b4b699f6c020970f3507a2ae432746c5",
+    "job_1763984_executable": "bd89a032eb6fcf16a7515e0bd2991165d87246b1",
+    "logical_dataset_sha_matches_both": true,
+    "conclusion": "PUBLICATION_REMEDIATIONS_DID_NOT_CHANGE_FROZEN_STAGE08_SCIENCE",
+    "historical_jobs_validate_bdea7232": false,
+    "historical_artifacts_corrupt_asserted": false
+  },
+  "local_finalization": {
+    "stage08_focused_and_fault_injection": "28 passed",
+    "critical_real_rename_then_raise": "passed",
+    "relevant_stage07": "54 passed",
+    "runnable_earlier_atomic_publication": "6 passed",
+    "stage04_stage06_guarded_publication": "unchanged Python 3.14.3 guards stop execution on local Python 3.14.7",
+    "ruff": "passed",
+    "ruff_format_changed_python": "passed; executable Python unchanged",
+    "strict_mypy": "passed over 98 source/test targets",
+    "shell_syntax": "passed",
+    "json_validity": "passed",
+    "markdown_local_links": "passed",
+    "git_diff_check": "passed",
+    "privacy_and_tracked_data": "passed",
+    "executable_blob_identity": "passed",
+    "scientific_fingerprint_comparison": "passed",
+    "candidate_reporting_consistency": "passed",
+    "git_ancestry_and_status": "passed"
+  },
+  "next_action": "FRESH INDEPENDENT STAGE 8 REREVIEW OF THE BDEA7232 REPAIRED CANDIDATE."
+}

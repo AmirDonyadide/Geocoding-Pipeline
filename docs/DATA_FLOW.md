@@ -54,8 +54,13 @@ Stage 7: libpostal parser evidence (accepted on DEVELOPMENT)
   + complete occurrence map-back; no semantic/geographic truth guarantee
         |
         v
-Proposed Stages 8–14 (not started)
-  evidence -> hypotheses -> query identities -> top-N results
+Stage 8 third-remediation DEVELOPMENT candidate awaiting independent rereview
+  exact Stage 7 candidate evidence + ordered long-form parser-evidence index
+  + source-candidate map + deterministic STANDARD/NATIVE occurrence view
+        |
+        v
+Proposed Stages 9–14 (not started)
+  reference evidence -> hypotheses -> query identities -> top-N results
   -> scoring/granularity -> complete source-row mappings
 ```
 
@@ -182,7 +187,7 @@ bytes. Exact byte equality is checked inside every observed digest group, so a
 digest alone is never treated as equality proof. Stage 6 applies no additional
 normalization or parsing. The Stage 6 output is accepted on DEVELOPMENT.
 
-## Stage 7 evidence and future candidate representations
+## Stage 7 evidence and Stage 8 projection
 
 Stage 7 is accepted on DEVELOPMENT under
 `stage07_parser_evidence_contract_v2`. It preserves all five Stage 6 registry
@@ -192,7 +197,35 @@ and complete 69,747-occurrence map-back for all 51,779 exact candidates. Its
 components remain hypotheses/evidence only; no warning status establishes
 semantic correctness or geographic truth.
 
-Proposed Stages 8–14 have not started. Their data model is constrained by these
+Stage 8 job `1763747` materialized the first DEVELOPMENT candidate and passed
+exact count, binding, reversibility, publication, and privacy validation for
+old executable `a2544401b4b699f6c020970f3507a2ae432746c5`. It
+preserves the complete Stage 7 candidate row, emits one ordered long-form
+evidence row per raw component without changing labels/values/order/duplicates,
+and preserves a source-row map with separate STANDARD/NATIVE candidate slots.
+The exact nested Stage 7 list remains authoritative. A mapped SAFE
+parser-evidence name remains `PARSER_EVIDENCE`; Stage 8 emits no hypothesis or
+reference result. pycountry and libaddressinput are deferred to the Stage 9
+design boundary. Independent review rejected reporting candidate `adde81d…`
+for publication-state ordering and stale current architecture wording.
+First repair executable `bd89a03…` produced candidate job `1763984`; its exact
+scientific reconciliation passed. Independent rereview then found that a real
+rename followed by an exception could leave a reader-visible success while the
+invocation reported failure. Second repair `bdea7232…` reconciles both
+temporary and final paths by captured filesystem identity and permits adoption
+only after parent fsync plus complete final reopen validation. Authorized job
+`1764219` materialized the repair with manifest `346ea27a…`, unchanged logical
+dataset `9c9d431c…`, and exact scientific and ordinary publication
+reconciliation. Independent rereview then failed it because post-commit stdout
+failure produced a failure exit and policy-A ownership was not rechecked after
+parent fsync/final validation. Third repair `c04cb972…` separates publication
+and presentation status and adds the terminal no-follow ownership check.
+Authorized job `1764273` materialized it with manifest `2a50bd8c…`, the same
+logical dataset `9c9d431c…`, and exact v3 terminal reconciliation. It is not
+accepted. Jobs `1763747`, `1763984`, and `1764219` remain immutable historical
+evidence for their exact executables and do not validate the new candidate.
+
+The Stage 8 implementation and proposed Stages 9–14 are constrained by these
 accepted principles:
 
 - lowercase, reconstructed, parsed, normalized, transliterated, corrected, and

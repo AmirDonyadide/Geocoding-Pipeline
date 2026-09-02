@@ -104,7 +104,9 @@ to change a decision or start a stage.
   component mapping, using component/country/language/script context. Blind
   English rules on native candidates are prohibited.
 - **Rationale:** Prevent semantic damage across address components and scripts.
-- **Status:** LOCKED sequence; Stage 9 is NOT STARTED.
+- **Status:** LOCKED scientific principle. The old Stage 9 number was never
+  implemented; D038 prospectively places any such derived value under the
+  Stage 10 hypothesis boundary rather than Stage 8 or Stage 9.
 
 ### D011 — Validation has closed outcomes; absence is not mismatch
 
@@ -150,8 +152,9 @@ to change a decision or start a stage.
 - **Rationale:** Library-first offline processing under reproducible privacy
   controls.
 - **Status:** Accepted-stage choices are bound by the reviewed contracts for
-  Stages 0–7. Proposed replacement Stages 8–14 are not started. pgeocode is
-  proof-of-concept only. Pandas is inspection-only.
+  Stages 0–7. D038 freezes the prospective Stage 8 tool boundary without
+  pycountry or libaddressinput. Proposed replacement Stages 9–14 are not
+  started. pgeocode is proof-of-concept only. Pandas is inspection-only.
 
 ### D015 — Protected data never leaves controlled infrastructure
 
@@ -720,19 +723,493 @@ to change a decision or start a stage.
   started and unauthorized. The exact next task is Stage 8 design and explicit
   authorization only.
 
+### D038 — Freeze Stage 8 as a lossless parser-evidence projection and index
+
+- **Date:** 2026-09-01.
+- **Scope:** Prospective Stage 8 DEVELOPMENT scientific contract only; no
+  implementation or execution.
+- **Decision:** Stage 8 is not semantic normalization or hypothesis generation.
+  It preserves the complete accepted Stage 7 v2 candidate row, publishes a
+  reversible ordered long-form parser-component evidence index, and preserves
+  a minimal exact source-row map with separate STANDARD/NATIVE candidate links.
+  Candidate-level representation scope may be `STANDARD`, `NATIVE`, or `BOTH`;
+  occurrence-level provenance remains STANDARD or NATIVE. Missing
+  representations remain explicit.
+- **Evidence taxonomy:** Every field is classified as `SOURCE_VALUE`,
+  `SOURCE_LINEAGE`, `UPSTREAM_DERIVED_REPRESENTATION`,
+  `TRUSTED_SOURCE_CONTEXT`, `PARSER_TECHNICAL_PROVENANCE`, `PARSER_EVIDENCE`,
+  `STRUCTURAL_DIAGNOSTIC`, or `MECHANICAL_INDEX`. Stage 8 publishes no
+  `HYPOTHESIS`, `REFERENCE_EVIDENCE`, `GEOCODER_RESULT`, or `ACCEPTED_MATCH`
+  field and no confidence/correctness score.
+- **Mapping:** `stage08_libpostal_label_mapping_v1` maps the 20 exact labels
+  defined by the pinned libpostal source one-to-one to visibly parser-scoped
+  SAFE evidence names. It never changes values, order, or duplicates. Any
+  other label is retained exactly with `UNMAPPED_LABEL` and a null mapped
+  concept. `house` is not narrowed to `building`; `city` is not narrowed to
+  `locality`; parser `country` is not trusted country.
+- **Status semantics:** Applicability, historical technical status, execution
+  origin, structural warnings, warning non-evaluation, mapping coverage, and
+  source-representation presence remain separate. Accepted Stage 7 did
+  historically parse country-unresolved candidates, so Stage 8 does not call
+  them unattempted. A future not-attempted state requires a new contract and
+  cannot equal `PARSED_EMPTY`. Empty parses, unknown labels, warnings,
+  unresolved country, and absent representations never mean invalid address.
+- **Metadata boundary:** Stage 8 introduces no pycountry, libaddressinput,
+  public-reference, or external-service dependency. Exact-code ISO/subdivision
+  and pinned offline country-format metadata may be considered as Stage 9
+  reference/format evidence. Fuzzy pycountry inference, runtime Address Data
+  Service calls, and Google Address Validation API are not approved.
+- **Implementation boundary:** Prospective identities are
+  `stage08_address_evidence_projection_contract_v1`,
+  `stage08_address_evidence_projection_profile_v1`,
+  `stage08_address_evidence_projection_schema_v1`, and
+  `stage08_semantic_classification_v1`. PyArrow/Parquet own typed nested and
+  long evidence; DuckDB performs bounded external reconciliation. Polars is
+  not required in v1 and pandas remains prohibited for production
+  transformations. Giant candidates are processed exactly or publication
+  fails.
+- **Architecture correction:** Keep compact Stage 8–14 numbering. Stage 8 is
+  lossless projection/index, Stage 9 is independent reference/format evidence,
+  and Stage 10 is the first hypothesis stage. This prospectively supersedes
+  the unimplemented stage-number placement in D010/D014 without rewriting
+  their scientific safeguards or historical context.
+- **Status:**
+  `STAGE08_ADDRESS_EVIDENCE_DESIGN_READY_FOR_IMPLEMENTATION`. Stage 8 is not
+  implemented, executed, independently reviewed, or accepted. No DEVELOPMENT
+  job, production, HOLDOUT, Stage 9, Pelias, geocoding, Senzing, or DeepParse
+  work is authorized. The exact next task is a fresh Stage 8 DEVELOPMENT
+  implementation session after explicit authorization.
+
+### D039 — Freeze the Stage 8 DEVELOPMENT implementation candidate
+
+- **Date:** 2026-09-01.
+- **Scope:** Stage 8 DEVELOPMENT implementation and synthetic/local validation
+  only; no protected execution.
+- **Decision:** Implement D038 unchanged at exact Git commit
+  `a2544401b4b699f6c020970f3507a2ae432746c5`. The candidate freezes contract
+  fingerprint `8b3c530e714177fe2c30a97d61dcc199b7f9efba58f3c17a291b817af0f24d5e`,
+  schema-bundle fingerprint
+  `6c8ebecd24c495dbe2ce32125ac1cb89c4a9de4905c786b774d10ad728ed392f`,
+  and label-mapping fingerprint
+  `b18167d2d5c1f1402d1bb0e92559befb92418f5f4f34df885596778a11d5c09d`.
+  It uses PyArrow/Parquet for authoritative storage and bounded nested
+  projection, DuckDB for bounded reconciliation, atomic owner-only
+  publication, and an independent reopen validator.
+- **Evidence:** Required synthetic cases, Stage 7 regressions, Ruff, strict
+  mypy, shell syntax, JSON, Markdown-link, diff, and privacy gates pass. The
+  only safe full-suite local failures are unchanged Python 3.14.3 guards under
+  the Mac's Python 3.14.7. No protected inputs, SLURM, parser, reference,
+  geocoder, HOLDOUT, or production access occurred.
+- **Status:**
+  `STAGE08_ADDRESS_EVIDENCE_IMPLEMENTATION_READY_FOR_CONTROLLED_DEVELOPMENT_EXECUTION`.
+  This is not execution authority or scientific acceptance. The exact next
+  action is separate owner authorization for one bounded Goethe-NHR
+  DEVELOPMENT materialization; a pending run must not be duplicated.
+
+### D040 — Freeze the Stage 8 DEVELOPMENT materialization candidate
+
+- **Date:** 2026-09-02.
+- **Scope:** Stage 8 DEVELOPMENT execution evidence and candidate freeze only;
+  no independent review or acceptance.
+- **Decision:** Reuse the single immutable job `1763747` artifact produced by
+  executable commit `a2544401b4b699f6c020970f3507a2ae432746c5`. Bind manifest
+  SHA-256 `bdf86738fb071e38b2ad090f4627a821149352fb1490e62b76e5819aa915bcf9`
+  and logical dataset SHA-256
+  `9c9d431c2c1b92712e0cb372f2661ad48f4fe8758dc0327d25aef90ab2c2d526`.
+  No second materialization is justified or authorized.
+- **Reconciliation:** The immutable candidate contains 51,779 candidates,
+  6,106,088 ordered component rows, 35,000 source rows, and 69,747 occurrence
+  mappings (34,822 STANDARD; 34,925 NATIVE). It preserves 51,774
+  `PARSED_NONEMPTY` and five `PARSED_EMPTY` states. All components use the
+  frozen mapping in this input; unmapped, dangling, component-count-mismatch,
+  and occurrence-count-mismatch totals are zero. Reversibility and every frozen
+  validation field passed.
+- **Scheduler accounting:** The launcher and `ReqCPUS` requested four CPUs;
+  `AllocCPUS` records 80 because `general1` is
+  `OverSubscribe=EXCLUSIVE` and the assigned node has 80 CPUs. Stage 8 remained
+  one task with `--cpus-per-task=4`; DuckDB remained at four threads and an 8GB
+  cap. Batch `TotalCPU` was 948.969 seconds over 918 seconds elapsed, about
+  1.034 used core-equivalents on average. The whole-node allocation/accounting
+  difference is operational, not 80-way application concurrency, and is not
+  material to scientific validity or boundedness.
+- **Privacy and semantics:** Parser, reference, network, and geocoder calls are
+  zero; semantic-trust fields are zero; HOLDOUT and production access are
+  false. Atomic publication, prepublication reopen validation, owner-only
+  permissions, and exact accepted Stage 6/7 bindings passed. Parser evidence
+  remains evidence rather than truth.
+- **Status:**
+  `STAGE08_ADDRESS_EVIDENCE_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REVIEW`.
+  The next action is a fresh independent Stage 8 critical-review session. This
+  decision does not accept Stage 8 or authorize another job, Stage 9, HOLDOUT,
+  production, reference services, or geocoding.
+
+### D041 — Reject the first Stage 8 candidate and repair terminal publication
+
+- **Date:** 2026-09-02.
+- **Scope:** Bounded Stage 8 DEVELOPMENT remediation after independent review;
+  code, synthetic tests, and current-facing documentation only. No protected
+  execution or scientific redesign.
+- **Independent finding:** Exact reporting candidate
+  `adde81d2237e99993222994ce56efb0d74f7c2d3` at executable
+  `a2544401b4b699f6c020970f3507a2ae432746c5` received
+  `STAGE08_ADDRESS_EVIDENCE_INDEPENDENT_REVIEW_FAIL`. First, it created
+  `_SUCCESS.json` and removed `_IN_PROGRESS` before required prepublication
+  reopen validation, so an injected validation failure could leave a failed
+  attempt represented as successful. Second, the current technology table in
+  `docs/PROJECT_BRIEF.md` incorrectly assigned pycountry and offline
+  libaddressinput metadata to Stage 8 instead of Stage 9.
+- **Decision:** Reject the candidate; do not merge or accept it. Repair only
+  terminal publication at exact executable
+  `bd89a032eb6fcf16a7515e0bd2991165d87246b1`. `_IN_PROGRESS` now remains
+  present through materialization, artifact/manifest fsync, and the complete
+  prospective scientific/integrity reopen validation. `_SUCCESS.json` is
+  created only after that validation passes. Marker removal, terminal-directory
+  fsync, atomic rename, parent-directory fsync, and immediate post-publication
+  reopen failures all demote the retained tree to explicit incomplete state
+  with no success marker. The standalone published validator remains
+  non-mutating and rejects later corruption/tampering.
+- **Scientific preservation:** The contract/profile, four schemas, semantic
+  taxonomy, exact 20-label mapping, input bindings, field meanings, status
+  vocabularies, ordering, nullability, and candidate/component/source/occurrence
+  grains are unchanged. Stage 8 remains lossless projection/index only; Stage
+  9 is the potential offline reference/format-evidence boundary for pycountry
+  and libaddressinput where scientifically justified.
+- **Historical evidence:** Job `1763747` and its immutable artifact remain
+  scientifically reconciled DEVELOPMENT evidence for the old executable. They
+  are not relabeled scientifically invalid, modified, deleted, accepted, or
+  eligible to validate the repaired executable. The failed review and both
+  exact blocking findings remain distinct history.
+- **Local evidence:** Stage 8 focused tests pass 17/17, including injected
+  prepublication validation, prospective marker, artifact/manifest corruption,
+  marker removal, fsync, rename, parent-fsync, and post-publication tamper
+  boundaries. Unaffected Stage 2/7/8 and earlier publication regressions pass
+  60/60. The safe full suite has 584 passes, 24 expected exact Python 3.14.3
+  guard failures under local Python 3.14.7, and four deselections. Ruff,
+  changed-file format, strict mypy, shell syntax, JSON, Markdown links, diff,
+  and privacy/tracked-data gates pass; no runtime guard was weakened.
+- **Status:**
+  `STAGE08_ADDRESS_EVIDENCE_IMPLEMENTATION_READY_FOR_CONTROLLED_DEVELOPMENT_REEXECUTION`.
+  This is not a new materialized candidate and does not authorize execution or
+  independent review. The exact next action requiring separate owner
+  authorization is: **AUTHORIZE ONE NEW CONTROLLED STAGE 8 DEVELOPMENT
+  MATERIALIZATION AT THE NEW EXECUTABLE SHA.**
+
+### D042 — Freeze the repaired Stage 8 DEVELOPMENT materialization candidate
+
+- **Date:** 2026-09-02.
+- **Scope:** Sanitized repaired Stage 8 DEVELOPMENT execution reconciliation
+  and candidate freeze only; no implementation/science change, second job,
+  independent rereview, or acceptance.
+- **Decision:** Designate the single authorized repaired job `1763984` artifact
+  as the authoritative Stage 8 DEVELOPMENT candidate. Bind exact executable
+  `bd89a032eb6fcf16a7515e0bd2991165d87246b1`, output
+  `/work/footprint/donyadidegan/safe_geocoding_pipeline/derived/controlled/stage08/development/stage08_development_20260902T080150Z_bd89a032eb6f`,
+  manifest SHA-256
+  `d521240b42a40b9c1408f0f7241583bc76b7779e4107179e73fdcb7c7a69e119`,
+  and logical dataset SHA-256
+  `9c9d431c2c1b92712e0cb372f2661ad48f4fe8758dc0327d25aef90ab2c2d526`.
+  Accepted Stage 7/6 manifests remain exact `f5841087…`/`e1da7b8e…`; runtime
+  remains Python 3.14.3, PyArrow 25.0.0, and DuckDB 1.5.5.
+- **Reconciliation:** The repaired candidate contains 51,779 candidates,
+  6,106,088 ordered parser-component rows, 35,000 source rows, and 69,747
+  representation occurrences (34,822 STANDARD; 34,925 NATIVE). It preserves
+  51,774 `PARSED_NONEMPTY` and five `PARSED_EMPTY` states. All 6,106,088
+  components use the frozen mapping in this input; unmapped, dangling,
+  component-count-mismatch, and occurrence-count-mismatch totals are zero.
+  Every frozen scientific/integrity validator and reversibility check passed.
+- **Publication evidence:** Prepublication reopen validation completed while
+  `_IN_PROGRESS` remained present and `_SUCCESS.json` remained absent. The
+  final success marker binds the manifest above; `_IN_PROGRESS` is absent only
+  after successful terminal transition; no incomplete sibling remains; and
+  post-publication reopen validation passed. All eight directories are `0700`,
+  all 52 files are `0600`, no symlinks exist, atomic/owner-only publication
+  claims pass, and stderr is empty.
+- **Scientific equality to rejected history:** Repaired job `1763984` has the
+  same logical dataset SHA-256 as historical job `1763747`. This is evidence
+  that the publication-state repair did not alter the frozen Stage 8 scientific
+  dataset. It does not make old job `1763747` validation of the repaired
+  executable.
+- **Historical preservation:** Rejected reporting candidate `adde81d…`, old
+  executable `a2544401…`, job `1763747`, its immutable artifact, the independent
+  review failure, and its publication/documentation blockers remain distinct
+  historical evidence. They are neither overwritten nor relabeled accepted.
+- **Privacy and boundary:** Parser, reference, network, geocoder, and
+  semantic-trust calls/fields are zero; HOLDOUT and production access are
+  false. No second Stage 8 job, Stage 9 work, or geocoding is authorized.
+- **Status:**
+  `STAGE08_ADDRESS_EVIDENCE_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REREVIEW`.
+  This is not Stage 8 acceptance. The exact next action is **FRESH INDEPENDENT
+  STAGE 8 REREVIEW OF THIS REPAIRED CANDIDATE.**
+
+### D043 — Reject the first repair after rereview and reconcile ambiguous rename
+
+- **Date:** 2026-09-02.
+- **Scope:** Second bounded Stage 8 DEVELOPMENT publication remediation after
+  independent rereview; code, synthetic tests, and current-facing sanitized
+  documentation only. No protected execution or scientific redesign.
+- **Independent finding:** Exact reporting candidate
+  `fdf2f8c78781a6bdb5dad637af5954ae81cf331d` at executable
+  `bd89a032eb6fcf16a7515e0bd2991165d87246b1` received
+  `STAGE08_ADDRESS_EVIDENCE_INDEPENDENT_REREVIEW_FAIL`. A rename wrapper could
+  perform the real final rename and then raise before Python-side state was
+  updated. Cleanup then examined only the vanished temporary path and returned
+  failure while the final path still had `_SUCCESS.json`, lacked
+  `_IN_PROGRESS`, and satisfied the repository's success definition.
+- **Decision:** Reject the candidate; do not merge or accept it. Adopt
+  completed publication only for the narrowly proven ambiguous-rename case.
+  Executable `bdea7232a3f92ebd381be87610b753b8e4c35481` captures the temporary
+  directory device/inode identity before commit and classifies all four
+  temporary/final presence combinations without following symlinks. A
+  final-only path may be adopted only when it has that exact identity, its
+  parent fsync succeeds, and the complete final bundle independently reopens
+  and validates. Before-effect failures and all other owned failure trees are
+  demoted to success absent and `_IN_PROGRESS` present. Both-path,
+  neither-path, wrong-identity, symlink, parent-fsync, and postpublication
+  validation failures are never adopted; unrelated paths are not modified.
+- **Terminal semantics:** The filesystem, rather than a Python path variable,
+  is authoritative after an ambiguous rename result. Success is returned only
+  after the final publication independently validates. Failure cleanup is
+  identity-guarded and idempotent, inspects both paths, and cannot relabel or
+  corrupt an unrelated publication. This closes pre-effect, post-effect,
+  immediate-interrupt, parent-fsync, postpublication-validation, and partial
+  cleanup boundaries without adding a third reader-visible terminal state.
+- **Scientific preservation:** Stage 8 contracts, four schemas, semantic
+  classes, exact 20-label mapping, Stage 6/7 bindings, candidate/component/
+  source/occurrence grains, occurrence/parser-evidence semantics, and the
+  Stage 8/9 scientific boundary are unchanged. Contract, schema-bundle,
+  mapping, and individual schema fingerprints exactly match `bd89a032…`.
+  Pycountry and libaddressinput remain potential Stage 9 evidence only.
+- **Historical evidence:** Original executable `a2544401…`, job `1763747`,
+  the first independent-review failure, first repair `bd89a032…`, job
+  `1763984`, its successful scientific reconciliation, and the second
+  independent-rereview failure remain truthful immutable history. Neither job
+  nor artifact is called corrupt; each is evidence only for its exact
+  executable and cannot validate `bdea7232…`.
+- **Local evidence:** Stage 8 focused tests pass 28/28, including actual rename
+  then raise, immediate post-rename interrupt, parent-fsync failure,
+  postpublication reopen failure, every temporary/final presence state,
+  partial/idempotent demotion, unrelated-path preservation, and normal
+  publication. Relevant Stage 7 tests pass 54/54 and the runnable Stage 2
+  atomic-publication regression passes. The safe full suite has 595 passes,
+  24 expected exact Python 3.14.3 guard failures under local Python 3.14.7,
+  and four deselections. Ruff, changed-file format, strict source/Stage 8
+  mypy, shell syntax, JSON, Markdown links, diff, and privacy/tracked-data
+  gates pass; no runtime guard was weakened.
+- **Status:**
+  `STAGE08_ADDRESS_EVIDENCE_IMPLEMENTATION_READY_FOR_CONTROLLED_DEVELOPMENT_REEXECUTION`.
+  This is not a materialized candidate and does not authorize execution,
+  independent review, Stage 9, HOLDOUT, production, reference work, or
+  geocoding. The exact next action requiring separate owner authorization is:
+  **AUTHORIZE EXACTLY ONE NEW CONTROLLED STAGE 8 DEVELOPMENT MATERIALIZATION AT
+  THE NEW EXECUTABLE SHA.**
+
+### D044 — Freeze the second-remediation Stage 8 DEVELOPMENT candidate
+
+- **Date:** 2026-09-02.
+- **Scope:** Sanitized reconciliation and candidate freeze for the single
+  owner-authorized second-remediation Stage 8 DEVELOPMENT materialization. No
+  code/science change, second job, independent rereview, or acceptance.
+- **Decision:** Freeze job `1764219` as the current Stage 8 DEVELOPMENT
+  candidate at exact executable
+  `bdea7232a3f92ebd381be87610b753b8e4c35481`, output
+  `/work/footprint/donyadidegan/safe_geocoding_pipeline/derived/controlled/stage08/development/stage08_development_20260902T112644Z_bdea7232a3f9`,
+  manifest SHA-256
+  `346ea27ad60c1e00ef29c1126b2744f38049c1fa7d062647ab6df04e3330dee6`,
+  and logical dataset SHA-256
+  `9c9d431c2c1b92712e0cb372f2661ad48f4fe8758dc0327d25aef90ab2c2d526`.
+- **Accepted inputs:** Bind exact accepted Stage 7 manifest `f5841087…`,
+  logical identity `0f0706c1…`, contract fingerprint `c9561e6d…`, and schema
+  fingerprint `b0e0e83e…`; bind exact accepted Stage 6 manifest `e1da7b8e…`,
+  logical identity `2f6379c0…`, row-map identity `1ff9067c…`, input binding
+  `6ba224d6…`, and schema fingerprint `9c07b7a4…`.
+- **Scientific reconciliation:** The candidate contains 51,779 candidates,
+  6,106,088 ordered components, 35,000 source rows, and 69,747 occurrences
+  (34,822 STANDARD; 34,925 NATIVE). All components are mapped; dangling,
+  unmapped, component-count-mismatch, and occurrence-count-mismatch totals are
+  zero. Every frozen validation field passes. Parser, reference, network,
+  semantic-trust, HOLDOUT, and production counts/access are zero or false.
+- **Scientific identity:** Contract `8b3c530e…`, schema bundle `6c8ebecd…`,
+  label mapping `b18167d2…`, all four schema fingerprints, all four relation-
+  logical fingerprints, exact 20-label mapping, Stage 6/7 bindings, semantic
+  classes, occurrence/parser-evidence semantics, and candidate/component/
+  source/occurrence grains are unchanged.
+- **Publication evidence:** Job `1764219` followed the ordinary successful
+  path. Complete prepublication reopen validation preceded terminal success;
+  the temporary tree was ready and fsynced before atomic rename; parent fsync
+  and immediate final reopen validation passed before success returned.
+  `_SUCCESS.json` exactly binds the manifest/scientific identities,
+  `_IN_PROGRESS` is absent, no incomplete sibling remains, and stderr is
+  empty. Eight directories are `0700`, 52 files are `0600`, symlinks are zero,
+  and atomic/owner-only publication claims pass. Policy-A synthetic adoption
+  was not fault-injected in this protected run and requires fresh independent
+  challenge.
+- **Runtime/resources:** Python 3.14.3, Unicode 16.0.0, PyArrow 25.0.0, and
+  DuckDB 1.5.5; four requested CPUs, 32 GiB, DuckDB four threads/8GB, 15m10s,
+  `0:0`, and MaxRSS 1,785,464 KiB. `AllocCPUS=80` is exclusive-node allocation,
+  not application concurrency.
+- **Historical relation:** Jobs `1763747`, `1763984`, and `1764219` have the
+  same logical dataset SHA. The narrow conclusion is that the two publication
+  remediations did not alter frozen Stage 8 science. Original executable
+  `a2544401…`, first repair `bd89a032…`, both review failures, and their exact
+  blockers remain truthful history. Neither older job validates `bdea7232…`;
+  neither historical artifact is called corrupt.
+- **Local finalization:** Stage 8 focused/fault-injection tests pass 28/28,
+  relevant Stage 7 tests pass 54/54, and six runnable prior atomic-publication
+  regressions pass. Ruff, scoped format, strict source/Stage 8 mypy, shell,
+  JSON, Markdown links, diff, privacy/tracked-data, executable-blob,
+  scientific-fingerprint, report-consistency, and Git checks pass. Selected
+  Stage 4–6 publication tests stop only at the unchanged Python 3.14.3 guards
+  under local Python 3.14.7.
+- **Status:**
+  `STAGE08_ADDRESS_EVIDENCE_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REREVIEW`.
+  Stage 8 remains unaccepted. No additional job, Stage 9, HOLDOUT, production,
+  reference, parser, or geocoding authority follows. Exact next action: **FRESH
+  INDEPENDENT STAGE 8 REREVIEW OF THE BDEA7232 REPAIRED CANDIDATE.**
+
+### D045 — Reject the second repair and bind publication success to ownership
+
+- **Date:** 2026-09-02.
+- **Scope:** Third bounded Stage 8 DEVELOPMENT publication remediation after
+  failed independent rereview; code, synthetic tests, and current-facing
+  sanitized documentation only. No protected execution or scientific redesign.
+- **Independent findings:** Exact candidate
+  `70e3de9536aee7074e27018d39e0164f3a2200ae`, executable
+  `bdea7232a3f92ebd381be87610b753b8e4c35481`, and job `1764219` received
+  `STAGE08_ADDRESS_EVIDENCE_INDEPENDENT_REREVIEW_FAIL`. First, an injected
+  stdout `OSError` after a fully committed, independently valid publication
+  made the CLI exit nonzero. Second, policy-A adoption checked identity before
+  parent fsync and final validation but did not recheck it afterward, allowing
+  a byte-identical different-inode FINAL replacement to be reported as the
+  invocation's success. Review evidence commit is `2a6bba60…`; harness
+  SHA-256 is `acf343ac…`. The controlled artifact is not asserted corrupt.
+- **Decision:** Reject that candidate without modifying its branch or artifact.
+  Executable `c04cb97214a9f1e5d2b80512c756400321eefa80` separates the
+  filesystem publication result from nonessential result presentation. Once
+  the materializer returns, result serialization, stdout write/flush, and
+  best-effort stderr diagnostic exceptions preserve exit 0 and cannot demote
+  the publication. Genuine pre-return publication failures remain nonzero.
+- **Ownership binding:** Both ordinary publication and policy-A adoption share
+  a final no-follow device/inode verification. It occurs after parent-directory
+  fsync, complete final reopen validation, fallible outcome/timing construction,
+  and `umask` restoration, and is the last rejection-capable publication
+  operation before return. Identity-changed or symlink replacements fail
+  closed and are not demoted; only an exact identity-matching owned failure
+  tree may be demoted under the frozen policy.
+- **Threat model:** The contract detects replacement during the program-
+  controlled publication/adoption sequence under owner-only parent topology.
+  It does not claim immunity to external `SIGKILL`, power loss, kernel failure,
+  or privileged/owner mutation after the last identity stat or return.
+- **Scientific preservation:** Contract, profile, four schemas, exact 20-label
+  mapping, semantic classes, Stage 6/7 bindings, logical-hash rules, candidate/
+  component/source/occurrence grains, parser/occurrence semantics, and the
+  Stage 8/Stage 9 boundary remain exact. Every scientific fingerprint matches
+  `bdea7232…`.
+- **Local evidence:** Stage 8 focused/fault-injection tests pass 45/45,
+  including exact stdout-first-write, explicit-flush process, byte-identical
+  replacement at four post-rename boundaries, symlink, owned-only demotion,
+  final-check ordering, and real-rename-then-raise regressions. All 149 Stage 7
+  tests and 33 selected earlier atomic-publication parameter cases pass. The
+  safe full suite has 612 passes, 24 expected Python 3.14.3 guard failures on
+  local Python 3.14.7, and four protected-payload deselections. Ruff,
+  changed-file format, strict mypy, shell, JSON, Markdown-link, diff, privacy,
+  scientific-fingerprint, executable-surface, and Git gates pass.
+- **Historical evidence:** Jobs `1763747`, `1763984`, and `1764219`, their
+  immutable artifacts, all three failed review findings, and executables
+  `a2544401…`, `bd89a032…`, and `bdea7232…` remain truthful reachable history.
+  None validates `c04cb972…`; none is relabeled corrupt.
+- **Status:**
+  `STAGE08_ADDRESS_EVIDENCE_IMPLEMENTATION_READY_FOR_CONTROLLED_DEVELOPMENT_REEXECUTION`.
+  This is not execution authority or Stage 8 acceptance. The exact next action
+  requiring separate owner authorization is: **AUTHORIZE EXACTLY ONE NEW
+  CONTROLLED STAGE 8 DEVELOPMENT MATERIALIZATION AT THE NEW EXECUTABLE SHA.**
+
+### D046 — Freeze the third-remediation Stage 8 DEVELOPMENT candidate
+
+- **Date:** 2026-09-02.
+- **Scope:** Sanitized Stage 8 DEVELOPMENT execution reconciliation and
+  candidate freeze for the single owner-authorized third-remediation
+  materialization. No additional protected execution, row-level inspection,
+  implementation/science change, independent review, or acceptance.
+- **Decision:** Freeze job `1764273` as the current Stage 8 DEVELOPMENT
+  candidate. Bind exact executable
+  `c04cb97214a9f1e5d2b80512c756400321eefa80`, output
+  `/work/footprint/donyadidegan/safe_geocoding_pipeline/derived/controlled/stage08/development/stage08_development_20260902T132726Z_c04cb97214a9`,
+  manifest
+  `2a50bd8c066552c9cb7505ed2d6071f1ee36161b9a2cc07f3ed364cf00237827`,
+  logical dataset
+  `9c9d431c2c1b92712e0cb372f2661ad48f4fe8758dc0327d25aef90ab2c2d526`,
+  and final `(st_dev, st_ino)` identity `(54, 9363000937145638642)`.
+- **Accepted inputs:** Stage 7 manifest remains `f5841087…`, and Stage 6
+  manifest remains `e1da7b8…`. Their contract, schema, logical-dataset,
+  parser-bundle, row-map, and input-binding identities match the frozen Stage 8
+  contract exactly.
+- **Scientific evidence:** The artifact contains 51,779 candidates, 6,106,088
+  ordered components, 35,000 source rows, and 69,747 occurrences (34,822
+  STANDARD; 34,925 NATIVE). Dangling/unmapped components and component/
+  occurrence-count mismatches are zero. Every frozen scientific validator
+  passes. Parser, reference, network, geocoder/external-service, and semantic-
+  trust counts are zero; HOLDOUT and production access are false.
+- **Scientific identity:** Contract, schema bundle, all four relation schemas,
+  mapping, all four relation-logical fingerprints, semantic classes, exact
+  20-label mapping, Stage 6/7 bindings, candidate/component/source/occurrence
+  grains, logical-hash rules, and the Stage 8/Stage 9 boundary remain exact.
+- **V3 terminal evidence:** Job `1764273` followed the ordinary successful
+  publication path. Prepublication rejection-capable validation, temporary-
+  tree durability, atomic rename, parent fsync, complete final reopen
+  validation, outcome construction, and `umask` restoration all preceded the
+  final no-follow device/inode ownership verification. That gate passed, was
+  the last rejection-capable publication operation, and bound success to the
+  reported identity. Success-marker binding, absent in-progress/incomplete
+  state, owner-only modes, zero symlinks, atomic publication, and empty stderr
+  all pass.
+- **Fault boundary:** No fault was injected into the controlled job. Post-
+  commit stdout/flush/serialization failures, real-rename-then-raise, and
+  byte-identical/during-fsync/during-validation/pre-final-check replacements
+  remain local synthetic evidence and require fresh independent challenge.
+- **Resources:** Job `1764273` completed `0:0` in 16m08s with four requested
+  CPUs, 32 GiB, DuckDB four threads/8GB, and MaxRSS 1,789,612 KiB.
+  `AllocCPUS=80` is classified only as exclusive-node allocation because
+  scheduler metadata records `general1 OverSubscribe=EXCLUSIVE` and an
+  assigned node with 80 CPUs.
+- **Historical evidence:** The logical dataset SHA matches jobs `1763747`,
+  `1763984`, `1764219`, and `1764273`. The narrow conclusion is only that all
+  publication remediations to date left the frozen Stage 8 scientific dataset
+  unchanged. Historical jobs validate only their exact executables; previous
+  failed reviews remain failures, and no artifact is called corrupt.
+- **Local finalization:** All 45 Stage 8 tests, 14 exact v3 critical cases, 149
+  Stage 7 tests, and 129 Stage 0–2 tests pass. Ruff, scoped format, strict mypy,
+  shell, JSON, Markdown-link, diff, privacy, executable-identity, fingerprint,
+  report-consistency, and Git gates pass. Python 3.14.3 guards remain exact.
+- **Status:**
+  `STAGE08_ADDRESS_EVIDENCE_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REREVIEW`.
+  Stage 8 remains unaccepted. No additional job, Stage 9, HOLDOUT, production,
+  parser, reference, or geocoding work is authorized. Exact next action:
+  **FRESH INDEPENDENT STAGE 8 REREVIEW OF THE C04CB972 REPAIRED CANDIDATE.**
+
 ## Open decisions
 
 These questions require future stage designs and explicit approval:
 
-- design and explicit owner authorization of Stage 8, including approval or
-  revision of the proposed compact Stages 8–14;
+- fresh independent Stage 8 rereview of executable `c04cb972…`, job `1764273`,
+  manifest `2a50bd8c…`, and the v3 terminal contract under D045–D046;
 - exact offline reference releases/licenses and blocking semantics;
 - the bounded Stage 10 hypothesis/query ladder;
 - Stage 13 scoring/calibration and contradiction policy; and
 - Stage 14 granularity-specific usability thresholds, including treatment of
   interpolated Pelias address results.
 
-Nothing in this register authorizes HOLDOUT, Stage 8, geocoding, or production
-Stage 2 through Stage 7. Stage 7 decisions D023–D036 retain their stated
-historical DEVELOPMENT scopes; D037 alone records final Stage 7 DEVELOPMENT
-acceptance.
+Nothing in this register authorizes HOLDOUT, another Stage 8 protected
+execution, Stage 9, geocoding, or production Stage 2 through Stage 7. Stage 7
+decisions
+D023–D036 retain their stated historical DEVELOPMENT scopes; D037 alone
+records final Stage 7 DEVELOPMENT acceptance. D038 records the prospective
+Stage 8 design boundary; D039/D040 record the rejected implementation and its
+single historical artifact; D041 records rejection and bounded implementation
+remediation; D042 freezes the first repaired DEVELOPMENT candidate without
+granting acceptance or later-stage authority; and D043 records the failed
+independent rereview plus the second bounded publication remediation. D044
+freezes the resulting DEVELOPMENT candidate without granting acceptance or
+later-stage authority. D045 records its failed independent rereview and the
+third bounded terminal-status/ownership remediation; it grants no execution or
+later-stage authority. D046 freezes the resulting DEVELOPMENT candidate
+without granting acceptance or later-stage authority.

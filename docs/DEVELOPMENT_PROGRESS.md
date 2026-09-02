@@ -13,7 +13,8 @@ are in the linked stage records and sanitized reports.
 | 5 | Address reconstruction | **`STAGE_5_ACCEPTED`** | Job `1759603`; independent job `1759692`; 35,000 → 35,000; exact reconstruction and six accepted non-damaging boundary limitations in a 179-row risk scope; [report](../reports/development/stage05_summary.md); [Stage 5 record](stages/STAGE05_ADDRESS_RECONSTRUCTION.md) | **NOT STARTED** |
 | 6 | Early exact deduplication | **`STAGE_6_ACCEPTED`** | Job `1759819`; independent job `1760055`; 35,000 → 35,000; 69,747 occurrences → 51,779 unique exact candidates; zero collision/map-back/fixed-500 mismatches; [report](../reports/development/stage06_summary.md); [Stage 6 record](stages/STAGE06_EARLY_EXACT_DEDUPLICATION.md) | **NOT STARTED** |
 | 7 | libpostal parsing/evidence | **`STAGE_7_ACCEPTED`** | Exact candidate `656a16d3…`; evidence-only job `1763516`; independent rereview job `1763656` passed all 51,779 candidates and 69,747 occurrences with zero parser calls/trust claims. Components remain hypotheses/evidence; warning absence is not trust. Historical v1 semantic findings and the failed readiness experiment remain failures. [rereview](../reports/development/stage07_parser_evidence_v2_independent_rereview.md); [current evidence report](../reports/development/stage07_development_candidate_report.md); [Stage 7 record](stages/STAGE07_LIBPOSTAL_PARSING.md) | **NOT STARTED** |
-| 8–14 proposed | Evidence → hypotheses → Pelias top-N → scoring → granularity/abstention | **PROPOSED — NOT STARTED** | Compact replacement for the old unstarted 8–19 plan; [architecture redesign](../reports/development/post_stage07_geocoding_architecture_redesign.md) | **NOT STARTED** |
+| 8 | Lossless address-evidence projection | **`STAGE08_ADDRESS_EVIDENCE_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REREVIEW`** — not accepted | Third repair executable `c04cb972…` completed authorized job `1764273`; manifest `2a50bd8c…`, unchanged logical dataset `9c9d431c…`, exact science, and v3 ordinary terminal path pass. Jobs `1763747`, `1763984`, and `1764219` remain historical only. [candidate](../reports/development/stage08_address_evidence_publication_remediation_v3_candidate_report.md); [execution](../reports/development/stage08_address_evidence_publication_remediation_v3_development.md); [third remediation](../reports/development/stage08_address_evidence_publication_remediation_v3.md); [contract](stages/STAGE08_ADDRESS_EVIDENCE_PROJECTION.md) | **NOT STARTED** |
+| 9–14 proposed | Reference evidence → hypotheses → Pelias top-N → scoring → granularity/abstain | **PROPOSED — NOT STARTED** | Remaining compact replacement architecture; [architecture redesign](../reports/development/post_stage07_geocoding_architecture_redesign.md) | **NOT STARTED** |
 
 Benchmark V1 contains 35,000 DEVELOPMENT and 15,000 sealed HOLDOUT rows from
 the permanent 1,405-file population. The fixed 500-row qualitative subset has
@@ -26,8 +27,33 @@ it guarantees neither semantic component correctness nor geographic truth.
 Machine-only job `1763433` and the owner-authorized 240-case review remain the
 immutable failed `STAGE07_V2_FRESH_DEVELOPMENT_VALIDATION_FAIL` readiness
 experiment, not a trust gate. The first independent review's documentation-
-only failure and corrected rereview pass are both preserved. The exact next
-task is Stage 8 design and explicit authorization only. The old Stages 8–19 and
-proposed replacement Stages 8–14 are not started. Production Stage 0 and Stage
-1 are accepted; production Stages 2–7 are not started. HOLDOUT is untouched
-and sealed.
+only failure and corrected rereview pass are both preserved. Stage 8 job
+`1763747` completed the one authorized DEVELOPMENT materialization at exact
+executable `a2544401b4b699f6c020970f3507a2ae432746c5`; its immutable manifest is
+`bdf86738…` and logical dataset is `9c9d431c…`. Exact counts, reversibility,
+frozen validators, privacy, publication, and permissions passed for that old
+executable. Independent review nevertheless rejected reporting candidate
+`adde81d…` because a synthetic prepublication failure could leave a success
+marker and because current Stage 8/Stage 9 tool wording was stale. The repair
+at executable `bd89a03…` completed job `1763984` with manifest `d521240b…` and
+the same frozen logical dataset `9c9d431c…`; exact scientific reconciliation
+passed. Independent rereview nevertheless failed reporting candidate
+`fdf2f8c…`: a real rename followed by an exception could leave reader-visible
+success while the invocation reported failure. Second repair executable
+`bdea7232…` reconciles both paths using the captured attempt identity and
+adopts only after parent fsync plus complete final reopen validation.
+Authorized job `1764219` produced manifest `346ea27a…` and the same frozen
+logical dataset `9c9d431c…`; all scientific and ordinary publication checks
+pass. Independent rereview nevertheless failed candidate `70e3de95…` because
+stdout failure after committed success produced a failure exit and FINAL
+ownership was not re-established after parent fsync/final validation. Third
+repair executable `c04cb972…` fixes only those terminal defects. Jobs
+`1763747`, `1763984`, and `1764219` remain historical evidence, are not called
+corrupt, and cannot validate it. Authorized job `1764273` produced manifest
+`2a50bd8c…`, the unchanged logical dataset `9c9d431c…`, and exact scientific
+and v3 publication-terminal reconciliation. The exact next action is a fresh
+independent Stage 8 rereview of the `c04cb972…` candidate.
+The old Stages 8–19 were never started; replacement Stages 9–14 remain proposed
+and not started. Production Stage 0 and Stage 1 are accepted; production Stages
+2–7 are not started. HOLDOUT is untouched and sealed. No new Stage 8 job is
+authorized by this candidate status.

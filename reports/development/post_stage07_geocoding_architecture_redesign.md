@@ -1,15 +1,19 @@
 # Proposed post-Stage-7 geocoding architecture redesign
 
-Status: **PROPOSED — NOT STARTED**. This design supersedes the prior unstarted
-Stage 8–19 decomposition if separately approved. It does not implement a stage,
-authorize Stage 8, authorize geocoding, or change the current rule that no
-geocoding workload may run before the governing pre-geocoding design is
-accepted and separately authorized.
+Status: **STAGE 8 DESIGN READY; STAGES 9–14 PROPOSED — NOT STARTED**. The
+original compact proposal superseded the prior unstarted Stage 8–19
+decomposition prospectively. The Stage 8 portion is now narrowed by the
+[Stage 8 scientific contract](../../docs/stages/STAGE08_ADDRESS_EVIDENCE_PROJECTION.md).
+Nothing here implements or executes Stage 8, authorizes Stage 9, authorizes
+geocoding, or changes the current rule that no geocoding workload may run
+before the governing pre-geocoding design is accepted and separately
+authorized.
 
 Stages 0–6 and the immutable Stage 7 v1 evidence are unchanged. Exact Stage 7
 evidence-only v2 candidate `656a16d3…` passed independent rereview and is
 accepted as `STAGE_7_ACCEPTED` on DEVELOPMENT. That acceptance does not promote
-parser output to semantic/geographic truth and does not authorize Stage 8.
+parser output to semantic/geographic truth. Stage 8 design is now ready, but
+implementation and execution remain unauthorized.
 
 ## Governing philosophy
 
@@ -31,24 +35,25 @@ overwrites the exact Stage 6 candidate or any earlier source value.
 
 ### Stage 8 — Lossless address-evidence projection
 
-- **Responsibility:** Join accepted Stage 7 applicability, technical, raw parse,
-  and structural-warning evidence to trusted country/address-format metadata.
-  Preserve raw ordered libpostal labels, duplicate components, unmapped
-  components, and exact whole-string candidates. Any fixed-schema mapping is a
-  parser-derived hypothesis only; neither a warning nor absence of a warning
-  makes a mapped component trusted source truth.
-- **Input:** Accepted Stage 6 lineage and accepted Stage 7 v2.
-- **Output:** Lossless evidence view, parser-derived component hypotheses,
-  address-format requirements, and explicit unsupported/ambiguous states.
-- **Preferred tools/data:** PyArrow/Parquet for the contract; `pycountry` for
-  pinned ISO names/codes; a pinned offline snapshot of Google
-  `libaddressinput` metadata for formatting/required-field evidence. No Google
-  Address Validation API or runtime Address Data Service call.
-- **Acceptance:** Exact lineage and raw preservation, complete known component
-  superset plus `unmapped_components`, no semantic-consumption gate derived
-  from structural warnings, exact metadata version/license, and no claim of
-  geographic truth.
-- **Replaces:** old Stages 8, 9, 10, and the format-only part of 11.
+- **Responsibility:** Preserve the complete accepted Stage 7 row, expose a
+  reversible ordered long-form parser-evidence index, and retain exact
+  source/representation map-back. Preserve duplicate and unknown labels. A
+  one-to-one SAFE parser-evidence name is mechanical evidence, not a hypothesis
+  or verified component. Warning absence never establishes trust.
+- **Input:** Exact accepted Stage 7 v2 candidate evidence plus the exact
+  accepted Stage 6 row map needed for source/representation lineage.
+- **Output:** Candidate evidence, ordered parser-component evidence, a
+  source-candidate map, and a deterministic occurrence view. No hypothesis,
+  reference evidence, address-format requirement, or validity result.
+- **Preferred tools/data:** PyArrow/Parquet plus bounded DuckDB validation.
+  Polars is not required in v1. Stage 8 introduces no pycountry,
+  libaddressinput, or external-data dependency.
+- **Acceptance:** Exact upstream preservation, nested/long reversibility,
+  complete known/unmapped label retention, complete map-back, deterministic
+  fingerprints, bounded memory, and zero semantic-trust claims.
+- **Replaces:** the lossless evidence-mapping responsibility of old Stage 8.
+- **Status:** `STAGE08_ADDRESS_EVIDENCE_DESIGN_READY_FOR_IMPLEMENTATION`; not
+  implemented or executed.
 
 ### Stage 9 — Offline geographic reference evidence
 
@@ -63,9 +68,12 @@ overwrites the exact Stage 6 candidate or any earlier source value.
 - **Preferred tools/data:** pinned GeoNames country/admin/postal files; pinned
   Overture Maps Addresses GeoParquet; optional local OSM evidence where its
   ODbL obligations and incremental value are approved; RapidFuzz after
-  country/postcode/locality blocking; DuckDB for predicate-pushed joins;
-  PyArrow for publication. Polars is optional for bounded lazy transformations,
-  not a required second query engine.
+  country/postcode/locality blocking; exact-code ISO/subdivision metadata from
+  a separately pinned pycountry release where justified; pinned offline
+  libaddressinput format/required-field metadata where justified; DuckDB for
+  predicate-pushed joins; PyArrow for publication. Polars is optional for
+  bounded lazy transformations, not a required second query engine. Runtime
+  Address Data Service and Google Address Validation API calls are prohibited.
 - **Acceptance:** Pinned release/license/coverage, false-positive review,
   bounded blocking, strong-positive definition for contradiction, no
   absence-as-invalid logic, and full evidence provenance.
@@ -193,8 +201,8 @@ into a single opaque score.
 |---|---|---|
 | Default libpostal | Stage 7 raw parser evidence under the pinned bundle | Statistical parser, not geographic truth; documented in-scope errors remain |
 | Senzing libpostal model | No current execution; possible separately approved model diagnostic only | A model change is scientific, needs a new frozen comparison, and is not required for this architecture |
-| Google libaddressinput | Pinned offline country format/required-field metadata in Stage 8 | Format metadata is not address validation; no runtime remote service |
-| pycountry | ISO country/subdivision code identity | No postal, street, or geographic validation |
+| Google libaddressinput | Possible pinned offline country format/required-field evidence in Stage 9 | Not a free-text parser or Google Address Validation API; no runtime remote service; absence cannot imply invalidity |
+| pycountry | Possible exact-code ISO country/subdivision identity in Stage 9 | No fuzzy inference approved; no postal, street, or geographic validation |
 | GeoNames | Pinned postal/locality/admin reference evidence | Coverage/vintage vary; absence is not invalidity |
 | Overture Maps Addresses | Versioned address-point/street evidence in Stage 9 | Coverage and source licenses vary; pin release and lineage |
 | OpenStreetMap | Optional local gap evidence | ODbL attribution/share-alike and regional completeness require review |
@@ -226,9 +234,9 @@ approved, their responsibilities map as follows:
 
 | Old unstarted responsibility | Proposed replacement |
 |---|---|
-| Stage 8 component mapping; Stage 9 linguistic normalization; Stage 10 code normalization; format part of Stage 11 | Stage 8 lossless evidence projection |
-| Remaining Stage 11; Stages 13–15; evidence portions of Stage 16 | Stage 9 offline reference evidence |
-| Correction candidates in Stage 16; Stages 17–18 | Stage 10 multi-hypothesis generation |
+| Stage 8 component mapping | Stage 8 lossless evidence projection and reversible parser-evidence index |
+| Stage 10 code normalization; format and reference parts of Stage 11; Stages 13–15; evidence portions of Stage 16 | Stage 9 offline reference evidence |
+| Stage 9 linguistic normalization; correction candidates in Stage 16; Stages 17–18 | Stage 10 multi-hypothesis generation |
 | Stage 12 normalized dedup; Stage 19 query dedup/QA | Stage 11 global query identity and workload QA |
 | Old external Pelias boundary | Stage 12 top-N retrieval |
 | No explicit equivalent | Stage 13 result evidence scoring/convergence |
@@ -241,8 +249,10 @@ separately approved and repository execution policy is deliberately updated.
 
 ## Exact next task and session boundary
 
-The next task is **Stage 8 design and explicit authorization only**, not Stage
-8 implementation or execution. The failed
-`stage07_component_readiness_rule_v1` validation remains immutable historical
-evidence and is not a future trust-gate task. Any Stage 8 design must preserve
-the accepted Stage 7 evidence-only boundary and receive separate owner approval.
+The next task is a **fresh Stage 8 DEVELOPMENT implementation session**, not
+implementation in the design session and not execution. It must implement the
+accepted design contract, schemas, mapping, validators, synthetic tests, and
+sanitized reporting. A protected DEVELOPMENT job remains a later separately
+reviewed and authorized action. The failed
+`stage07_component_readiness_rule_v1` remains immutable history and is not a
+future trust gate.

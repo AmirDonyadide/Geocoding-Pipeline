@@ -23,7 +23,18 @@ query can be inspected and reproduced.
 
 The DEVELOPMENT pipeline is accepted through Stage 7. Stage 7 is accepted as
 reproducible parser evidence, not semantic component or geographic truth.
-Later stages have not started.
+The first Stage 8 candidate failed independent review. Its first publication
+repair preserved Stage 8 science, and DEVELOPMENT job `1763984` passed exact
+reconciliation for executable `bd89a032…`. Independent rereview then found a
+post-effect rename failure hole in that executable. The second bounded repair
+at `bdea7232…` completed DEVELOPMENT job `1764219`; exact scientific and
+publication reconciliation passed. Independent rereview then failed its post-
+commit CLI status and final-ownership binding. Third bounded repair
+`c04cb972…` completed the single authorized DEVELOPMENT materialization as job
+`1764273`; its scientific, publication, and terminal-contract reconciliation
+passed and the candidate awaits fresh independent rereview. Jobs `1763747`,
+`1763984`, and `1764219` remain historical evidence for their exact
+executables only. Later stages have not started.
 
 | Stage | Name | Status | Data effect |
 |---:|---|---|---|
@@ -35,7 +46,8 @@ Later stages have not started.
 | 5 | Address reconstruction | **`STAGE_5_ACCEPTED`** | Appends separate clean/lower standard/native line-body candidates and compact provenance |
 | 6 | Early exact deduplication | **`STAGE_6_ACCEPTED`** | Preserves 35,000 rows and maps 69,747 occurrences to 51,779 exact candidates |
 | 7 | libpostal parsing/evidence | **`STAGE_7_ACCEPTED`** | Preserves exact raw ordered parser evidence, applicability/technical provenance, warnings, and complete map-back; components remain hypotheses only |
-| 8–14 proposed | Evidence, hypotheses, retrieval, scoring, and final granularity | **PROPOSED — NOT STARTED** | No design approval or execution authorization |
+| 8 | Lossless address-evidence projection | **`STAGE08_ADDRESS_EVIDENCE_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REREVIEW`** | Job `1764273` materialized third repair `c04cb972…`; exact science and v3 ordinary-path terminal publication passed; not accepted |
+| 9–14 proposed | Reference evidence, hypotheses, retrieval, scoring, and final granularity | **PROPOSED — NOT STARTED** | No design approval or execution authorization |
 
 Production Stage 0 and Stage 1 are accepted for
 `production_population_1411_v1` (1,411 files; 141,048,582 rows). Production
@@ -53,7 +65,8 @@ immutable source CSV
   -> Stage 5: separate deterministic address-line body reconstruction
   -> Stage 6: exact lowercase candidate registry + complete row map
   -> Stage 7: accepted evidence-only libpostal projection
-  -> proposed Stages 8–14: evidence, hypotheses, query QA, retrieval, and scoring
+  -> repaired Stage 8: lossless evidence projection/index (awaiting independent rereview)
+  -> proposed Stages 9–14: references, hypotheses, query QA, retrieval, scoring
   -> self-hosted SAFE Pelias
 ```
 
@@ -70,7 +83,7 @@ to every `stable_source_row_id_v1`.
 | `cluster/goethe_nhr/` | Reviewed SLURM and environment assets for Goethe-NHR |
 | `scripts/` | Controlled transfer and synchronization helpers |
 | `docs/` | Current project, pipeline, workflow, privacy, execution, and reproducibility documentation |
-| `docs/stages/` | Stage 0–7 scientific records and candidate evidence |
+| `docs/stages/` | Stage 0–7 accepted records and the active Stage 8 contract/remediation status |
 | `docs/history/` | Accepted source-foundation records that predate the Stage terminology |
 | `reports/development/` | Sanitized, Git-safe aggregate DEVELOPMENT evidence |
 
@@ -149,12 +162,19 @@ personal absolute paths. Sanitized evidence is available under
 - [Accepted stage records](docs/stages/README.md)
 - [Historical records](docs/history/README.md)
 
-## Current next stage
+## Current next action
 
-**Stage 8 design and explicit authorization only.** Stage 7 is
-`STAGE_7_ACCEPTED` on DEVELOPMENT for exact evidence preservation; it provides
-no semantic component correctness, geographic truth, or warning-absence trust
-guarantee. Stage 8 implementation/execution, HOLDOUT, production Stages 2–7,
-Senzing, and geocoding remain unauthorized and not started. See the
-[Stage 7 record](docs/stages/STAGE07_LIBPOSTAL_PARSING.md) and
+Stage 8 is
+**`STAGE08_ADDRESS_EVIDENCE_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REREVIEW`**
+at executable `c04cb97214a9f1e5d2b80512c756400321eefa80`, job `1764273`,
+manifest `2a50bd8c…`, and unchanged logical dataset `9c9d431c…`. The ordinary
+v3 publication path passed prepublication validation, temporary durability,
+rename, parent fsync, complete final reopen validation, outcome construction,
+`umask` restoration, and the final no-follow ownership gate. Jobs `1763747`,
+`1763984`, and `1764219` remain immutable historical evidence and do not
+validate this executable. The exact next action is **FRESH INDEPENDENT STAGE 8
+REREVIEW OF THE C04CB972 REPAIRED CANDIDATE.** No further job, HOLDOUT,
+production Stages 2–7, Stage 9, Senzing, or geocoding is authorized by this
+status. See the
+[Stage 8 design](docs/stages/STAGE08_ADDRESS_EVIDENCE_PROJECTION.md) and
 [current progress](docs/DEVELOPMENT_PROGRESS.md).

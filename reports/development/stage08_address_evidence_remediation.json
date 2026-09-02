@@ -1,0 +1,108 @@
+{
+  "report_version": "stage08_address_evidence_remediation_report_v1",
+  "verdict": "STAGE08_ADDRESS_EVIDENCE_IMPLEMENTATION_READY_FOR_CONTROLLED_DEVELOPMENT_REEXECUTION",
+  "scope": "BOUNDED_DEVELOPMENT_IMPLEMENTATION_REMEDIATION_ONLY",
+  "source_control": {
+    "branch": "stage08-address-evidence-remediation",
+    "failed_reporting_commit": "adde81d2237e99993222994ce56efb0d74f7c2d3",
+    "failed_executable_commit": "a2544401b4b699f6c020970f3507a2ae432746c5",
+    "repaired_executable_commit": "bd89a032eb6fcf16a7515e0bd2991165d87246b1"
+  },
+  "independent_review": {
+    "verdict": "STAGE08_ADDRESS_EVIDENCE_INDEPENDENT_REVIEW_FAIL",
+    "blocking_findings": [
+      "SUCCESS_MARKER_EXPOSED_BEFORE_PREPUBLICATION_REOPEN_VALIDATION",
+      "PROJECT_BRIEF_ASSIGNED_PYCOUNTRY_LIBADDRESSINPUT_TO_STAGE08"
+    ],
+    "candidate_accepted": false,
+    "candidate_merge_allowed": false
+  },
+  "publication_state_machine": {
+    "in_progress_present_through_materialization": true,
+    "in_progress_present_through_prepublication_validation": true,
+    "success_absent_through_prepublication_validation": true,
+    "artifact_manifest_and_directory_fsync_before_prepublication_validation": true,
+    "success_created_only_after_prepublication_validation": true,
+    "terminal_order": [
+      "CREATE_AND_FSYNC_SUCCESS",
+      "REMOVE_IN_PROGRESS",
+      "FSYNC_TERMINAL_ATTEMPT_DIRECTORY",
+      "ATOMIC_SIBLING_RENAME",
+      "FSYNC_PUBLICATION_PARENT",
+      "POSTPUBLICATION_REOPEN_VALIDATION"
+    ],
+    "failed_terminal_transition_demoted_to_incomplete": true,
+    "postpublication_failure_demoted_to_incomplete": true,
+    "failed_state_success_marker_absent": true,
+    "failed_state_in_progress_marker_present": true,
+    "prepublication_failure_final_path_absent": true,
+    "standalone_published_validator_rejects_tampering": true
+  },
+  "scientific_identity": {
+    "contract_fingerprint": "8b3c530e714177fe2c30a97d61dcc199b7f9efba58f3c17a291b817af0f24d5e",
+    "schema_bundle_fingerprint": "6c8ebecd24c495dbe2ce32125ac1cb89c4a9de4905c786b774d10ad728ed392f",
+    "label_mapping_fingerprint": "b18167d2d5c1f1402d1bb0e92559befb92418f5f4f34df885596778a11d5c09d",
+    "schemas_changed": false,
+    "mapping_changed": false,
+    "semantic_classes_changed": false,
+    "stage07_behavior_changed": false,
+    "candidate_component_source_occurrence_grains_changed": false
+  },
+  "documentation_boundary": {
+    "stage08": "LOSSLESS_TYPED_ADDRESS_EVIDENCE_PROJECTION_AND_REVERSIBLE_PARSER_EVIDENCE_INDEX_WITH_NO_REFERENCE_VALIDATION",
+    "stage09": "POTENTIAL_OFFLINE_REFERENCE_AND_FORMAT_EVIDENCE_INCLUDING_SCIENTIFICALLY_JUSTIFIED_PYCOUNTRY_LIBADDRESSINPUT",
+    "other_current_stale_assignments_found": 0,
+    "historical_records_rewritten": false
+  },
+  "verification": {
+    "stage08_focused": "17 passed",
+    "unaffected_stage02_stage07_stage08_and_publication_regressions": "60 passed",
+    "safe_full_local_suite": "584 passed, 24 failed, 4 deselected; all failures are exact Python 3.14.3 Stage 3-6 runtime guards under local Python 3.14.7",
+    "ruff": "passed",
+    "ruff_format_changed_python": "passed",
+    "strict_mypy": "passed over 98 source/test targets",
+    "shell_syntax": "passed",
+    "json_validity": "passed",
+    "markdown_local_links": "passed",
+    "git_diff_check": "passed",
+    "privacy_and_tracked_data": "passed"
+  },
+  "historical_evidence": {
+    "job": "1763747",
+    "artifact_mutated_or_opened": false,
+    "scientific_reconciliation_preserved": true,
+    "eligible_as_repaired_candidate": false,
+    "classification": "IMMUTABLE_HISTORICAL_DEVELOPMENT_EVIDENCE_FOR_OLD_EXECUTABLE"
+  },
+  "privacy": {
+    "protected_stage06_or_stage07_values_opened": false,
+    "controlled_stage08_artifact_opened": false,
+    "holdout_accessed": false,
+    "production_accessed": false,
+    "slurm_submitted": false,
+    "parser_calls": 0,
+    "reference_calls": 0,
+    "geocoder_calls": 0,
+    "external_service_calls": 0
+  },
+  "proposed_controlled_development_reexecution": {
+    "authorization_required": true,
+    "jobs": 1,
+    "nodes": 1,
+    "tasks": 1,
+    "cpus_per_task": 4,
+    "memory_gib": 32,
+    "walltime": "04:00:00",
+    "duckdb_memory_limit": "8GB",
+    "duckdb_threads": 4,
+    "input_batch_rows": 16,
+    "candidate_output_batch_rows": 32,
+    "component_batch_rows": 65536,
+    "target_batch_bytes": 134217728,
+    "candidate_shard_rows": 2048,
+    "component_shard_rows": 500000,
+    "source_shard_rows": 4096,
+    "new_immutable_run_identity_required": true
+  },
+  "next_action_requiring_owner_authorization": "AUTHORIZE ONE NEW CONTROLLED STAGE 8 DEVELOPMENT MATERIALIZATION AT THE NEW EXECUTABLE SHA."
+}
