@@ -26,6 +26,12 @@ This falsifies the required invariant that every success-returning invocation
 has the exact complete validated owned final publication at the final path. It
 also demonstrates that final-path replacement can trick adoption.
 
+The CLI has a second blocking failure after successful materialization. Its
+stdout result reporting is fallible and occurs after `materialize_stage08`
+returns. A reporting `OSError` is not caught, so the CLI invocation exits
+nonzero while FINAL still has `_SUCCESS.json`, lacks `_IN_PROGRESS`, and passes
+the complete Stage 8 validator.
+
 ## Shortest independent reproduction
 
 The independent synthetic harness:
@@ -44,6 +50,11 @@ The independent synthetic harness:
 6. independently confirms that the materializer returned success, FINAL has a
    different inode from the captured attempt, and FINAL passes the Stage 8
    validator.
+
+A third synthetic run completes ordinary publication and injects an `OSError`
+at the CLI's first result-print operation. It confirms that the exception is
+unhandled and would make the process exit nonzero while the unchanged FINAL
+tree remains validator-classified success.
 
 The original owned tree remains separately visible with its success marker in
 the synthetic reproduction. No protected value or artifact is used.

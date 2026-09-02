@@ -21,6 +21,7 @@ from unittest.mock import patch
 import pyarrow as pa
 import pyarrow.parquet as pq
 
+from safe_geocoding_pipeline.preprocessing import stage08_cli
 from safe_geocoding_pipeline.preprocessing.stages import s08_address_evidence as stage08
 from safe_geocoding_pipeline.preprocessing.stages.s06_exact_deduplication import (
     row_map_schema,
@@ -328,6 +329,70 @@ def _exercise_replacement_between_identity_check_and_validation(
     }
 
 
+def _exercise_cli_reporting_failure_leaves_reader_success(
+    root: Path,
+) -> dict[str, object]:
+    config, inputs = _synthetic_config(root)
+    reporting_attempts = 0
+    reported_error: OSError | None = None
+
+    def fail_result_reporting(*args: object, **kwargs: object) -> None:
+        nonlocal reporting_attempts
+        reporting_attempts += 1
+        assert kwargs == {}
+        assert args == (
+            "status=STAGE08_ADDRESS_EVIDENCE_IMPLEMENTATION_CANDIDATE_MATERIALIZED",
+        )
+        raise OSError("independent injected stdout reporting failure")
+
+    with ExitStack() as stack:
+        stack.enter_context(patch.object(stage08, "_validate_runtime", lambda: None))
+        stack.enter_context(
+            patch.object(stage08, "_validated_inputs", lambda _: inputs)
+        )
+        stack.enter_context(
+            patch.object(stage08_cli, "require_goethe_nhr_slurm", lambda _: None)
+        )
+        stack.enter_context(patch.object(stage08_cli, "_config", lambda _: config))
+        stack.enter_context(patch("builtins.print", fail_result_reporting))
+        try:
+            stage08_cli.main(
+                [
+                    "materialize",
+                    "--stage07-output-directory",
+                    "synthetic-stage07",
+                    "--stage06-output-directory",
+                    "synthetic-stage06",
+                    "--output-directory",
+                    "synthetic-stage08",
+                    "--execution-git-sha",
+                    REVIEWED_EXECUTABLE_SHA,
+                ]
+            )
+        except OSError as error:
+            reported_error = error
+
+    assert reported_error is not None
+    assert reporting_attempts == 1
+    manifest_sha = _independent_terminal_success(config.output_directory)
+    with (
+        patch.object(stage08, "_validate_runtime", lambda: None),
+        patch.object(stage08, "_validated_inputs", lambda _: inputs),
+    ):
+        reopened = stage08.validate_stage08_bundle(
+            config.output_directory,
+            expected_manifest_sha256=manifest_sha,
+            config=config,
+        )
+    assert reopened.manifest_sha256 == manifest_sha
+    return {
+        "cli_raised_unhandled_oserror": True,
+        "cli_process_would_exit_nonzero": True,
+        "reporting_attempts": reporting_attempts,
+        "final_tree_passes_stage08_validator": True,
+    }
+
+
 def main() -> int:
     with tempfile.TemporaryDirectory(prefix="stage08-independent-rereview-") as tmp:
         base = Path(tmp)
@@ -335,11 +400,15 @@ def main() -> int:
         replacement = _exercise_replacement_between_identity_check_and_validation(
             base / "replacement-race"
         )
+        reporting_failure = _exercise_cli_reporting_failure_leaves_reader_success(
+            base / "reporting-failure"
+        )
     result = {
         "reviewed_candidate_sha": REVIEWED_CANDIDATE_SHA,
         "reviewed_executable_sha": REVIEWED_EXECUTABLE_SHA,
         "post_effect_control": post_effect,
-        "blocking_falsification": replacement,
+        "blocking_success_without_owned_final": replacement,
+        "blocking_failure_with_reader_success": reporting_failure,
         "verdict": "STAGE08_ADDRESS_EVIDENCE_INDEPENDENT_REREVIEW_FAIL",
     }
     print(json.dumps(result, sort_keys=True, separators=(",", ":")))

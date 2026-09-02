@@ -1,7 +1,10 @@
 {
   "affected_candidate_sha": "70e3de9536aee7074e27018d39e0164f3a2200ae",
   "affected_executable_sha": "bdea7232a3f92ebd381be87610b753b8e4c35481",
-  "blocking_defect": "FINAL identity is checked before parent fsync and final reopen validation but is not checked again afterward, so a byte-identical replacement directory with a different device/inode can be adopted as the invocation-owned publication.",
+  "blocking_defects": [
+    "FINAL identity is checked before parent fsync and final reopen validation but is not checked again afterward, so a byte-identical replacement directory with a different device/inode can be adopted as the invocation-owned publication.",
+    "The CLI performs fallible stdout result reporting after materialize_stage08 has returned and does not catch reporting OSError. An output failure therefore makes the invocation exit nonzero while the exact final tree remains validator-classified success."
+  ],
   "defect_class": "publication",
   "goethe_review_job_submitted": false,
   "historical_candidate_modified": false,
@@ -18,6 +21,12 @@
     "real_rename_effect_verified_before_injected_exception": true,
     "returned_final_passed_stage08_validator": true,
     "result": "SUCCESS"
+  },
+  "independent_failure_reporting_falsification": {
+    "cli_process_would_exit_nonzero": true,
+    "cli_raised_unhandled_oserror": true,
+    "final_tree_passed_stage08_validator": true,
+    "result_reporting_attempts": 1
   },
   "protected_artifact_accessed": false,
   "reviewed_candidate_remained_unchanged": true,
