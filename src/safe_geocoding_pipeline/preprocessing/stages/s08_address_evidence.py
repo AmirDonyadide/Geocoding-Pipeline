@@ -87,6 +87,8 @@ OCCURRENCE_SCHEMA_VERSION = "stage08_representation_occurrence_schema_v1"
 STAGE08_MANIFEST_NAME = "stage08_address_evidence_manifest.json"
 STAGE08_SUCCESS_NAME = "_SUCCESS.json"
 STAGE08_IN_PROGRESS_NAME = "_IN_PROGRESS"
+_TERMINAL_STATE_IN_PROGRESS = "IN_PROGRESS"
+_TERMINAL_STATE_PUBLISHED = "PUBLISHED"
 CANDIDATE_DIRECTORY = "candidate_evidence/data"
 COMPONENT_DIRECTORY = "parser_component_evidence/data"
 SOURCE_MAP_DIRECTORY = "source_candidate_map/data"
@@ -1611,6 +1613,87 @@ def _write_json_exclusive(path: Path, value: object) -> None:
     path.chmod(0o600)
 
 
+def _write_in_progress_marker(path: Path) -> None:
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+    descriptor = os.open(path, flags, 0o600)
+    try:
+        with os.fdopen(descriptor, "wb") as stream:
+            stream.write(b"in_progress\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+    except BaseException:
+        try:
+            os.close(descriptor)
+        except OSError:
+            pass
+        try:
+            path.unlink()
+        except OSError:
+            pass
+        raise
+    path.chmod(0o600)
+
+
+def _fsync_file(path: Path) -> None:
+    _require_file(path, "STAGE08_FSYNC_FILE_INVALID")
+    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+    descriptor = os.open(path, flags)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
+def _fsync_materialized_tree(
+    root: Path,
+    *,
+    artifacts: Sequence[Stage08ArtifactIdentity],
+) -> None:
+    files = (
+        *(root / item.relative_path for item in artifacts),
+        root / MAPPING_METADATA_PATH,
+        root / SCHEMA_METADATA_PATH,
+        root / STAGE08_MANIFEST_NAME,
+        root / STAGE08_IN_PROGRESS_NAME,
+    )
+    for path in files:
+        _fsync_file(path)
+    for directory in (
+        root / CANDIDATE_DIRECTORY,
+        (root / CANDIDATE_DIRECTORY).parent,
+        root / COMPONENT_DIRECTORY,
+        (root / COMPONENT_DIRECTORY).parent,
+        root / SOURCE_MAP_DIRECTORY,
+        (root / SOURCE_MAP_DIRECTORY).parent,
+        root / "metadata",
+        root,
+    ):
+        _fsync_directory(directory)
+
+
+def _preserve_incomplete_publication(root: Path) -> None:
+    """Demote a failed terminal transition without deleting its evidence."""
+    _require_directory(root, "STAGE08_FAILURE_STATE_INVALID")
+    in_progress = root / STAGE08_IN_PROGRESS_NAME
+    if not os.path.lexists(in_progress):
+        _write_in_progress_marker(in_progress)
+    _require_file(in_progress, "STAGE08_FAILURE_STATE_INVALID")
+    _require_mode(in_progress, 0o600)
+    success = root / STAGE08_SUCCESS_NAME
+    if os.path.lexists(success):
+        success.unlink()
+    _fsync_file(in_progress)
+    _fsync_directory(root)
+
+
+def _atomic_publish_directory(source: Path, destination: Path) -> None:
+    os.rename(source, destination)
+
+
+def _remove_in_progress_marker(path: Path) -> None:
+    path.unlink()
+
+
 def _mapping_payload() -> dict[str, object]:
     return {
         "version": STAGE08_LABEL_MAPPING_VERSION,
@@ -1939,11 +2022,11 @@ def materialize_stage08(config: Stage08Config) -> Stage08Outcome:
     old_umask = os.umask(0o077)
     manifest_sha = ""
     prepublication_started = 0.0
+    publication_tree = temporary
     try:
         temporary.mkdir(mode=0o700)
         in_progress = temporary / STAGE08_IN_PROGRESS_NAME
-        in_progress.write_text("in_progress\n", encoding="ascii")
-        in_progress.chmod(0o600)
+        _write_in_progress_marker(in_progress)
         contract = stage08_contract_fingerprint(config.binding)
         schema_bundle = stage08_schema_bundle_fingerprint(config.binding)
         mapping_fingerprint = stage08_label_mapping_fingerprint()
@@ -2338,57 +2421,69 @@ def materialize_stage08(config: Stage08Config) -> Stage08Outcome:
         }
         _write_json_exclusive(temporary / STAGE08_MANIFEST_NAME, manifest)
         manifest_sha = _sha256_file(temporary / STAGE08_MANIFEST_NAME)
-        _write_json_exclusive(
-            temporary / STAGE08_SUCCESS_NAME,
-            {
-                "status": "STAGE08_ADDRESS_EVIDENCE_IMPLEMENTATION_CANDIDATE_MATERIALIZED",
-                "manifest_sha256": manifest_sha,
-                "logical_dataset_sha256": logical_dataset,
-                "contract_fingerprint": contract,
-                "schema_bundle_fingerprint": schema_bundle,
-                "candidate_rows": candidate_rows,
-                "component_rows": component_rows,
-                "source_rows": source_rows,
-                "occurrence_rows": occurrence_rows,
-            },
-        )
-        in_progress.unlink()
-        for directory in (
-            temporary / CANDIDATE_DIRECTORY,
-            (temporary / CANDIDATE_DIRECTORY).parent,
-            temporary / COMPONENT_DIRECTORY,
-            (temporary / COMPONENT_DIRECTORY).parent,
-            temporary / SOURCE_MAP_DIRECTORY,
-            (temporary / SOURCE_MAP_DIRECTORY).parent,
-            temporary / "metadata",
+        success_payload: dict[str, object] = {
+            "status": "STAGE08_ADDRESS_EVIDENCE_IMPLEMENTATION_CANDIDATE_MATERIALIZED",
+            "manifest_sha256": manifest_sha,
+            "logical_dataset_sha256": logical_dataset,
+            "contract_fingerprint": contract,
+            "schema_bundle_fingerprint": schema_bundle,
+            "candidate_rows": candidate_rows,
+            "component_rows": component_rows,
+            "source_rows": source_rows,
+            "occurrence_rows": occurrence_rows,
+        }
+        _fsync_materialized_tree(
             temporary,
-        ):
-            _fsync_directory(directory)
+            artifacts=(
+                *candidate_artifacts,
+                *component_artifacts,
+                *source_artifacts,
+            ),
+        )
         prepublication_started = time.perf_counter()
-        validate_stage08_bundle(
+        _validate_stage08_bundle_state(
             temporary,
             expected_manifest_sha256=manifest_sha,
             config=replace(
                 config, output_directory=temporary, controlled_execution=False
             ),
+            terminal_state=_TERMINAL_STATE_IN_PROGRESS,
+            prospective_success=success_payload,
         )
         if config.output_directory.exists() or config.output_directory.is_symlink():
             _fail("OUTPUT_COLLISION", "The Stage 8 output appeared before publication")
-        os.rename(temporary, config.output_directory)
+        _write_json_exclusive(temporary / STAGE08_SUCCESS_NAME, success_payload)
+        _remove_in_progress_marker(in_progress)
+        _fsync_directory(temporary)
+        _atomic_publish_directory(temporary, config.output_directory)
+        publication_tree = config.output_directory
         _fsync_directory(parent)
-    except (Stage08ValidationError, duckdb.Error, pa.ArrowException):
+        outcome = validate_stage08_bundle(
+            config.output_directory,
+            expected_manifest_sha256=manifest_sha,
+            config=replace(config, controlled_execution=False),
+        )
+    except BaseException as error:
+        failure_tree = publication_tree
+        if not os.path.lexists(failure_tree) and os.path.lexists(temporary):
+            failure_tree = temporary
+        if os.path.lexists(failure_tree):
+            try:
+                _preserve_incomplete_publication(failure_tree)
+            except BaseException as cleanup_error:
+                raise Stage08ValidationError(
+                    "STAGE08_FAILURE_STATE_CLEANUP_FAILURE",
+                    "A failed Stage 8 attempt could not be retained as incomplete",
+                ) from cleanup_error
+        if isinstance(error, (Stage08ValidationError, duckdb.Error, pa.ArrowException)):
+            raise
+        if isinstance(error, OSError):
+            raise Stage08ValidationError(
+                "STAGE08_PUBLICATION_FAILURE", "Stage 8 publication failed"
+            ) from error
         raise
-    except OSError as error:
-        raise Stage08ValidationError(
-            "STAGE08_PUBLICATION_FAILURE", "Stage 8 publication failed"
-        ) from error
     finally:
         os.umask(old_umask)
-    outcome = validate_stage08_bundle(
-        config.output_directory,
-        expected_manifest_sha256=manifest_sha,
-        config=replace(config, controlled_execution=False),
-    )
     return replace(
         outcome,
         publication_validation_milliseconds=round(
@@ -2397,13 +2492,20 @@ def materialize_stage08(config: Stage08Config) -> Stage08Outcome:
     )
 
 
-def validate_stage08_bundle(
+def _validate_stage08_bundle_state(
     output_directory: Path,
     *,
     expected_manifest_sha256: str,
     config: Stage08Config,
+    terminal_state: str,
+    prospective_success: Mapping[str, object] | None = None,
 ) -> Stage08Outcome:
-    """Independently reopen and falsification-check a Stage 8 publication."""
+    """Reopen Stage 8 in exactly one explicit publication state."""
+    if terminal_state not in {
+        _TERMINAL_STATE_IN_PROGRESS,
+        _TERMINAL_STATE_PUBLISHED,
+    }:
+        _fail("STAGE08_TERMINAL_STATE_INVALID", "The terminal state is unknown")
     config.validate()
     if config.controlled_execution:
         require_goethe_nhr_slurm("stage08-address-evidence-validation")
@@ -2415,14 +2517,42 @@ def validate_stage08_bundle(
     _require_mode(output_directory, 0o700)
     manifest_path = output_directory / STAGE08_MANIFEST_NAME
     success_path = output_directory / STAGE08_SUCCESS_NAME
+    in_progress_path = output_directory / STAGE08_IN_PROGRESS_NAME
     _require_file(manifest_path, "STAGE08_TERMINAL_MISSING")
-    _require_file(success_path, "STAGE08_TERMINAL_MISSING")
     _require_mode(manifest_path, 0o600)
-    _require_mode(success_path, 0o600)
+    if terminal_state == _TERMINAL_STATE_PUBLISHED:
+        if os.path.lexists(in_progress_path):
+            _fail(
+                "STAGE08_TERMINAL_STATE_MISMATCH",
+                "A published Stage 8 bundle remains in progress",
+            )
+        _require_file(success_path, "STAGE08_TERMINAL_MISSING")
+        _require_mode(success_path, 0o600)
+        success = _load_json(success_path, "SUCCESS_MARKER_INVALID")
+    else:
+        if os.path.lexists(success_path):
+            _fail(
+                "STAGE08_TERMINAL_STATE_MISMATCH",
+                "An incomplete Stage 8 bundle exposes success",
+            )
+        _require_file(in_progress_path, "STAGE08_TERMINAL_MISSING")
+        _require_mode(in_progress_path, 0o600)
+        try:
+            in_progress_bytes = in_progress_path.read_bytes()
+        except OSError as error:
+            raise Stage08ValidationError(
+                "STAGE08_TERMINAL_STATE_MISMATCH",
+                "The incomplete-state marker could not be read",
+            ) from error
+        if in_progress_bytes != b"in_progress\n" or prospective_success is None:
+            _fail(
+                "STAGE08_TERMINAL_STATE_MISMATCH",
+                "The incomplete publication state differs",
+            )
+        success = dict(prospective_success)
     if _sha256_file(manifest_path) != expected_manifest_sha256:
         _fail("MANIFEST_SHA256_MISMATCH", "The Stage 8 manifest SHA differs")
     manifest = _load_json(manifest_path, "MANIFEST_INVALID")
-    success = _load_json(success_path, "SUCCESS_MARKER_INVALID")
     scientific = manifest.get("scientific_identity")
     physical = manifest.get("physical_identity")
     validation = manifest.get("validation")
@@ -2573,7 +2703,11 @@ def validate_stage08_bundle(
     }
     expected_files = {
         STAGE08_MANIFEST_NAME,
-        STAGE08_SUCCESS_NAME,
+        (
+            STAGE08_SUCCESS_NAME
+            if terminal_state == _TERMINAL_STATE_PUBLISHED
+            else STAGE08_IN_PROGRESS_NAME
+        ),
         MAPPING_METADATA_PATH,
         SCHEMA_METADATA_PATH,
         *(item.relative_path for item in candidate_artifacts),
@@ -2936,6 +3070,21 @@ def validate_stage08_bundle(
         source_rows=source_rows,
         occurrence_rows=occurrence_rows,
         metrics=expected_metrics,
+    )
+
+
+def validate_stage08_bundle(
+    output_directory: Path,
+    *,
+    expected_manifest_sha256: str,
+    config: Stage08Config,
+) -> Stage08Outcome:
+    """Independently reopen and falsification-check a published Stage 8 bundle."""
+    return _validate_stage08_bundle_state(
+        output_directory,
+        expected_manifest_sha256=expected_manifest_sha256,
+        config=config,
+        terminal_state=_TERMINAL_STATE_PUBLISHED,
     )
 
 

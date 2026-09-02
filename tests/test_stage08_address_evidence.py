@@ -323,6 +323,16 @@ def _allow_developer_runtime(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(stage08, "_validate_runtime", lambda: None)
 
 
+def _retained_attempt(config: Stage08Config) -> Path:
+    attempts = tuple(
+        config.output_directory.parent.glob(
+            f".{config.output_directory.name}.*.in_progress"
+        )
+    )
+    assert len(attempts) == 1
+    return attempts[0]
+
+
 def test_frozen_schemas_mapping_and_semantic_taxonomy_are_exact() -> None:
     binding = stage08.accepted_stage08_input_binding()
     candidate = candidate_evidence_schema(binding)
@@ -366,6 +376,264 @@ def test_frozen_schemas_mapping_and_semantic_taxonomy_are_exact() -> None:
         "source_candidate_map",
         "representation_occurrence_v1",
     }
+
+
+def test_successful_publication_terminal_state_order_is_exact(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config, validated = _fixture(tmp_path)
+    monkeypatch.setattr(stage08, "_validated_inputs", lambda _: validated)
+    observed: list[str] = []
+    real_validate = stage08._validate_stage08_bundle_state
+    real_publish = stage08._atomic_publish_directory
+
+    def observe_validation(
+        output_directory: Path, **kwargs: Any
+    ) -> stage08.Stage08Outcome:
+        terminal_state = kwargs["terminal_state"]
+        if terminal_state == stage08._TERMINAL_STATE_IN_PROGRESS:
+            assert (output_directory / stage08.STAGE08_IN_PROGRESS_NAME).is_file()
+            assert not (output_directory / stage08.STAGE08_SUCCESS_NAME).exists()
+        else:
+            assert terminal_state == stage08._TERMINAL_STATE_PUBLISHED
+            assert not (output_directory / stage08.STAGE08_IN_PROGRESS_NAME).exists()
+            assert (output_directory / stage08.STAGE08_SUCCESS_NAME).is_file()
+        outcome = real_validate(output_directory, **kwargs)
+        observed.append(terminal_state)
+        return outcome
+
+    def observe_publish(source: Path, destination: Path) -> None:
+        assert (source / stage08.STAGE08_SUCCESS_NAME).is_file()
+        assert not (source / stage08.STAGE08_IN_PROGRESS_NAME).exists()
+        assert not destination.exists()
+        observed.append("ATOMIC_RENAME")
+        real_publish(source, destination)
+
+    monkeypatch.setattr(stage08, "_validate_stage08_bundle_state", observe_validation)
+    monkeypatch.setattr(stage08, "_atomic_publish_directory", observe_publish)
+    outcome = materialize_stage08(config)
+
+    assert outcome.output_directory == config.output_directory
+    assert observed == [
+        stage08._TERMINAL_STATE_IN_PROGRESS,
+        "ATOMIC_RENAME",
+        stage08._TERMINAL_STATE_PUBLISHED,
+    ]
+    assert (config.output_directory / stage08.STAGE08_SUCCESS_NAME).is_file()
+    assert not (config.output_directory / stage08.STAGE08_IN_PROGRESS_NAME).exists()
+    _, files = stage08._topology(config.output_directory)
+    assert stage08.STAGE08_SUCCESS_NAME in files
+    assert stage08.STAGE08_IN_PROGRESS_NAME not in files
+    assert not tuple(
+        config.output_directory.parent.glob(
+            f".{config.output_directory.name}.*.in_progress"
+        )
+    )
+
+
+def test_injected_prepublication_reopen_failure_retains_only_incomplete_state(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config, validated = _fixture(tmp_path)
+    monkeypatch.setattr(stage08, "_validated_inputs", lambda _: validated)
+    real_validate = stage08._validate_stage08_bundle_state
+
+    def inject_failure(output_directory: Path, **kwargs: Any) -> stage08.Stage08Outcome:
+        if kwargs["terminal_state"] == stage08._TERMINAL_STATE_IN_PROGRESS:
+            assert (output_directory / stage08.STAGE08_IN_PROGRESS_NAME).is_file()
+            assert not (output_directory / stage08.STAGE08_SUCCESS_NAME).exists()
+            raise Stage08ValidationError(
+                "INJECTED_PREPUBLICATION_FAILURE", "synthetic boundary failure"
+            )
+        return real_validate(output_directory, **kwargs)
+
+    monkeypatch.setattr(stage08, "_validate_stage08_bundle_state", inject_failure)
+    with pytest.raises(Stage08ValidationError, match="INJECTED_PREPUBLICATION_FAILURE"):
+        materialize_stage08(config)
+
+    attempt = _retained_attempt(config)
+    assert (attempt / stage08.STAGE08_IN_PROGRESS_NAME).read_bytes() == (
+        b"in_progress\n"
+    )
+    assert not (attempt / stage08.STAGE08_SUCCESS_NAME).exists()
+    assert not config.output_directory.exists()
+    with pytest.raises(Stage08ValidationError, match="STAGE08_TERMINAL_STATE_MISMATCH"):
+        validate_stage08_bundle(
+            attempt,
+            expected_manifest_sha256="0" * 64,
+            config=replace(config, output_directory=attempt),
+        )
+
+
+def test_injected_failure_immediately_before_success_transition_is_incomplete(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config, validated = _fixture(tmp_path)
+    monkeypatch.setattr(stage08, "_validated_inputs", lambda _: validated)
+    real_write = stage08._write_json_exclusive
+
+    def reject_success_transition(path: Path, value: object) -> None:
+        if path.name == stage08.STAGE08_SUCCESS_NAME:
+            assert (path.parent / stage08.STAGE08_IN_PROGRESS_NAME).is_file()
+            assert not path.exists()
+            raise Stage08ValidationError(
+                "INJECTED_SUCCESS_TRANSITION_FAILURE", "synthetic boundary failure"
+            )
+        real_write(path, value)
+
+    monkeypatch.setattr(stage08, "_write_json_exclusive", reject_success_transition)
+    with pytest.raises(
+        Stage08ValidationError, match="INJECTED_SUCCESS_TRANSITION_FAILURE"
+    ):
+        materialize_stage08(config)
+
+    attempt = _retained_attempt(config)
+    assert (attempt / stage08.STAGE08_IN_PROGRESS_NAME).is_file()
+    assert not (attempt / stage08.STAGE08_SUCCESS_NAME).exists()
+    assert not config.output_directory.exists()
+
+
+@pytest.mark.parametrize(
+    "boundary",
+    (
+        "remove_in_progress",
+        "terminal_directory_fsync",
+        "atomic_rename",
+        "publication_parent_fsync",
+    ),
+)
+def test_every_failure_after_success_creation_is_demoted_to_incomplete(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    boundary: str,
+) -> None:
+    config, validated = _fixture(tmp_path)
+    monkeypatch.setattr(stage08, "_validated_inputs", lambda _: validated)
+    real_remove = stage08._remove_in_progress_marker
+    real_fsync = getattr(stage08, "_fsync_directory")
+    real_publish = stage08._atomic_publish_directory
+
+    def remove_in_progress(path: Path) -> None:
+        if boundary == "remove_in_progress":
+            assert (path.parent / stage08.STAGE08_SUCCESS_NAME).is_file()
+            raise OSError("synthetic remove failure")
+        real_remove(path)
+
+    def fsync_directory(path: Path) -> None:
+        terminal_tree = path.name.endswith(".in_progress")
+        if (
+            boundary == "terminal_directory_fsync"
+            and terminal_tree
+            and (path / stage08.STAGE08_SUCCESS_NAME).is_file()
+        ):
+            assert not (path / stage08.STAGE08_IN_PROGRESS_NAME).exists()
+            raise OSError("synthetic terminal fsync failure")
+        if (
+            boundary == "publication_parent_fsync"
+            and path == config.output_directory.parent
+            and config.output_directory.is_dir()
+        ):
+            assert (config.output_directory / stage08.STAGE08_SUCCESS_NAME).is_file()
+            assert not (
+                config.output_directory / stage08.STAGE08_IN_PROGRESS_NAME
+            ).exists()
+            raise OSError("synthetic parent fsync failure")
+        real_fsync(path)
+
+    def atomic_publish(source: Path, destination: Path) -> None:
+        if boundary == "atomic_rename":
+            assert (source / stage08.STAGE08_SUCCESS_NAME).is_file()
+            assert not (source / stage08.STAGE08_IN_PROGRESS_NAME).exists()
+            raise OSError("synthetic rename failure")
+        real_publish(source, destination)
+
+    monkeypatch.setattr(stage08, "_remove_in_progress_marker", remove_in_progress)
+    monkeypatch.setattr(stage08, "_fsync_directory", fsync_directory)
+    monkeypatch.setattr(stage08, "_atomic_publish_directory", atomic_publish)
+
+    with pytest.raises(Stage08ValidationError, match="STAGE08_PUBLICATION_FAILURE"):
+        materialize_stage08(config)
+
+    failure_root = (
+        config.output_directory
+        if config.output_directory.exists()
+        else _retained_attempt(config)
+    )
+    assert (failure_root / stage08.STAGE08_IN_PROGRESS_NAME).is_file()
+    assert not (failure_root / stage08.STAGE08_SUCCESS_NAME).exists()
+
+
+@pytest.mark.parametrize("corruption", ("artifact", "manifest"))
+def test_corruption_is_detected_before_terminal_success(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, corruption: str
+) -> None:
+    config, validated = _fixture(tmp_path)
+    monkeypatch.setattr(stage08, "_validated_inputs", lambda _: validated)
+    real_validate = stage08._validate_stage08_bundle_state
+
+    def corrupt_then_validate(
+        output_directory: Path, **kwargs: Any
+    ) -> stage08.Stage08Outcome:
+        if kwargs["terminal_state"] == stage08._TERMINAL_STATE_IN_PROGRESS:
+            target = (
+                next(
+                    (output_directory / "candidate_evidence" / "data").glob("*.parquet")
+                )
+                if corruption == "artifact"
+                else output_directory / stage08.STAGE08_MANIFEST_NAME
+            )
+            with target.open("ab") as stream:
+                stream.write(b"synthetic-corruption")
+        return real_validate(output_directory, **kwargs)
+
+    monkeypatch.setattr(
+        stage08, "_validate_stage08_bundle_state", corrupt_then_validate
+    )
+    expected_error = (
+        "ARTIFACT_MISMATCH" if corruption == "artifact" else "MANIFEST_SHA256_MISMATCH"
+    )
+    with pytest.raises(Stage08ValidationError, match=expected_error):
+        materialize_stage08(config)
+
+    attempt = _retained_attempt(config)
+    assert (attempt / stage08.STAGE08_IN_PROGRESS_NAME).is_file()
+    assert not (attempt / stage08.STAGE08_SUCCESS_NAME).exists()
+    assert not config.output_directory.exists()
+
+
+def test_postpublication_reopen_failure_demotes_success_to_incomplete(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config, validated = _fixture(tmp_path)
+    monkeypatch.setattr(stage08, "_validated_inputs", lambda _: validated)
+    real_validate = stage08._validate_stage08_bundle_state
+
+    def tamper_after_publish(
+        output_directory: Path, **kwargs: Any
+    ) -> stage08.Stage08Outcome:
+        if kwargs["terminal_state"] == stage08._TERMINAL_STATE_PUBLISHED:
+            artifact = next(
+                (output_directory / "parser_component_evidence" / "data").glob(
+                    "*.parquet"
+                )
+            )
+            with artifact.open("ab") as stream:
+                stream.write(b"synthetic-postpublication-tamper")
+        return real_validate(output_directory, **kwargs)
+
+    monkeypatch.setattr(stage08, "_validate_stage08_bundle_state", tamper_after_publish)
+    with pytest.raises(Stage08ValidationError, match="ARTIFACT_MISMATCH"):
+        materialize_stage08(config)
+
+    assert config.output_directory.is_dir()
+    assert (config.output_directory / stage08.STAGE08_IN_PROGRESS_NAME).is_file()
+    assert not (config.output_directory / stage08.STAGE08_SUCCESS_NAME).exists()
+    with pytest.raises(Stage08ValidationError, match="STAGE08_TERMINAL_STATE_MISMATCH"):
+        validate_stage08_bundle(
+            config.output_directory,
+            expected_manifest_sha256="0" * 64,
+            config=config,
+        )
 
 
 def test_lossless_projection_reversibility_unknown_duplicates_and_mapback(
