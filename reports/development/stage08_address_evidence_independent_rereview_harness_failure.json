@@ -1,0 +1,49 @@
+{
+  "candidate_sha": "231cdbf9db755fb56486c46b3b3faa02f5b5f3b6",
+  "classification": "STAGE08_INDEPENDENT_REREVIEW_HARNESS_FAILURE",
+  "corrected_review_policy": {
+    "cross_job_device_inode_equality_required": false,
+    "historical_job_1764273_filesystem_identity_retained": true,
+    "persistent_identity_basis": [
+      "EXACT_ARTIFACT_PATH",
+      "NOFOLLOW_REAL_DIRECTORY",
+      "OWNER_ONLY_PERMISSIONS",
+      "EXACT_TERMINAL_TOPOLOGY",
+      "MANIFEST_SHA256",
+      "SUCCESS_MARKER_BINDING",
+      "COMPLETE_MANIFEST_FILE_INVENTORY",
+      "STORED_FILE_SHA256",
+      "ROW_COUNTS",
+      "RELATION_LOGICAL_FINGERPRINTS",
+      "STAGE06_STAGE07_BINDINGS",
+      "LOGICAL_DATASET_SHA256"
+    ]
+  },
+  "executable_sha": "c04cb97214a9f1e5d2b80512c756400321eefa80",
+  "failed_review_job": {
+    "candidate_defect_found": false,
+    "elapsed": "00:00:04",
+    "evidence_sha256": "5b7a2906e8d97f9268f09aa8f1f22f6a3d45480d2ea10ff0344606d82d0f25d9",
+    "exit_code": "2:0",
+    "failure_code": "ARTIFACT_FILESYSTEM_IDENTITY_MISMATCH",
+    "harness_git_sha": "1fd52e15d1a94d5e6b21b2208b853d2fa3c64c84",
+    "harness_sha256": "02a66861341713bdfc269e8fba9ce847e22c58d78e1fdcf3f297e9f270683ace",
+    "job_id": "1764372",
+    "protected_row_values_read": false,
+    "root_cause": "INVALID_CROSS_JOB_DEVICE_INODE_EQUALITY_ASSUMPTION",
+    "state": "FAILED",
+    "stderr_bytes": 0
+  },
+  "manifest_sha256": "2a50bd8c066552c9cb7505ed2d6071f1ee36161b9a2cc07f3ed364cf00237827",
+  "privacy": {
+    "geocoder_calls": 0,
+    "holdout_access": false,
+    "network_calls": 0,
+    "parser_calls": 0,
+    "production_access": false,
+    "reference_lookups": 0
+  },
+  "report_version": "stage08_independent_rereview_harness_failure_v1",
+  "stage08_candidate_changed": false,
+  "stage08_rematerialized": false
+}

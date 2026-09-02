@@ -24,7 +24,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 
 
-REVIEW_VERSION = "stage08_address_evidence_independent_rereview_v1"
+REVIEW_VERSION = "stage08_address_evidence_independent_rereview_v2"
 CANDIDATE_SHA = "231cdbf9db755fb56486c46b3b3faa02f5b5f3b6"
 EXECUTABLE_SHA = "c04cb97214a9f1e5d2b80512c756400321eefa80"
 
@@ -42,7 +42,7 @@ STAGE06_ROOT = DATA_ROOT / (
     "stage06_development_20260828T223804Z_f39047cc825d"
 )
 
-EXPECTED_ARTIFACT_IDENTITY = (54, 9_363_000_937_145_638_642)
+HISTORICAL_JOB_1764273_FILESYSTEM_IDENTITY = (54, 9_363_000_937_145_638_642)
 EXPECTED_MANIFEST_SHA256 = (
     "2a50bd8c066552c9cb7505ed2d6071f1ee36161b9a2cc07f3ed364cf00237827"
 )
@@ -786,10 +786,6 @@ def _run_review(output_directory: Path, review_sha: str) -> dict[str, object]:
             _fail("PRODUCTION_ACCESS_PROHIBITED")
 
     _require_directory(ARTIFACT_ROOT)
-    artifact_status = ARTIFACT_ROOT.stat(follow_symlinks=False)
-    artifact_identity = (artifact_status.st_dev, artifact_status.st_ino)
-    if artifact_identity != EXPECTED_ARTIFACT_IDENTITY:
-        _fail("ARTIFACT_FILESYSTEM_IDENTITY_MISMATCH")
 
     incomplete_siblings = 0
     sibling_prefix = f".{ARTIFACT_ROOT.name}."
@@ -1333,15 +1329,17 @@ def _run_review(output_directory: Path, review_sha: str) -> dict[str, object]:
             *metadata_artifacts,
         ),
     )
-    final_artifact_status = ARTIFACT_ROOT.stat(follow_symlinks=False)
+    _require_directory(ARTIFACT_ROOT)
+    _require_file(manifest_path)
+    _require_file(success_path)
     if (
-        ARTIFACT_ROOT.is_symlink()
-        or (final_artifact_status.st_dev, final_artifact_status.st_ino)
-        != EXPECTED_ARTIFACT_IDENTITY
+        _sha256_file(manifest_path) != EXPECTED_MANIFEST_SHA256
+        or _load_json(success_path) != expected_success
         or (ARTIFACT_ROOT / "_IN_PROGRESS").exists()
         or (ARTIFACT_ROOT / "_IN_PROGRESS").is_symlink()
+        or _topology(ARTIFACT_ROOT, expected_files) != (8, 52, 0)
     ):
-        _fail("FINAL_PUBLICATION_IDENTITY_MISMATCH")
+        _fail("FINAL_PERSISTENT_PUBLICATION_IDENTITY_MISMATCH")
 
     aggregate_pass = (
         candidate_hasher.row_count == EXPECTED_COUNTS["candidates"]
@@ -1374,8 +1372,26 @@ def _run_review(output_directory: Path, review_sha: str) -> dict[str, object]:
         "review_git_sha": review_sha,
         "goethe_review_job_id": os.environ["SLURM_JOB_ID"],
         "artifact_identity": {
-            "st_dev": artifact_identity[0],
-            "st_ino": artifact_identity[1],
+            "exact_path": ARTIFACT_ROOT.as_posix(),
+            "nofollow_real_directory": True,
+            "symlink": False,
+            "mode": "0700",
+            "persistent_identity_basis": [
+                "EXACT_PATH",
+                "NOFOLLOW_DIRECTORY_TOPOLOGY",
+                "MANIFEST_SHA256",
+                "SUCCESS_BINDING",
+                "COMPLETE_FILE_INVENTORY",
+                "STORED_FILE_SHA256",
+                "RELATION_LOGICAL_FINGERPRINTS",
+                "LOGICAL_DATASET_SHA256",
+            ],
+            "historical_publication_filesystem_identity": {
+                "job_id": "1764273",
+                "st_dev": HISTORICAL_JOB_1764273_FILESYSTEM_IDENTITY[0],
+                "st_ino": HISTORICAL_JOB_1764273_FILESYSTEM_IDENTITY[1],
+                "cross_job_equality_gate": False,
+            },
         },
         "manifest_sha256": EXPECTED_MANIFEST_SHA256,
         "logical_dataset_sha256": independent_logical_dataset,
@@ -1409,6 +1425,7 @@ def _run_review(output_directory: Path, review_sha: str) -> dict[str, object]:
             "stored_file_hashes_match": True,
             "producer_stderr_empty": os.environ.get("STAGE08_PRODUCER_STDERR_EMPTY")
             == "true",
+            "cross_job_device_inode_equality_required": False,
         },
         "scientific_fingerprints": {
             "verdict": "PASS" if scientific_fingerprint_pass else "FAIL",
@@ -1431,6 +1448,14 @@ def _run_review(output_directory: Path, review_sha: str) -> dict[str, object]:
             "protected_path_scope_violations": _PROTECTED_PATH_VIOLATIONS,
         },
         "candidate_remained_unchanged": True,
+        "review_harness_history": {
+            "job_1764372": {
+                "classification": "REVIEW_HARNESS_FAILURE",
+                "invalid_assumption": "CROSS_JOB_DEVICE_INODE_EQUALITY",
+                "candidate_failure_evidence": False,
+                "artifact_defect_evidence": False,
+            }
+        },
     }
 
 
