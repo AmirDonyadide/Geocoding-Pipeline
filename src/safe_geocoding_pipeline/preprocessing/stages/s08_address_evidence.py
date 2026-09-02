@@ -21,6 +21,7 @@ from collections import Counter
 from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timezone
+from enum import Enum
 from pathlib import Path
 from typing import Any, NoReturn, cast
 
@@ -280,6 +281,22 @@ class Stage08ValidationError(RuntimeError):
 
 def _fail(code: str, detail: str) -> NoReturn:
     raise Stage08ValidationError(code, detail)
+
+
+class _PublicationPathState(str, Enum):
+    TEMP_PRESENT_FINAL_ABSENT = "TEMP_PRESENT_FINAL_ABSENT"
+    TEMP_ABSENT_FINAL_PRESENT = "TEMP_ABSENT_FINAL_PRESENT"
+    TEMP_PRESENT_FINAL_PRESENT = "TEMP_PRESENT_FINAL_PRESENT"
+    TEMP_ABSENT_FINAL_ABSENT = "TEMP_ABSENT_FINAL_ABSENT"
+
+
+class _PublicationPhase(str, Enum):
+    PRE_RENAME = "PRE_RENAME"
+    RENAME_OUTCOME_AMBIGUOUS = "RENAME_OUTCOME_AMBIGUOUS"
+    POST_RENAME_PRE_PARENT_FSYNC = "POST_RENAME_PRE_PARENT_FSYNC"
+    PARENT_FSYNC = "PARENT_FSYNC"
+    POSTPUBLICATION_VALIDATION = "POSTPUBLICATION_VALIDATION"
+    COMPLETE = "COMPLETE"
 
 
 def _canonical_json(value: object) -> bytes:
@@ -934,6 +951,15 @@ class Stage08Outcome:
     occurrence_rows: int
     metrics: Mapping[str, object]
     publication_validation_milliseconds: int = 0
+
+
+@dataclass(frozen=True, slots=True)
+class _PublicationPathObservation:
+    state: _PublicationPathState
+    temporary_present: bool
+    final_present: bool
+    temporary_identity: tuple[int, int] | None
+    final_identity: tuple[int, int] | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -1671,23 +1697,220 @@ def _fsync_materialized_tree(
         _fsync_directory(directory)
 
 
-def _preserve_incomplete_publication(root: Path) -> None:
-    """Demote a failed terminal transition without deleting its evidence."""
-    _require_directory(root, "STAGE08_FAILURE_STATE_INVALID")
+def _directory_identity_if_present(path: Path) -> tuple[int, int] | None:
+    try:
+        status = path.stat(follow_symlinks=False)
+    except FileNotFoundError:
+        return None
+    except OSError as error:
+        raise Stage08ValidationError(
+            "STAGE08_PUBLICATION_STATE_UNOBSERVABLE",
+            "A publication path cannot be inspected",
+        ) from error
+    if stat.S_ISLNK(status.st_mode) or not stat.S_ISDIR(status.st_mode):
+        _fail(
+            "STAGE08_PUBLICATION_PATH_INVALID",
+            "A publication path is not a real directory",
+        )
+    return status.st_dev, status.st_ino
+
+
+def _publication_path_presence_and_identity(
+    path: Path,
+) -> tuple[bool, tuple[int, int] | None]:
+    try:
+        status = path.stat(follow_symlinks=False)
+    except FileNotFoundError:
+        return False, None
+    except OSError as error:
+        raise Stage08ValidationError(
+            "STAGE08_PUBLICATION_STATE_UNOBSERVABLE",
+            "A publication path cannot be inspected",
+        ) from error
+    if stat.S_ISLNK(status.st_mode) or not stat.S_ISDIR(status.st_mode):
+        return True, None
+    return True, (status.st_dev, status.st_ino)
+
+
+def _observe_publication_paths(
+    temporary: Path, final: Path
+) -> _PublicationPathObservation:
+    temporary_present, temporary_identity = _publication_path_presence_and_identity(
+        temporary
+    )
+    final_present, final_identity = _publication_path_presence_and_identity(final)
+    if temporary_present and not final_present:
+        state = _PublicationPathState.TEMP_PRESENT_FINAL_ABSENT
+    elif not temporary_present and final_present:
+        state = _PublicationPathState.TEMP_ABSENT_FINAL_PRESENT
+    elif temporary_present and final_present:
+        state = _PublicationPathState.TEMP_PRESENT_FINAL_PRESENT
+    else:
+        state = _PublicationPathState.TEMP_ABSENT_FINAL_ABSENT
+    return _PublicationPathObservation(
+        state=state,
+        temporary_present=temporary_present,
+        final_present=final_present,
+        temporary_identity=temporary_identity,
+        final_identity=final_identity,
+    )
+
+
+def _remove_success_marker(path: Path) -> None:
+    path.unlink()
+
+
+def _path_present_without_following(path: Path) -> bool:
+    try:
+        path.stat(follow_symlinks=False)
+    except FileNotFoundError:
+        return False
+    except OSError as error:
+        raise Stage08ValidationError(
+            "STAGE08_FAILURE_STATE_INVALID",
+            "A terminal marker cannot be inspected",
+        ) from error
+    return True
+
+
+def _preserve_incomplete_publication(
+    root: Path, *, expected_identity: tuple[int, int] | None = None
+) -> None:
+    """Idempotently demote an owned failed tree to the exact incomplete state."""
+    identity = _directory_identity_if_present(root)
+    if identity is None:
+        _fail("STAGE08_FAILURE_STATE_INVALID", "The failed Stage 8 tree is absent")
+    if expected_identity is not None and identity != expected_identity:
+        _fail(
+            "STAGE08_FAILURE_TREE_OWNERSHIP_MISMATCH",
+            "A failed tree does not belong to this Stage 8 attempt",
+        )
+    _require_mode(root, 0o700, "STAGE08_FAILURE_STATE_INVALID")
     in_progress = root / STAGE08_IN_PROGRESS_NAME
-    if not os.path.lexists(in_progress):
-        _write_in_progress_marker(in_progress)
-    _require_file(in_progress, "STAGE08_FAILURE_STATE_INVALID")
-    _require_mode(in_progress, 0o600)
     success = root / STAGE08_SUCCESS_NAME
-    if os.path.lexists(success):
-        success.unlink()
+
+    # Each mutation is reconciled from filesystem state before retrying.  Removing
+    # success first means even a later marker-write failure cannot leave a tree
+    # that a published reader accepts.  Two attempts also cover wrappers that
+    # perform the filesystem effect and then raise.
+    mutation_errors: list[BaseException] = []
+    for _ in range(2):
+        if not _path_present_without_following(success):
+            break
+        try:
+            _require_file(success, "STAGE08_FAILURE_STATE_INVALID")
+            _require_mode(success, 0o600, "STAGE08_FAILURE_STATE_INVALID")
+            _remove_success_marker(success)
+        except BaseException as error:
+            mutation_errors.append(error)
+    for _ in range(2):
+        if _path_present_without_following(in_progress):
+            break
+        try:
+            _write_in_progress_marker(in_progress)
+        except BaseException as error:
+            mutation_errors.append(error)
+
+    if _path_present_without_following(success):
+        cause = mutation_errors[-1] if mutation_errors else None
+        raise Stage08ValidationError(
+            "STAGE08_FAILURE_STATE_CLEANUP_FAILURE",
+            "The failed Stage 8 tree still exposes success",
+        ) from cause
+    _require_file(in_progress, "STAGE08_FAILURE_STATE_INVALID")
+    _require_mode(in_progress, 0o600, "STAGE08_FAILURE_STATE_INVALID")
+    try:
+        marker = in_progress.read_bytes()
+    except OSError as error:
+        raise Stage08ValidationError(
+            "STAGE08_FAILURE_STATE_INVALID",
+            "The incomplete-state marker cannot be read",
+        ) from error
+    if marker != b"in_progress\n":
+        _fail(
+            "STAGE08_FAILURE_STATE_INVALID",
+            "The incomplete-state marker differs",
+        )
     _fsync_file(in_progress)
     _fsync_directory(root)
 
 
 def _atomic_publish_directory(source: Path, destination: Path) -> None:
     os.rename(source, destination)
+
+
+def _verify_post_rename_state(
+    temporary: Path, final: Path, expected_identity: tuple[int, int]
+) -> None:
+    observation = _observe_publication_paths(temporary, final)
+    if (
+        observation.state is not _PublicationPathState.TEMP_ABSENT_FINAL_PRESENT
+        or observation.final_identity != expected_identity
+    ):
+        _fail(
+            "STAGE08_RENAME_STATE_MISMATCH",
+            "The publication rename did not expose the owned attempt exactly once",
+        )
+
+
+def _demote_owned_publication(
+    observation: _PublicationPathObservation,
+    *,
+    temporary: Path,
+    final: Path,
+    expected_identity: tuple[int, int],
+) -> None:
+    owned_paths = [
+        path
+        for path, identity in (
+            (temporary, observation.temporary_identity),
+            (final, observation.final_identity),
+        )
+        if identity == expected_identity
+    ]
+    if len(owned_paths) > 1:
+        _fail(
+            "STAGE08_PUBLICATION_STATE_AMBIGUOUS",
+            "One Stage 8 attempt appears at both publication paths",
+        )
+    if owned_paths:
+        _preserve_incomplete_publication(
+            owned_paths[0], expected_identity=expected_identity
+        )
+
+
+def _try_adopt_ambiguous_publication(
+    observation: _PublicationPathObservation,
+    *,
+    temporary: Path,
+    final: Path,
+    expected_identity: tuple[int, int],
+    parent: Path,
+    expected_manifest_sha256: str,
+    config: Stage08Config,
+) -> Stage08Outcome | None:
+    if (
+        observation.state is not _PublicationPathState.TEMP_ABSENT_FINAL_PRESENT
+        or observation.final_identity != expected_identity
+    ):
+        return None
+    _verify_post_rename_state(temporary, final, expected_identity)
+    _fsync_directory(parent)
+    return validate_stage08_bundle(
+        final,
+        expected_manifest_sha256=expected_manifest_sha256,
+        config=replace(config, controlled_execution=False),
+    )
+
+
+def _raise_stage08_materialization_error(error: BaseException) -> NoReturn:
+    if isinstance(error, (Stage08ValidationError, duckdb.Error, pa.ArrowException)):
+        raise error
+    if isinstance(error, OSError):
+        raise Stage08ValidationError(
+            "STAGE08_PUBLICATION_FAILURE", "Stage 8 publication failed"
+        ) from error
+    raise error
 
 
 def _remove_in_progress_marker(path: Path) -> None:
@@ -2022,9 +2245,17 @@ def materialize_stage08(config: Stage08Config) -> Stage08Outcome:
     old_umask = os.umask(0o077)
     manifest_sha = ""
     prepublication_started = 0.0
-    publication_tree = temporary
+    attempt_identity: tuple[int, int] | None = None
+    publication_phase = _PublicationPhase.PRE_RENAME
+    outcome: Stage08Outcome | None = None
     try:
         temporary.mkdir(mode=0o700)
+        attempt_identity = _directory_identity_if_present(temporary)
+        if attempt_identity is None:
+            _fail(
+                "STAGE08_PUBLICATION_STATE_UNOBSERVABLE",
+                "The Stage 8 attempt disappeared after creation",
+            )
         in_progress = temporary / STAGE08_IN_PROGRESS_NAME
         _write_in_progress_marker(in_progress)
         contract = stage08_contract_fingerprint(config.binding)
@@ -2455,35 +2686,70 @@ def materialize_stage08(config: Stage08Config) -> Stage08Outcome:
         _write_json_exclusive(temporary / STAGE08_SUCCESS_NAME, success_payload)
         _remove_in_progress_marker(in_progress)
         _fsync_directory(temporary)
+        publication_phase = _PublicationPhase.RENAME_OUTCOME_AMBIGUOUS
         _atomic_publish_directory(temporary, config.output_directory)
-        publication_tree = config.output_directory
+        publication_phase = _PublicationPhase.POST_RENAME_PRE_PARENT_FSYNC
+        _verify_post_rename_state(temporary, config.output_directory, attempt_identity)
+        publication_phase = _PublicationPhase.PARENT_FSYNC
         _fsync_directory(parent)
+        publication_phase = _PublicationPhase.POSTPUBLICATION_VALIDATION
         outcome = validate_stage08_bundle(
             config.output_directory,
             expected_manifest_sha256=manifest_sha,
             config=replace(config, controlled_execution=False),
         )
+        publication_phase = _PublicationPhase.COMPLETE
     except BaseException as error:
-        failure_tree = publication_tree
-        if not os.path.lexists(failure_tree) and os.path.lexists(temporary):
-            failure_tree = temporary
-        if os.path.lexists(failure_tree):
-            try:
-                _preserve_incomplete_publication(failure_tree)
-            except BaseException as cleanup_error:
-                raise Stage08ValidationError(
-                    "STAGE08_FAILURE_STATE_CLEANUP_FAILURE",
-                    "A failed Stage 8 attempt could not be retained as incomplete",
-                ) from cleanup_error
-        if isinstance(error, (Stage08ValidationError, duckdb.Error, pa.ArrowException)):
-            raise
-        if isinstance(error, OSError):
+        current_error = error
+        try:
+            observation = _observe_publication_paths(temporary, config.output_directory)
+        except BaseException as observation_error:
             raise Stage08ValidationError(
-                "STAGE08_PUBLICATION_FAILURE", "Stage 8 publication failed"
-            ) from error
-        raise
+                "STAGE08_FAILURE_STATE_CLEANUP_FAILURE",
+                "A failed Stage 8 publication state could not be observed",
+            ) from observation_error
+        if attempt_identity is not None and publication_phase in {
+            _PublicationPhase.RENAME_OUTCOME_AMBIGUOUS,
+            _PublicationPhase.POST_RENAME_PRE_PARENT_FSYNC,
+        }:
+            try:
+                outcome = _try_adopt_ambiguous_publication(
+                    observation,
+                    temporary=temporary,
+                    final=config.output_directory,
+                    expected_identity=attempt_identity,
+                    parent=parent,
+                    expected_manifest_sha256=manifest_sha,
+                    config=config,
+                )
+            except BaseException as adoption_error:
+                current_error = adoption_error
+                outcome = None
+        if outcome is None:
+            if attempt_identity is not None:
+                try:
+                    observation = _observe_publication_paths(
+                        temporary, config.output_directory
+                    )
+                    _demote_owned_publication(
+                        observation,
+                        temporary=temporary,
+                        final=config.output_directory,
+                        expected_identity=attempt_identity,
+                    )
+                except BaseException as cleanup_error:
+                    raise Stage08ValidationError(
+                        "STAGE08_FAILURE_STATE_CLEANUP_FAILURE",
+                        "A failed Stage 8 attempt could not be retained as incomplete",
+                    ) from cleanup_error
+            _raise_stage08_materialization_error(current_error)
     finally:
         os.umask(old_umask)
+    if outcome is None:
+        _fail(
+            "STAGE08_PUBLICATION_STATE_INVALID",
+            "Stage 8 completed without an explicit terminal outcome",
+        )
     return replace(
         outcome,
         publication_validation_milliseconds=round(

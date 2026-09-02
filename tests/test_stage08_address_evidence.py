@@ -333,6 +333,17 @@ def _retained_attempt(config: Stage08Config) -> Path:
     return attempts[0]
 
 
+def _assert_reader_rejects_incomplete(root: Path, config: Stage08Config) -> None:
+    assert (root / stage08.STAGE08_IN_PROGRESS_NAME).read_bytes() == b"in_progress\n"
+    assert not (root / stage08.STAGE08_SUCCESS_NAME).exists()
+    with pytest.raises(Stage08ValidationError):
+        validate_stage08_bundle(
+            root,
+            expected_manifest_sha256="0" * 64,
+            config=replace(config, output_directory=root),
+        )
+
+
 def test_frozen_schemas_mapping_and_semantic_taxonomy_are_exact() -> None:
     binding = stage08.accepted_stage08_input_binding()
     candidate = candidate_evidence_schema(binding)
@@ -493,12 +504,131 @@ def test_injected_failure_immediately_before_success_transition_is_incomplete(
     assert not config.output_directory.exists()
 
 
+def test_rename_raises_before_filesystem_effect_and_attempt_remains_incomplete(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config, validated = _fixture(tmp_path)
+    monkeypatch.setattr(stage08, "_validated_inputs", lambda _: validated)
+
+    def raise_before_rename(source: Path, destination: Path) -> None:
+        assert source.is_dir()
+        assert not destination.exists()
+        raise OSError("synthetic pre-effect rename failure")
+
+    monkeypatch.setattr(stage08, "_atomic_publish_directory", raise_before_rename)
+    with pytest.raises(Stage08ValidationError, match="STAGE08_PUBLICATION_FAILURE"):
+        materialize_stage08(config)
+
+    attempt = _retained_attempt(config)
+    assert not config.output_directory.exists()
+    _assert_reader_rejects_incomplete(attempt, config)
+
+
+def test_rename_performs_real_effect_then_raises_and_valid_final_is_adopted(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config, validated = _fixture(tmp_path)
+    monkeypatch.setattr(stage08, "_validated_inputs", lambda _: validated)
+    real_publish = stage08._atomic_publish_directory
+
+    def rename_then_raise(source: Path, destination: Path) -> None:
+        real_publish(source, destination)
+        assert not source.exists()
+        assert destination.is_dir()
+        raise OSError("synthetic post-effect rename failure")
+
+    monkeypatch.setattr(stage08, "_atomic_publish_directory", rename_then_raise)
+    outcome = materialize_stage08(config)
+
+    assert outcome.output_directory == config.output_directory
+    assert (config.output_directory / stage08.STAGE08_SUCCESS_NAME).is_file()
+    assert not (config.output_directory / stage08.STAGE08_IN_PROGRESS_NAME).exists()
+    assert not tuple(
+        config.output_directory.parent.glob(
+            f".{config.output_directory.name}.*.in_progress"
+        )
+    )
+    reopened = validate_stage08_bundle(
+        config.output_directory,
+        expected_manifest_sha256=outcome.manifest_sha256,
+        config=config,
+    )
+    assert reopened.logical_dataset_sha256 == outcome.logical_dataset_sha256
+
+
+def test_exception_immediately_after_rename_adopts_only_after_full_reopen(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config, validated = _fixture(tmp_path)
+    monkeypatch.setattr(stage08, "_validated_inputs", lambda _: validated)
+    real_verify = stage08._verify_post_rename_state
+    calls = 0
+
+    def interrupt_once(
+        temporary: Path, final: Path, expected_identity: tuple[int, int]
+    ) -> None:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            assert not temporary.exists()
+            assert final.is_dir()
+            raise KeyboardInterrupt("synthetic immediate post-rename interrupt")
+        real_verify(temporary, final, expected_identity)
+
+    monkeypatch.setattr(stage08, "_verify_post_rename_state", interrupt_once)
+    outcome = materialize_stage08(config)
+
+    assert calls == 2
+    assert outcome.output_directory == config.output_directory
+    assert (config.output_directory / stage08.STAGE08_SUCCESS_NAME).is_file()
+    assert not (config.output_directory / stage08.STAGE08_IN_PROGRESS_NAME).exists()
+
+
+def test_post_effect_rename_is_not_adopted_when_final_reopen_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config, validated = _fixture(tmp_path)
+    monkeypatch.setattr(stage08, "_validated_inputs", lambda _: validated)
+    real_publish = stage08._atomic_publish_directory
+    real_validate = stage08._validate_stage08_bundle_state
+
+    def rename_then_raise(source: Path, destination: Path) -> None:
+        real_publish(source, destination)
+        assert not source.exists()
+        assert destination.is_dir()
+        raise OSError("synthetic post-effect rename failure")
+
+    def reject_published_reopen(
+        output_directory: Path, **kwargs: Any
+    ) -> stage08.Stage08Outcome:
+        if kwargs["terminal_state"] == stage08._TERMINAL_STATE_PUBLISHED:
+            raise Stage08ValidationError(
+                "INJECTED_POSTPUBLICATION_FAILURE", "synthetic reopen failure"
+            )
+        return real_validate(output_directory, **kwargs)
+
+    monkeypatch.setattr(stage08, "_atomic_publish_directory", rename_then_raise)
+    monkeypatch.setattr(
+        stage08, "_validate_stage08_bundle_state", reject_published_reopen
+    )
+    with pytest.raises(
+        Stage08ValidationError, match="INJECTED_POSTPUBLICATION_FAILURE"
+    ):
+        materialize_stage08(config)
+
+    assert not tuple(
+        config.output_directory.parent.glob(
+            f".{config.output_directory.name}.*.in_progress"
+        )
+    )
+    _assert_reader_rejects_incomplete(config.output_directory, config)
+
+
 @pytest.mark.parametrize(
     "boundary",
     (
         "remove_in_progress",
         "terminal_directory_fsync",
-        "atomic_rename",
         "publication_parent_fsync",
     ),
 )
@@ -511,7 +641,6 @@ def test_every_failure_after_success_creation_is_demoted_to_incomplete(
     monkeypatch.setattr(stage08, "_validated_inputs", lambda _: validated)
     real_remove = stage08._remove_in_progress_marker
     real_fsync = getattr(stage08, "_fsync_directory")
-    real_publish = stage08._atomic_publish_directory
 
     def remove_in_progress(path: Path) -> None:
         if boundary == "remove_in_progress":
@@ -540,16 +669,8 @@ def test_every_failure_after_success_creation_is_demoted_to_incomplete(
             raise OSError("synthetic parent fsync failure")
         real_fsync(path)
 
-    def atomic_publish(source: Path, destination: Path) -> None:
-        if boundary == "atomic_rename":
-            assert (source / stage08.STAGE08_SUCCESS_NAME).is_file()
-            assert not (source / stage08.STAGE08_IN_PROGRESS_NAME).exists()
-            raise OSError("synthetic rename failure")
-        real_publish(source, destination)
-
     monkeypatch.setattr(stage08, "_remove_in_progress_marker", remove_in_progress)
     monkeypatch.setattr(stage08, "_fsync_directory", fsync_directory)
-    monkeypatch.setattr(stage08, "_atomic_publish_directory", atomic_publish)
 
     with pytest.raises(Stage08ValidationError, match="STAGE08_PUBLICATION_FAILURE"):
         materialize_stage08(config)
@@ -561,6 +682,166 @@ def test_every_failure_after_success_creation_is_demoted_to_incomplete(
     )
     assert (failure_root / stage08.STAGE08_IN_PROGRESS_NAME).is_file()
     assert not (failure_root / stage08.STAGE08_SUCCESS_NAME).exists()
+
+
+@pytest.mark.parametrize("cleanup_boundary", ("remove_success", "write_in_progress"))
+def test_post_effect_demotion_mutation_errors_reconcile_idempotently(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    cleanup_boundary: str,
+) -> None:
+    config, validated = _fixture(tmp_path)
+    monkeypatch.setattr(stage08, "_validated_inputs", lambda _: validated)
+    real_fsync = getattr(stage08, "_fsync_directory")
+    real_remove_success = stage08._remove_success_marker
+    real_write_in_progress = stage08._write_in_progress_marker
+    injected = False
+
+    def fail_parent_fsync(path: Path) -> None:
+        if path == config.output_directory.parent and config.output_directory.is_dir():
+            raise OSError("synthetic parent fsync failure")
+        real_fsync(path)
+
+    def remove_then_raise(path: Path) -> None:
+        nonlocal injected
+        real_remove_success(path)
+        if cleanup_boundary == "remove_success" and not injected:
+            injected = True
+            assert not path.exists()
+            raise OSError("synthetic post-effect success removal failure")
+
+    def write_then_raise(path: Path) -> None:
+        nonlocal injected
+        real_write_in_progress(path)
+        if (
+            cleanup_boundary == "write_in_progress"
+            and path.parent == config.output_directory
+            and not injected
+        ):
+            injected = True
+            assert path.is_file()
+            raise OSError("synthetic post-effect incomplete-marker failure")
+
+    monkeypatch.setattr(stage08, "_fsync_directory", fail_parent_fsync)
+    monkeypatch.setattr(stage08, "_remove_success_marker", remove_then_raise)
+    monkeypatch.setattr(stage08, "_write_in_progress_marker", write_then_raise)
+    with pytest.raises(Stage08ValidationError, match="STAGE08_PUBLICATION_FAILURE"):
+        materialize_stage08(config)
+
+    assert injected
+    identity = stage08._directory_identity_if_present(config.output_directory)
+    assert identity is not None
+    _assert_reader_rejects_incomplete(config.output_directory, config)
+    stage08._preserve_incomplete_publication(
+        config.output_directory, expected_identity=identity
+    )
+    stage08._preserve_incomplete_publication(
+        config.output_directory, expected_identity=identity
+    )
+    _assert_reader_rejects_incomplete(config.output_directory, config)
+
+
+@pytest.mark.parametrize(
+    "temporary_present,final_present,expected",
+    (
+        (True, False, stage08._PublicationPathState.TEMP_PRESENT_FINAL_ABSENT),
+        (False, True, stage08._PublicationPathState.TEMP_ABSENT_FINAL_PRESENT),
+        (True, True, stage08._PublicationPathState.TEMP_PRESENT_FINAL_PRESENT),
+        (False, False, stage08._PublicationPathState.TEMP_ABSENT_FINAL_ABSENT),
+    ),
+)
+def test_publication_path_observation_distinguishes_all_four_states(
+    tmp_path: Path,
+    temporary_present: bool,
+    final_present: bool,
+    expected: stage08._PublicationPathState,
+) -> None:
+    temporary = tmp_path / "temporary"
+    final = tmp_path / "final"
+    if temporary_present:
+        temporary.mkdir()
+    if final_present:
+        final.mkdir()
+
+    observation = stage08._observe_publication_paths(temporary, final)
+
+    assert observation.state is expected
+    assert observation.temporary_present is temporary_present
+    assert observation.final_present is final_present
+    assert (observation.temporary_identity is not None) is temporary_present
+    assert (observation.final_identity is not None) is final_present
+
+
+def test_reconciliation_never_follows_or_mutates_unrelated_final_symlink(
+    tmp_path: Path,
+) -> None:
+    temporary = tmp_path / "temporary"
+    unrelated = tmp_path / "unrelated"
+    final = tmp_path / "final"
+    temporary.mkdir(mode=0o700)
+    unrelated.mkdir(mode=0o700)
+    sentinel = unrelated / "sentinel"
+    sentinel.write_text("unrelated\n", encoding="ascii")
+    final.symlink_to(unrelated, target_is_directory=True)
+    temporary_identity = stage08._directory_identity_if_present(temporary)
+    assert temporary_identity is not None
+
+    observation = stage08._observe_publication_paths(temporary, final)
+    assert observation.state is stage08._PublicationPathState.TEMP_PRESENT_FINAL_PRESENT
+    assert observation.final_identity is None
+    stage08._demote_owned_publication(
+        observation,
+        temporary=temporary,
+        final=final,
+        expected_identity=temporary_identity,
+    )
+
+    assert final.is_symlink()
+    assert sentinel.read_text(encoding="ascii") == "unrelated\n"
+    assert (temporary / stage08.STAGE08_IN_PROGRESS_NAME).is_file()
+    assert not (temporary / stage08.STAGE08_SUCCESS_NAME).exists()
+
+
+def test_both_path_reconciliation_demotes_only_owned_attempt(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config, validated = _fixture(tmp_path)
+    monkeypatch.setattr(stage08, "_validated_inputs", lambda _: validated)
+    outcome = materialize_stage08(config)
+    final_identity = stage08._directory_identity_if_present(config.output_directory)
+    assert final_identity is not None
+    temporary = config.output_directory.parent / ".synthetic-owned-attempt.in_progress"
+    temporary.mkdir(mode=0o700)
+    temporary_identity = stage08._directory_identity_if_present(temporary)
+    assert temporary_identity is not None
+
+    for _ in range(2):
+        observation = stage08._observe_publication_paths(
+            temporary, config.output_directory
+        )
+        assert (
+            observation.state
+            is stage08._PublicationPathState.TEMP_PRESENT_FINAL_PRESENT
+        )
+        stage08._demote_owned_publication(
+            observation,
+            temporary=temporary,
+            final=config.output_directory,
+            expected_identity=temporary_identity,
+        )
+
+    _assert_reader_rejects_incomplete(
+        temporary, replace(config, output_directory=temporary)
+    )
+    assert stage08._directory_identity_if_present(config.output_directory) == (
+        final_identity
+    )
+    reopened = validate_stage08_bundle(
+        config.output_directory,
+        expected_manifest_sha256=outcome.manifest_sha256,
+        config=config,
+    )
+    assert reopened.logical_dataset_sha256 == outcome.logical_dataset_sha256
 
 
 @pytest.mark.parametrize("corruption", ("artifact", "manifest"))
