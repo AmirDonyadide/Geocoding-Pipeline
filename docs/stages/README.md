@@ -15,7 +15,7 @@ independent review records acceptance.
 | 5 | [Address reconstruction](STAGE05_ADDRESS_RECONSTRUCTION.md) | `STAGE_5_ACCEPTED` | NOT STARTED |
 | 6 | [Early exact deduplication](STAGE06_EARLY_EXACT_DEDUPLICATION.md) | `STAGE_6_ACCEPTED` | NOT STARTED |
 | 7 | [libpostal parsing/evidence](STAGE07_LIBPOSTAL_PARSING.md) | `STAGE_7_ACCEPTED` | NOT STARTED |
-| 8 | [Lossless address-evidence projection](STAGE08_ADDRESS_EVIDENCE_PROJECTION.md) | `STAGE08_ADDRESS_EVIDENCE_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REREVIEW`; `c04cb972…`/job `1764273`, not accepted | NOT STARTED |
+| 8 | [Lossless address-evidence projection](STAGE08_ADDRESS_EVIDENCE_PROJECTION.md) | `STAGE_8_ACCEPTED`; candidate `231cdbf9…`, executable `c04cb972…`, job `1764273`, independent job `1764376` | NOT STARTED |
 
 Replacement Stages 9–14 remain proposed in
 [the pipeline specification](../PIPELINE.md). Stage 8 jobs `1763747` and
@@ -31,6 +31,8 @@ records the second failed rereview and post-effect rename repair. Job `1764219`
 and its [candidate report](../../reports/development/stage08_address_evidence_publication_remediation_v2_candidate_report.md)
 remain historical after the third failed rereview. The
 [third remediation report](../../reports/development/stage08_address_evidence_publication_remediation_v3.md)
-records the post-commit CLI-status and final-ownership repair. The next action
-is a fresh independent rereview of the `c04cb972…` candidate frozen in the
-[v3 candidate report](../../reports/development/stage08_address_evidence_publication_remediation_v3_candidate_report.md).
+records the post-commit CLI-status and final-ownership repair. Exact candidate
+`231cdbf9…` passed corrected independent rereview job `1764376`; the
+[sanitized rereview](../../reports/development/stage08_address_evidence_independent_rereview.md)
+records zero candidate defects and preserves review-only RH-001 separately.
+The next task is the full Stages 0–8 pipeline audit before Stage 9.

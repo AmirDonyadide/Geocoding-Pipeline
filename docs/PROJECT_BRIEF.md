@@ -163,7 +163,7 @@ transformations. Planned technology does not imply implementation approval.
 
 ## 7. Stage sequence and current state
 
-The accepted sequence through Stage 7 and proposed replacement sequence are:
+The accepted sequence through Stage 8 and proposed replacement sequence are:
 
 0. source inventory;
 1. lossless ingestion;
@@ -173,8 +173,7 @@ The accepted sequence through Stage 7 and proposed replacement sequence are:
 5. address reconstruction;
 6. early exact deduplication;
 7. evidence-only libpostal parsing/projection;
-8. lossless address-evidence projection at a third-remediation DEVELOPMENT
-   candidate awaiting independent rereview;
+8. accepted lossless address-evidence projection;
 9. proposed offline geographic reference evidence;
 10. proposed multi-hypothesis query-plan generation;
 11. proposed global query identity/deduplication/workload QA;
@@ -182,7 +181,7 @@ The accepted sequence through Stage 7 and proposed replacement sequence are:
 13. proposed result evidence scoring/cross-query convergence; and
 14. proposed final match granularity/abstention.
 
-Stages 0–7 are implemented and accepted on DEVELOPMENT. Stage 7 acceptance is
+Stages 0–8 are implemented and accepted on DEVELOPMENT. Stage 7 acceptance is
 evidence-only: its authoritative v1 run passed machine integrity but exposed
 systematic libpostal label/boundary failures, and the later readiness rule
 failed its frozen validation. The accepted v2 therefore preserves exact raw
@@ -209,9 +208,12 @@ ownership recheck after parent fsync/validation. Third repair executable
 `1764219` remain immutable historical DEVELOPMENT evidence for their exact
 executables and cannot validate the new repair. Authorized job `1764273`
 published manifest `2a50bd8c…`, the unchanged logical dataset `9c9d431c…`,
-and exact scientific and v3 publication-terminal reconciliation. Replacement
-Stages 9–14 remain proposed and not started.
-Production Stage 0 and Stage 1 are accepted; production Stages 2–7 are not
+and exact scientific and v3 publication-terminal reconciliation. Exact
+candidate `231cdbf9…` then passed corrected independent rereview commit
+`f8a456f…` and job `1764376` with zero candidate defects. Its frozen science
+remained unchanged through the remediations, and it is accepted as
+`STAGE_8_ACCEPTED`. Replacement Stages 9–14 remain proposed and not started.
+Production Stage 0 and Stage 1 are accepted; production Stages 2–8 are not
 started. The detailed stage contracts and acceptance requirements are in
 [PIPELINE.md](PIPELINE.md). HOLDOUT remains untouched and sealed.
 
@@ -265,11 +267,11 @@ Durable decisions are in [DECISIONS.md](DECISIONS.md); current status is in
 
 ## 11. Current next action
 
-Stage 8 is
-`STAGE08_ADDRESS_EVIDENCE_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REREVIEW`
-at executable `c04cb97214a9f1e5d2b80512c756400321eefa80`, job `1764273`, and
-manifest `2a50bd8c…`. Jobs `1763747`, `1763984`, and `1764219` remain
-historical evidence for their earlier executables; Stage 8 is not accepted.
-The exact next action is: **FRESH INDEPENDENT STAGE 8 REREVIEW OF THE C04CB972
-REPAIRED CANDIDATE.** No further Stage 8 job, production Stage 2 through Stage
-7, HOLDOUT, Stage 9, Senzing, or geocoding is authorized by this status.
+Stage 8 is `STAGE_8_ACCEPTED` on DEVELOPMENT at candidate `231cdbf9…`,
+executable `c04cb97214a9f1e5d2b80512c756400321eefa80`, job `1764273`, and
+manifest `2a50bd8c…`. Corrected independent rereview commit `f8a456f…` and job
+`1764376` passed with zero candidate defects. Jobs `1763747`, `1763984`, and
+`1764219` and every failed review remain historical evidence for their exact
+lineages. The next action is: **FULL STAGES 0–8 PIPELINE AUDIT BEFORE STAGE 9.**
+No further Stage 8 job, production Stage 2 through Stage 8, HOLDOUT, Stage 9,
+Senzing, or geocoding is authorized by this acceptance.

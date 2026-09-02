@@ -2,7 +2,7 @@
 
 ## Status and authority
 
-**`STAGE08_ADDRESS_EVIDENCE_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REREVIEW`.**
+**`STAGE_8_ACCEPTED`** on DEVELOPMENT.
 
 This remains the controlling scientific contract for Stage 8 DEVELOPMENT. The
 first implementation at Git commit
@@ -38,10 +38,13 @@ the last rejection-capable publication operation. Authorized DEVELOPMENT job
 `1764273` published manifest
 `2a50bd8c066552c9cb7505ed2d6071f1ee36161b9a2cc07f3ed364cf00237827`,
 the unchanged logical dataset `9c9d431c…`, and exact scientific and v3
-terminal reconciliation. The candidate awaits fresh independent rereview and
-is not accepted. This status does not authorize another job, production,
-HOLDOUT access, Stage 9, geocoding, Pelias, Senzing, DeepParse, or any external
-address service.
+terminal reconciliation. Exact reporting candidate
+`231cdbf9db755fb56486c46b3b3faa02f5b5f3b6` then passed corrected independent
+rereview commit `f8a456f5c939c4061d2be232fd5037010b7a88c8` and Goethe job
+`1764376` with zero candidate defects and zero infrastructure-incomplete
+checks. The owner accepted it as `STAGE_8_ACCEPTED`. This status does not
+authorize another job, production, HOLDOUT access, Stage 9, geocoding, Pelias,
+Senzing, DeepParse, or any external address service.
 
 The design is based on accepted Stage 7 candidate
 `656a16d3d1f33cb152ace557c26f42df047bc7d6`, its acceptance merge
@@ -149,8 +152,42 @@ The sanitized
 and [candidate report](../../reports/development/stage08_address_evidence_publication_remediation_v3_candidate_report.md)
 freeze the complete aggregate, topology, scheduler, input-binding,
 publication-terminal, and historical evidence. Post-commit reporting faults,
-real-rename-then-raise, and identity-replacement faults remain synthetic local
-evidence requiring fresh independent challenge.
+real-rename-then-raise, and identity-replacement faults were challenged by the
+corrected independent rereview summarized below.
+
+## Independent rereview and owner acceptance
+
+Corrected independent review commit
+`f8a456f5c939c4061d2be232fd5037010b7a88c8` is a descendant of exact candidate
+`231cdbf9db755fb56486c46b3b3faa02f5b5f3b6`. Its independent harness SHA-256
+is `4e728ca7cf90b270c892da49f9d3cfa56b2fb2e71b4aac6b54526a0380257586`.
+Goethe review job `1764376` completed `0:0` and returned
+`STAGE08_ADDRESS_EVIDENCE_INDEPENDENT_REREVIEW_PASS`; its controlled evidence
+SHA-256 is
+`9fe9420779a96f8c3663e8876cb3206a72ca15931bdfa23105d13dddf7546de0`.
+
+Independent protected verification found zero Stage 7-to-Stage 8 equality,
+component-reconstruction, source-map-back, dangling, unmapped, component-count,
+and occurrence-count mismatches. Every frozen scientific fingerprint and
+binding, filesystem/publication check, and privacy/prohibited-activity check
+passed. Parser, reference, network, and geocoder activity were zero; HOLDOUT
+and production were not accessed. Candidate defects are zero and
+infrastructure-incomplete checks are zero.
+
+Review-harness defect RH-001 was caused only by an invalid cross-job
+device/inode equality assumption. It was corrected in the review harness and
+is not a Stage 8 candidate or artifact defect. Its failed review-only job and
+sanitized report remain preserved beside the [successful rereview](../../reports/development/stage08_address_evidence_independent_rereview.md).
+
+The accepted candidate remains bound to executable
+`c04cb97214a9f1e5d2b80512c756400321eefa80`, authoritative DEVELOPMENT job
+`1764273`, manifest
+`2a50bd8c066552c9cb7505ed2d6071f1ee36161b9a2cc07f3ed364cf00237827`, and
+logical dataset
+`9c9d431c2c1b92712e0cb372f2661ad48f4fe8758dc0327d25aef90ab2c2d526`.
+The Stage 8 scientific contract remained unchanged through all publication
+remediations. Historical failures and executable-specific artifacts retain
+their original classifications.
 
 ## Historical second-remediation DEVELOPMENT candidate
 
@@ -1037,8 +1074,9 @@ Historical jobs `1763747`, `1763984`, and `1764219` and current candidate job
 All listed counts, exact-input preservation, nested/long reversibility, map-back,
 fingerprint, permission, privacy, resource, and zero-call requirements passed.
 Independent review nevertheless found terminal-publication defects in each
-earlier executable lineage. Job `1764273` validates only `c04cb972…` and now
-requires fresh independent rereview; it grants no Stage 8 acceptance.
+earlier executable lineage. Job `1764273` validates only `c04cb972…`; corrected
+independent rereview job `1764376` passed that exact candidate, after which the
+owner accepted Stage 8 on DEVELOPMENT.
 
 ## Independent-review plan
 
@@ -1131,10 +1169,9 @@ the Stage 8 name and number while narrowing it to lossless projection and a
 mechanical parser-evidence index. Country-format/ISO lookup metadata moves to
 Stage 9; hypotheses remain Stage 10. No broader renumbering is required.
 
-Verdict:
-`STAGE08_ADDRESS_EVIDENCE_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REREVIEW`.
+Verdict: `STAGE_8_ACCEPTED` on DEVELOPMENT.
 
-Exact next action: **FRESH INDEPENDENT STAGE 8 REREVIEW OF THE C04CB972
-REPAIRED CANDIDATE.** Do not submit another job, alter jobs `1763747`,
-`1763984`, `1764219`, or `1764273` or their artifacts, start Stage 9, or treat
-candidate readiness as acceptance.
+Exact next action: **FULL STAGES 0–8 PIPELINE AUDIT BEFORE STAGE 9.** Do not
+submit another Stage 8 job, alter jobs `1763747`, `1763984`, `1764219`, or
+`1764273` or their artifacts, start Stage 9, or treat DEVELOPMENT acceptance
+as production or later-stage authorization.

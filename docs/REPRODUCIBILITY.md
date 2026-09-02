@@ -122,7 +122,7 @@ files and 141,048,582 rows. Accepted production Stage 1 is bound by:
 - manifest SHA-256:
   `1fb6176d8eff6dfe71c3c02c1e36e00d35937c7bc662234b7620289d4b055bd7`.
 
-Production Stages 2–6 have not started.
+Production Stages 2–8 have not started.
 
 ## Accepted and rejected evidence
 
@@ -134,6 +134,20 @@ Stage 3 v1 is preserved because its scientific values were sound while its
 production scalability and reporting evidence were rejected. V2 created new
 immutable output, proved exact scientific/reason equality, and received a new
 review. Rewriting or squashing that sequence would remove meaningful evidence.
+
+Stage 8 DEVELOPMENT is accepted at exact candidate
+`231cdbf9db755fb56486c46b3b3faa02f5b5f3b6`, preserved through normal merge
+`ce9e9cac60ba1a767043a7bf09bbf0ad2589f3b3`, with exact executable
+`c04cb97214a9f1e5d2b80512c756400321eefa80`, authoritative job `1764273`,
+manifest `2a50bd8c066552c9cb7505ed2d6071f1ee36161b9a2cc07f3ed364cf00237827`,
+and logical dataset
+`9c9d431c2c1b92712e0cb372f2661ad48f4fe8758dc0327d25aef90ab2c2d526`.
+Corrected independent rereview commit `f8a456f5c939c4061d2be232fd5037010b7a88c8`
+and job `1764376` passed with zero candidate defects; evidence SHA-256 is
+`9fe9420779a96f8c3663e8876cb3206a72ca15931bdfa23105d13dddf7546de0`.
+The three earlier candidate failures, their exact executables/jobs, and
+review-only RH-001 remain distinct reachable evidence. The scientific contract
+did not change through the publication remediations.
 
 ## Why failed attempts are preserved
 

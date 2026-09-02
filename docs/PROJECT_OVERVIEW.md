@@ -49,7 +49,7 @@ The pipeline therefore establishes a controlled evidence chain:
 10. accept a result only at an explicit evidence-supported granularity, or
     remain unresolved.
 
-Stages 0–7 are implemented, independently reviewed, and accepted on
+Stages 0–8 are implemented, independently reviewed, and accepted on
 DEVELOPMENT. Stage 7 acceptance is strictly evidence-only. Its first controlled
 design diagnostic correctly returned not ready. Its revised supervisor
 diagnostic then proved the prior four giant crashes were resource-cap
@@ -103,11 +103,15 @@ executable `c04cb97214a9f1e5d2b80512c756400321eefa80` separates publication
 from presentation status and makes a final no-follow identity verification the
 last rejection-capable publication operation. Authorized job `1764273`
 published manifest `2a50bd8c…`, the unchanged logical dataset `9c9d431c…`,
-and exact scientific and v3 terminal reconciliation. Jobs `1763747`, `1763984`,
-and `1764219` remain immutable historical evidence for their exact executables
-and cannot validate the new candidate. Replacement Stages 9–14 remain
-proposed. Current Stage 8 status is
-`STAGE08_ADDRESS_EVIDENCE_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REREVIEW`.
+and exact scientific and v3 terminal reconciliation. Exact candidate
+`231cdbf9db755fb56486c46b3b3faa02f5b5f3b6` then passed corrected independent
+rereview commit `f8a456f…` and job `1764376` with zero candidate defects and
+zero infrastructure-incomplete checks. Its scientific contract stayed
+unchanged through every publication remediation, and the owner accepted it as
+`STAGE_8_ACCEPTED`. Jobs `1763747`, `1763984`, and `1764219` remain immutable
+historical evidence for their exact executables; every failed review remains
+truthful. Replacement Stages 9–14 remain proposed and not started. The next
+task is the full Stages 0–8 pipeline audit before Stage 9.
 See
 [PIPELINE.md](PIPELINE.md).
 

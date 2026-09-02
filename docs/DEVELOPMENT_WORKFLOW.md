@@ -19,12 +19,16 @@ design
   -> stop
 ```
 
-Stages 0–7 have completed this lifecycle on DEVELOPMENT and are accepted.
+Stages 0–8 have completed this lifecycle on DEVELOPMENT and are accepted.
 Stage 7 retains its full failed-design history: the first giant-candidate stop,
 resource-sufficient v1 execution, material semantic-quality findings, DeepParse
 closure, failed readiness validation, and first independent-review
 documentation failure. Its corrected evidence-only candidate passed
 independent rereview and is accepted without relabeling those failures.
+Stage 8 likewise retains three candidate review failures and their bounded
+publication remediations. Its third-remediation candidate passed corrected
+independent rereview with zero candidate defects; the review-only RH-001
+harness failure remains separate historical evidence.
 
 ## Design and implementation
 
@@ -108,7 +112,7 @@ reason.
 
 DEVELOPMENT acceptance and production execution are different decisions.
 Production Stage 0 and Stage 1 are accepted for the 1,411-file population.
-Production Stages 2–7 have not started. Before production Stage 2 can
+Production Stages 2–8 have not started. Before production Stage 2 can
 run, its exact launcher, commit, population binding, resources, output paths,
 and validation plan require separate review and authorization.
 

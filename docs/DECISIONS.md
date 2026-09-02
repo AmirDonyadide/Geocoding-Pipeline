@@ -1186,12 +1186,62 @@ to change a decision or start a stage.
   parser, reference, or geocoding work is authorized. Exact next action:
   **FRESH INDEPENDENT STAGE 8 REREVIEW OF THE C04CB972 REPAIRED CANDIDATE.**
 
+### D047 — Accept the exact Stage 8 address-evidence DEVELOPMENT candidate
+
+- **Date:** 2026-09-02.
+- **Scope:** Final owner acceptance and main integration of Stage 8
+  DEVELOPMENT only; no scientific rerun, production authority, or later-stage
+  authorization.
+- **Decision:** Accept exact reviewed candidate
+  `231cdbf9db755fb56486c46b3b3faa02f5b5f3b6` as `STAGE_8_ACCEPTED` on
+  DEVELOPMENT. Its reviewed executable remains exact
+  `c04cb97214a9f1e5d2b80512c756400321eefa80`. Preserve the complete candidate
+  branch history through normal merge commit
+  `ce9e9cac60ba1a767043a7bf09bbf0ad2589f3b3`; the accepted candidate is its
+  second parent and remains an ancestor of final `main`.
+- **Authoritative DEVELOPMENT evidence:** Job `1764273`, manifest SHA-256
+  `2a50bd8c066552c9cb7505ed2d6071f1ee36161b9a2cc07f3ed364cf00237827`,
+  and logical dataset SHA-256
+  `9c9d431c2c1b92712e0cb372f2661ad48f4fe8758dc0327d25aef90ab2c2d526`.
+- **Independent evidence:** Verdict
+  `STAGE08_ADDRESS_EVIDENCE_INDEPENDENT_REREVIEW_PASS`; corrected review
+  commit `f8a456f5c939c4061d2be232fd5037010b7a88c8`; independent harness SHA-256
+  `4e728ca7cf90b270c892da49f9d3cfa56b2fb2e71b4aac6b54526a0380257586`;
+  controlled evidence SHA-256
+  `9fe9420779a96f8c3663e8876cb3206a72ca15931bdfa23105d13dddf7546de0`;
+  and Goethe review job `1764376` (`COMPLETED 0:0`). Candidate defects are
+  zero and infrastructure-incomplete checks are zero.
+- **Independent result:** Stage 7-to-Stage 8 equality, component
+  reconstruction, source map-back, dangling, unmapped, component-count, and
+  occurrence-count mismatch totals are all zero. Every frozen scientific
+  fingerprint and binding, filesystem/publication check, and
+  privacy/prohibited-activity check passed. Parser, reference, network, and
+  geocoder activity were zero; HOLDOUT and production were not accessed.
+- **Review-only history:** RH-001 was an invalid cross-job device/inode
+  equality assumption in the independent harness. Its failed review job and
+  sanitized evidence remain reachable, and the corrected persistent-identity
+  rule remains bound to the corrected review commit. RH-001 is not a Stage 8
+  candidate or artifact defect.
+- **Scientific preservation:** The Stage 8 contract, profile, schemas,
+  semantic classes, 20-label mapping, Stage 6/7 bindings, grains, logical-hash
+  rules, and Stage 8/Stage 9 boundary remained unchanged through all
+  publication remediations. No executable, source, test, launcher, or
+  configuration mutation followed executable `c04cb972…`; only reviewed
+  reporting and documentation followed it on the accepted branch.
+- **Historical preservation:** Rejected candidates `adde81d…`, `fdf2f8c…`,
+  and `70e3de95…`; executables `a2544401…`, `bd89a032…`, and `bdea7232…`;
+  jobs `1763747`, `1763984`, and `1764219`; all failed-review findings; and
+  every remediation record remain truthful reachable history. No failure is
+  relabeled as success, and each job validates only its exact executable.
+- **Status:** `STAGE_8_ACCEPTED` on DEVELOPMENT. Production Stage 8, HOLDOUT,
+  Stage 9, references, hypotheses, Senzing, Pelias, and geocoding remain not
+  started and unauthorized. The exact next task is **FULL STAGES 0–8 PIPELINE
+  AUDIT BEFORE STAGE 9**, then stop.
+
 ## Open decisions
 
 These questions require future stage designs and explicit approval:
 
-- fresh independent Stage 8 rereview of executable `c04cb972…`, job `1764273`,
-  manifest `2a50bd8c…`, and the v3 terminal contract under D045–D046;
 - exact offline reference releases/licenses and blocking semantics;
 - the bounded Stage 10 hypothesis/query ladder;
 - Stage 13 scoring/calibration and contradiction policy; and
@@ -1199,7 +1249,7 @@ These questions require future stage designs and explicit approval:
   interpolated Pelias address results.
 
 Nothing in this register authorizes HOLDOUT, another Stage 8 protected
-execution, Stage 9, geocoding, or production Stage 2 through Stage 7. Stage 7
+execution, Stage 9, geocoding, or production Stage 2 through Stage 8. Stage 7
 decisions
 D023–D036 retain their stated historical DEVELOPMENT scopes; D037 alone
 records final Stage 7 DEVELOPMENT acceptance. D038 records the prospective
@@ -1212,4 +1262,6 @@ freezes the resulting DEVELOPMENT candidate without granting acceptance or
 later-stage authority. D045 records its failed independent rereview and the
 third bounded terminal-status/ownership remediation; it grants no execution or
 later-stage authority. D046 freezes the resulting DEVELOPMENT candidate
-without granting acceptance or later-stage authority.
+without granting acceptance or later-stage authority. D047 alone records final
+Stage 8 DEVELOPMENT acceptance and preserves all prior Stage 8 failures as
+historical evidence.

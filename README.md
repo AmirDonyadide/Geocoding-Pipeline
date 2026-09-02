@@ -21,7 +21,7 @@ query can be inspected and reproduced.
 
 ## Current status
 
-The DEVELOPMENT pipeline is accepted through Stage 7. Stage 7 is accepted as
+The DEVELOPMENT pipeline is accepted through Stage 8. Stage 7 is accepted as
 reproducible parser evidence, not semantic component or geographic truth.
 The first Stage 8 candidate failed independent review. Its first publication
 repair preserved Stage 8 science, and DEVELOPMENT job `1763984` passed exact
@@ -32,9 +32,10 @@ publication reconciliation passed. Independent rereview then failed its post-
 commit CLI status and final-ownership binding. Third bounded repair
 `c04cb972…` completed the single authorized DEVELOPMENT materialization as job
 `1764273`; its scientific, publication, and terminal-contract reconciliation
-passed and the candidate awaits fresh independent rereview. Jobs `1763747`,
-`1763984`, and `1764219` remain historical evidence for their exact
-executables only. Later stages have not started.
+passed. Exact candidate `231cdbf9…` then passed corrected independent rereview
+job `1764376` with zero candidate defects and is accepted as
+`STAGE_8_ACCEPTED`. Jobs `1763747`, `1763984`, and `1764219` remain historical
+evidence for their exact executables only. Stage 9 has not started.
 
 | Stage | Name | Status | Data effect |
 |---:|---|---|---|
@@ -46,7 +47,7 @@ executables only. Later stages have not started.
 | 5 | Address reconstruction | **`STAGE_5_ACCEPTED`** | Appends separate clean/lower standard/native line-body candidates and compact provenance |
 | 6 | Early exact deduplication | **`STAGE_6_ACCEPTED`** | Preserves 35,000 rows and maps 69,747 occurrences to 51,779 exact candidates |
 | 7 | libpostal parsing/evidence | **`STAGE_7_ACCEPTED`** | Preserves exact raw ordered parser evidence, applicability/technical provenance, warnings, and complete map-back; components remain hypotheses only |
-| 8 | Lossless address-evidence projection | **`STAGE08_ADDRESS_EVIDENCE_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REREVIEW`** | Job `1764273` materialized third repair `c04cb972…`; exact science and v3 ordinary-path terminal publication passed; not accepted |
+| 8 | Lossless address-evidence projection | **`STAGE_8_ACCEPTED`** | Candidate `231cdbf9…`, executable `c04cb972…`, job `1764273`, and corrected independent rereview job `1764376`; zero candidate defects and unchanged science |
 | 9–14 proposed | Reference evidence, hypotheses, retrieval, scoring, and final granularity | **PROPOSED — NOT STARTED** | No design approval or execution authorization |
 
 Production Stage 0 and Stage 1 are accepted for
@@ -65,7 +66,7 @@ immutable source CSV
   -> Stage 5: separate deterministic address-line body reconstruction
   -> Stage 6: exact lowercase candidate registry + complete row map
   -> Stage 7: accepted evidence-only libpostal projection
-  -> repaired Stage 8: lossless evidence projection/index (awaiting independent rereview)
+  -> Stage 8: accepted lossless evidence projection/index
   -> proposed Stages 9–14: references, hypotheses, query QA, retrieval, scoring
   -> self-hosted SAFE Pelias
 ```
@@ -83,13 +84,13 @@ to every `stable_source_row_id_v1`.
 | `cluster/goethe_nhr/` | Reviewed SLURM and environment assets for Goethe-NHR |
 | `scripts/` | Controlled transfer and synchronization helpers |
 | `docs/` | Current project, pipeline, workflow, privacy, execution, and reproducibility documentation |
-| `docs/stages/` | Stage 0–7 accepted records and the active Stage 8 contract/remediation status |
+| `docs/stages/` | Stage 0–8 accepted records and their frozen contracts/history |
 | `docs/history/` | Accepted source-foundation records that predate the Stage terminology |
 | `reports/development/` | Sanitized, Git-safe aggregate DEVELOPMENT evidence |
 
 The older `phase01` and `phase02` package namespaces remain because accepted
 source-foundation work underpins Stage 0 and Stage 1. The active library-first
-Stage 0–7 adapters live under `src/safe_geocoding_pipeline/preprocessing/`.
+Stage 0–8 adapters live under `src/safe_geocoding_pipeline/preprocessing/`.
 
 ## DEVELOPMENT, HOLDOUT, and production
 
@@ -101,7 +102,7 @@ Stage 0–7 adapters live under `src/safe_geocoding_pipeline/preprocessing/`.
   sealed until one
   explicitly authorized final evaluation after Stages 2–19 are frozen.
 - **Production population:** 1,411 files and 141,048,582 rows. Production
-  Stage 0 and Stage 1 are accepted; production Stages 2–6 have not started.
+  Stage 0 and Stage 1 are accepted; production Stages 2–8 have not started.
 
 Benchmark V1 remains permanently bound to its accepted 1,405-file population;
 the later six production files do not change or rebuild it.
@@ -119,7 +120,7 @@ documentation. See [Privacy and security](docs/PRIVACY_AND_SECURITY.md).
 ## Quick start
 
 The package supports Python 3.11 or newer for local development. Reproducing
-the accepted Stage 3–7 Goethe execution requires the exact pinned Python 3.14.3
+the accepted Stage 3–8 Goethe execution requires the exact pinned Python 3.14.3
 runtime and Unicode 16.0.0 contract plus each stage's frozen dependencies and
 artifacts.
 
@@ -164,17 +165,15 @@ personal absolute paths. Sanitized evidence is available under
 
 ## Current next action
 
-Stage 8 is
-**`STAGE08_ADDRESS_EVIDENCE_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REREVIEW`**
-at executable `c04cb97214a9f1e5d2b80512c756400321eefa80`, job `1764273`,
-manifest `2a50bd8c…`, and unchanged logical dataset `9c9d431c…`. The ordinary
-v3 publication path passed prepublication validation, temporary durability,
-rename, parent fsync, complete final reopen validation, outcome construction,
-`umask` restoration, and the final no-follow ownership gate. Jobs `1763747`,
-`1763984`, and `1764219` remain immutable historical evidence and do not
-validate this executable. The exact next action is **FRESH INDEPENDENT STAGE 8
-REREVIEW OF THE C04CB972 REPAIRED CANDIDATE.** No further job, HOLDOUT,
-production Stages 2–7, Stage 9, Senzing, or geocoding is authorized by this
-status. See the
+Stage 8 is **`STAGE_8_ACCEPTED`** on DEVELOPMENT at exact candidate
+`231cdbf9db755fb56486c46b3b3faa02f5b5f3b6`, executable
+`c04cb97214a9f1e5d2b80512c756400321eefa80`, job `1764273`, manifest
+`2a50bd8c…`, and unchanged logical dataset `9c9d431c…`. Corrected independent
+rereview commit `f8a456f…` and job `1764376` passed with zero candidate defects.
+Jobs `1763747`, `1763984`, and `1764219` and all failed reviews remain truthful
+historical evidence for their exact executable lineages. The next action is
+**FULL STAGES 0–8 PIPELINE AUDIT BEFORE STAGE 9.** Stage 9, HOLDOUT, production
+Stages 2–8, Senzing, and geocoding have not started and are not authorized by
+this acceptance. See the
 [Stage 8 design](docs/stages/STAGE08_ADDRESS_EVIDENCE_PROJECTION.md) and
 [current progress](docs/DEVELOPMENT_PROGRESS.md).

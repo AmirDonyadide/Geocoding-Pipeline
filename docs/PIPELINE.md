@@ -17,7 +17,7 @@ stage.
 - **PLANNED — NOT STARTED:** conceptual placement and likely technology only.
   No accepted design or implementation exists.
 
-Stages 0–7 are accepted on DEVELOPMENT. Stage 7's frozen v1 contract completed
+Stages 0–8 are accepted on DEVELOPMENT. Stage 7's frozen v1 contract completed
 authoritative DEVELOPMENT parsing and machine validation, but the candidate
 was not ready for semantic handoff: qualitative and targeted root-cause
 evidence found material libpostal label/boundary errors. A frozen evidence-only
@@ -58,15 +58,19 @@ Third repair executable `c04cb972…` separates publication and presentation
 status and ends publication with a final no-follow identity check. Authorized
 job `1764273` published manifest `2a50bd8c…` and the unchanged logical dataset
 `9c9d431c…`; every frozen scientific and v3 terminal-publication check passed.
+Exact candidate `231cdbf9db755fb56486c46b3b3faa02f5b5f3b6` then passed
+corrected independent rereview commit `f8a456f…` and Goethe job `1764376` with
+zero candidate defects and zero infrastructure-incomplete checks. The owner
+accepted it as `STAGE_8_ACCEPTED`; Stage 8 science remained unchanged through
+all publication remediations.
 Jobs `1763747`, `1763984`, and `1764219` remain immutable historical evidence for
-their exact executables and cannot validate the new candidate.
+their exact executables and cannot validate the accepted executable.
 Production Stage 0 and Stage 1 are accepted for the 1,411-file population;
 production Stage 2 through Stage 6 have not started. The old Stages 8–19 have
 not started. The first three compact replacement Stage 8 DEVELOPMENT
 candidates remain rejected and immutable; the third-remediation candidate is
-materialized and awaiting independent rereview. Replacement Stages 9–14 remain
-proposed and not started.
-Production Stage 7 has not started.
+accepted on DEVELOPMENT. Replacement Stages 9–14 remain proposed and not
+started. Production Stage 7 and Stage 8 have not started.
 
 ## Cross-stage scientific rules
 
@@ -98,11 +102,9 @@ Production Stage 7 has not started.
 11 query identity/QA -> 12 Pelias top-N -> 13 scoring -> 14 granularity/abstain
 ```
 
-Stage 8 now has a third-remediation DEVELOPMENT candidate awaiting fresh
-independent rereview. Stages 9–14 are still a proposed replacement, not an
-accepted
-execution order. Every stage still
-requires its own design, owner
+Stage 8 is accepted on DEVELOPMENT. Stages 9–14 are still a proposed
+replacement, not an accepted execution order. Every stage still requires its
+own design, owner
 authorization, DEVELOPMENT evidence, independent review, acceptance, and stop
 gate. The current prohibition on geocoding before the governing pre-geocoding
 acceptance gate remains in force.
@@ -285,8 +287,9 @@ acceptance gate remains in force.
 This compact evidence-first architecture separates source truth,
 parser/reference evidence, hypotheses, geocoder results, and the final accepted
 match. The first three Stage 8 candidates are rejected. The third-remediation
-candidate from job `1764273` has been materialized and frozen, but it has not
-been independently rereviewed or accepted. Stages 9–14 remain
+candidate from job `1764273` passed corrected independent rereview job
+`1764376` with zero candidate defects and is accepted as `STAGE_8_ACCEPTED`.
+Stages 9–14 remain
 **PROPOSED — NOT STARTED**. Full responsibilities, tool choices, and legacy
 mapping are in the
 [architecture redesign report](../reports/development/post_stage07_geocoding_architecture_redesign.md).
@@ -308,7 +311,7 @@ mapping are in the
   complete known/unmapped-label retention, complete map-back, deterministic
   fingerprints, bounded memory, privacy, and zero semantic-trust claims.
 - **Status:**
-  **`STAGE08_ADDRESS_EVIDENCE_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REREVIEW`**.
+  **`STAGE_8_ACCEPTED`** on DEVELOPMENT.
   Job `1763747` completed at old executable
   `a2544401b4b699f6c020970f3507a2ae432746c5` and remains immutable historical
   evidence after independent-review failure. Publication repair executable
@@ -334,7 +337,11 @@ mapping are in the
   [v3 execution report](../reports/development/stage08_address_evidence_publication_remediation_v3_development.md)
   records job `1764273`, and the
   [v3 candidate report](../reports/development/stage08_address_evidence_publication_remediation_v3_candidate_report.md)
-  freezes job `1764273`. Fresh independent rereview is the only next action.
+  freezes job `1764273`. Corrected independent rereview commit `f8a456f…`,
+  [sanitized evidence](../reports/development/stage08_address_evidence_independent_rereview.md),
+  and job `1764376` passed with zero candidate defects. Review-only RH-001 is
+  preserved separately from Stage 8 candidate history. The next task is the
+  full Stages 0–8 pipeline audit before Stage 9; Stage 9 has not started.
 
 ### Stage 9 — Offline geographic reference evidence
 

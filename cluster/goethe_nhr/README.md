@@ -44,9 +44,11 @@ authorized DEVELOPMENT materialization as job `1764219`; its frozen candidate
 then failed independent rereview on post-commit CLI status and missing final
 ownership recheck. Third repair executable `c04cb972…` subsequently completed
 exactly one authorized DEVELOPMENT materialization as job `1764273`; its
-frozen candidate awaits independent rereview. Jobs `1763747`, `1763984`, and
-`1764219` remain historical evidence only. No further Stage 8 job, production,
-HOLDOUT, Stage 9, or geocoding is authorized.
+frozen candidate passed corrected independent rereview job `1764376` and is
+accepted as `STAGE_8_ACCEPTED` on DEVELOPMENT. Jobs `1763747`, `1763984`, and
+`1764219` remain historical evidence only. The launcher is accepted provenance,
+not rerun authority. No further Stage 8 job, production, HOLDOUT, Stage 9, or
+geocoding is authorized.
 
 All protected/heavy jobs require an exact pushed Git SHA, a clean/exact
 worktree, `SAFE_EXECUTION_SITE=goethe-nhr`, a non-empty `SLURM_JOB_ID`, owner-only

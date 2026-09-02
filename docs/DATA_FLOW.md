@@ -54,7 +54,7 @@ Stage 7: libpostal parser evidence (accepted on DEVELOPMENT)
   + complete occurrence map-back; no semantic/geographic truth guarantee
         |
         v
-Stage 8 third-remediation DEVELOPMENT candidate awaiting independent rereview
+Stage 8 lossless address-evidence projection (accepted on DEVELOPMENT)
   exact Stage 7 candidate evidence + ordered long-form parser-evidence index
   + source-candidate map + deterministic STANDARD/NATIVE occurrence view
         |
@@ -221,12 +221,14 @@ failure produced a failure exit and policy-A ownership was not rechecked after
 parent fsync/final validation. Third repair `c04cb972…` separates publication
 and presentation status and adds the terminal no-follow ownership check.
 Authorized job `1764273` materialized it with manifest `2a50bd8c…`, the same
-logical dataset `9c9d431c…`, and exact v3 terminal reconciliation. It is not
-accepted. Jobs `1763747`, `1763984`, and `1764219` remain immutable historical
-evidence for their exact executables and do not validate the new candidate.
+logical dataset `9c9d431c…`, and exact v3 terminal reconciliation. Exact
+candidate `231cdbf9…` then passed corrected independent rereview job `1764376`
+with zero candidate defects and is accepted as `STAGE_8_ACCEPTED`. Jobs
+`1763747`, `1763984`, and `1764219` remain immutable historical evidence for
+their exact executables and do not validate the accepted executable.
 
-The Stage 8 implementation and proposed Stages 9–14 are constrained by these
-accepted principles:
+The accepted Stage 8 implementation and proposed Stages 9–14 are constrained
+by these accepted principles:
 
 - lowercase, reconstructed, parsed, normalized, transliterated, corrected, and
   query-ready values are separate derived representations;

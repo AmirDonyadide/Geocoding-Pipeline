@@ -14,8 +14,8 @@ corrected without changing the contract, implementation, protected output, or
 science. Independent rereview job `1763656` returned
 `STAGE07_EVIDENCE_ONLY_INDEPENDENT_REREVIEW_PASS`; sanitized evidence is
 retained at commit `356de44f3e86e37972d60cac45d01703ad1f6856` without merging the
-review-harness branch. HOLDOUT, production Stages 2–7, Stage 8, and geocoding
-remain unauthorized.
+review-harness branch. Stage 8 was later accepted under its separate contract;
+HOLDOUT, production Stages 2–8, Stage 9, and geocoding remain unauthorized.
 
 Historically, the first controlled design diagnostic exposed a material parser
 limitation before the contract/profile freeze: four of the 23 accepted candidates with at least
