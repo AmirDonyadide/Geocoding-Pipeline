@@ -2,7 +2,7 @@
 
 ## Status and authority
 
-**`STAGE08_ADDRESS_EVIDENCE_IMPLEMENTATION_READY_FOR_CONTROLLED_DEVELOPMENT_REEXECUTION`.**
+**`STAGE08_ADDRESS_EVIDENCE_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REREVIEW`.**
 
 This remains the controlling scientific contract for Stage 8 DEVELOPMENT. The
 first implementation at Git commit
@@ -12,11 +12,14 @@ job `1763747`. Independent review rejected exact reporting candidate
 ordering could expose success before prepublication reopen validation and
 because `docs/PROJECT_BRIEF.md` retained a stale Stage 8 reference-tool
 assignment. The bounded publication repair is executable
-`bd89a032eb6fcf16a7515e0bd2991165d87246b1`. It has not been executed on
-protected DEVELOPMENT data and is not ready for independent review or
-acceptance. This status does not authorize another DEVELOPMENT job,
-production, HOLDOUT access, Stage 9, geocoding, Pelias, Senzing, DeepParse, or
-any external address service.
+`bd89a032eb6fcf16a7515e0bd2991165d87246b1`. Repaired DEVELOPMENT job
+`1763984` published manifest
+`d521240b42a40b9c1408f0f7241583bc76b7779e4107179e73fdcb7c7a69e119`,
+passed exact reconciliation and repaired terminal-publication validation, and
+is now the authoritative candidate for fresh independent rereview. It is not
+accepted. This status does not authorize another DEVELOPMENT job, production,
+HOLDOUT access, Stage 9, geocoding, Pelias, Senzing, DeepParse, or any external
+address service.
 
 The design is based on accepted Stage 7 candidate
 `656a16d3d1f33cb152ace557c26f42df047bc7d6`, its acceptance merge
@@ -38,10 +41,37 @@ remove `_IN_PROGRESS`, fsync the terminal tree, atomically rename, fsync the
 parent, and reopen the publication. Any failure after success-marker creation
 during that transition or immediate post-publication validation demotes the
 retained tree to explicit incomplete state without `_SUCCESS.json`. Exact
-repair evidence and planned Goethe resources are recorded in the sanitized
+repair evidence and the authorized Goethe resource boundary are recorded in the sanitized
 [remediation report](../../reports/development/stage08_address_evidence_remediation.md).
 The original [implementation report](../../reports/development/stage08_address_evidence_implementation.md)
 remains historical pre-execution evidence for the rejected executable.
+
+## Authoritative repaired-candidate DEVELOPMENT evidence
+
+Job `1763984` completed `0:0` in 15m36s from the exact clean detached repaired
+executable. Its immutable output is
+`/work/footprint/donyadidegan/safe_geocoding_pipeline/derived/controlled/stage08/development/stage08_development_20260902T080150Z_bd89a032eb6f`.
+The success marker binds manifest SHA-256
+`d521240b42a40b9c1408f0f7241583bc76b7779e4107179e73fdcb7c7a69e119`
+and logical dataset SHA-256
+`9c9d431c2c1b92712e0cb372f2661ad48f4fe8758dc0327d25aef90ab2c2d526`.
+
+The result contains 51,779 candidates, 6,106,088 ordered component rows,
+35,000 source rows, and 69,747 occurrences (34,822 STANDARD; 34,925 NATIVE).
+Every frozen preservation, reversibility, foreign-key, occurrence, warning,
+privacy, and later-stage-exclusion check passed; dangling and mismatch counts
+are zero. The runtime is Python 3.14.3, PyArrow 25.0.0, and DuckDB 1.5.5.
+
+Prepublication reopen validation completed with `_IN_PROGRESS` present and
+`_SUCCESS.json` absent. Only then did the repaired transition create success,
+remove the incomplete marker, fsync, atomically publish, fsync the parent, and
+perform the post-publication reopen validation. The final tree has no
+`_IN_PROGRESS`, no incomplete sibling, and no symlink; all directories are
+`0700`, all files are `0600`, and stderr is empty. The sanitized
+[execution report](../../reports/development/stage08_address_evidence_development.md)
+and [candidate report](../../reports/development/stage08_address_evidence_development_candidate_report.md)
+freeze the complete aggregate, topology, scheduler, input-binding, and
+publication evidence.
 
 ## Historical rejected-candidate DEVELOPMENT evidence
 
@@ -59,13 +89,12 @@ Those scientific reconciliation results remain valid evidence for the old
 executable. The job and artifact remain immutable, but executable repair makes
 them ineligible to serve as the final Stage 8 candidate.
 
-The sanitized
-[execution report](../../reports/development/stage08_address_evidence_development.md)
-binds contract/schema/upstream identities, topology, runtime, privacy, and
-scheduler evidence. `AllocCPUS=80` is exclusive-node scheduler accounting:
-`general1` is `OverSubscribe=EXCLUSIVE`, the allocated node has 80 CPUs, while
-the job requested four CPUs and ran one task with DuckDB at four threads. It is
-not 80-way application concurrency and is not material to scientific validity.
+The current sanitized execution/candidate reports retain these historical
+identities alongside the repaired candidate. `AllocCPUS=80` for both jobs is
+exclusive-node scheduler accounting: `general1` is
+`OverSubscribe=EXCLUSIVE`, while each job requested four CPUs and ran one task
+with DuckDB at four threads. It is not 80-way application concurrency and is
+not material to scientific validity.
 
 ## Decision
 
@@ -631,8 +660,10 @@ counts. It must be invariant to input batch size, output batch size, row-group
 size, and shard layout. Physical size and SHA-256 are recorded for every
 artifact and verified after publication.
 
-No Stage 8 data fingerprint exists in this design-only session. Inventing one
-without a materialized artifact is prohibited.
+The original design-only session correctly invented no data fingerprint.
+Repaired job `1763984` now supplies the manifest-bound logical dataset
+fingerprint recorded above; it was derived only by the reviewed materializer
+and successful reopen validation.
 
 ## Bounded-memory implementation strategy
 
@@ -797,7 +828,7 @@ Implementation is not reviewable until tests cover:
 16. sanitized reporting that rejects candidate text, raw component values,
     source IDs/files, provider IDs, and other row-level data.
 
-## DEVELOPMENT machine-validation plan
+## DEVELOPMENT machine-validation plan and result
 
 After a separately reviewed implementation and explicit job authorization,
 submit one full DEVELOPMENT materialization on Goethe-NHR from an exact clean
@@ -832,6 +863,12 @@ No new qualitative address review is required for Stage 8 acceptance because
 Stage 8 makes no semantic address claim. The fixed-500 identities may be used
 only for machine lineage/reconstruction equality, not for opening or relabeling
 protected values in this stage.
+
+Repaired job `1763984` completed this machine-validation plan. All listed
+counts, exact-input preservation, nested/long reversibility, map-back,
+fingerprint, permission, privacy, resource, and zero-call requirements passed.
+That execution evidence authorizes only fresh independent rereview, not Stage 8
+acceptance or later-stage work.
 
 ## Independent-review plan
 
@@ -925,9 +962,8 @@ mechanical parser-evidence index. Country-format/ISO lookup metadata moves to
 Stage 9; hypotheses remain Stage 10. No broader renumbering is required.
 
 Verdict:
-`STAGE08_ADDRESS_EVIDENCE_IMPLEMENTATION_READY_FOR_CONTROLLED_DEVELOPMENT_REEXECUTION`.
+`STAGE08_ADDRESS_EVIDENCE_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REREVIEW`.
 
-Exact next action requiring separate owner authorization: **AUTHORIZE ONE NEW
-CONTROLLED STAGE 8 DEVELOPMENT MATERIALIZATION AT THE NEW EXECUTABLE SHA.** Do
-not submit it in this remediation session, alter job `1763747` or its artifact,
-start Stage 9, or treat implementation readiness as acceptance.
+Exact next action: **FRESH INDEPENDENT STAGE 8 REREVIEW OF THIS REPAIRED
+CANDIDATE.** Do not submit another Stage 8 job, alter job `1763747` or its
+artifact, start Stage 9, or treat candidate readiness as acceptance.

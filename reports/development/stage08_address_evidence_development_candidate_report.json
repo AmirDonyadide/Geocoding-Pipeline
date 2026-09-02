@@ -1,11 +1,12 @@
 {
-  "report_version": "stage08_address_evidence_development_candidate_report_v1",
-  "verdict": "STAGE08_ADDRESS_EVIDENCE_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REVIEW",
-  "branch": "stage08-address-evidence-implementation",
-  "reporting_base_sha": "d00878813898db7c09907754b613cf9d927c338f",
-  "executable_sha": "a2544401b4b699f6c020970f3507a2ae432746c5",
-  "job_id": "1763747",
-  "manifest_sha256": "bdf86738fb071e38b2ad090f4627a821149352fb1490e62b76e5819aa915bcf9",
+  "report_version": "stage08_address_evidence_development_candidate_report_v2",
+  "verdict": "STAGE08_ADDRESS_EVIDENCE_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REREVIEW",
+  "branch": "stage08-address-evidence-remediation",
+  "reporting_parent_sha": "84990af1e9dc67ae31db8532b38ad9ce50a6f87d",
+  "executable_sha": "bd89a032eb6fcf16a7515e0bd2991165d87246b1",
+  "job_id": "1763984",
+  "output_root": "/work/footprint/donyadidegan/safe_geocoding_pipeline/derived/controlled/stage08/development/stage08_development_20260902T080150Z_bd89a032eb6f",
+  "manifest_sha256": "d521240b42a40b9c1408f0f7241583bc76b7779e4107179e73fdcb7c7a69e119",
   "logical_dataset_sha256": "9c9d431c2c1b92712e0cb372f2661ad48f4fe8758dc0327d25aef90ab2c2d526",
   "execution_report": "reports/development/stage08_address_evidence_development.json",
   "candidate_evidence": {
@@ -13,57 +14,119 @@
     "exact_stage06_stage07_bindings": true,
     "component_index_reversibility": "PASS",
     "all_frozen_validation_fields": "PASS",
+    "publication_state_repair": "PASS",
     "publication_and_permissions": "PASS",
     "bounded_resource_behavior": "PASS",
     "privacy": "PASS",
     "semantic_trust_claims": 0,
     "later_stage_behavior": 0
   },
-  "scheduler_accounting": {
-    "requested_cpus": 4,
-    "req_cpus": 4,
-    "alloc_cpus": 80,
-    "actual_configured_stage08_concurrency": 4,
-    "duckdb_threads": 4,
-    "partition_policy": "OverSubscribe=EXCLUSIVE",
-    "explanation": "SLURM allocated/accounted the complete 80-CPU node; the one-task Stage 8 application remained configured for four CPUs and four DuckDB threads.",
-    "scientific_validity_materiality": "NOT_MATERIAL"
+  "aggregate_reconciliation": {
+    "candidate_rows": 51779,
+    "ordered_component_rows": 6106088,
+    "source_rows": 35000,
+    "representation_occurrences": 69747,
+    "standard_occurrences": 34822,
+    "native_occurrences": 34925,
+    "mapped_component_rows": 6106088,
+    "unmapped_component_rows": 0,
+    "distinct_unmapped_labels": 0,
+    "dangling_component_rows": 0,
+    "component_count_mismatches": 0,
+    "occurrence_count_mismatches": 0,
+    "reversibility": "PASS"
+  },
+  "publication_state_evidence": {
+    "prepublication_reopen_before_success": "PASS",
+    "success_binds_manifest": "PASS",
+    "in_progress_absent_only_after_terminal_transition": "PASS",
+    "incomplete_sibling_attempt_absent": true,
+    "postpublication_reopen": "PASS",
+    "directory_mode": "0700",
+    "file_mode": "0600",
+    "symlink_count": 0,
+    "atomic_publication": "PASS",
+    "owner_only_publication": "PASS",
+    "stderr_bytes": 0
+  },
+  "runtime": {
+    "python": "3.14.3",
+    "pyarrow": "25.0.0",
+    "duckdb": "1.5.5",
+    "duckdb_memory_limit": "8GB",
+    "duckdb_threads": 4
+  },
+  "accepted_input_bindings": {
+    "stage07_manifest_sha256": "f58410877a7810562df7985c7316de7546d4dd8e11a647fd659c53a272e9c266",
+    "stage07_logical_dataset_sha256": "0f0706c1396803737f22845837753878bfd2e8b3f9af59b48cfcc1b8c5774530",
+    "stage07_contract_fingerprint": "c9561e6d08263b2a8824ff66f2a3aa8521e3ff880759abc14173cce440ced8a4",
+    "stage07_schema_fingerprint": "b0e0e83ea3d929b7df8a6a5f64c2e8eb026395a917da90e97a98858b27e9ead2",
+    "parser_bundle_fingerprint": "f3c6db7e9f11ab75b2207be773e946d531dbba763008d9f7e5036d8c923dc2ae",
+    "stage06_manifest_sha256": "e1da7b8ef04b65b1ece8e710720b57a8536841766fcf9de641f889b42eadd241",
+    "stage06_logical_dataset_sha256": "2f6379c0cd5dc9654c03895cae6fdd48f3a7af528158c33e44d2030c816640b6",
+    "stage06_row_map_logical_sha256": "1ff9067c521ae93d28c300d7120a03c39681ce7830bf23b6619e2ca6129a4fe1",
+    "stage06_input_binding_sha256": "6ba224d6d24c3631aae8aac69f4a362bb054f01d9e3d09327ec6b0fdd85a0e7d",
+    "stage06_schema_fingerprint": "9c07b7a4c3f7a5c43ad457dcf6f7fe3fd746d54d82a731139905b30828b6c9ce"
   },
   "implementation_blob_identity": {
+    "frozen_against": "bd89a032eb6fcf16a7515e0bd2991165d87246b1",
     "status": "PASS",
-    "frozen_against": "a2544401b4b699f6c020970f3507a2ae432746c5",
     "blobs": {
-      "cluster/goethe_nhr/stage08_address_evidence.sbatch": "a39e1538d875e5d3c1adbf24405303f86c0a3505",
       "pyproject.toml": "305887f0bff2fc9dacd36f01ea1ed9e555c7db8d",
+      "cluster/goethe_nhr/stage08_address_evidence.sbatch": "a39e1538d875e5d3c1adbf24405303f86c0a3505",
       "src/safe_geocoding_pipeline/preprocessing/stage08_cli.py": "db30dad989f57704ae47cd58866c949da3def31e",
-      "src/safe_geocoding_pipeline/preprocessing/stages/s08_address_evidence.py": "bd261c5cf109246186945eea8a5e0339987049cf",
-      "tests/test_stage08_address_evidence.py": "85c15e300a191a50aac03d83891a32d3ee7de52c"
+      "src/safe_geocoding_pipeline/preprocessing/stages/s08_address_evidence.py": "ea1219ed7e3945dd2297b19bd0a4a10b26e9f875",
+      "tests/test_stage08_address_evidence.py": "810809fe5e81028312653b63dae629c73738ee3f"
     }
   },
+  "historical_evidence": {
+    "rejected_reporting_sha": "adde81d2237e99993222994ce56efb0d74f7c2d3",
+    "old_executable_sha": "a2544401b4b699f6c020970f3507a2ae432746c5",
+    "old_job_id": "1763747",
+    "old_manifest_sha256": "bdf86738fb071e38b2ad090f4627a821149352fb1490e62b76e5819aa915bcf9",
+    "independent_review_verdict": "STAGE08_ADDRESS_EVIDENCE_INDEPENDENT_REVIEW_FAIL",
+    "blocking_findings": [
+      "SUCCESS_MARKER_EXPOSED_BEFORE_PREPUBLICATION_REOPEN_VALIDATION",
+      "PROJECT_BRIEF_ASSIGNED_PYCOUNTRY_LIBADDRESSINPUT_TO_STAGE08"
+    ],
+    "immutable": true,
+    "validates_repaired_executable": false
+  },
+  "logical_dataset_comparison": {
+    "same_as_job_1763747": true,
+    "interpretation": "Scientific dataset unchanged by publication-state remediation; historical job does not validate the repaired executable."
+  },
   "finalization_gates": {
-    "focused_stage08_tests": "7 passed",
-    "relevant_stage07_regressions": "34 passed",
-    "ruff": "PASS",
-    "strict_mypy_src": "PASS",
-    "strict_mypy_stage08_tests": "PASS",
+    "focused_stage08_tests": "17 passed",
+    "relevant_stage07_regressions": "27 passed",
+    "stage02_and_cluster_publication_regressions": "14 passed",
+    "stage03_to_stage06_runtime_guard_diagnostic": "9 expected exact-Python-3.14.3 guard failures under local Python 3.14.7; guards unchanged",
+    "ruff_check": "PASS",
+    "ruff_format_changed_python": "PASS; no Python changed, three Stage 8 Python targets checked",
+    "strict_mypy": "PASS over the established 98 source/Stage 8 targets",
     "shell_syntax": "PASS",
     "json": "PASS",
-    "markdown_links": "PASS",
+    "markdown_links": "PASS across 60 tracked Markdown files",
     "git_diff_check": "PASS",
     "privacy_tracked_data": "PASS",
-    "implementation_blob_identity": "PASS"
+    "implementation_blob_identity": "PASS",
+    "repository_state": "PASS"
+  },
+  "nonblocking_baseline_diagnostics": {
+    "repository_wide_ruff_format": "19 pre-existing unrelated Python files would be reformatted; none changed in this candidate finalization",
+    "repository_wide_mypy_tests": "71 pre-existing errors in 10 unrelated Stage 6/7 test files; required 98-target strict gate passes"
   },
   "authorization_boundaries": {
+    "stage08_accepted": false,
+    "independent_rereview_started": false,
     "second_stage08_job_submitted": false,
+    "implementation_or_science_changed": false,
     "holdout_access": false,
     "production_access": false,
-    "stage09_started": false,
-    "geocoding": false,
     "parser_rerun": false,
     "reference_services": false,
-    "implementation_or_science_changed": false,
-    "independent_review_started": false,
-    "stage08_accepted": false
+    "geocoding": false,
+    "stage09_started": false
   },
-  "next_action": "FRESH independent Stage 8 critical-review session."
+  "next_action": "FRESH INDEPENDENT STAGE 8 REREVIEW OF THIS REPAIRED CANDIDATE."
 }

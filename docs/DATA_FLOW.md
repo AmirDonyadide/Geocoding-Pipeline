@@ -54,7 +54,7 @@ Stage 7: libpostal parser evidence (accepted on DEVELOPMENT)
   + complete occurrence map-back; no semantic/geographic truth guarantee
         |
         v
-Stage 8 repaired implementation awaiting authorized DEVELOPMENT reexecution
+Stage 8 repaired DEVELOPMENT candidate awaiting independent rereview
   exact Stage 7 candidate evidence + ordered long-form parser-evidence index
   + source-candidate map + deterministic STANDARD/NATIVE occurrence view
         |
@@ -207,10 +207,12 @@ The exact nested Stage 7 list remains authoritative. A mapped SAFE
 parser-evidence name remains `PARSER_EVIDENCE`; Stage 8 emits no hypothesis or
 reference result. pycountry and libaddressinput are deferred to the Stage 9
 design boundary. Independent review rejected reporting candidate `adde81d…`
-for publication-state ordering and stale current architecture wording. The
-repair at executable `bd89a03…` has no controlled artifact and is not ready for
-independent review or acceptance. Job `1763747` remains immutable historical
-evidence for the old executable only.
+for publication-state ordering and stale current architecture wording.
+Repaired executable `bd89a03…` produced authoritative candidate job `1763984`;
+its exact reconciliation and repaired publication-state checks pass, but it is
+not independently rereviewed or accepted. Job `1763747` remains immutable
+historical evidence for the old executable only and does not validate the
+repair.
 
 The Stage 8 implementation and proposed Stages 9–14 are constrained by these
 accepted principles:

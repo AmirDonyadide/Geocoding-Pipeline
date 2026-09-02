@@ -139,13 +139,14 @@ documentation test pass.
   geographic truth; absence of structural warnings gives no trust guarantee.
 - Production Stage 7: **NOT STARTED**.
 - Stage 8:
-  **`STAGE08_ADDRESS_EVIDENCE_IMPLEMENTATION_READY_FOR_CONTROLLED_DEVELOPMENT_REEXECUTION`**.
+  **`STAGE08_ADDRESS_EVIDENCE_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REREVIEW`**.
   Independent review rejected the candidate backed by job `1763747` and old
   executable `a2544401b4b699f6c020970f3507a2ae432746c5`. Publication repair
-  executable `bd89a032eb6fcf16a7515e0bd2991165d87246b1` has no controlled
-  artifact. Job `1763747` remains immutable historical evidence only. No new
-  Stage 8 job is authorized by this policy; the next action requires separate
-  owner authorization for exactly one controlled DEVELOPMENT materialization
-  at the repaired executable SHA.
+  executable `bd89a032eb6fcf16a7515e0bd2991165d87246b1` completed repaired
+  DEVELOPMENT job `1763984`; exact reconciliation and terminal-publication
+  checks pass. Job `1763747` remains immutable historical evidence only and
+  does not validate the repair. No new Stage 8 job is authorized by this
+  policy; the exact next action is a fresh independent Stage 8 rereview of the
+  repaired candidate.
 
 This policy grants no scientific-stage or production-run authorization.

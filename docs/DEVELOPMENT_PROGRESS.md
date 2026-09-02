@@ -13,7 +13,7 @@ are in the linked stage records and sanitized reports.
 | 5 | Address reconstruction | **`STAGE_5_ACCEPTED`** | Job `1759603`; independent job `1759692`; 35,000 → 35,000; exact reconstruction and six accepted non-damaging boundary limitations in a 179-row risk scope; [report](../reports/development/stage05_summary.md); [Stage 5 record](stages/STAGE05_ADDRESS_RECONSTRUCTION.md) | **NOT STARTED** |
 | 6 | Early exact deduplication | **`STAGE_6_ACCEPTED`** | Job `1759819`; independent job `1760055`; 35,000 → 35,000; 69,747 occurrences → 51,779 unique exact candidates; zero collision/map-back/fixed-500 mismatches; [report](../reports/development/stage06_summary.md); [Stage 6 record](stages/STAGE06_EARLY_EXACT_DEDUPLICATION.md) | **NOT STARTED** |
 | 7 | libpostal parsing/evidence | **`STAGE_7_ACCEPTED`** | Exact candidate `656a16d3…`; evidence-only job `1763516`; independent rereview job `1763656` passed all 51,779 candidates and 69,747 occurrences with zero parser calls/trust claims. Components remain hypotheses/evidence; warning absence is not trust. Historical v1 semantic findings and the failed readiness experiment remain failures. [rereview](../reports/development/stage07_parser_evidence_v2_independent_rereview.md); [current evidence report](../reports/development/stage07_development_candidate_report.md); [Stage 7 record](stages/STAGE07_LIBPOSTAL_PARSING.md) | **NOT STARTED** |
-| 8 | Lossless address-evidence projection | **`STAGE08_ADDRESS_EVIDENCE_IMPLEMENTATION_READY_FOR_CONTROLLED_DEVELOPMENT_REEXECUTION`** — not executed at repaired SHA, reviewed, or accepted | Independent review rejected reporting candidate `adde81d…`; publication repair executable `bd89a03…`; job `1763747` remains immutable historical evidence for old executable `a254440…`; [remediation report](../reports/development/stage08_address_evidence_remediation.md); [historical execution](../reports/development/stage08_address_evidence_development.md); [contract](stages/STAGE08_ADDRESS_EVIDENCE_PROJECTION.md) | **NOT STARTED** |
+| 8 | Lossless address-evidence projection | **`STAGE08_ADDRESS_EVIDENCE_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REREVIEW`** — not accepted | Repaired executable `bd89a03…`; job `1763984`; manifest `d521240b…`; exact reconciliation/publication checks pass. Rejected `adde81d…`/`a254440…`/job `1763747` remain historical only. [execution](../reports/development/stage08_address_evidence_development.md); [candidate](../reports/development/stage08_address_evidence_development_candidate_report.md); [remediation](../reports/development/stage08_address_evidence_remediation.md); [contract](stages/STAGE08_ADDRESS_EVIDENCE_PROJECTION.md) | **NOT STARTED** |
 | 9–14 proposed | Reference evidence → hypotheses → Pelias top-N → scoring → granularity/abstain | **PROPOSED — NOT STARTED** | Remaining compact replacement architecture; [architecture redesign](../reports/development/post_stage07_geocoding_architecture_redesign.md) | **NOT STARTED** |
 
 Benchmark V1 contains 35,000 DEVELOPMENT and 15,000 sealed HOLDOUT rows from
@@ -35,10 +35,12 @@ frozen validators, privacy, publication, and permissions passed for that old
 executable. Independent review nevertheless rejected reporting candidate
 `adde81d…` because a synthetic prepublication failure could leave a success
 marker and because current Stage 8/Stage 9 tool wording was stale. The repair
-at executable `bd89a03…` requires a new controlled artifact. Job `1763747`
-remains historical evidence only; it is not scientifically relabeled invalid.
-The exact next action requires separate owner authorization for one new
-controlled Stage 8 DEVELOPMENT materialization at the repaired executable SHA.
+at executable `bd89a03…` completed job `1763984` with manifest `d521240b…` and
+the same frozen logical dataset `9c9d431c…`; exact scientific reconciliation
+and repaired terminal-publication checks pass. Job `1763747` remains historical
+evidence only, is not scientifically relabeled invalid, and does not validate
+the repaired executable. The exact next action is a fresh independent Stage 8
+rereview of job `1763984` and its immutable artifact.
 The old Stages 8–19 were never started; replacement Stages 9–14 remain proposed
 and not started. Production Stage 0 and Stage 1 are accepted; production Stages
 2–7 are not started. HOLDOUT is untouched and sealed. No new Stage 8 job is

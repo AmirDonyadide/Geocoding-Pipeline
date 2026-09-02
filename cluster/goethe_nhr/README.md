@@ -36,8 +36,10 @@ policy. This is not a materializer or authoritative Stage 7 run.
 `stage07_parser_evidence_v2.sbatch` are the accepted DEVELOPMENT execution-
 provenance assets for immutable v1 parsing and the zero-parser-call evidence-
 only v2 projection. Their acceptance does not authorize reruns, production,
-HOLDOUT, Stage 8, Senzing, or geocoding. Stage 8 remains at design/
-authorization only.
+HOLDOUT, Senzing, or geocoding. The reviewed
+`stage08_address_evidence.sbatch` produced repaired DEVELOPMENT candidate job
+`1763984` at exact executable `bd89a032…`; no second Stage 8 job, production,
+HOLDOUT, Stage 9, or geocoding is authorized.
 
 All protected/heavy jobs require an exact pushed Git SHA, a clean/exact
 worktree, `SAFE_EXECUTION_SITE=goethe-nhr`, a non-empty `SLURM_JOB_ID`, owner-only

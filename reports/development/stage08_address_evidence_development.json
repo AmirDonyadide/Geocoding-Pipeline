@@ -1,21 +1,21 @@
 {
-  "report_version": "stage08_address_evidence_development_report_v1",
-  "verdict": "STAGE08_ADDRESS_EVIDENCE_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REVIEW",
-  "scope": "DEVELOPMENT_EXECUTION_EVIDENCE_ONLY",
+  "report_version": "stage08_address_evidence_development_report_v2",
+  "verdict": "STAGE08_ADDRESS_EVIDENCE_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REREVIEW",
+  "scope": "REPAIRED_DEVELOPMENT_EXECUTION_EVIDENCE_ONLY",
   "execution": {
-    "job_id": "1763747",
+    "job_id": "1763984",
     "state": "COMPLETED",
     "exit_code": "0:0",
-    "elapsed": "00:15:18",
-    "start_scheduler_time": "2026-09-01T23:53:19",
-    "end_scheduler_time": "2026-09-02T00:08:37",
-    "implementation_sha": "a2544401b4b699f6c020970f3507a2ae432746c5",
+    "elapsed": "00:15:36",
+    "start_scheduler_time": "2026-09-02T11:21:46",
+    "end_scheduler_time": "2026-09-02T11:37:22",
+    "implementation_sha": "bd89a032eb6fcf16a7515e0bd2991165d87246b1",
     "site": "goethe-nhr",
-    "output_root": "/work/footprint/donyadidegan/safe_geocoding_pipeline/derived/controlled/stage08/development/stage08_development_20260901T214936Z_a2544401b4b6"
+    "output_root": "/work/footprint/donyadidegan/safe_geocoding_pipeline/derived/controlled/stage08/development/stage08_development_20260902T080150Z_bd89a032eb6f"
   },
   "artifact_identity": {
-    "status": "STAGE08_ADDRESS_EVIDENCE_IMPLEMENTATION_CANDIDATE_MATERIALIZED",
-    "manifest_sha256": "bdf86738fb071e38b2ad090f4627a821149352fb1490e62b76e5819aa915bcf9",
+    "status": "STAGE08_ADDRESS_EVIDENCE_REPAIRED_DEVELOPMENT_CANDIDATE_MATERIALIZED",
+    "manifest_sha256": "d521240b42a40b9c1408f0f7241583bc76b7779e4107179e73fdcb7c7a69e119",
     "logical_dataset_sha256": "9c9d431c2c1b92712e0cb372f2661ad48f4fe8758dc0327d25aef90ab2c2d526"
   },
   "contract_identity": {
@@ -101,6 +101,17 @@
     "later_stage_behavior_absent": "PASS",
     "holdout_and_production_excluded": "PASS"
   },
+  "publication_state": {
+    "prepublication_reopen_completed_before_success": true,
+    "success_binds_final_manifest": true,
+    "success_manifest_sha256": "d521240b42a40b9c1408f0f7241583bc76b7779e4107179e73fdcb7c7a69e119",
+    "in_progress_absent_after_successful_transition": true,
+    "incomplete_sibling_attempt_absent": true,
+    "postpublication_reopen_validation": "PASS",
+    "atomic_publication": "PASS",
+    "owner_only_publication": "PASS",
+    "stderr_bytes": 0
+  },
   "physical_identity": {
     "candidate_shards": 26,
     "candidate_bytes": 103091918,
@@ -110,12 +121,19 @@
     "source_bytes": 4924221,
     "metadata_files": 2,
     "metadata_bytes": 25174,
+    "manifest_bytes": 19897,
+    "success_bytes": 567,
+    "directory_count": 8,
+    "file_count": 52,
+    "symlink_count": 0,
+    "output_directory_mode": "0700",
+    "all_directory_modes": "0700",
+    "all_file_modes": "0600",
+    "manifest_mode": "0600",
+    "success_mode": "0600",
     "owner_only_permissions": true,
     "atomic_publication": true,
-    "prepublication_reopen_validation": true,
-    "output_directory_mode": "0700",
-    "manifest_mode": "0600",
-    "success_mode": "0600"
+    "prepublication_reopen_validation": true
   },
   "runtime": {
     "python": "3.14.3",
@@ -126,47 +144,74 @@
     "tasks": 1,
     "cpus_per_task": 4,
     "maximum_configured_application_concurrency": 4,
-    "batch_max_rss_kib": 1759656,
-    "batch_max_vm_size_kib": 2182560
+    "batch_max_rss_kib": 1786780,
+    "batch_max_vm_size_kib": 2209224
+  },
+  "materialization_config": {
+    "input_batch_rows": 16,
+    "candidate_output_batch_rows": 32,
+    "component_batch_rows": 65536,
+    "target_batch_bytes": 134217728,
+    "candidate_shard_rows": 2048,
+    "component_shard_rows": 500000,
+    "source_shard_rows": 4096
   },
   "scheduler_accounting": {
     "partition": "general1",
-    "node": "node20-031",
+    "partition_oversubscribe": "EXCLUSIVE",
+    "node": "node22-012",
     "requested_cpus": 4,
     "req_cpus": 4,
     "alloc_cpus": 80,
     "requested_tres": "billing=4,cpu=4,mem=32G,node=1",
     "allocated_tres": "billing=80,cpu=80,mem=32G,node=1",
-    "partition_oversubscribe": "EXCLUSIVE",
-    "allocated_node_cpu_total": 80,
-    "batch_total_cpu_seconds": 948.969,
-    "elapsed_seconds": 918,
-    "average_used_core_equivalents": 1.034,
+    "elapsed_seconds": 936,
+    "batch_total_cpu_seconds": 960.208,
+    "average_used_core_equivalents": 1.026,
     "assessment": "WHOLE_NODE_EXCLUSIVE_ALLOCATION_ACCOUNTING_NOT_APPLICATION_CONCURRENCY",
-    "scientific_validity_materiality": "NOT_MATERIAL",
     "bounded_resource_behavior": "PASS",
-    "explanation": "general1 is OverSubscribe=EXCLUSIVE and node20-031 has 80 configured CPUs. SLURM therefore assigned/accounted the complete node although the job requested four CPUs. Stage 8 remained one task with cpus-per-task=4 and DuckDB threads=4; TotalCPU confirms it did not execute with 80-way application concurrency."
+    "scientific_validity_materiality": "NOT_MATERIAL"
   },
   "privacy": {
-    "row_values_in_manifest": false,
-    "protected_values_logged": false,
-    "external_services": false,
-    "holdout_access": false,
-    "production_access": false,
     "parser_calls": 0,
     "reference_lookups": 0,
     "network_calls": 0,
     "geocoder_calls": 0,
     "semantic_trust_fields": 0,
+    "holdout_access": false,
+    "production_access": false,
+    "external_services": false,
+    "row_values_in_manifest": false,
+    "protected_values_logged": false,
     "stderr_bytes": 0
+  },
+  "historical_rejected_candidate": {
+    "reporting_sha": "adde81d2237e99993222994ce56efb0d74f7c2d3",
+    "executable_sha": "a2544401b4b699f6c020970f3507a2ae432746c5",
+    "job_id": "1763747",
+    "manifest_sha256": "bdf86738fb071e38b2ad090f4627a821149352fb1490e62b76e5819aa915bcf9",
+    "logical_dataset_sha256": "9c9d431c2c1b92712e0cb372f2661ad48f4fe8758dc0327d25aef90ab2c2d526",
+    "independent_review_verdict": "STAGE08_ADDRESS_EVIDENCE_INDEPENDENT_REVIEW_FAIL",
+    "blocking_findings": [
+      "SUCCESS_MARKER_EXPOSED_BEFORE_PREPUBLICATION_REOPEN_VALIDATION",
+      "PROJECT_BRIEF_ASSIGNED_PYCOUNTRY_LIBADDRESSINPUT_TO_STAGE08"
+    ],
+    "artifact_immutable": true,
+    "eligible_to_validate_repaired_executable": false,
+    "scientific_reconciliation_preserved": true
+  },
+  "logical_dataset_comparison": {
+    "same_as_historical_job_1763747": true,
+    "shared_logical_dataset_sha256": "9c9d431c2c1b92712e0cb372f2661ad48f4fe8758dc0327d25aef90ab2c2d526",
+    "interpretation": "The publication-state remediation did not alter the frozen Stage 8 scientific dataset; the old job does not validate the repaired executable."
   },
   "scientific_interpretation": {
     "parser_evidence_is_truth": false,
     "warning_absence_is_trust": false,
     "address_validity_claim": false,
     "stage09_behavior": false,
-    "development_candidate_accepted": false,
-    "independent_review_started": false
+    "independent_rereview_started": false,
+    "development_candidate_accepted": false
   },
-  "next_action": "Begin a fresh independent Stage 8 critical-review session against this immutable artifact and exact reporting candidate; do not alter the artifact or submit another job."
+  "next_action": "FRESH INDEPENDENT STAGE 8 REREVIEW OF THIS REPAIRED CANDIDATE."
 }

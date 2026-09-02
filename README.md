@@ -24,9 +24,10 @@ query can be inspected and reproduced.
 The DEVELOPMENT pipeline is accepted through Stage 7. Stage 7 is accepted as
 reproducible parser evidence, not semantic component or geographic truth.
 The first Stage 8 candidate failed independent review. Its publication
-implementation is repaired and locally validated but requires one separately
-authorized controlled DEVELOPMENT reexecution before another candidate or
-review. Later stages have not started.
+implementation was repaired without changing Stage 8 science, and repaired
+DEVELOPMENT job `1763984` passed exact reconciliation and terminal-publication
+validation. The repaired candidate now awaits a fresh independent rereview.
+Later stages have not started.
 
 | Stage | Name | Status | Data effect |
 |---:|---|---|---|
@@ -38,7 +39,7 @@ review. Later stages have not started.
 | 5 | Address reconstruction | **`STAGE_5_ACCEPTED`** | Appends separate clean/lower standard/native line-body candidates and compact provenance |
 | 6 | Early exact deduplication | **`STAGE_6_ACCEPTED`** | Preserves 35,000 rows and maps 69,747 occurrences to 51,779 exact candidates |
 | 7 | libpostal parsing/evidence | **`STAGE_7_ACCEPTED`** | Preserves exact raw ordered parser evidence, applicability/technical provenance, warnings, and complete map-back; components remain hypotheses only |
-| 8 | Lossless address-evidence projection | **`STAGE08_ADDRESS_EVIDENCE_IMPLEMENTATION_READY_FOR_CONTROLLED_DEVELOPMENT_REEXECUTION`** | Preserves Stage 7 and adds a reversible parser-evidence index plus complete source/representation map-back; repaired SHA has no controlled artifact |
+| 8 | Lossless address-evidence projection | **`STAGE08_ADDRESS_EVIDENCE_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REREVIEW`** | Repaired job `1763984` preserves Stage 7 and adds a reversible parser-evidence index plus complete source/representation map-back; not accepted |
 | 9–14 proposed | Reference evidence, hypotheses, retrieval, scoring, and final granularity | **PROPOSED — NOT STARTED** | No design approval or execution authorization |
 
 Production Stage 0 and Stage 1 are accepted for
@@ -57,7 +58,7 @@ immutable source CSV
   -> Stage 5: separate deterministic address-line body reconstruction
   -> Stage 6: exact lowercase candidate registry + complete row map
   -> Stage 7: accepted evidence-only libpostal projection
-  -> repaired Stage 8: lossless evidence projection/index (awaiting authorized reexecution)
+  -> repaired Stage 8: lossless evidence projection/index (awaiting independent rereview)
   -> proposed Stages 9–14: references, hypotheses, query QA, retrieval, scoring
   -> self-hosted SAFE Pelias
 ```
@@ -157,14 +158,14 @@ personal absolute paths. Sanitized evidence is available under
 ## Current next action
 
 Stage 8 is
-**`STAGE08_ADDRESS_EVIDENCE_IMPLEMENTATION_READY_FOR_CONTROLLED_DEVELOPMENT_REEXECUTION`**
-at executable `bd89a032eb6fcf16a7515e0bd2991165d87246b1`. The rejected
-candidate/reporting SHA `adde81d2237e99993222994ce56efb0d74f7c2d3`, old
-executable `a2544401b4b699f6c020970f3507a2ae432746c5`, and job `1763747`
-remain immutable historical evidence; the old job cannot validate the repair.
-The exact next action requiring separate owner authorization is **AUTHORIZE ONE
-NEW CONTROLLED STAGE 8 DEVELOPMENT MATERIALIZATION AT THE NEW EXECUTABLE SHA**.
-HOLDOUT, production Stages 2–7, Stage 9, Senzing, and geocoding remain
-unauthorized. See the
+**`STAGE08_ADDRESS_EVIDENCE_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REREVIEW`**
+at executable `bd89a032eb6fcf16a7515e0bd2991165d87246b1`. Repaired job
+`1763984` binds manifest `d521240b…` and logical dataset `9c9d431c…`; all
+frozen reconciliation and repaired terminal-publication checks pass. The
+rejected candidate/reporting SHA `adde81d…`, old executable `a2544401…`, and
+job `1763747` remain immutable historical evidence and do not validate the
+repair. The exact next action is **FRESH INDEPENDENT STAGE 8 REREVIEW OF THIS
+REPAIRED CANDIDATE**. No second job, HOLDOUT, production Stages 2–7, Stage 9,
+Senzing, or geocoding is authorized. See the
 [Stage 8 design](docs/stages/STAGE08_ADDRESS_EVIDENCE_PROJECTION.md) and
 [current progress](docs/DEVELOPMENT_PROGRESS.md).

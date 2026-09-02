@@ -894,13 +894,60 @@ to change a decision or start a stage.
   authorization is: **AUTHORIZE ONE NEW CONTROLLED STAGE 8 DEVELOPMENT
   MATERIALIZATION AT THE NEW EXECUTABLE SHA.**
 
+### D042 — Freeze the repaired Stage 8 DEVELOPMENT materialization candidate
+
+- **Date:** 2026-09-02.
+- **Scope:** Sanitized repaired Stage 8 DEVELOPMENT execution reconciliation
+  and candidate freeze only; no implementation/science change, second job,
+  independent rereview, or acceptance.
+- **Decision:** Designate the single authorized repaired job `1763984` artifact
+  as the authoritative Stage 8 DEVELOPMENT candidate. Bind exact executable
+  `bd89a032eb6fcf16a7515e0bd2991165d87246b1`, output
+  `/work/footprint/donyadidegan/safe_geocoding_pipeline/derived/controlled/stage08/development/stage08_development_20260902T080150Z_bd89a032eb6f`,
+  manifest SHA-256
+  `d521240b42a40b9c1408f0f7241583bc76b7779e4107179e73fdcb7c7a69e119`,
+  and logical dataset SHA-256
+  `9c9d431c2c1b92712e0cb372f2661ad48f4fe8758dc0327d25aef90ab2c2d526`.
+  Accepted Stage 7/6 manifests remain exact `f5841087…`/`e1da7b8e…`; runtime
+  remains Python 3.14.3, PyArrow 25.0.0, and DuckDB 1.5.5.
+- **Reconciliation:** The repaired candidate contains 51,779 candidates,
+  6,106,088 ordered parser-component rows, 35,000 source rows, and 69,747
+  representation occurrences (34,822 STANDARD; 34,925 NATIVE). It preserves
+  51,774 `PARSED_NONEMPTY` and five `PARSED_EMPTY` states. All 6,106,088
+  components use the frozen mapping in this input; unmapped, dangling,
+  component-count-mismatch, and occurrence-count-mismatch totals are zero.
+  Every frozen scientific/integrity validator and reversibility check passed.
+- **Publication evidence:** Prepublication reopen validation completed while
+  `_IN_PROGRESS` remained present and `_SUCCESS.json` remained absent. The
+  final success marker binds the manifest above; `_IN_PROGRESS` is absent only
+  after successful terminal transition; no incomplete sibling remains; and
+  post-publication reopen validation passed. All eight directories are `0700`,
+  all 52 files are `0600`, no symlinks exist, atomic/owner-only publication
+  claims pass, and stderr is empty.
+- **Scientific equality to rejected history:** Repaired job `1763984` has the
+  same logical dataset SHA-256 as historical job `1763747`. This is evidence
+  that the publication-state repair did not alter the frozen Stage 8 scientific
+  dataset. It does not make old job `1763747` validation of the repaired
+  executable.
+- **Historical preservation:** Rejected reporting candidate `adde81d…`, old
+  executable `a2544401…`, job `1763747`, its immutable artifact, the independent
+  review failure, and its publication/documentation blockers remain distinct
+  historical evidence. They are neither overwritten nor relabeled accepted.
+- **Privacy and boundary:** Parser, reference, network, geocoder, and
+  semantic-trust calls/fields are zero; HOLDOUT and production access are
+  false. No second Stage 8 job, Stage 9 work, or geocoding is authorized.
+- **Status:**
+  `STAGE08_ADDRESS_EVIDENCE_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REREVIEW`.
+  This is not Stage 8 acceptance. The exact next action is **FRESH INDEPENDENT
+  STAGE 8 REREVIEW OF THIS REPAIRED CANDIDATE.**
+
 ## Open decisions
 
 These questions require future stage designs and explicit approval:
 
-- one new controlled Stage 8 DEVELOPMENT materialization at executable
-  `bd89a032eb6fcf16a7515e0bd2991165d87246b1`, followed by sanitized reporting
-  and a fresh independent critical review under D038–D041;
+- fresh independent Stage 8 rereview of repaired executable
+  `bd89a032eb6fcf16a7515e0bd2991165d87246b1`, job `1763984`, and manifest
+  `d521240b…` under D038–D042;
 - exact offline reference releases/licenses and blocking semantics;
 - the bounded Stage 10 hypothesis/query ladder;
 - Stage 13 scoring/calibration and contradiction policy; and
@@ -912,7 +959,7 @@ execution, Stage 9, geocoding, or production Stage 2 through Stage 7. Stage 7
 decisions
 D023–D036 retain their stated historical DEVELOPMENT scopes; D037 alone
 records final Stage 7 DEVELOPMENT acceptance. D038 records the prospective
-Stage 8 design boundary; D039 records the rejected implementation; D040 freezes
-its single DEVELOPMENT artifact; and D041 records rejection and bounded
-implementation remediation without granting reexecution or later-stage
-authority.
+Stage 8 design boundary; D039/D040 record the rejected implementation and its
+single historical artifact; D041 records rejection and bounded implementation
+remediation; and D042 freezes the repaired DEVELOPMENT candidate without
+granting acceptance or later-stage authority.
