@@ -213,10 +213,12 @@ scientific reconciliation passed. Independent rereview then found that a real
 rename followed by an exception could leave a reader-visible success while the
 invocation reported failure. Second repair `bdea7232…` reconciles both
 temporary and final paths by captured filesystem identity and permits adoption
-only after parent fsync plus complete final reopen validation. It has not been
-materialized or accepted. Jobs `1763747` and `1763984` remain immutable
-historical evidence for their exact executables and do not validate the new
-repair.
+only after parent fsync plus complete final reopen validation. Authorized job
+`1764219` materialized the repair with manifest `346ea27a…`, unchanged logical
+dataset `9c9d431c…`, and exact scientific and ordinary publication
+reconciliation. It is not accepted. Jobs `1763747` and `1763984` remain
+immutable historical evidence for their exact executables and do not validate
+the new repair.
 
 The Stage 8 implementation and proposed Stages 9–14 are constrained by these
 accepted principles:

@@ -27,9 +27,10 @@ The first Stage 8 candidate failed independent review. Its first publication
 repair preserved Stage 8 science, and DEVELOPMENT job `1763984` passed exact
 reconciliation for executable `bd89a032…`. Independent rereview then found a
 post-effect rename failure hole in that executable. The second bounded repair
-is ready for one separately authorized controlled DEVELOPMENT reexecution;
-jobs `1763747` and `1763984` remain historical evidence for their exact
-executables only. Later stages have not started.
+at `bdea7232…` completed DEVELOPMENT job `1764219`; exact scientific and
+publication reconciliation passed. The new candidate awaits fresh independent
+rereview. Jobs `1763747` and `1763984` remain historical evidence for their
+exact executables only. Later stages have not started.
 
 | Stage | Name | Status | Data effect |
 |---:|---|---|---|
@@ -41,7 +42,7 @@ executables only. Later stages have not started.
 | 5 | Address reconstruction | **`STAGE_5_ACCEPTED`** | Appends separate clean/lower standard/native line-body candidates and compact provenance |
 | 6 | Early exact deduplication | **`STAGE_6_ACCEPTED`** | Preserves 35,000 rows and maps 69,747 occurrences to 51,779 exact candidates |
 | 7 | libpostal parsing/evidence | **`STAGE_7_ACCEPTED`** | Preserves exact raw ordered parser evidence, applicability/technical provenance, warnings, and complete map-back; components remain hypotheses only |
-| 8 | Lossless address-evidence projection | **`STAGE08_ADDRESS_EVIDENCE_IMPLEMENTATION_READY_FOR_CONTROLLED_DEVELOPMENT_REEXECUTION`** | Second bounded publication remediation preserves the frozen scientific contract; job `1763984` is historical evidence for the preceding executable and cannot validate the new one |
+| 8 | Lossless address-evidence projection | **`STAGE08_ADDRESS_EVIDENCE_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REREVIEW`** | Job `1764219` materialized the second-remediation executable with unchanged science and exact ordinary-path publication validation; not accepted |
 | 9–14 proposed | Reference evidence, hypotheses, retrieval, scoring, and final granularity | **PROPOSED — NOT STARTED** | No design approval or execution authorization |
 
 Production Stage 0 and Stage 1 are accepted for
@@ -60,7 +61,7 @@ immutable source CSV
   -> Stage 5: separate deterministic address-line body reconstruction
   -> Stage 6: exact lowercase candidate registry + complete row map
   -> Stage 7: accepted evidence-only libpostal projection
-  -> repaired Stage 8: lossless evidence projection/index (awaiting separately authorized reexecution)
+  -> repaired Stage 8: lossless evidence projection/index (awaiting independent rereview)
   -> proposed Stages 9–14: references, hypotheses, query QA, retrieval, scoring
   -> self-hosted SAFE Pelias
 ```
@@ -160,17 +161,15 @@ personal absolute paths. Sanitized evidence is available under
 ## Current next action
 
 Stage 8 is
-**`STAGE08_ADDRESS_EVIDENCE_IMPLEMENTATION_READY_FOR_CONTROLLED_DEVELOPMENT_REEXECUTION`**
-at executable `bdea7232a3f92ebd381be87610b753b8e4c35481`. Independent
-rereview failed reporting candidate `fdf2f8c…` because executable `bd89a032…`
-could report failure after a rename had physically published a reader-visible
-success. The new state machine adopts an ambiguous post-effect rename only
-after owned-directory identity, parent fsync, and complete final reopen
-validation all pass; otherwise it demotes only the owned tree. Jobs `1763747`
-and `1763984` remain immutable historical evidence and do not validate the new
-executable. The exact next action requiring separate owner authorization is
-**AUTHORIZE EXACTLY ONE NEW CONTROLLED STAGE 8 DEVELOPMENT MATERIALIZATION AT
-THE NEW EXECUTABLE SHA.** No job, HOLDOUT, production Stages 2–7, Stage 9,
-Senzing, or geocoding is authorized by this status. See the
+**`STAGE08_ADDRESS_EVIDENCE_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REREVIEW`**
+at executable `bdea7232a3f92ebd381be87610b753b8e4c35481`, job `1764219`,
+manifest `346ea27a…`, and unchanged logical dataset `9c9d431c…`. The ordinary
+publication path passed prepublication reopen validation, parent fsync, and
+immediate final reopen validation; policy-A adoption remains synthetic fault-
+injection evidence for fresh challenge. Jobs `1763747` and `1763984` remain
+immutable historical evidence and do not validate this executable. The exact
+next action is **FRESH INDEPENDENT STAGE 8 REREVIEW OF THE BDEA7232 REPAIRED
+CANDIDATE.** No further job, HOLDOUT, production Stages 2–7, Stage 9, Senzing,
+or geocoding is authorized by this status. See the
 [Stage 8 design](docs/stages/STAGE08_ADDRESS_EVIDENCE_PROJECTION.md) and
 [current progress](docs/DEVELOPMENT_PROGRESS.md).

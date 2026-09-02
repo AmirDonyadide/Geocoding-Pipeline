@@ -1003,13 +1003,75 @@ to change a decision or start a stage.
   **AUTHORIZE EXACTLY ONE NEW CONTROLLED STAGE 8 DEVELOPMENT MATERIALIZATION AT
   THE NEW EXECUTABLE SHA.**
 
+### D044 — Freeze the second-remediation Stage 8 DEVELOPMENT candidate
+
+- **Date:** 2026-09-02.
+- **Scope:** Sanitized reconciliation and candidate freeze for the single
+  owner-authorized second-remediation Stage 8 DEVELOPMENT materialization. No
+  code/science change, second job, independent rereview, or acceptance.
+- **Decision:** Freeze job `1764219` as the current Stage 8 DEVELOPMENT
+  candidate at exact executable
+  `bdea7232a3f92ebd381be87610b753b8e4c35481`, output
+  `/work/footprint/donyadidegan/safe_geocoding_pipeline/derived/controlled/stage08/development/stage08_development_20260902T112644Z_bdea7232a3f9`,
+  manifest SHA-256
+  `346ea27ad60c1e00ef29c1126b2744f38049c1fa7d062647ab6df04e3330dee6`,
+  and logical dataset SHA-256
+  `9c9d431c2c1b92712e0cb372f2661ad48f4fe8758dc0327d25aef90ab2c2d526`.
+- **Accepted inputs:** Bind exact accepted Stage 7 manifest `f5841087…`,
+  logical identity `0f0706c1…`, contract fingerprint `c9561e6d…`, and schema
+  fingerprint `b0e0e83e…`; bind exact accepted Stage 6 manifest `e1da7b8e…`,
+  logical identity `2f6379c0…`, row-map identity `1ff9067c…`, input binding
+  `6ba224d6…`, and schema fingerprint `9c07b7a4…`.
+- **Scientific reconciliation:** The candidate contains 51,779 candidates,
+  6,106,088 ordered components, 35,000 source rows, and 69,747 occurrences
+  (34,822 STANDARD; 34,925 NATIVE). All components are mapped; dangling,
+  unmapped, component-count-mismatch, and occurrence-count-mismatch totals are
+  zero. Every frozen validation field passes. Parser, reference, network,
+  semantic-trust, HOLDOUT, and production counts/access are zero or false.
+- **Scientific identity:** Contract `8b3c530e…`, schema bundle `6c8ebecd…`,
+  label mapping `b18167d2…`, all four schema fingerprints, all four relation-
+  logical fingerprints, exact 20-label mapping, Stage 6/7 bindings, semantic
+  classes, occurrence/parser-evidence semantics, and candidate/component/
+  source/occurrence grains are unchanged.
+- **Publication evidence:** Job `1764219` followed the ordinary successful
+  path. Complete prepublication reopen validation preceded terminal success;
+  the temporary tree was ready and fsynced before atomic rename; parent fsync
+  and immediate final reopen validation passed before success returned.
+  `_SUCCESS.json` exactly binds the manifest/scientific identities,
+  `_IN_PROGRESS` is absent, no incomplete sibling remains, and stderr is
+  empty. Eight directories are `0700`, 52 files are `0600`, symlinks are zero,
+  and atomic/owner-only publication claims pass. Policy-A synthetic adoption
+  was not fault-injected in this protected run and requires fresh independent
+  challenge.
+- **Runtime/resources:** Python 3.14.3, Unicode 16.0.0, PyArrow 25.0.0, and
+  DuckDB 1.5.5; four requested CPUs, 32 GiB, DuckDB four threads/8GB, 15m10s,
+  `0:0`, and MaxRSS 1,785,464 KiB. `AllocCPUS=80` is exclusive-node allocation,
+  not application concurrency.
+- **Historical relation:** Jobs `1763747`, `1763984`, and `1764219` have the
+  same logical dataset SHA. The narrow conclusion is that the two publication
+  remediations did not alter frozen Stage 8 science. Original executable
+  `a2544401…`, first repair `bd89a032…`, both review failures, and their exact
+  blockers remain truthful history. Neither older job validates `bdea7232…`;
+  neither historical artifact is called corrupt.
+- **Local finalization:** Stage 8 focused/fault-injection tests pass 28/28,
+  relevant Stage 7 tests pass 54/54, and six runnable prior atomic-publication
+  regressions pass. Ruff, scoped format, strict source/Stage 8 mypy, shell,
+  JSON, Markdown links, diff, privacy/tracked-data, executable-blob,
+  scientific-fingerprint, report-consistency, and Git checks pass. Selected
+  Stage 4–6 publication tests stop only at the unchanged Python 3.14.3 guards
+  under local Python 3.14.7.
+- **Status:**
+  `STAGE08_ADDRESS_EVIDENCE_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REREVIEW`.
+  Stage 8 remains unaccepted. No additional job, Stage 9, HOLDOUT, production,
+  reference, parser, or geocoding authority follows. Exact next action: **FRESH
+  INDEPENDENT STAGE 8 REREVIEW OF THE BDEA7232 REPAIRED CANDIDATE.**
+
 ## Open decisions
 
 These questions require future stage designs and explicit approval:
 
-- exactly one separately authorized controlled Stage 8 DEVELOPMENT
-  materialization at executable `bdea7232a3f92ebd381be87610b753b8e4c35481`
-  under D043;
+- fresh independent Stage 8 rereview of executable `bdea7232…`, job `1764219`,
+  manifest `346ea27a…`, and policy-A recovery semantics under D043–D044;
 - exact offline reference releases/licenses and blocking semantics;
 - the bounded Stage 10 hypothesis/query ladder;
 - Stage 13 scoring/calibration and contradiction policy; and
@@ -1025,4 +1087,6 @@ Stage 8 design boundary; D039/D040 record the rejected implementation and its
 single historical artifact; D041 records rejection and bounded implementation
 remediation; D042 freezes the first repaired DEVELOPMENT candidate without
 granting acceptance or later-stage authority; and D043 records the failed
-independent rereview plus the second bounded publication remediation.
+independent rereview plus the second bounded publication remediation. D044
+freezes the resulting DEVELOPMENT candidate without granting acceptance or
+later-stage authority.

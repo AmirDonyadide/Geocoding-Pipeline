@@ -93,11 +93,14 @@ a real rename followed by an exception could leave reader-visible success while
 the invocation reported failure. The second bounded repair is executable
 `bdea7232a3f92ebd381be87610b753b8e4c35481`; it reconciles both temporary
 and final paths by captured filesystem identity and adopts final-only state
-only after parent fsync and complete independent reopen validation. Jobs
-`1763747` and `1763984` remain immutable historical evidence for their exact
-executables and cannot validate this repair. Replacement Stages 9–14 remain
-proposed. Current Stage 8 status is
-`STAGE08_ADDRESS_EVIDENCE_IMPLEMENTATION_READY_FOR_CONTROLLED_DEVELOPMENT_REEXECUTION`.
+only after parent fsync and complete independent reopen validation. Authorized
+job `1764219` then materialized executable `bdea7232…`; manifest `346ea27a…`,
+unchanged logical dataset `9c9d431c…`, every frozen validator, and the ordinary
+publication path reconciled exactly. Jobs `1763747` and `1763984` remain
+immutable historical evidence for their exact executables and cannot validate
+the new candidate. Replacement Stages 9–14 remain proposed. Current Stage 8
+status is
+`STAGE08_ADDRESS_EVIDENCE_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REREVIEW`.
 See
 [PIPELINE.md](PIPELINE.md).
 

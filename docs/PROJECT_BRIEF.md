@@ -200,10 +200,13 @@ rereview of reporting candidate `fdf2f8c…` then found a post-effect rename
 failure hole. Second repair `bdea7232a3f92ebd381be87610b753b8e4c35481`
 reconciles the actual temporary/final filesystem state and adopts an owned
 final-only publication only after parent fsync and complete final reopen
-validation. It is ready for one separately authorized controlled DEVELOPMENT
-reexecution. Jobs `1763747` and `1763984` remain immutable historical
-DEVELOPMENT evidence for their exact executables and cannot validate the new
-repair. Replacement Stages 9–14 remain proposed and not started.
+validation. Authorized DEVELOPMENT job `1764219` then published manifest
+`346ea27a…` and the unchanged logical dataset `9c9d431c…`; every frozen
+scientific validator and ordinary-path publication check passed. The candidate
+awaits fresh independent rereview. Jobs `1763747` and `1763984` remain
+immutable historical DEVELOPMENT evidence for their exact executables and
+cannot validate the new repair. Replacement Stages 9–14 remain proposed and
+not started.
 Production Stage 0 and Stage 1 are accepted; production Stages 2–7 are not
 started. The detailed stage contracts and acceptance requirements are in
 [PIPELINE.md](PIPELINE.md). HOLDOUT remains untouched and sealed.
@@ -259,11 +262,11 @@ Durable decisions are in [DECISIONS.md](DECISIONS.md); current status is in
 ## 11. Current next action
 
 Stage 8 is
-`STAGE08_ADDRESS_EVIDENCE_IMPLEMENTATION_READY_FOR_CONTROLLED_DEVELOPMENT_REEXECUTION`
-at executable `bdea7232a3f92ebd381be87610b753b8e4c35481`. Job `1763984` and
-manifest `d521240b42a40b9c1408f0f7241583bc76b7779e4107179e73fdcb7c7a69e119`
-remain historical evidence for executable `bd89a032…`; Stage 8 is not
-accepted. The exact next action requiring separate owner authorization is:
-**AUTHORIZE EXACTLY ONE NEW CONTROLLED STAGE 8 DEVELOPMENT MATERIALIZATION AT
-THE NEW EXECUTABLE SHA.** No Stage 8 job, production Stage 2 through Stage 7,
-HOLDOUT, Stage 9, Senzing, or geocoding is authorized by this status.
+`STAGE08_ADDRESS_EVIDENCE_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REREVIEW`
+at executable `bdea7232a3f92ebd381be87610b753b8e4c35481`, job `1764219`, and
+manifest `346ea27ad60c1e00ef29c1126b2744f38049c1fa7d062647ab6df04e3330dee6`.
+Jobs `1763747` and `1763984` remain historical evidence for their earlier
+executables; Stage 8 is not accepted. The exact next action is: **FRESH
+INDEPENDENT STAGE 8 REREVIEW OF THE BDEA7232 REPAIRED CANDIDATE.** No further
+Stage 8 job, production Stage 2 through Stage 7, HOLDOUT, Stage 9, Senzing, or
+geocoding is authorized by this status.

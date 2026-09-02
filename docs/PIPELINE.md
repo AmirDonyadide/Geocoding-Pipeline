@@ -48,10 +48,12 @@ then failed reporting candidate `fdf2f8c…` because a rename could take effect
 and subsequently raise before Python-side state changed, leaving a successful
 final tree while reporting failure. Second repair executable `bdea7232…`
 reconciles both paths by captured filesystem identity and adopts final-only
-state only after parent fsync plus complete published reopen validation. It is
-ready for one separately authorized controlled DEVELOPMENT reexecution, not
-acceptance. Jobs `1763747` and `1763984` remain immutable historical evidence
-for their exact executables and cannot validate the new repair.
+state only after parent fsync plus complete published reopen validation.
+Authorized job `1764219` published manifest `346ea27a…` and the unchanged
+logical dataset `9c9d431c…`; all frozen validators and ordinary-path
+publication checks passed. The candidate awaits fresh independent rereview,
+not acceptance. Jobs `1763747` and `1763984` remain immutable historical
+evidence for their exact executables and cannot validate the new repair.
 Production Stage 0 and Stage 1 are accepted for the 1,411-file population;
 production Stage 2 through Stage 6 have not started. The old Stages 8–19 have
 not started. The first compact replacement Stage 8 DEVELOPMENT candidate is
@@ -89,8 +91,8 @@ Production Stage 7 has not started.
 11 query identity/QA -> 12 Pelias top-N -> 13 scoring -> 14 granularity/abstain
 ```
 
-Stage 8 now has a second repaired implementation awaiting separately authorized
-controlled DEVELOPMENT reexecution. Stages 9–14 are still a proposed
+Stage 8 now has a second-remediation DEVELOPMENT candidate awaiting fresh
+independent rereview. Stages 9–14 are still a proposed
 replacement, not an accepted
 execution order. Every stage still
 requires its own design, owner
@@ -299,19 +301,22 @@ mapping are in the
   complete known/unmapped-label retention, complete map-back, deterministic
   fingerprints, bounded memory, privacy, and zero semantic-trust claims.
 - **Status:**
-  **`STAGE08_ADDRESS_EVIDENCE_IMPLEMENTATION_READY_FOR_CONTROLLED_DEVELOPMENT_REEXECUTION`**.
+  **`STAGE08_ADDRESS_EVIDENCE_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REREVIEW`**.
   Job `1763747` completed at old executable
   `a2544401b4b699f6c020970f3507a2ae432746c5` and remains immutable historical
   evidence after independent-review failure. Publication repair executable
   `bd89a032eb6fcf16a7515e0bd2991165d87246b1` completed repaired job `1763984`
   with manifest `d521240b…` and exact reconciliation, but independent rereview
-  found the post-effect rename hole. Second repair `bdea7232…` requires a new
-  controlled materialization before another review. See the
+  found the post-effect rename hole. Second repair `bdea7232…` completed
+  authorized job `1764219` with manifest `346ea27a…`, unchanged logical
+  dataset `9c9d431c…`, and exact ordinary-path publication reconciliation. See the
   [Stage 8 record](stages/STAGE08_ADDRESS_EVIDENCE_PROJECTION.md), sanitized
   [execution report](../reports/development/stage08_address_evidence_development.md), and
   [remediation report](../reports/development/stage08_address_evidence_remediation.md).
   The [second publication-remediation report](../reports/development/stage08_address_evidence_publication_remediation_v2.md)
-  records the complete crash-consistency audit and new readiness boundary.
+  records the complete crash-consistency audit. The
+  [new candidate report](../reports/development/stage08_address_evidence_publication_remediation_v2_candidate_report.md)
+  freezes job `1764219`. Fresh independent rereview is the only next action.
 
 ### Stage 9 — Offline geographic reference evidence
 

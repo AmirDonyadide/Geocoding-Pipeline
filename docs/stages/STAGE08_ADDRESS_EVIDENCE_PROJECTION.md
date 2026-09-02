@@ -2,7 +2,7 @@
 
 ## Status and authority
 
-**`STAGE08_ADDRESS_EVIDENCE_IMPLEMENTATION_READY_FOR_CONTROLLED_DEVELOPMENT_REEXECUTION`.**
+**`STAGE08_ADDRESS_EVIDENCE_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REREVIEW`.**
 
 This remains the controlling scientific contract for Stage 8 DEVELOPMENT. The
 first implementation at Git commit
@@ -21,10 +21,14 @@ rereview then failed reporting candidate
 effect and then raise before Python-side publication-tree state changed,
 leaving a reader-visible successful final artifact while the invocation
 reported failure. The second bounded repair is executable
-`bdea7232a3f92ebd381be87610b753b8e4c35481`. It is ready for one
-separately authorized controlled DEVELOPMENT reexecution and is not accepted.
-This status does not itself authorize that job, production, HOLDOUT access,
-Stage 9, geocoding, Pelias, Senzing, DeepParse, or any external address service.
+`bdea7232a3f92ebd381be87610b753b8e4c35481`. Authorized DEVELOPMENT job
+`1764219` published manifest
+`346ea27ad60c1e00ef29c1126b2744f38049c1fa7d062647ab6df04e3330dee6`
+and the unchanged logical dataset `9c9d431c…`; exact scientific reconciliation
+and the ordinary successful publication path passed. The candidate awaits
+fresh independent rereview and is not accepted. This status does not authorize
+another job, production, HOLDOUT access, Stage 9, geocoding, Pelias, Senzing,
+DeepParse, or any external address service.
 
 The design is based on accepted Stage 7 candidate
 `656a16d3d1f33cb152ace557c26f42df047bc7d6`, its acceptance merge
@@ -61,6 +65,48 @@ records the complete crash-consistency audit. The
 [first remediation report](../../reports/development/stage08_address_evidence_remediation.md)
 and original [implementation report](../../reports/development/stage08_address_evidence_implementation.md)
 remain historical evidence for their exact executables.
+
+## Authoritative second-remediation DEVELOPMENT candidate
+
+Job `1764219` completed `0:0` in 15m10s from the exact clean detached
+executable `bdea7232a3f92ebd381be87610b753b8e4c35481`. Its immutable output
+is
+`/work/footprint/donyadidegan/safe_geocoding_pipeline/derived/controlled/stage08/development/stage08_development_20260902T112644Z_bdea7232a3f9`.
+The success marker binds manifest SHA-256
+`346ea27ad60c1e00ef29c1126b2744f38049c1fa7d062647ab6df04e3330dee6`
+and logical dataset SHA-256
+`9c9d431c2c1b92712e0cb372f2661ad48f4fe8758dc0327d25aef90ab2c2d526`.
+
+The artifact contains 51,779 candidates, 6,106,088 ordered component rows,
+35,000 source rows, and 69,747 occurrences (34,822 STANDARD; 34,925 NATIVE).
+All 6,106,088 components are mapped; dangling components, unmapped components,
+component-count mismatches, and occurrence-count mismatches are zero. Every
+frozen preservation, reversibility, identity, provenance, warning, privacy,
+and later-stage-exclusion validator passed. Contract, schema, mapping, and all
+four relation-logical fingerprints exactly match the preceding scientific
+projection.
+
+The accepted input manifests remain exact Stage 7 `f5841087…` and Stage 6
+`e1da7b8…`. Runtime identities are Python 3.14.3, Unicode 16.0.0, PyArrow
+25.0.0, and DuckDB 1.5.5. Parser, reference, network, and semantic-trust counts
+are zero; HOLDOUT and production access are false.
+
+The job followed the ordinary successful publication path. Complete
+prepublication reopen validation ran before terminal success; the temporary
+tree was ready and fsynced before atomic rename; parent-directory fsync and
+immediate final reopen validation passed before the CLI returned success.
+`_SUCCESS.json` exactly binds the manifest and scientific identities;
+`_IN_PROGRESS` is absent; no incomplete sibling remains; and stderr is empty.
+All eight directories are `0700`, all 52 files are `0600`, no symlink exists,
+and atomic/owner-only publication claims pass.
+
+Policy-A post-effect rename adoption was not fault-injected during this
+protected execution. Its real-rename-then-raise behavior remains synthetic
+local evidence that must be challenged again during independent rereview. The
+sanitized [execution report](../../reports/development/stage08_address_evidence_publication_remediation_v2_development.md)
+and [candidate report](../../reports/development/stage08_address_evidence_publication_remediation_v2_candidate_report.md)
+freeze the complete aggregate, topology, scheduler, input-binding,
+publication, and historical evidence.
 
 ## Historical first-repair DEVELOPMENT evidence
 
@@ -990,10 +1036,9 @@ mechanical parser-evidence index. Country-format/ISO lookup metadata moves to
 Stage 9; hypotheses remain Stage 10. No broader renumbering is required.
 
 Verdict:
-`STAGE08_ADDRESS_EVIDENCE_IMPLEMENTATION_READY_FOR_CONTROLLED_DEVELOPMENT_REEXECUTION`.
+`STAGE08_ADDRESS_EVIDENCE_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REREVIEW`.
 
-Exact next action requiring separate owner authorization: **AUTHORIZE EXACTLY
-ONE NEW CONTROLLED STAGE 8 DEVELOPMENT MATERIALIZATION AT THE NEW EXECUTABLE
-SHA.** Do not submit it without that authorization, alter jobs `1763747` or
-`1763984` or their artifacts, start Stage 9, or treat implementation readiness
-as acceptance.
+Exact next action: **FRESH INDEPENDENT STAGE 8 REREVIEW OF THE BDEA7232
+REPAIRED CANDIDATE.** Do not submit another job, alter jobs `1763747`,
+`1763984`, or `1764219` or their artifacts, start Stage 9, or treat candidate
+readiness as acceptance.

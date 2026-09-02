@@ -39,10 +39,11 @@ only v2 projection. Their acceptance does not authorize reruns, production,
 HOLDOUT, Senzing, or geocoding. The reviewed
 `stage08_address_evidence.sbatch` produced DEVELOPMENT job `1763984` at exact
 executable `bd89a032…`. Independent rereview later found a post-effect rename
-failure hole; second repair executable `bdea7232…` has not been run. Job
-`1763984` remains historical evidence only. No new Stage 8 job, production,
-HOLDOUT, Stage 9, or geocoding is authorized without the required separate
-owner authorization.
+failure hole. Second repair executable `bdea7232…` completed exactly one
+authorized DEVELOPMENT materialization as job `1764219`; its frozen candidate
+awaits independent rereview. Jobs `1763747` and `1763984` remain historical
+evidence only. No further Stage 8 job, production, HOLDOUT, Stage 9, or
+geocoding is authorized.
 
 All protected/heavy jobs require an exact pushed Git SHA, a clean/exact
 worktree, `SAFE_EXECUTION_SITE=goethe-nhr`, a non-empty `SLURM_JOB_ID`, owner-only
