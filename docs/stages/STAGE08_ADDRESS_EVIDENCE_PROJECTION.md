@@ -2,7 +2,7 @@
 
 ## Status and authority
 
-**`STAGE08_ADDRESS_EVIDENCE_IMPLEMENTATION_READY_FOR_CONTROLLED_DEVELOPMENT_REEXECUTION`.**
+**`STAGE08_ADDRESS_EVIDENCE_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REREVIEW`.**
 
 This remains the controlling scientific contract for Stage 8 DEVELOPMENT. The
 first implementation at Git commit
@@ -34,8 +34,12 @@ and policy-A adoption did not recheck final-path ownership after parent fsync
 and complete final reopen validation. The third bounded repair is executable
 `c04cb97214a9f1e5d2b80512c756400321eefa80`. It separates publication from
 presentation status and makes the final no-follow device/inode ownership check
-the last rejection-capable publication operation. No controlled artifact
-exists for this executable. This status does not authorize a job, production,
+the last rejection-capable publication operation. Authorized DEVELOPMENT job
+`1764273` published manifest
+`2a50bd8c066552c9cb7505ed2d6071f1ee36161b9a2cc07f3ed364cf00237827`,
+the unchanged logical dataset `9c9d431c…`, and exact scientific and v3
+terminal reconciliation. The candidate awaits fresh independent rereview and
+is not accepted. This status does not authorize another job, production,
 HOLDOUT access, Stage 9, geocoding, Pelias, Senzing, DeepParse, or any external
 address service.
 
@@ -95,6 +99,58 @@ records the complete 19-step publication/CLI state machine. The
 [first remediation report](../../reports/development/stage08_address_evidence_remediation.md)
 and original [implementation report](../../reports/development/stage08_address_evidence_implementation.md)
 remain historical evidence for their exact executables.
+
+## Authoritative third-remediation DEVELOPMENT candidate
+
+Job `1764273` completed `0:0` in 16m08s from the exact clean detached
+executable `c04cb97214a9f1e5d2b80512c756400321eefa80`. Its immutable output
+is
+`/work/footprint/donyadidegan/safe_geocoding_pipeline/derived/controlled/stage08/development/stage08_development_20260902T132726Z_c04cb97214a9`.
+The success marker binds manifest SHA-256
+`2a50bd8c066552c9cb7505ed2d6071f1ee36161b9a2cc07f3ed364cf00237827`
+and logical dataset SHA-256
+`9c9d431c2c1b92712e0cb372f2661ad48f4fe8758dc0327d25aef90ab2c2d526`.
+The final no-follow filesystem identity is
+`(st_dev, st_ino) = (54, 9363000937145638642)`.
+
+The artifact contains 51,779 candidates, 6,106,088 ordered component rows,
+35,000 source rows, and 69,747 occurrences (34,822 STANDARD; 34,925 NATIVE).
+All components are mapped; dangling components, unmapped components,
+component-count mismatches, and occurrence-count mismatches are zero. Every
+frozen preservation, reversibility, identity, provenance, warning, privacy,
+and later-stage-exclusion validator passed. Contract, schema, mapping, all four
+relation-logical fingerprints, and all four relation-schema fingerprints
+remain exact.
+
+This controlled protected execution followed the **ORDINARY successful
+path**. Synthetic faults were not injected. Complete prepublication rejection-
+capable validation and temporary-tree durability preceded terminal marker
+transition and atomic rename. Parent-directory fsync, complete final reopen
+validation, outcome construction, and `umask` restoration then preceded the
+final no-follow ownership verification. That ownership gate passed, was the
+last rejection-capable publication operation, and bound the return to the
+reported final identity.
+
+`_SUCCESS.json` exactly binds the manifest and scientific identities;
+`_IN_PROGRESS` is absent; no incomplete sibling remains; stderr is empty. All
+eight directories are `0700`, all 52 files are `0600`, symlinks are zero, and
+atomic and owner-only publication claims pass. Parser, reference, network,
+geocoder/external-service, and semantic-trust counts are zero; HOLDOUT and
+production access are false.
+
+The runtime is Python 3.14.3, Unicode 16.0.0, PyArrow 25.0.0, and DuckDB 1.5.5.
+The launcher requested four CPUs and 32 GiB; DuckDB used four threads and an
+8GB cap. Scheduler `AllocCPUS=80` is supported as exclusive-node allocation by
+`general1 OverSubscribe=EXCLUSIVE` and the assigned 80-CPU node; it is not
+application concurrency.
+
+The sanitized
+[execution report](../../reports/development/stage08_address_evidence_publication_remediation_v3_development.md)
+and [candidate report](../../reports/development/stage08_address_evidence_publication_remediation_v3_candidate_report.md)
+freeze the complete aggregate, topology, scheduler, input-binding,
+publication-terminal, and historical evidence. Post-commit reporting faults,
+real-rename-then-raise, and identity-replacement faults remain synthetic local
+evidence requiring fresh independent challenge.
 
 ## Historical second-remediation DEVELOPMENT candidate
 
@@ -976,13 +1032,13 @@ Stage 8 makes no semantic address claim. The fixed-500 identities may be used
 only for machine lineage/reconstruction equality, not for opening or relabeling
 protected values in this stage.
 
-Historical jobs `1763747`, `1763984`, and `1764219` completed this machine-
-validation plan for their exact executables. All listed
-counts, exact-input preservation, nested/long reversibility, map-back,
+Historical jobs `1763747`, `1763984`, and `1764219` and current candidate job
+`1764273` completed this machine-validation plan for their exact executables.
+All listed counts, exact-input preservation, nested/long reversibility, map-back,
 fingerprint, permission, privacy, resource, and zero-call requirements passed.
 Independent review nevertheless found terminal-publication defects in each
-executable lineage. None of that evidence validates `c04cb972…`; a new exact
-controlled materialization requires separate authorization.
+earlier executable lineage. Job `1764273` validates only `c04cb972…` and now
+requires fresh independent rereview; it grants no Stage 8 acceptance.
 
 ## Independent-review plan
 
@@ -1016,7 +1072,7 @@ Stage 8 DEVELOPMENT may become `STAGE_8_ACCEPTED` only when all are true:
 
 1. implementation matches this exact purpose and boundary;
 2. all frozen identities and fingerprints are present and exact;
-3. all three schemas, field semantic classes, status vocabularies, mapping,
+3. all four relation schemas, field semantic classes, status vocabularies, mapping,
    ordering, and null semantics pass;
 4. complete candidate/component/source/occurrence totality and exact upstream
    preservation pass;
@@ -1076,9 +1132,9 @@ mechanical parser-evidence index. Country-format/ISO lookup metadata moves to
 Stage 9; hypotheses remain Stage 10. No broader renumbering is required.
 
 Verdict:
-`STAGE08_ADDRESS_EVIDENCE_IMPLEMENTATION_READY_FOR_CONTROLLED_DEVELOPMENT_REEXECUTION`.
+`STAGE08_ADDRESS_EVIDENCE_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REREVIEW`.
 
-Exact next action: **AUTHORIZE EXACTLY ONE NEW CONTROLLED STAGE 8 DEVELOPMENT
-MATERIALIZATION AT THE NEW EXECUTABLE SHA.** Do not submit that job in this
-session, alter jobs `1763747`, `1763984`, or `1764219` or their artifacts,
-start Stage 9, or treat implementation readiness as acceptance.
+Exact next action: **FRESH INDEPENDENT STAGE 8 REREVIEW OF THE C04CB972
+REPAIRED CANDIDATE.** Do not submit another job, alter jobs `1763747`,
+`1763984`, `1764219`, or `1764273` or their artifacts, start Stage 9, or treat
+candidate readiness as acceptance.

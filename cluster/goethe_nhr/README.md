@@ -42,11 +42,11 @@ executable `bd89a032…`. Independent rereview later found a post-effect rename
 failure hole. Second repair executable `bdea7232…` completed exactly one
 authorized DEVELOPMENT materialization as job `1764219`; its frozen candidate
 then failed independent rereview on post-commit CLI status and missing final
-ownership recheck. Third repair executable `c04cb972…` is locally ready but not
-executed. Jobs `1763747`, `1763984`, and `1764219` remain historical evidence
-only. No further Stage 8 job, production, HOLDOUT, Stage 9, or geocoding is
-authorized without the exact separate authorization recorded in the Stage 8
-contract.
+ownership recheck. Third repair executable `c04cb972…` subsequently completed
+exactly one authorized DEVELOPMENT materialization as job `1764273`; its
+frozen candidate awaits independent rereview. Jobs `1763747`, `1763984`, and
+`1764219` remain historical evidence only. No further Stage 8 job, production,
+HOLDOUT, Stage 9, or geocoding is authorized.
 
 All protected/heavy jobs require an exact pushed Git SHA, a clean/exact
 worktree, `SAFE_EXECUTION_SITE=goethe-nhr`, a non-empty `SLURM_JOB_ID`, owner-only

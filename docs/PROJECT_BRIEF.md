@@ -173,8 +173,8 @@ The accepted sequence through Stage 7 and proposed replacement sequence are:
 5. address reconstruction;
 6. early exact deduplication;
 7. evidence-only libpostal parsing/projection;
-8. lossless address-evidence projection in a third bounded terminal-status and
-   ownership remediation after failed independent rereview;
+8. lossless address-evidence projection at a third-remediation DEVELOPMENT
+   candidate awaiting independent rereview;
 9. proposed offline geographic reference evidence;
 10. proposed multi-hypothesis query-plan generation;
 11. proposed global query identity/deduplication/workload QA;
@@ -207,8 +207,10 @@ then failed independent rereview on post-commit CLI status and a missing final
 ownership recheck after parent fsync/validation. Third repair executable
 `c04cb972…` closes only those terminal defects. Jobs `1763747`, `1763984`, and
 `1764219` remain immutable historical DEVELOPMENT evidence for their exact
-executables and cannot validate the new repair. Replacement Stages 9–14 remain
-proposed and not started.
+executables and cannot validate the new repair. Authorized job `1764273`
+published manifest `2a50bd8c…`, the unchanged logical dataset `9c9d431c…`,
+and exact scientific and v3 publication-terminal reconciliation. Replacement
+Stages 9–14 remain proposed and not started.
 Production Stage 0 and Stage 1 are accepted; production Stages 2–7 are not
 started. The detailed stage contracts and acceptance requirements are in
 [PIPELINE.md](PIPELINE.md). HOLDOUT remains untouched and sealed.
@@ -264,10 +266,10 @@ Durable decisions are in [DECISIONS.md](DECISIONS.md); current status is in
 ## 11. Current next action
 
 Stage 8 is
-`STAGE08_ADDRESS_EVIDENCE_IMPLEMENTATION_READY_FOR_CONTROLLED_DEVELOPMENT_REEXECUTION`
-at executable `c04cb97214a9f1e5d2b80512c756400321eefa80`. Jobs `1763747`,
-`1763984`, and `1764219` remain historical evidence for their earlier
-executables; Stage 8 is not accepted. The exact next action is: **AUTHORIZE
-EXACTLY ONE NEW CONTROLLED STAGE 8 DEVELOPMENT MATERIALIZATION AT THE NEW
-EXECUTABLE SHA.** No Stage 8 job, production Stage 2 through Stage 7, HOLDOUT,
-Stage 9, Senzing, or geocoding is authorized by this status.
+`STAGE08_ADDRESS_EVIDENCE_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REREVIEW`
+at executable `c04cb97214a9f1e5d2b80512c756400321eefa80`, job `1764273`, and
+manifest `2a50bd8c…`. Jobs `1763747`, `1763984`, and `1764219` remain
+historical evidence for their earlier executables; Stage 8 is not accepted.
+The exact next action is: **FRESH INDEPENDENT STAGE 8 REREVIEW OF THE C04CB972
+REPAIRED CANDIDATE.** No further Stage 8 job, production Stage 2 through Stage
+7, HOLDOUT, Stage 9, Senzing, or geocoding is authorized by this status.

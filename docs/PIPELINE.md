@@ -55,14 +55,17 @@ publication checks passed. Independent rereview then failed candidate
 `70e3de95…` because a post-commit stdout exception produced a nonzero exit and
 because policy-A ownership was not rechecked after parent fsync/final reopen.
 Third repair executable `c04cb972…` separates publication and presentation
-status and ends publication with a final no-follow identity check. Jobs
-`1763747`, `1763984`, and `1764219` remain immutable historical evidence for
-their exact executables and cannot validate the new repair.
+status and ends publication with a final no-follow identity check. Authorized
+job `1764273` published manifest `2a50bd8c…` and the unchanged logical dataset
+`9c9d431c…`; every frozen scientific and v3 terminal-publication check passed.
+Jobs `1763747`, `1763984`, and `1764219` remain immutable historical evidence for
+their exact executables and cannot validate the new candidate.
 Production Stage 0 and Stage 1 are accepted for the 1,411-file population;
 production Stage 2 through Stage 6 have not started. The old Stages 8–19 have
-not started. The first compact replacement Stage 8 DEVELOPMENT candidate is
-rejected and immutable; its repaired implementation has not been
-rematerialized. Replacement Stages 9–14 remain proposed and not started.
+not started. The first three compact replacement Stage 8 DEVELOPMENT
+candidates remain rejected and immutable; the third-remediation candidate is
+materialized and awaiting independent rereview. Replacement Stages 9–14 remain
+proposed and not started.
 Production Stage 7 has not started.
 
 ## Cross-stage scientific rules
@@ -95,9 +98,9 @@ Production Stage 7 has not started.
 11 query identity/QA -> 12 Pelias top-N -> 13 scoring -> 14 granularity/abstain
 ```
 
-Stage 8 now has a third-remediation implementation awaiting separately
-authorized controlled DEVELOPMENT materialization. Stages 9–14 are still a
-proposed replacement, not an accepted
+Stage 8 now has a third-remediation DEVELOPMENT candidate awaiting fresh
+independent rereview. Stages 9–14 are still a proposed replacement, not an
+accepted
 execution order. Every stage still
 requires its own design, owner
 authorization, DEVELOPMENT evidence, independent review, acceptance, and stop
@@ -281,9 +284,9 @@ acceptance gate remains in force.
 
 This compact evidence-first architecture separates source truth,
 parser/reference evidence, hypotheses, geocoder results, and the final accepted
-match. The first Stage 8 candidate is rejected; its repaired successor has been
-materialized but has not been independently rereviewed or accepted;
-Stages 9–14 remain
+match. The first three Stage 8 candidates are rejected. The third-remediation
+candidate from job `1764273` has been materialized and frozen, but it has not
+been independently rereviewed or accepted. Stages 9–14 remain
 **PROPOSED — NOT STARTED**. Full responsibilities, tool choices, and legacy
 mapping are in the
 [architecture redesign report](../reports/development/post_stage07_geocoding_architecture_redesign.md).
@@ -305,7 +308,7 @@ mapping are in the
   complete known/unmapped-label retention, complete map-back, deterministic
   fingerprints, bounded memory, privacy, and zero semantic-trust claims.
 - **Status:**
-  **`STAGE08_ADDRESS_EVIDENCE_IMPLEMENTATION_READY_FOR_CONTROLLED_DEVELOPMENT_REEXECUTION`**.
+  **`STAGE08_ADDRESS_EVIDENCE_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REREVIEW`**.
   Job `1763747` completed at old executable
   `a2544401b4b699f6c020970f3507a2ae432746c5` and remains immutable historical
   evidence after independent-review failure. Publication repair executable
@@ -316,17 +319,22 @@ mapping are in the
   dataset `9c9d431c…`, and exact ordinary-path publication reconciliation, but
   independent rereview found the post-commit CLI-status and missing final-
   ownership-recheck defects. Third repair executable `c04cb972…` closes only
-  those terminal defects; no artifact exists for it. See the
+  those terminal defects. Authorized job `1764273` published manifest
+  `2a50bd8c…`, the unchanged logical dataset `9c9d431c…`, and exact scientific
+  and v3 terminal-publication reconciliation. See the
   [Stage 8 record](stages/STAGE08_ADDRESS_EVIDENCE_PROJECTION.md), sanitized
-  [execution report](../reports/development/stage08_address_evidence_development.md), and
-  [remediation report](../reports/development/stage08_address_evidence_remediation.md).
+  [historical first execution report](../reports/development/stage08_address_evidence_development.md),
+  and [first remediation report](../reports/development/stage08_address_evidence_remediation.md).
   The [second publication-remediation report](../reports/development/stage08_address_evidence_publication_remediation_v2.md)
   records the complete crash-consistency audit. The
-  [new candidate report](../reports/development/stage08_address_evidence_publication_remediation_v2_candidate_report.md)
+  [second-remediation candidate report](../reports/development/stage08_address_evidence_publication_remediation_v2_candidate_report.md)
   freezes historical job `1764219`. The
   [third remediation report](../reports/development/stage08_address_evidence_publication_remediation_v3.md)
-  records the new terminal contract. Exactly one new controlled DEVELOPMENT
-  materialization requires separate authorization and is the only next action.
+  records the new terminal contract. The
+  [v3 execution report](../reports/development/stage08_address_evidence_publication_remediation_v3_development.md)
+  records job `1764273`, and the
+  [v3 candidate report](../reports/development/stage08_address_evidence_publication_remediation_v3_candidate_report.md)
+  freezes job `1764273`. Fresh independent rereview is the only next action.
 
 ### Stage 9 — Offline geographic reference evidence
 
