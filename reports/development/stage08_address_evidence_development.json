@@ -14,7 +14,7 @@
     "output_root": "/work/footprint/donyadidegan/safe_geocoding_pipeline/derived/controlled/stage08/development/stage08_development_20260902T080150Z_bd89a032eb6f"
   },
   "artifact_identity": {
-    "status": "STAGE08_ADDRESS_EVIDENCE_REPAIRED_DEVELOPMENT_CANDIDATE_MATERIALIZED",
+    "status": "STAGE08_ADDRESS_EVIDENCE_IMPLEMENTATION_CANDIDATE_MATERIALIZED",
     "manifest_sha256": "d521240b42a40b9c1408f0f7241583bc76b7779e4107179e73fdcb7c7a69e119",
     "logical_dataset_sha256": "9c9d431c2c1b92712e0cb372f2661ad48f4fe8758dc0327d25aef90ab2c2d526"
   },
