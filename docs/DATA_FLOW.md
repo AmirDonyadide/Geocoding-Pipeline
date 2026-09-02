@@ -54,7 +54,7 @@ Stage 7: libpostal parser evidence (accepted on DEVELOPMENT)
   + complete occurrence map-back; no semantic/geographic truth guarantee
         |
         v
-Stage 8 repaired DEVELOPMENT candidate awaiting independent rereview
+Stage 8 third-remediation implementation awaiting authorized rematerialization
   exact Stage 7 candidate evidence + ordered long-form parser-evidence index
   + source-candidate map + deterministic STANDARD/NATIVE occurrence view
         |
@@ -216,7 +216,11 @@ temporary and final paths by captured filesystem identity and permits adoption
 only after parent fsync plus complete final reopen validation. Authorized job
 `1764219` materialized the repair with manifest `346ea27a…`, unchanged logical
 dataset `9c9d431c…`, and exact scientific and ordinary publication
-reconciliation. It is not accepted. Jobs `1763747` and `1763984` remain
+reconciliation. Independent rereview then failed it because post-commit stdout
+failure produced a failure exit and policy-A ownership was not rechecked after
+parent fsync/final validation. Third repair `c04cb972…` separates publication
+and presentation status and adds the terminal no-follow ownership check. It is
+not executed or accepted. Jobs `1763747`, `1763984`, and `1764219` remain
 immutable historical evidence for their exact executables and do not validate
 the new repair.
 

@@ -96,11 +96,16 @@ and final paths by captured filesystem identity and adopts final-only state
 only after parent fsync and complete independent reopen validation. Authorized
 job `1764219` then materialized executable `bdea7232…`; manifest `346ea27a…`,
 unchanged logical dataset `9c9d431c…`, every frozen validator, and the ordinary
-publication path reconciled exactly. Jobs `1763747` and `1763984` remain
-immutable historical evidence for their exact executables and cannot validate
-the new candidate. Replacement Stages 9–14 remain proposed. Current Stage 8
-status is
-`STAGE08_ADDRESS_EVIDENCE_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REREVIEW`.
+publication path reconciled exactly. Independent rereview then failed candidate
+`70e3de95…`: post-commit stdout failure produced a failure exit, and policy-A
+ownership was not rechecked after parent fsync/final validation. Third repair
+executable `c04cb97214a9f1e5d2b80512c756400321eefa80` separates publication
+from presentation status and makes a final no-follow identity verification the
+last rejection-capable publication operation. Jobs `1763747`, `1763984`, and
+`1764219` remain immutable historical evidence for their exact executables and
+cannot validate the new executable. Replacement Stages 9–14 remain proposed.
+Current Stage 8 status is
+`STAGE08_ADDRESS_EVIDENCE_IMPLEMENTATION_READY_FOR_CONTROLLED_DEVELOPMENT_REEXECUTION`.
 See
 [PIPELINE.md](PIPELINE.md).
 

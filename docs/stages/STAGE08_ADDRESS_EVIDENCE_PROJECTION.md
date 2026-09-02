@@ -2,7 +2,7 @@
 
 ## Status and authority
 
-**`STAGE08_ADDRESS_EVIDENCE_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REREVIEW`.**
+**`STAGE08_ADDRESS_EVIDENCE_IMPLEMENTATION_READY_FOR_CONTROLLED_DEVELOPMENT_REEXECUTION`.**
 
 This remains the controlling scientific contract for Stage 8 DEVELOPMENT. The
 first implementation at Git commit
@@ -25,10 +25,19 @@ reported failure. The second bounded repair is executable
 `1764219` published manifest
 `346ea27ad60c1e00ef29c1126b2744f38049c1fa7d062647ab6df04e3330dee6`
 and the unchanged logical dataset `9c9d431c…`; exact scientific reconciliation
-and the ordinary successful publication path passed. The candidate awaits
-fresh independent rereview and is not accepted. This status does not authorize
-another job, production, HOLDOUT access, Stage 9, geocoding, Pelias, Senzing,
-DeepParse, or any external address service.
+and the ordinary successful publication path passed. At that point the
+candidate awaited fresh independent rereview and was not accepted. That
+independent rereview then
+failed exact reporting candidate `70e3de9536aee7074e27018d39e0164f3a2200ae`:
+a stdout `OSError` after committed materialization made the CLI exit nonzero,
+and policy-A adoption did not recheck final-path ownership after parent fsync
+and complete final reopen validation. The third bounded repair is executable
+`c04cb97214a9f1e5d2b80512c756400321eefa80`. It separates publication from
+presentation status and makes the final no-follow device/inode ownership check
+the last rejection-capable publication operation. No controlled artifact
+exists for this executable. This status does not authorize a job, production,
+HOLDOUT access, Stage 9, geocoding, Pelias, Senzing, DeepParse, or any external
+address service.
 
 The design is based on accepted Stage 7 candidate
 `656a16d3d1f33cb152ace557c26f42df047bc7d6`, its acceptance merge
@@ -38,7 +47,7 @@ The design is based on accepted Stage 7 candidate
 commit `356de44f3e86e37972d60cac45d01703ad1f6856`. DeepParse remains closed as
 `DEEPPARSE_INFRASTRUCTURE_PATH_NOT_JUSTIFIED` and is not a Stage 8 dependency.
 
-## Second repaired implementation
+## Publication-repair implementation
 
 The implementation preserves this frozen design without changing its grains,
 field semantics, nullability, ordering, or lineage rules. It provides bounded
@@ -60,13 +69,34 @@ matching owned tree. Demotion removes `_SUCCESS.json`, ensures the exact
 owner-only modes, and is idempotent. Symlinks are never followed, and an
 unrelated final publication is never overwritten, adopted, or demoted.
 
-The sanitized [second remediation report](../../reports/development/stage08_address_evidence_publication_remediation_v2.md)
-records the complete crash-consistency audit. The
+The third repair retains that policy and adds a common terminal gate for both
+ordinary rename and policy-A adoption. Parent-directory fsync and complete
+final reopen validation occur first. Outcome timing/construction and process
+`umask` restoration then complete. Immediately before materializer success,
+FINAL is independently inspected without following symlinks and must still
+have the device/inode captured from the attempt before rename. An identity-
+changed byte-identical tree is therefore never adopted. Failure cleanup may
+demote only a currently identity-matching owned tree; an unrelated replacement
+is preserved.
+
+The CLI treats materializer return as irrevocable program-level publication
+success. Result serialization, one stdout write, explicit stdout flush, and a
+fixed secondary stderr diagnostic are presentation only. Any program-
+controlled presentation exception after materializer return preserves exit 0
+and leaves the final tree unchanged. Broken streams are best-effort detached
+to prevent a second interpreter-shutdown flush failure. Genuine failures
+before materializer return remain nonzero. This does not claim protection from
+external `SIGKILL`, power loss, kernel failure, or hostile mutation after the
+last ownership stat/return.
+
+The sanitized [third remediation report](../../reports/development/stage08_address_evidence_publication_remediation_v3.md)
+records the complete 19-step publication/CLI state machine. The
+[second remediation report](../../reports/development/stage08_address_evidence_publication_remediation_v2.md),
 [first remediation report](../../reports/development/stage08_address_evidence_remediation.md)
 and original [implementation report](../../reports/development/stage08_address_evidence_implementation.md)
 remain historical evidence for their exact executables.
 
-## Authoritative second-remediation DEVELOPMENT candidate
+## Historical second-remediation DEVELOPMENT candidate
 
 Job `1764219` completed `0:0` in 15m10s from the exact clean detached
 executable `bdea7232a3f92ebd381be87610b753b8e4c35481`. Its immutable output
@@ -100,13 +130,15 @@ immediate final reopen validation passed before the CLI returned success.
 All eight directories are `0700`, all 52 files are `0600`, no symlink exists,
 and atomic/owner-only publication claims pass.
 
-Policy-A post-effect rename adoption was not fault-injected during this
-protected execution. Its real-rename-then-raise behavior remains synthetic
-local evidence that must be challenged again during independent rereview. The
+Policy-A post-effect rename adoption and post-validation ownership were not
+fault-injected during this protected execution. The later independent rereview
+falsified the ownership invariant with a byte-identical different-inode
+replacement. The
 sanitized [execution report](../../reports/development/stage08_address_evidence_publication_remediation_v2_development.md)
 and [candidate report](../../reports/development/stage08_address_evidence_publication_remediation_v2_candidate_report.md)
 freeze the complete aggregate, topology, scheduler, input-binding,
-publication, and historical evidence.
+publication, and historical evidence for executable `bdea7232…`; they do not
+validate `c04cb972…`.
 
 ## Historical first-repair DEVELOPMENT evidence
 
@@ -807,15 +839,21 @@ relabeled or overwritten as success. `_SUCCESS.json` is created only after
 prepublication reopen validation and binds the manifest SHA-256 and dataset
 logical fingerprint.
 
-The terminal commit boundary is driven by observable filesystem state. The
+The terminal commit boundary is driven by observable filesystem state and the
+materializer's return. The
 implementation captures the attempt directory identity, transitions to the
 success/no-in-progress marker set, fsyncs the temporary tree, renames it, fsyncs
 the parent, and validates the final tree. An exception from the rename is
 ambiguous: only a final-only directory with the captured identity may be
 adopted, and only after the parent fsync and complete published validator pass.
-All other owned failure trees are demoted to success absent and `_IN_PROGRESS`
-present. Both temporary and final paths are inspected without following
-symlinks; unrelated paths are preserved.
+All fallible outcome/timing construction and `umask` restoration then occur.
+The last rejection-capable publication operation independently stats FINAL
+without following symlinks and requires the same captured device/inode before
+the materializer may return success. All other owned failure trees are demoted
+to success absent and `_IN_PROGRESS` present. Both temporary and final paths
+are inspected without following symlinks; unrelated paths are preserved.
+Result serialization/stdout/stderr handling begins only after materializer
+return and cannot change publication success.
 
 The manifest contains no protected values. It records exact upstream
 identities, contract/profile/schema/taxonomy/mapping versions and fingerprints,
@@ -938,11 +976,13 @@ Stage 8 makes no semantic address claim. The fixed-500 identities may be used
 only for machine lineage/reconstruction equality, not for opening or relabeling
 protected values in this stage.
 
-Repaired job `1763984` completed this machine-validation plan. All listed
+Historical jobs `1763747`, `1763984`, and `1764219` completed this machine-
+validation plan for their exact executables. All listed
 counts, exact-input preservation, nested/long reversibility, map-back,
 fingerprint, permission, privacy, resource, and zero-call requirements passed.
-That execution evidence authorizes only fresh independent rereview, not Stage 8
-acceptance or later-stage work.
+Independent review nevertheless found terminal-publication defects in each
+executable lineage. None of that evidence validates `c04cb972…`; a new exact
+controlled materialization requires separate authorization.
 
 ## Independent-review plan
 
@@ -1036,9 +1076,9 @@ mechanical parser-evidence index. Country-format/ISO lookup metadata moves to
 Stage 9; hypotheses remain Stage 10. No broader renumbering is required.
 
 Verdict:
-`STAGE08_ADDRESS_EVIDENCE_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REREVIEW`.
+`STAGE08_ADDRESS_EVIDENCE_IMPLEMENTATION_READY_FOR_CONTROLLED_DEVELOPMENT_REEXECUTION`.
 
-Exact next action: **FRESH INDEPENDENT STAGE 8 REREVIEW OF THE BDEA7232
-REPAIRED CANDIDATE.** Do not submit another job, alter jobs `1763747`,
-`1763984`, or `1764219` or their artifacts, start Stage 9, or treat candidate
-readiness as acceptance.
+Exact next action: **AUTHORIZE EXACTLY ONE NEW CONTROLLED STAGE 8 DEVELOPMENT
+MATERIALIZATION AT THE NEW EXECUTABLE SHA.** Do not submit that job in this
+session, alter jobs `1763747`, `1763984`, or `1764219` or their artifacts,
+start Stage 9, or treat implementation readiness as acceptance.

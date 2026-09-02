@@ -1066,12 +1066,69 @@ to change a decision or start a stage.
   reference, parser, or geocoding authority follows. Exact next action: **FRESH
   INDEPENDENT STAGE 8 REREVIEW OF THE BDEA7232 REPAIRED CANDIDATE.**
 
+### D045 — Reject the second repair and bind publication success to ownership
+
+- **Date:** 2026-09-02.
+- **Scope:** Third bounded Stage 8 DEVELOPMENT publication remediation after
+  failed independent rereview; code, synthetic tests, and current-facing
+  sanitized documentation only. No protected execution or scientific redesign.
+- **Independent findings:** Exact candidate
+  `70e3de9536aee7074e27018d39e0164f3a2200ae`, executable
+  `bdea7232a3f92ebd381be87610b753b8e4c35481`, and job `1764219` received
+  `STAGE08_ADDRESS_EVIDENCE_INDEPENDENT_REREVIEW_FAIL`. First, an injected
+  stdout `OSError` after a fully committed, independently valid publication
+  made the CLI exit nonzero. Second, policy-A adoption checked identity before
+  parent fsync and final validation but did not recheck it afterward, allowing
+  a byte-identical different-inode FINAL replacement to be reported as the
+  invocation's success. Review evidence commit is `2a6bba60…`; harness
+  SHA-256 is `acf343ac…`. The controlled artifact is not asserted corrupt.
+- **Decision:** Reject that candidate without modifying its branch or artifact.
+  Executable `c04cb97214a9f1e5d2b80512c756400321eefa80` separates the
+  filesystem publication result from nonessential result presentation. Once
+  the materializer returns, result serialization, stdout write/flush, and
+  best-effort stderr diagnostic exceptions preserve exit 0 and cannot demote
+  the publication. Genuine pre-return publication failures remain nonzero.
+- **Ownership binding:** Both ordinary publication and policy-A adoption share
+  a final no-follow device/inode verification. It occurs after parent-directory
+  fsync, complete final reopen validation, fallible outcome/timing construction,
+  and `umask` restoration, and is the last rejection-capable publication
+  operation before return. Identity-changed or symlink replacements fail
+  closed and are not demoted; only an exact identity-matching owned failure
+  tree may be demoted under the frozen policy.
+- **Threat model:** The contract detects replacement during the program-
+  controlled publication/adoption sequence under owner-only parent topology.
+  It does not claim immunity to external `SIGKILL`, power loss, kernel failure,
+  or privileged/owner mutation after the last identity stat or return.
+- **Scientific preservation:** Contract, profile, four schemas, exact 20-label
+  mapping, semantic classes, Stage 6/7 bindings, logical-hash rules, candidate/
+  component/source/occurrence grains, parser/occurrence semantics, and the
+  Stage 8/Stage 9 boundary remain exact. Every scientific fingerprint matches
+  `bdea7232…`.
+- **Local evidence:** Stage 8 focused/fault-injection tests pass 45/45,
+  including exact stdout-first-write, explicit-flush process, byte-identical
+  replacement at four post-rename boundaries, symlink, owned-only demotion,
+  final-check ordering, and real-rename-then-raise regressions. All 149 Stage 7
+  tests and 33 selected earlier atomic-publication parameter cases pass. The
+  safe full suite has 612 passes, 24 expected Python 3.14.3 guard failures on
+  local Python 3.14.7, and four protected-payload deselections. Ruff,
+  changed-file format, strict mypy, shell, JSON, Markdown-link, diff, privacy,
+  scientific-fingerprint, executable-surface, and Git gates pass.
+- **Historical evidence:** Jobs `1763747`, `1763984`, and `1764219`, their
+  immutable artifacts, all three failed review findings, and executables
+  `a2544401…`, `bd89a032…`, and `bdea7232…` remain truthful reachable history.
+  None validates `c04cb972…`; none is relabeled corrupt.
+- **Status:**
+  `STAGE08_ADDRESS_EVIDENCE_IMPLEMENTATION_READY_FOR_CONTROLLED_DEVELOPMENT_REEXECUTION`.
+  This is not execution authority or Stage 8 acceptance. The exact next action
+  requiring separate owner authorization is: **AUTHORIZE EXACTLY ONE NEW
+  CONTROLLED STAGE 8 DEVELOPMENT MATERIALIZATION AT THE NEW EXECUTABLE SHA.**
+
 ## Open decisions
 
 These questions require future stage designs and explicit approval:
 
-- fresh independent Stage 8 rereview of executable `bdea7232…`, job `1764219`,
-  manifest `346ea27a…`, and policy-A recovery semantics under D043–D044;
+- separate authorization for exactly one Stage 8 DEVELOPMENT materialization
+  at executable `c04cb972…`, followed by fresh candidate reconciliation;
 - exact offline reference releases/licenses and blocking semantics;
 - the bounded Stage 10 hypothesis/query ladder;
 - Stage 13 scoring/calibration and contradiction policy; and
@@ -1089,4 +1146,6 @@ remediation; D042 freezes the first repaired DEVELOPMENT candidate without
 granting acceptance or later-stage authority; and D043 records the failed
 independent rereview plus the second bounded publication remediation. D044
 freezes the resulting DEVELOPMENT candidate without granting acceptance or
+later-stage authority. D045 records its failed independent rereview and the
+third bounded terminal-status/ownership remediation; it grants no execution or
 later-stage authority.

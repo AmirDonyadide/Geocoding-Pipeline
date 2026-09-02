@@ -15,7 +15,7 @@ independent review records acceptance.
 | 5 | [Address reconstruction](STAGE05_ADDRESS_RECONSTRUCTION.md) | `STAGE_5_ACCEPTED` | NOT STARTED |
 | 6 | [Early exact deduplication](STAGE06_EARLY_EXACT_DEDUPLICATION.md) | `STAGE_6_ACCEPTED` | NOT STARTED |
 | 7 | [libpostal parsing/evidence](STAGE07_LIBPOSTAL_PARSING.md) | `STAGE_7_ACCEPTED` | NOT STARTED |
-| 8 | [Lossless address-evidence projection](STAGE08_ADDRESS_EVIDENCE_PROJECTION.md) | `STAGE08_ADDRESS_EVIDENCE_DEVELOPMENT_CANDIDATE_READY_FOR_INDEPENDENT_REREVIEW`; job `1764219` frozen, not accepted | NOT STARTED |
+| 8 | [Lossless address-evidence projection](STAGE08_ADDRESS_EVIDENCE_PROJECTION.md) | `STAGE08_ADDRESS_EVIDENCE_IMPLEMENTATION_READY_FOR_CONTROLLED_DEVELOPMENT_REEXECUTION`; `c04cb972…` not executed or accepted | NOT STARTED |
 
 Replacement Stages 9–14 remain proposed in
 [the pipeline specification](../PIPELINE.md). Stage 8 jobs `1763747` and
@@ -27,6 +27,10 @@ They also retain job `1763747` and its rejected old executable as immutable
 historical evidence. The [remediation report](../../reports/development/stage08_address_evidence_remediation.md)
 records the first publication fix. The
 [second remediation report](../../reports/development/stage08_address_evidence_publication_remediation_v2.md)
-records the failed rereview and post-effect rename repair. The next action
-is a fresh independent rereview of the `bdea7232…` repaired candidate frozen in
-the [candidate report](../../reports/development/stage08_address_evidence_publication_remediation_v2_candidate_report.md).
+records the second failed rereview and post-effect rename repair. Job `1764219`
+and its [candidate report](../../reports/development/stage08_address_evidence_publication_remediation_v2_candidate_report.md)
+remain historical after the third failed rereview. The
+[third remediation report](../../reports/development/stage08_address_evidence_publication_remediation_v3.md)
+records the post-commit CLI-status and final-ownership repair. The next action
+is separate authorization for exactly one controlled DEVELOPMENT
+materialization at `c04cb972…`.
