@@ -51,7 +51,9 @@ def main() -> int:
         print(f"fixed500_unique_candidates={outcome.fixed_unique_candidates}")
         print(f"fixed500_mismatches={outcome.fixed_mismatches}")
         print(f"qualitative_candidates={outcome.qualitative_candidates}")
-        print(f"qualitative_selection_fingerprint={outcome.qualitative_selection_fingerprint}")
+        print(
+            f"qualitative_selection_fingerprint={outcome.qualitative_selection_fingerprint}"
+        )
     except (ExecutionPolicyError, Stage07ReviewError) as error:
         print(f"error={error}", file=sys.stderr)
         return 1

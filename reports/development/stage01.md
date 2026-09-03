@@ -50,6 +50,14 @@ sanitized accepted record does not expose a distinct DEVELOPMENT candidate,
 executable, merge, or job identity, so the machine report records `null` for
 those values. The accepted production fingerprints below are exact.
 
+PROV-002 performed one Git-only review of current and reachable sanitized
+evidence. No exact 1,405-file DEVELOPMENT candidate, executable, merge, job,
+independent-review, or logical-dataset fingerprint was retained. Each remains
+`null` and is classified
+`HISTORICAL_PROVENANCE_NOT_RETAINED`/`NOT_RETAINED` in the machine report.
+Historical Phase 2 evidence concerns a distinct 206-file population and was
+not used as a substitute.
+
 ## DEVELOPMENT execution
 
 Benchmark V1's 35,000 DEVELOPMENT rows retain the Stage 1 provenance and stable
@@ -90,6 +98,11 @@ acceptance is separately bound to the 1,411-file identity.
 Lossless ingestion does not establish address semantics, quality, uniqueness,
 parser correctness, or geographic truth. Protected Parquet and row-level
 provenance do not belong in Git.
+
+The historical DEVELOPMENT execution-provenance gap prevents Git-only
+independent replay of the original Stage 1 execution. It does not change the
+Benchmark V1 population identity, accepted Stage 2–8 chain, Stage 8 handoff,
+or Stage 9 readiness.
 
 ## Downstream handoff
 

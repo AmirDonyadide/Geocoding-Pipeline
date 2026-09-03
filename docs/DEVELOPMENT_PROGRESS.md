@@ -61,5 +61,5 @@ unchanged through every publication remediation.
 The old Stages 8–19 were never started; replacement Stages 9–14 remain proposed
 and not started. Production Stage 0 and Stage 1 are accepted; production Stages
 2–8 are not started. HOLDOUT is untouched and sealed. No new Stage 8 job is
-authorized by acceptance. The next task is the full Stages 0–8 pipeline audit
-before Stage 9; Stage 9 has not started.
+authorized by acceptance. The pre-Stage-9 baseline is frozen. Stage 9 has not
+started and requires a separate design and authorization.

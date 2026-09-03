@@ -67,6 +67,10 @@ The accepted logical fingerprint is
 `ff95021bd2f4b2994e9e2a766f32e792e29797a128dc64fa3aef100ff9f5ca72` and the
 schema fingerprint is
 `3c4a2d616ab6dacf57f42fff7e84175a48fbd50c6a060046434593c5aefa74d4`.
+PROV-002 recovered the exact output manifest SHA-256
+`260b77fea50bc2db1bfb10dca8339cb33bcb2e2aad7de9c07ed55a71dec0d419` from
+the accepted sanitized Stage 3 upstream-manifest binding
+(`reports/generated/stage03.json`); it was not recalculated or inferred.
 Validation established exact input binding, 35,000-to-35,000 preservation,
 equality of all 22 incoming columns, correct derivation, identity uniqueness,
 readback, permissions, publication, and HOLDOUT exclusion. The fixed-500

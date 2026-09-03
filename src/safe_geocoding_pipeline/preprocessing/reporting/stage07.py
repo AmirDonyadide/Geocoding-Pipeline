@@ -146,8 +146,13 @@ class Stage07ReviewConfig:
             self.parser_bundle_directory,
             self.output_directory,
         ):
-            if any("holdout" in part.casefold() for part in path.resolve(strict=False).parts):
-                _fail("HOLDOUT_ACCESS_PROHIBITED", "HOLDOUT review paths are prohibited")
+            if any(
+                "holdout" in part.casefold()
+                for part in path.resolve(strict=False).parts
+            ):
+                _fail(
+                    "HOLDOUT_ACCESS_PROHIBITED", "HOLDOUT review paths are prohibited"
+                )
         for key, value in (self.operational_metadata or {}).items():
             if (
                 key not in {"execution_site", "slurm_job_id"}
@@ -279,8 +284,7 @@ def _load_fixed500(config: Stage07ReviewConfig) -> pa.Table:
     if (
         not manifest_path.is_file()
         or manifest_path.is_symlink()
-        or _sha256_file(manifest_path)
-        != config.expected_stage06_review_manifest_sha256
+        or _sha256_file(manifest_path) != config.expected_stage06_review_manifest_sha256
     ):
         _fail("FIXED500_INVALID", "Stage 6 review manifest differs")
     _require_mode(manifest_path, 0o600)
@@ -294,8 +298,7 @@ def _load_fixed500(config: Stage07ReviewConfig) -> pa.Table:
         or scientific.get("review_subset_fingerprint")
         != "014f7c1373380b265f34e2ecb76614161b320e2bb972befb8f53994cc5a1dd52"
         or not isinstance(physical, dict)
-        or physical.get("stage06_manifest_sha256")
-        != ACCEPTED_STAGE06_MANIFEST_SHA256
+        or physical.get("stage06_manifest_sha256") != ACCEPTED_STAGE06_MANIFEST_SHA256
     ):
         _fail("FIXED500_INVALID", "Stage 6 review identity differs")
     artifacts = physical.get("artifacts")
@@ -364,13 +367,21 @@ def _fixed500_schema() -> pa.Schema:
             pa.field(ROW_MAP_ID_COLUMNS[1], pa.binary(32), nullable=True),
             pa.field("stage07_standard_parse_status", pa.string(), nullable=True),
             pa.field("stage07_native_parse_status", pa.string(), nullable=True),
-            pa.field("stage07_standard_ordered_parse_sha256", pa.string(), nullable=True),
+            pa.field(
+                "stage07_standard_ordered_parse_sha256", pa.string(), nullable=True
+            ),
             pa.field("stage07_native_ordered_parse_sha256", pa.string(), nullable=True),
             pa.field("stage07_standard_mapping_exact", pa.bool_(), nullable=False),
             pa.field("stage07_native_mapping_exact", pa.bool_(), nullable=False),
-            pa.field("stage07_standard_independent_reparse_exact", pa.bool_(), nullable=False),
-            pa.field("stage07_native_independent_reparse_exact", pa.bool_(), nullable=False),
-            pa.field("stage07_unavailable_representations_exact", pa.bool_(), nullable=False),
+            pa.field(
+                "stage07_standard_independent_reparse_exact", pa.bool_(), nullable=False
+            ),
+            pa.field(
+                "stage07_native_independent_reparse_exact", pa.bool_(), nullable=False
+            ),
+            pa.field(
+                "stage07_unavailable_representations_exact", pa.bool_(), nullable=False
+            ),
             pa.field("stage07_no_cross_wire", pa.bool_(), nullable=False),
         )
     )
@@ -387,7 +398,10 @@ def _fixed500_evidence(
             if value is not None
         )
     selected_ids = frozenset(occurrences)
-    if len(occurrences) != ACCEPTED_FIXED500_OCCURRENCES or len(selected_ids) != ACCEPTED_FIXED500_UNIQUE_CANDIDATES:
+    if (
+        len(occurrences) != ACCEPTED_FIXED500_OCCURRENCES
+        or len(selected_ids) != ACCEPTED_FIXED500_UNIQUE_CANDIDATES
+    ):
         _fail("FIXED500_INVALID", "Stage 6 fixed candidate counts differ")
     parsed_by_id: dict[bytes, tuple[str, str, bool]] = {}
     with SupervisedParser() as supervisor:
@@ -401,14 +415,20 @@ def _fixed500_evidence(
                 continue
             candidate = batch.column(1)[0].as_py()
             status = batch.column(5)[0].as_py()
-            if not isinstance(candidate_id, bytes) or not isinstance(candidate, str) or not isinstance(status, str):
+            if (
+                not isinstance(candidate_id, bytes)
+                or not isinstance(candidate, str)
+                or not isinstance(status, str)
+            ):
                 _fail("FIXED500_INVALID", "Selected Stage 7 row is malformed")
             components = _components_from_scalar(batch.column(6)[0])
             published = ParsedAddress(status=status, components=components)
             reparsed = supervisor.parse(candidate)
             if reparsed.components is None:
                 _fail("FIXED500_REPARSE_FAILURE", "Independent reparse did not succeed")
-            reparse_result = ParsedAddress(status=reparsed.status, components=reparsed.components)
+            reparse_result = ParsedAddress(
+                status=reparsed.status, components=reparsed.components
+            )
             published_digest = ordered_parse_sha256(published)
             exact = published_digest == ordered_parse_sha256(reparse_result)
             if candidate_id in parsed_by_id:
@@ -424,13 +444,19 @@ def _fixed500_evidence(
         stable = fixed.column("stable_source_row_id_v1")[row_index].as_py()
         standard_id = fixed.column(ROW_MAP_ID_COLUMNS[0])[row_index].as_py()
         native_id = fixed.column(ROW_MAP_ID_COLUMNS[1])[row_index].as_py()
-        standard = parsed_by_id.get(standard_id) if isinstance(standard_id, bytes) else None
+        standard = (
+            parsed_by_id.get(standard_id) if isinstance(standard_id, bytes) else None
+        )
         native = parsed_by_id.get(native_id) if isinstance(native_id, bytes) else None
-        standard_mapping = (standard_id is None and standard is None) or standard is not None
+        standard_mapping = (
+            standard_id is None and standard is None
+        ) or standard is not None
         native_mapping = (native_id is None and native is None) or native is not None
         standard_reparse = standard is None or standard[2]
         native_reparse = native is None or native[2]
-        unavailable = (standard_id is None) == (standard is None) and (native_id is None) == (native is None)
+        unavailable = (standard_id is None) == (standard is None) and (
+            native_id is None
+        ) == (native is None)
         no_cross_wire = standard_reparse and native_reparse
         row_checks = (
             standard_mapping,
@@ -478,7 +504,11 @@ def _script_reference() -> ScriptReference:
     )
 
 
-def _bounded_add(bucket: list[tuple[tuple[int, bytes], bytes]], item: tuple[tuple[int, bytes], bytes], maximum: int) -> None:
+def _bounded_add(
+    bucket: list[tuple[tuple[int, bytes], bytes]],
+    item: tuple[tuple[int, bytes], bytes],
+    maximum: int,
+) -> None:
     bucket.append(item)
     bucket.sort(key=lambda value: value[0])
     if len(bucket) > maximum:
@@ -501,7 +531,10 @@ def _risk_selection(
         )
     finally:
         shutil.rmtree(selection_work)
-    if len(clean_groups) != ACCEPTED_CASE_VARIANT_GROUPS or sum(map(len, clean_groups.values())) != ACCEPTED_CASE_VARIANT_SURFACES:
+    if (
+        len(clean_groups) != ACCEPTED_CASE_VARIANT_GROUPS
+        or sum(map(len, clean_groups.values())) != ACCEPTED_CASE_VARIANT_SURFACES
+    ):
         _fail("CLEAN_VARIANT_INVALID", "Clean-variant evidence differs")
     clean_ids = frozenset(clean_groups)
     scripts = _script_reference()
@@ -517,7 +550,11 @@ def _risk_selection(
         candidate = batch.column(1)[0].as_py()
         counts = tuple(int(batch.column(index)[0].as_py()) for index in range(2, 5))
         status = batch.column(5)[0].as_py()
-        if not isinstance(candidate_id, bytes) or not isinstance(candidate, str) or not isinstance(status, str):
+        if (
+            not isinstance(candidate_id, bytes)
+            or not isinstance(candidate, str)
+            or not isinstance(status, str)
+        ):
             _fail("QUALITATIVE_SELECTION_INVALID", "Stage 7 selection row differs")
         components = _components_from_scalar(batch.column(6)[0])
         component_count = len(components)
@@ -534,17 +571,37 @@ def _risk_selection(
             required_empty.add(candidate_id)
             reasons_by_id[candidate_id].add("PARSED_EMPTY")
         if set(label_counts) - EXPECTED_DIAGNOSTIC_LABELS:
-            _bounded_add(buckets["UNEXPECTED_LABEL"], ((0, candidate_id), candidate_id), 12)
+            _bounded_add(
+                buckets["UNEXPECTED_LABEL"], ((0, candidate_id), candidate_id), 12
+            )
         if any(count > 1 for count in label_counts.values()):
-            _bounded_add(buckets["REPEATED_LABEL"], ((-max(label_counts.values()), candidate_id), candidate_id), 10)
+            _bounded_add(
+                buckets["REPEATED_LABEL"],
+                ((-max(label_counts.values()), candidate_id), candidate_id),
+                10,
+            )
         if component_count == 1:
             _bounded_add(buckets["ONE_COMPONENT"], ((0, candidate_id), candidate_id), 8)
-        _bounded_add(buckets["HIGH_COMPONENT_COUNT"], ((-component_count, candidate_id), candidate_id), 8)
-        _bounded_add(buckets["HIGH_OUTPUT_CODEPOINTS"], ((-output_codepoints, candidate_id), candidate_id), 5)
+        _bounded_add(
+            buckets["HIGH_COMPONENT_COUNT"],
+            ((-component_count, candidate_id), candidate_id),
+            8,
+        )
+        _bounded_add(
+            buckets["HIGH_OUTPUT_CODEPOINTS"],
+            ((-output_codepoints, candidate_id), candidate_id),
+            5,
+        )
         if features.giant:
-            _bounded_add(buckets["GIANT_FEASIBLE"], ((len(candidate), candidate_id), candidate_id), 1)
+            _bounded_add(
+                buckets["GIANT_FEASIBLE"],
+                ((len(candidate), candidate_id), candidate_id),
+                1,
+            )
         if candidate_id in clean_ids:
-            _bounded_add(buckets["CLEAN_VARIANT_GROUP"], ((0, candidate_id), candidate_id), 8)
+            _bounded_add(
+                buckets["CLEAN_VARIANT_GROUP"], ((0, candidate_id), candidate_id), 8
+            )
         for reason, matched, maximum in (
             (f"SCRIPT_{features.script_bucket}", True, 4),
             ("NUMERIC_HEAVY", features.numeric_heavy, 5),
@@ -553,8 +610,12 @@ def _risk_selection(
             (f"OCCURRENCE_{features.occurrence_bucket}", True, 5),
         ):
             if matched:
-                _bounded_add(buckets[reason], ((0, candidate_id), candidate_id), maximum)
-        ordinary_key = hashlib.sha256(b"SAFE_STAGE07_QUALITATIVE_BASELINE_V1" + candidate_id).digest()
+                _bounded_add(
+                    buckets[reason], ((0, candidate_id), candidate_id), maximum
+                )
+        ordinary_key = hashlib.sha256(
+            b"SAFE_STAGE07_QUALITATIVE_BASELINE_V1" + candidate_id
+        ).digest()
         _bounded_add(
             buckets["DETERMINISTIC_ORDINARY_BASELINE"],
             ((int.from_bytes(ordinary_key[:8], "big"), candidate_id), candidate_id),
@@ -583,7 +644,11 @@ def _risk_selection(
             continue
         candidate = batch.column(1)[0].as_py()
         status = batch.column(5)[0].as_py()
-        if not isinstance(candidate_id, bytes) or not isinstance(candidate, str) or not isinstance(status, str):
+        if (
+            not isinstance(candidate_id, bytes)
+            or not isinstance(candidate, str)
+            or not isinstance(status, str)
+        ):
             _fail("QUALITATIVE_SELECTION_INVALID", "Selected Stage 7 row differs")
         selected[candidate_id] = _Selected(
             candidate_id=candidate_id,
@@ -602,7 +667,8 @@ def _risk_selection(
         for item in selected.values()
     ]
     fingerprint = hashlib.sha256(
-        b"SAFE_STAGE07_QUALITATIVE_SELECTION_V1" + json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("ascii")
+        b"SAFE_STAGE07_QUALITATIVE_SELECTION_V1"
+        + json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("ascii")
     ).hexdigest()
     return selected, fingerprint
 
@@ -612,7 +678,11 @@ def _selection_schema() -> pa.Schema:
         (
             pa.field("review_order", pa.uint32(), nullable=False),
             pa.field("stage06_exact_candidate_id", pa.binary(32), nullable=False),
-            pa.field("selection_reasons", pa.large_list(pa.field("element", pa.large_string(), nullable=False)), nullable=False),
+            pa.field(
+                "selection_reasons",
+                pa.large_list(pa.field("element", pa.large_string(), nullable=False)),
+                nullable=False,
+            ),
             pa.field("stage07_parse_status", pa.string(), nullable=False),
             pa.field("component_count", pa.uint64(), nullable=False),
             pa.field("input_codepoints", pa.uint64(), nullable=False),
@@ -664,7 +734,9 @@ def _render_html(
     selected: Mapping[bytes, _Selected],
     fingerprint: str,
 ) -> None:
-    order_by_id = {candidate_id: order for order, candidate_id in enumerate(selected, start=1)}
+    order_by_id = {
+        candidate_id: order for order, candidate_id in enumerate(selected, start=1)
+    }
     try:
         descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
         with os.fdopen(descriptor, "w", encoding="utf-8", newline="") as handle:
@@ -684,21 +756,31 @@ def _render_html(
                 handle.write(f"<section data-order='{order}'><h2>Review {order}</h2>")
                 handle.write(f"<p>Reasons: {html.escape(', '.join(item.reasons))}</p>")
                 provenance = (
-                    "BOTH" if item.standard_count and item.native_count else "STANDARD_ONLY" if item.standard_count else "NATIVE_ONLY"
+                    "BOTH"
+                    if item.standard_count and item.native_count
+                    else "STANDARD_ONLY"
+                    if item.standard_count
+                    else "NATIVE_ONLY"
                 )
                 handle.write(
                     f"<p>Status: <code>{item.status}</code>; provenance: {provenance}; "
                     f"occurrences: {item.occurrence_count}; components: {item.component_count}; "
                     f"input code points: {item.input_codepoints}</p>"
                 )
-                handle.write(f"<h3>Exact Stage 6 candidate</h3><div class='candidate'>{html.escape(cast(str, candidate))}</div>")
-                handle.write("<h3>Ordered libpostal components</h3><table><thead><tr><th>#</th><th>label</th><th>value</th></tr></thead><tbody>")
+                handle.write(
+                    f"<h3>Exact Stage 6 candidate</h3><div class='candidate'>{html.escape(cast(str, candidate))}</div>"
+                )
+                handle.write(
+                    "<h3>Ordered libpostal components</h3><table><thead><tr><th>#</th><th>label</th><th>value</th></tr></thead><tbody>"
+                )
                 for component_order, component in enumerate(components, start=1):
                     handle.write(
                         f"<tr><td>{component_order}</td><td>{html.escape(component.label)}</td>"
                         f"<td class='value'>{html.escape(component.value)}</td></tr>"
                     )
-                handle.write("</tbody></table><fieldset><legend>Classification</legend>")
+                handle.write(
+                    "</tbody></table><fieldset><legend>Classification</legend>"
+                )
                 for classification in QUALITATIVE_CLASSIFICATIONS:
                     handle.write(
                         f"<label><input type='radio' name='review-{order}' value='{classification}'>"
@@ -753,7 +835,9 @@ def materialize_stage07_review(config: Stage07ReviewConfig) -> Stage07ReviewOutc
     temporary.mkdir(mode=0o700)
     _write_exclusive(temporary / STAGE07_REVIEW_IN_PROGRESS_MARKER, b"in_progress\n")
     fixed_path = temporary / STAGE07_FIXED500_PATH
-    pq.write_table(fixed_table, fixed_path, compression="zstd", write_page_checksum=True)
+    pq.write_table(
+        fixed_table, fixed_path, compression="zstd", write_page_checksum=True
+    )
     fixed_path.chmod(0o600)
 
     qualitative_started = time.perf_counter()
@@ -762,7 +846,9 @@ def materialize_stage07_review(config: Stage07ReviewConfig) -> Stage07ReviewOutc
     )
     selection_table = _selection_table(selection)
     selection_path = temporary / STAGE07_QUALITATIVE_SELECTION_PATH
-    pq.write_table(selection_table, selection_path, compression="zstd", write_page_checksum=True)
+    pq.write_table(
+        selection_table, selection_path, compression="zstd", write_page_checksum=True
+    )
     selection_path.chmod(0o600)
     html_path = temporary / STAGE07_QUALITATIVE_HTML_PATH
     _render_html(html_path, stage07_paths, selection, selection_fingerprint)
@@ -787,7 +873,9 @@ def materialize_stage07_review(config: Stage07ReviewConfig) -> Stage07ReviewOutc
     _write_json(temporary / STAGE07_REVIEW_SUMMARY_PATH, summary)
     artifacts = (
         _artifact(temporary, STAGE07_FIXED500_PATH, fixed_table.num_rows),
-        _artifact(temporary, STAGE07_QUALITATIVE_SELECTION_PATH, selection_table.num_rows),
+        _artifact(
+            temporary, STAGE07_QUALITATIVE_SELECTION_PATH, selection_table.num_rows
+        ),
         _artifact(temporary, STAGE07_QUALITATIVE_HTML_PATH, 0),
         _artifact(temporary, STAGE07_REVIEW_SUMMARY_PATH, 0),
     )
@@ -821,7 +909,9 @@ def materialize_stage07_review(config: Stage07ReviewConfig) -> Stage07ReviewOutc
         },
         "operational_provenance": {
             "execution_git_sha": config.execution_git_sha,
-            "created_at_utc": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            "created_at_utc": datetime.now(timezone.utc)
+            .isoformat()
+            .replace("+00:00", "Z"),
             **dict(config.operational_metadata or {}),
         },
     }

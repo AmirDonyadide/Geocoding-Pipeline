@@ -161,7 +161,10 @@ class Stage07InputBinding:
     resource_policy: str
 
     def to_dict(self) -> dict[str, str | int]:
-        return {"stage07_input_binding_version": STAGE07_INPUT_BINDING_VERSION, **asdict(self)}
+        return {
+            "stage07_input_binding_version": STAGE07_INPUT_BINDING_VERSION,
+            **asdict(self),
+        }
 
 
 @dataclass(frozen=True, slots=True)
@@ -373,9 +376,15 @@ def validate_stage07_input_binding(
         binding.stage06_standard_occurrences + binding.stage06_native_occurrences
     ):
         _fail("OCCURRENCE_RECONCILIATION_FAILURE", "Binding occurrences differ")
-    if binding.parser_call != PARSER_CALL or binding.parser_context_policy != PARSER_CONTEXT_POLICY:
+    if (
+        binding.parser_call != PARSER_CALL
+        or binding.parser_context_policy != PARSER_CONTEXT_POLICY
+    ):
         _fail("PARSER_OPTIONS_MISMATCH", "Stage 7 parser call or context differs")
-    if binding.parser_initialization_policy != "ONE_INITIALIZATION_PER_LONG_LIVED_CHILD_PROCESS":
+    if (
+        binding.parser_initialization_policy
+        != "ONE_INITIALIZATION_PER_LONG_LIVED_CHILD_PROCESS"
+    ):
         _fail("PARSER_OPTIONS_MISMATCH", "Parser initialization policy differs")
     if binding.parser_concurrency_policy != STAGE07_CONCURRENCY_POLICY:
         _fail("PARSER_OPTIONS_MISMATCH", "Parser concurrency policy differs")
@@ -419,7 +428,10 @@ def load_stage07_input_binding(
     expected_keys = set(Stage07InputBinding.__dataclass_fields__) | {
         "stage07_input_binding_version"
     }
-    if set(value) != expected_keys or value.get("stage07_input_binding_version") != STAGE07_INPUT_BINDING_VERSION:
+    if (
+        set(value) != expected_keys
+        or value.get("stage07_input_binding_version") != STAGE07_INPUT_BINDING_VERSION
+    ):
         _fail("INPUT_BINDING_INVALID", "Stage 7 input binding fields differ")
     kwargs = {key: value[key] for key in Stage07InputBinding.__dataclass_fields__}
     try:
@@ -485,7 +497,9 @@ def stage07_contract_fingerprint(binding: Stage07InputBinding) -> str:
     return digest.hexdigest()
 
 
-def _metadata(binding: Stage07InputBinding, contract_fingerprint: str) -> dict[bytes, bytes]:
+def _metadata(
+    binding: Stage07InputBinding, contract_fingerprint: str
+) -> dict[bytes, bytes]:
     return {
         b"stage07_contract_version": STAGE07_CONTRACT_VERSION.encode("ascii"),
         b"stage07_profile_version": STAGE07_PROFILE_VERSION.encode("ascii"),
@@ -559,7 +573,9 @@ def _require_mode(path: Path, mode: int, code: str) -> None:
     try:
         observed = stat.S_IMODE(path.stat(follow_symlinks=False).st_mode)
     except OSError as error:
-        raise Stage07ValidationError(code, "Artifact permissions are unreadable") from error
+        raise Stage07ValidationError(
+            code, "Artifact permissions are unreadable"
+        ) from error
     if observed != mode:
         _fail(code, "Owner-only artifact permissions differ")
 
@@ -572,10 +588,10 @@ def _fsync_directory(path: Path) -> None:
         os.close(descriptor)
 
 
-def _stage06_artifact_paths(
-    stage06_root: Path, *, kind: str
-) -> tuple[Path, ...]:
-    manifest = _load_json(stage06_root / STAGE06_MANIFEST_NAME, "STAGE06_MANIFEST_INVALID")
+def _stage06_artifact_paths(stage06_root: Path, *, kind: str) -> tuple[Path, ...]:
+    manifest = _load_json(
+        stage06_root / STAGE06_MANIFEST_NAME, "STAGE06_MANIFEST_INVALID"
+    )
     physical = manifest.get("physical_identity")
     if not isinstance(physical, dict):
         _fail("STAGE06_MANIFEST_INVALID", "Stage 6 physical identity is absent")
@@ -585,7 +601,9 @@ def _stage06_artifact_paths(
         _fail("STAGE06_MANIFEST_INVALID", "Stage 6 artifact list is absent")
     paths: list[Path] = []
     for value in values:
-        if not isinstance(value, dict) or not isinstance(value.get("relative_path"), str):
+        if not isinstance(value, dict) or not isinstance(
+            value.get("relative_path"), str
+        ):
             _fail("STAGE06_MANIFEST_INVALID", "Stage 6 artifact entry is malformed")
         path = stage06_root / value["relative_path"]
         _require_file(path, "STAGE06_ARTIFACT_INVALID")
@@ -719,30 +737,40 @@ class _MetricsAccumulator:
         output_distribution = {
             "min": int(self._scalar("SELECT min(output_codepoints) FROM row_metrics")),
             "median": self._quantile("output_codepoints", 1, 2),
-            "mean": float(self._scalar("SELECT avg(output_codepoints) FROM row_metrics")),
+            "mean": float(
+                self._scalar("SELECT avg(output_codepoints) FROM row_metrics")
+            ),
             "p95": self._quantile("output_codepoints", 95, 100),
             "p99": self._quantile("output_codepoints", 99, 100),
             "max": int(self._scalar("SELECT max(output_codepoints) FROM row_metrics")),
         }
         result: dict[str, object] = {
             "CANDIDATE_ROWS": self.rows,
-            "STATUS_COUNTS": {key: self.statuses[key] for key in STAGE07_STATUS_VOCABULARY},
+            "STATUS_COUNTS": {
+                key: self.statuses[key] for key in STAGE07_STATUS_VOCABULARY
+            },
             "TOTAL_EMITTED_COMPONENTS": self.total_components,
             "COMPONENT_COUNT_DISTRIBUTION": component_distribution,
             "OUTPUT_VALUE_CODEPOINT_DISTRIBUTION": output_distribution,
             "LABEL_VOCABULARY": sorted(self.labels),
             "LABEL_FREQUENCIES": dict(sorted(self.labels.items())),
             "REPEATED_LABEL_CANDIDATES": int(
-                self._scalar("SELECT coalesce(sum(repeated_labels), 0) FROM row_metrics")
+                self._scalar(
+                    "SELECT coalesce(sum(repeated_labels), 0) FROM row_metrics"
+                )
             ),
             "MAXIMUM_SAME_LABEL_REPETITION": int(
                 self._scalar("SELECT max(maximum_label_repetition) FROM row_metrics")
             ),
             "SINGLE_COMPONENT_PARSES": int(
-                self._scalar("SELECT count(*) FROM row_metrics WHERE component_count = 1")
+                self._scalar(
+                    "SELECT count(*) FROM row_metrics WHERE component_count = 1"
+                )
             ),
             "MULTI_COMPONENT_PARSES": int(
-                self._scalar("SELECT count(*) FROM row_metrics WHERE component_count > 1")
+                self._scalar(
+                    "SELECT count(*) FROM row_metrics WHERE component_count > 1"
+                )
             ),
             "SCRIPT_STRATIFIED_COUNTS": self._groups("script_bucket"),
             "LENGTH_STRATIFIED_COUNTS": self._groups("length_bucket"),
@@ -777,7 +805,9 @@ def _one_row_batch(
     return pa.RecordBatch.from_arrays(arrays, schema=schema)
 
 
-def _artifact_identity(root: Path, path: Path, row_count: int) -> Stage07ArtifactIdentity:
+def _artifact_identity(
+    root: Path, path: Path, row_count: int
+) -> Stage07ArtifactIdentity:
     return Stage07ArtifactIdentity(
         relative_path=path.relative_to(root).as_posix(),
         size_bytes=path.stat(follow_symlinks=False).st_size,
@@ -858,7 +888,9 @@ def materialize_stage07(config: Stage07RunConfig) -> Stage07MaterializationOutco
         metrics = _MetricsAccumulator(metrics_path)
         scripts = _script_reference()
         contract_fingerprint = stage07_contract_fingerprint(binding)
-        schema = stage07_schema().with_metadata(_metadata(binding, contract_fingerprint))
+        schema = stage07_schema().with_metadata(
+            _metadata(binding, contract_fingerprint)
+        )
         logical = _LogicalHasher(contract_fingerprint)
         stage06_paths = _stage06_artifact_paths(
             config.stage06_output_directory, kind="registry"
@@ -903,7 +935,9 @@ def materialize_stage07(config: Stage07RunConfig) -> Stage07MaterializationOutco
             assert writer is not None
             started = time.perf_counter()
             table = pa.Table.from_batches(pending, schema=schema)
-            writer.write_table(table, row_group_size=min(config.output_batch_rows, table.num_rows))
+            writer.write_table(
+                table, row_group_size=min(config.output_batch_rows, table.num_rows)
+            )
             serialization_seconds += time.perf_counter() - started
             pending = []
             pending_bytes = 0
@@ -931,13 +965,24 @@ def materialize_stage07(config: Stage07RunConfig) -> Stage07MaterializationOutco
                             int(input_batch.column(index)[row_index].as_py())
                             for index in range(2, 5)
                         )
-                        if not isinstance(candidate_id, bytes) or not isinstance(candidate, str):
-                            _fail("STAGE06_REGISTRY_INVALID", "Stage 6 registry type differs")
+                        if not isinstance(candidate_id, bytes) or not isinstance(
+                            candidate, str
+                        ):
+                            _fail(
+                                "STAGE06_REGISTRY_INVALID",
+                                "Stage 6 registry type differs",
+                            )
                         parse_started = time.perf_counter()
                         outcome = supervisor.parse(candidate)
                         parse_seconds += time.perf_counter() - parse_started
-                        if outcome.components is None or outcome.status not in STAGE07_STATUS_VOCABULARY:
-                            _fail("PUBLISHED_STATUS_INVALID", "Supervisor returned a non-v1 result")
+                        if (
+                            outcome.components is None
+                            or outcome.status not in STAGE07_STATUS_VOCABULARY
+                        ):
+                            _fail(
+                                "PUBLISHED_STATUS_INVALID",
+                                "Supervisor returned a non-v1 result",
+                            )
                         row_batch = _one_row_batch(
                             candidate_id,
                             candidate,
@@ -959,7 +1004,11 @@ def materialize_stage07(config: Stage07RunConfig) -> Stage07MaterializationOutco
                         standard_occurrences += counts[1]
                         native_occurrences += counts[2]
                         logical.update(
-                            candidate_id, candidate, counts, outcome.status, outcome.components
+                            candidate_id,
+                            candidate,
+                            counts,
+                            outcome.status,
+                            outcome.components,
                         )
                         metrics.add(
                             candidate=candidate,
@@ -986,7 +1035,9 @@ def materialize_stage07(config: Stage07RunConfig) -> Stage07MaterializationOutco
                     "CONFIRMED_REPEATED_CRASHES": supervisor.confirmed_repeated_crashes,
                     "CRASH_SUCCESS_NONDETERMINISM": supervisor.crash_success_inconsistencies,
                     "CHANGED_FAILURE_INCONSISTENCIES": supervisor.changed_failure_inconsistencies,
-                    "INITIALIZATION_SECONDS": sum(supervisor.worker_initialization_seconds),
+                    "INITIALIZATION_SECONDS": sum(
+                        supervisor.worker_initialization_seconds
+                    ),
                 }
             metric_values = metrics.finish()
         finally:
@@ -1021,12 +1072,18 @@ def materialize_stage07(config: Stage07RunConfig) -> Stage07MaterializationOutco
         if not isinstance(total_emitted_components, int):
             _fail("METRIC_AGGREGATION_FAILURE", "Component total type differs")
         performance: dict[str, int | float | str] = {
-            "PARSER_INITIALIZATION_SECONDS": float(supervisor_metrics["INITIALIZATION_SECONDS"]),
+            "PARSER_INITIALIZATION_SECONDS": float(
+                supervisor_metrics["INITIALIZATION_SECONDS"]
+            ),
             "CANDIDATE_PARSING_SECONDS": parse_seconds,
             "SERIALIZATION_AND_PARQUET_SECONDS": serialization_seconds,
             "PREPUBLICATION_SECONDS": publication_seconds,
-            "CANDIDATES_PER_SECOND": candidates / parse_seconds if parse_seconds else 0.0,
-            "COMPONENTS_PER_SECOND": total_emitted_components / parse_seconds if parse_seconds else 0.0,
+            "CANDIDATES_PER_SECOND": candidates / parse_seconds
+            if parse_seconds
+            else 0.0,
+            "COMPONENTS_PER_SECOND": total_emitted_components / parse_seconds
+            if parse_seconds
+            else 0.0,
             "OUTPUT_BYTES": sum(item.size_bytes for item in artifacts),
             "TEMPORARY_SPILL_BYTES": 0,
         }
@@ -1170,13 +1227,19 @@ def _manifest_artifacts(
             raise Stage07ValidationError(
                 "STAGE07_MANIFEST_INVALID", "Stage 7 artifact fields differ"
             ) from error
-        if artifact.relative_path != f"{STAGE07_REGISTRY_DIRECTORY}/part-{index:06d}.parquet":
+        if (
+            artifact.relative_path
+            != f"{STAGE07_REGISTRY_DIRECTORY}/part-{index:06d}.parquet"
+        ):
             _fail("STAGE07_MANIFEST_INVALID", "Stage 7 artifact order differs")
         _digest(artifact.sha256)
         path = root / artifact.relative_path
         _require_file(path, "STAGE07_ARTIFACT_INVALID")
         _require_mode(path, 0o600, "PERMISSION_FAILURE")
-        if path.stat(follow_symlinks=False).st_size != artifact.size_bytes or _sha256_file(path) != artifact.sha256:
+        if (
+            path.stat(follow_symlinks=False).st_size != artifact.size_bytes
+            or _sha256_file(path) != artifact.sha256
+        ):
             _fail("STAGE07_ARTIFACT_MISMATCH", "Stage 7 artifact identity differs")
         result.append(artifact)
     return tuple(result)
@@ -1200,7 +1263,9 @@ def _topology(root: Path) -> tuple[set[str], set[str]]:
     return directories, files
 
 
-def _mapback_metrics(stage06_root: Path, stage07_paths: Sequence[Path]) -> dict[str, int]:
+def _mapback_metrics(
+    stage06_root: Path, stage07_paths: Sequence[Path]
+) -> dict[str, int]:
     row_paths = _stage06_artifact_paths(stage06_root, kind="row_map")
     connection = duckdb.connect(":memory:")
     try:
@@ -1224,7 +1289,11 @@ def _mapback_metrics(stage06_root: Path, stage07_paths: Sequence[Path]) -> dict[
                    count(*) FILTER (WHERE copies != 1)
             FROM row_map LEFT JOIN registry USING (candidate_id)
             """,
-            ([str(path) for path in row_paths], [str(path) for path in row_paths], [str(path) for path in stage07_paths]),
+            (
+                [str(path) for path in row_paths],
+                [str(path) for path in row_paths],
+                [str(path) for path in stage07_paths],
+            ),
         ).fetchone()
     except duckdb.Error as error:
         raise Stage07ValidationError(
@@ -1286,7 +1355,9 @@ def validate_stage07_bundle(
     if not isinstance(input_binding_sha, str):
         _fail("STAGE07_MANIFEST_INVALID", "Stage 7 input binding SHA is absent")
     kwargs = {
-        key: binding_raw[key] for key in Stage07InputBinding.__dataclass_fields__ if key in binding_raw
+        key: binding_raw[key]
+        for key in Stage07InputBinding.__dataclass_fields__
+        if key in binding_raw
     }
     try:
         binding = Stage07InputBinding(**kwargs)
@@ -1331,7 +1402,11 @@ def validate_stage07_bundle(
         or scientific.get("components_type") != str(component_list_field().type)
         or not isinstance(validation, dict)
         or validation.get("validation_contract_version") != STAGE07_VALIDATION_VERSION
-        or any(value != "PASS" for key, value in validation.items() if key != "validation_contract_version")
+        or any(
+            value != "PASS"
+            for key, value in validation.items()
+            if key != "validation_contract_version"
+        )
     ):
         _fail("STAGE07_FINGERPRINT_MISMATCH", "Stage 7 scientific identity differs")
     artifacts = _manifest_artifacts(output_directory, physical)
@@ -1356,12 +1431,16 @@ def validate_stage07_bundle(
         or bounded.get("population_sized_python_result_list") is not False
     ):
         _fail("BOUNDED_MEMORY_CONTRACT_MISMATCH", "Stage 7 memory contract differs")
-    expected_schema = stage07_schema().with_metadata(_metadata(binding, contract_fingerprint))
-    output_paths = tuple(output_directory / artifact.relative_path for artifact in artifacts)
+    expected_schema = stage07_schema().with_metadata(
+        _metadata(binding, contract_fingerprint)
+    )
+    output_paths = tuple(
+        output_directory / artifact.relative_path for artifact in artifacts
+    )
     for path in output_paths:
-        if not pq.ParquetFile(path, page_checksum_verification=True).schema_arrow.equals(
-            expected_schema, check_metadata=True
-        ):
+        if not pq.ParquetFile(
+            path, page_checksum_verification=True
+        ).schema_arrow.equals(expected_schema, check_metadata=True):
             _fail("OUTPUT_SCHEMA_MISMATCH", "Stage 7 output schema differs")
     input_paths = _stage06_artifact_paths(stage06_output_directory, kind="registry")
     input_rows = (
@@ -1371,11 +1450,16 @@ def validate_stage07_bundle(
     )
     output_rows = (
         (batch, index)
-        for batch in _iter_batches(output_paths, tuple(expected_schema.names), batch_rows)
+        for batch in _iter_batches(
+            output_paths, tuple(expected_schema.names), batch_rows
+        )
         for index in range(batch.num_rows)
     )
     logical = _LogicalHasher(contract_fingerprint)
-    temp_metrics = output_directory.parent / f".{output_directory.name}.{os.getpid()}.validation_metrics.sqlite"
+    temp_metrics = (
+        output_directory.parent
+        / f".{output_directory.name}.{os.getpid()}.validation_metrics.sqlite"
+    )
     if temp_metrics.exists() or temp_metrics.is_symlink():
         _fail("OUTPUT_COLLISION", "Stage 7 validation metrics path exists")
     metrics = _MetricsAccumulator(temp_metrics)
@@ -1397,12 +1481,16 @@ def validate_stage07_bundle(
             except StopIteration:
                 _fail("OUTPUT_ROW_MISMATCH", "Stage 7 dropped rows")
             for column_index in range(len(REGISTRY_COLUMNS)):
-                if input_batch.column(column_index)[input_index] != output_batch.column(column_index)[output_index]:
+                if (
+                    input_batch.column(column_index)[input_index]
+                    != output_batch.column(column_index)[output_index]
+                ):
                     _fail("UPSTREAM_VALUE_MISMATCH", "Stage 7 changed a Stage 6 field")
             candidate_id = output_batch.column(0)[output_index].as_py()
             candidate = output_batch.column(1)[output_index].as_py()
             counts = tuple(
-                int(output_batch.column(index)[output_index].as_py()) for index in range(2, 5)
+                int(output_batch.column(index)[output_index].as_py())
+                for index in range(2, 5)
             )
             status = output_batch.column(5)[output_index].as_py()
             raw_components = output_batch.column(6)[output_index].as_py()
@@ -1416,9 +1504,16 @@ def validate_stage07_bundle(
                 _fail("OUTPUT_STRUCTURE_INVALID", "Stage 7 row structure differs")
             components: list[LibpostalComponent] = []
             for item in raw_components:
-                if not isinstance(item, dict) or set(item) != {"label", "value"} or not isinstance(item["label"], str) or not isinstance(item["value"], str):
+                if (
+                    not isinstance(item, dict)
+                    or set(item) != {"label", "value"}
+                    or not isinstance(item["label"], str)
+                    or not isinstance(item["value"], str)
+                ):
                     _fail("OUTPUT_STRUCTURE_INVALID", "Stage 7 component differs")
-                components.append(LibpostalComponent(label=item["label"], value=item["value"]))
+                components.append(
+                    LibpostalComponent(label=item["label"], value=item["value"])
+                )
             component_tuple = tuple(components)
             if (status == PARSED_NONEMPTY) != bool(component_tuple):
                 _fail("PARSER_STATUS_COMPONENT_MISMATCH", "Stage 7 status/list differs")
@@ -1444,7 +1539,9 @@ def validate_stage07_bundle(
         if temp_metrics.exists():
             temp_metrics.unlink()
     registry_logical = logical.hexdigest()
-    dataset_logical = stage07_logical_dataset_sha256(contract_fingerprint, registry_logical, rows)
+    dataset_logical = stage07_logical_dataset_sha256(
+        contract_fingerprint, registry_logical, rows
+    )
     recorded_metrics = manifest.get("development_metrics")
     if not isinstance(recorded_metrics, dict):
         _fail("STAGE07_MANIFEST_INVALID", "Stage 7 metrics are absent")
@@ -1472,8 +1569,10 @@ def validate_stage07_bundle(
         or success.get("shard_count") != len(artifacts)
         or sum(artifact.row_count for artifact in artifacts) != rows
         or recorded_metrics.get("INPUT_OCCURRENCES") != binding.stage06_occurrences
-        or recorded_metrics.get("STANDARD_OCCURRENCES") != binding.stage06_standard_occurrences
-        or recorded_metrics.get("NATIVE_OCCURRENCES") != binding.stage06_native_occurrences
+        or recorded_metrics.get("STANDARD_OCCURRENCES")
+        != binding.stage06_standard_occurrences
+        or recorded_metrics.get("NATIVE_OCCURRENCES")
+        != binding.stage06_native_occurrences
     ):
         _fail("STAGE07_FINGERPRINT_MISMATCH", "Stage 7 reconciliation differs")
     performance = manifest.get("performance")

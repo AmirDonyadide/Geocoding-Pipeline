@@ -58,8 +58,12 @@ def _stage07_table(count: int) -> pa.Table:
     )
     return pa.Table.from_arrays(
         (
-            pa.array((_candidate_id(index) for index in range(count)), type=pa.binary(32)),
-            pa.array((f"candidate-{index}" for index in range(count)), type=pa.string()),
+            pa.array(
+                (_candidate_id(index) for index in range(count)), type=pa.binary(32)
+            ),
+            pa.array(
+                (f"candidate-{index}" for index in range(count)), type=pa.string()
+            ),
             pa.array((1 for _ in range(count)), type=pa.uint64()),
             pa.array((1 for _ in range(count)), type=pa.uint64()),
             pa.array((0 for _ in range(count)), type=pa.uint64()),
@@ -126,7 +130,9 @@ def test_risk_selection_is_deterministic_and_html_hides_stable_ids(
         _candidate_id(1000 + index): ("synthetic A", "synthetic a")
         for index in range(123)
     }
-    monkeypatch.setattr(stage07, "_clean_surface_groups", lambda *args, **kwargs: clean_groups)
+    monkeypatch.setattr(
+        stage07, "_clean_surface_groups", lambda *args, **kwargs: clean_groups
+    )
 
     work_one = tmp_path / "work_one"
     work_two = tmp_path / "work_two"
@@ -163,4 +169,3 @@ def test_review_config_rejects_holdout() -> None:
     )
     with pytest.raises(Stage07ReviewError, match="HOLDOUT_ACCESS_PROHIBITED"):
         config.validate()
-

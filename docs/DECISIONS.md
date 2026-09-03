@@ -1261,6 +1261,61 @@ to change a decision or start a stage.
   unchanged. This decision does not authorize Stage 9, protected execution,
   HOLDOUT access, production Stage 2, parsing, references, or geocoding.
 
+### D049 — Freeze the accepted pre-Stage-9 baseline
+
+- **Date:** 2026-09-03.
+- **Scope:** Repository-only consolidation of the completed pre-Stage-9 audit;
+  no protected-artifact reopen, materialization, scientific redesign, or Stage
+  9 work.
+- **Baseline identity:** The final accepted `main` is frozen by annotated Git
+  tag `pre-stage09-baseline-v1`; its target SHA-1 is recorded in the tag's
+  sanitized message. `STAGE_8_ACCEPTED` remains the current DEVELOPMENT
+  terminal state. Stage 9 is **NOT STARTED**.
+- **Accepted population and chain:** Benchmark V1 remains exactly 1,405 source
+  files, 35,000 DEVELOPMENT rows, and 15,000 sealed HOLDOUT rows. Stage 5/6
+  remains 69,747 occurrences (34,822 STANDARD; 34,925 NATIVE) mapped completely
+  to 51,779 exact candidates. All Stage 0→8 adjacent bindings passed.
+- **Scientific boundary:** Stage 7 remains accepted evidence-only parser
+  evidence, without semantic-trust claims. Stage 8 remains accepted lossless
+  evidence/indexing only, with a complete handoff for a future separately
+  designed Stage 9. No Stage 8 schema, mapping, contract, output, or Stage 9
+  precursor was changed by this freeze.
+- **Frozen fingerprints:** Stage 7 contract
+  `c9561e6d08263b2a8824ff66f2a3aa8521e3ff880759abc14173cce440ced8a4`;
+  Stage 7 schema
+  `b0e0e83ea3d929b7df8a6a5f64c2e8eb026395a917da90e97a98858b27e9ead2`;
+  Stage 8 contract
+  `8b3c530e714177fe2c30a97d61dcc199b7f9efba58f3c17a291b817af0f24d5e`;
+  label mapping
+  `b18167d2d5c1f1402d1bb0e92559befb92418f5f4f34df885596778a11d5c09d`;
+  schema bundle
+  `6c8ebecd24c495dbe2ce32125ac1cb89c4a9de4905c786b774d10ad728ed392f`;
+  candidate evidence schema
+  `b1d56ea33c22e639ab798581c5533b1a0981ef5452dce5cb24e168d4a684bd4c`;
+  parser component evidence schema
+  `112fb17c2afac27b941d30f57fe5c1bb2e46d779f89bdf2efbd8c719a3b87ccf`;
+  source candidate map schema
+  `884eb8456fc6ee84a699a9e2371224e5c709363daac0febc5975f911bf48c398`; and
+  representation occurrence schema
+  `df1cac9b6d9f86ffb76d1ea744fc64f15149c9e33fef980213286b91b2d02038`.
+- **Provenance recovery:** Stage 2 output manifest
+  `260b77fea50bc2db1bfb10dca8339cb33bcb2e2aad7de9c07ed55a71dec0d419`
+  is `RECOVERED_EXACT` from the accepted Stage 3 sanitized upstream binding.
+  The Stage 0/1 1,405-file DEVELOPMENT candidate, executable, merge, job,
+  independent-review, and Stage 1 logical identities are
+  `HISTORICAL_PROVENANCE_NOT_RETAINED`; their fields remain null. This prevents
+  Git-only independent replay of those original executions but does not affect
+  Benchmark identity, the accepted Stage 2→8 chain, the Stage 8 handoff, or
+  Stage 9 readiness.
+- **Nonblocking limitations:** Exact local Python 3.14.3 guarded validation was
+  not available under local Python 3.14.7; the guard remains fail-closed.
+  Protected artifact reopen/rehash was intentionally outside this repository
+  audit scope. Neither limitation is a defect or Stage-9 blocker.
+- **Decision:** No Stage-9-blocking scientific, contract, population, identity,
+  map-back, privacy, reproducibility-for-consumption, or handoff defect remains.
+  This freeze does not authorize Stage 9, HOLDOUT, production, reference work,
+  parsing, Pelias, or geocoding.
+
 ## Open decisions
 
 These questions require future stage designs and explicit approval:

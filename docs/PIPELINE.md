@@ -331,8 +331,8 @@ accepted transition boundary is summarized in the authoritative
   [Stage 8 report](../reports/development/stage08.md), with structured evidence
   in its [JSON summary](../reports/generated/stage08.json). The detailed stage
   contract remains in the
-  [Stage 8 record](stages/STAGE08_ADDRESS_EVIDENCE_PROJECTION.md). The next task
-  is the full Stages 0–8 pipeline audit before Stage 9; Stage 9 has not started.
+  [Stage 8 record](stages/STAGE08_ADDRESS_EVIDENCE_PROJECTION.md). The
+  pre-Stage-9 baseline is frozen; Stage 9 has not started.
 
 ### Stage 9 — Offline geographic reference evidence
 

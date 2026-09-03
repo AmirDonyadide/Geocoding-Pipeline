@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import re
+import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -122,6 +123,50 @@ def _expected_report_paths() -> set[Path]:
     return paths
 
 
+def _tracked_report_paths(errors: list[str]) -> set[Path]:
+    """Return only report paths recorded by the current Git index."""
+    try:
+        completed = subprocess.run(
+            ["git", "ls-files", "-z", "--", "reports"],
+            cwd=ROOT,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+    except OSError as exc:
+        errors.append(f"could not list tracked reports: {exc}")
+        return set()
+    if completed.returncode != 0:
+        errors.append(
+            "could not list tracked reports: "
+            f"{completed.stderr.strip() or f'git exited {completed.returncode}'}"
+        )
+        return set()
+
+    report_root = REPORTS.resolve()
+    tracked: set[Path] = set()
+    for raw_path in completed.stdout.split("\0"):
+        if not raw_path:
+            continue
+        path = (ROOT / raw_path).resolve()
+        if not path.is_relative_to(report_root):
+            errors.append(f"tracked report path escapes reports/: {raw_path!r}")
+            continue
+        tracked.add(path)
+    return tracked
+
+
+def _validate_report_surface(
+    tracked: set[Path], expected: set[Path], errors: list[str]
+) -> None:
+    unexpected = sorted(str(path.relative_to(ROOT)) for path in tracked - expected)
+    missing = sorted(str(path.relative_to(ROOT)) for path in expected - tracked)
+    if unexpected:
+        errors.append(f"unexpected tracked report files: {unexpected}")
+    if missing:
+        errors.append(f"missing expected tracked report files: {missing}")
+
+
 def _load_summaries(errors: list[str]) -> dict[int, dict[str, object]]:
     summaries: dict[int, dict[str, object]] = {}
     for stage in STAGES:
@@ -236,6 +281,10 @@ def _validate_cross_stage(
         summaries, 8, "inputs", "stage06", "manifest"
     ):
         errors.append("stage06/stage08: manifest binding mismatch")
+    if _nested_str(summaries, 2, "fingerprints", "manifest") != _nested_str(
+        summaries, 3, "inputs", "upstream_manifest"
+    ):
+        errors.append("stage02/stage03: manifest binding mismatch")
 
     for stage, keys, expected in ACCEPTED_METADATA:
         if _nested_value(summaries, stage, keys) != expected:
@@ -305,15 +354,9 @@ def _validate_local_links(errors: list[str]) -> None:
 
 def main() -> int:
     errors: list[str] = []
-    observed = {path for path in REPORTS.rglob("*") if path.is_file()}
     expected = _expected_report_paths()
-    if observed != expected:
-        unexpected = sorted(path.relative_to(ROOT) for path in observed - expected)
-        missing = sorted(path.relative_to(ROOT) for path in expected - observed)
-        if unexpected:
-            errors.append(f"unexpected report files: {unexpected}")
-        if missing:
-            errors.append(f"missing report files: {missing}")
+    tracked = _tracked_report_paths(errors)
+    _validate_report_surface(tracked, expected, errors)
 
     summaries = _load_summaries(errors)
     _validate_cross_stage(summaries, errors)

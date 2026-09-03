@@ -175,8 +175,8 @@ Stage 8 is **`STAGE_8_ACCEPTED`** on DEVELOPMENT at exact candidate
 rereview commit `f8a456f…` and job `1764376` passed with zero candidate defects.
 Jobs `1763747`, `1763984`, and `1764219` and all failed reviews remain truthful
 historical evidence for their exact executable lineages. The next action is
-**FULL STAGES 0–8 PIPELINE AUDIT BEFORE STAGE 9.** Stage 9, HOLDOUT, production
-Stages 2–8, Senzing, and geocoding have not started and are not authorized by
-this acceptance. See the
+the frozen pre-Stage-9 baseline; a separately designed and authorized Stage 9
+remains not started. HOLDOUT, production Stages 2–8, Senzing, and geocoding
+have not started and are not authorized. See the
 [Stage 8 design](docs/stages/STAGE08_ADDRESS_EVIDENCE_PROJECTION.md) and
 [current progress](docs/DEVELOPMENT_PROGRESS.md).

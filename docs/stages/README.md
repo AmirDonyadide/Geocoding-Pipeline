@@ -24,5 +24,6 @@ Replacement Stages 9–14 remain proposed in
 remediations; corrected independent rereview job `1764376`; and review-only
 RH-001 without relabeling any historical failure. Its
 [machine summary](../../reports/generated/stage08.json) provides the exact
-structured evidence. The next task is the full Stages 0–8 pipeline audit before
-Stage 9.
+structured evidence. The required audit is complete and the pre-Stage-9
+baseline is frozen; Stage 9 remains not started pending separate design and
+authorization.

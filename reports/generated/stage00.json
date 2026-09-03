@@ -9,7 +9,26 @@
     "candidate_sha": null,
     "executable_sha": null,
     "merge_sha": null,
-    "jobs": []
+    "jobs": [],
+    "recovery": {
+      "scope": "DEVELOPMENT_1405_FILE_BENCHMARK_V1",
+      "disposition": "HISTORICAL_PROVENANCE_NOT_RETAINED",
+      "method": "GIT_ONLY_SANITIZED_EVIDENCE_REVIEW",
+      "fields": {
+        "candidate_sha": "NOT_RETAINED",
+        "executable_sha": "NOT_RETAINED",
+        "merge_sha": "NOT_RETAINED",
+        "jobs": "NOT_RETAINED",
+        "independent_review.job_id": "NOT_RETAINED",
+        "independent_review.evidence_sha256": "NOT_RETAINED",
+        "fingerprints.development_candidate": "NOT_RETAINED",
+        "fingerprints.production_population": "NOT_APPLICABLE"
+      },
+      "evidence": [
+        "Current Stage 00 accepted report and reachable sanitized Git history were reviewed.",
+        "Historical Phase 1 evidence is a distinct 206-file population and is not used as Benchmark V1 provenance."
+      ]
+    }
   },
   "inputs": {
     "scope_contract": "stage00_population_scope_v1",
@@ -54,6 +73,13 @@
       "event_id": "LEGACY_PHASE01_REPORT_HIERARCHY_CONSOLIDATED",
       "classification": "REPORTING_ONLY",
       "accepted_scanner_lineage_preserved": true
+    },
+    {
+      "event_id": "PROV-002_STAGE00_DEVELOPMENT_PROVENANCE_RECOVERY",
+      "classification": "HISTORICAL_PROVENANCE_NOT_RETAINED",
+      "scope": "DEVELOPMENT_1405_FILE_BENCHMARK_V1",
+      "protected_artifacts_opened": false,
+      "values_inferred": false
     }
   ],
   "prohibited_activity": {

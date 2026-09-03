@@ -22,4 +22,3 @@ def copy_fixture(fixtures_dir: Path, source_dir: Path, name: str) -> Path:
     destination = source_dir / name
     shutil.copyfile(fixtures_dir / name, destination)
     return destination
-

@@ -272,6 +272,7 @@ executable `c04cb97214a9f1e5d2b80512c756400321eefa80`, job `1764273`, and
 manifest `2a50bd8c…`. Corrected independent rereview commit `f8a456f…` and job
 `1764376` passed with zero candidate defects. Jobs `1763747`, `1763984`, and
 `1764219` and every failed review remain historical evidence for their exact
-lineages. The next action is: **FULL STAGES 0–8 PIPELINE AUDIT BEFORE STAGE 9.**
-No further Stage 8 job, production Stage 2 through Stage 8, HOLDOUT, Stage 9,
-Senzing, or geocoding is authorized by this acceptance.
+lineages. The pre-Stage-9 baseline is frozen. No further Stage 8 job,
+production Stage 2 through Stage 8, HOLDOUT, Stage 9, Senzing, or geocoding is
+authorized by this acceptance; Stage 9 requires a separate design and
+authorization.

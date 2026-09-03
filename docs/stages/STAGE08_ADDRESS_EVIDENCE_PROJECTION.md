@@ -1166,7 +1166,8 @@ Stage 9; hypotheses remain Stage 10. No broader renumbering is required.
 
 Verdict: `STAGE_8_ACCEPTED` on DEVELOPMENT.
 
-Exact next action: **FULL STAGES 0–8 PIPELINE AUDIT BEFORE STAGE 9.** Do not
-submit another Stage 8 job, alter jobs `1763747`, `1763984`, `1764219`, or
-`1764273` or their artifacts, start Stage 9, or treat DEVELOPMENT acceptance
-as production or later-stage authorization.
+The required Stages 0–8 audit is complete and the pre-Stage-9 baseline is
+frozen. Do not submit another Stage 8 job, alter jobs `1763747`, `1763984`,
+`1764219`, or `1764273` or their artifacts, start Stage 9, or treat DEVELOPMENT
+acceptance as production or later-stage authorization. Stage 9 still requires
+a separate design and explicit authorization.

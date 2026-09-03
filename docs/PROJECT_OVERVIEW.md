@@ -110,8 +110,8 @@ zero infrastructure-incomplete checks. Its scientific contract stayed
 unchanged through every publication remediation, and the owner accepted it as
 `STAGE_8_ACCEPTED`. Jobs `1763747`, `1763984`, and `1764219` remain immutable
 historical evidence for their exact executables; every failed review remains
-truthful. Replacement Stages 9–14 remain proposed and not started. The next
-task is the full Stages 0–8 pipeline audit before Stage 9.
+truthful. Replacement Stages 9–14 remain proposed and not started. The
+pre-Stage-9 baseline is frozen; Stage 9 design remains separate and unauthorized.
 See
 [PIPELINE.md](PIPELINE.md).
 

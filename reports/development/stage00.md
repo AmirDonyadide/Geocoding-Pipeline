@@ -51,6 +51,16 @@ not retain a distinct DEVELOPMENT candidate SHA, executable SHA, merge SHA, or
 SLURM job, so those fields are explicitly `null` in the machine summary rather
 than guessed.
 
+PROV-002 performed one Git-only review of current and reachable sanitized
+evidence. No exact 1,405-file DEVELOPMENT candidate, executable, merge, job,
+independent-review, or DEVELOPMENT-candidate-fingerprint identity was retained.
+Each remains `null` and is classified
+`HISTORICAL_PROVENANCE_NOT_RETAINED`/`NOT_RETAINED` in the machine report.
+Historical Phase 1 evidence concerns a distinct 206-file population and was
+not used as a substitute. The null production-population fingerprint is
+`NOT_APPLICABLE`: its canonical named identity is recorded separately as
+`production_population_1411_v1`.
+
 ## DEVELOPMENT execution
 
 The accepted Stage 0 snapshot contains 1,405 files and 140,448,582 logical
@@ -88,6 +98,11 @@ accepted separately and did not change DEVELOPMENT identity.
 Inventory evidence does not establish stable row identity, normalized content,
 address quality, parser correctness, or geographic truth. Detailed paths and
 row-level diagnostics remain controlled and are not in Git.
+
+The historical DEVELOPMENT execution-provenance gap prevents Git-only
+independent replay of the original Stage 0 execution. It does not change the
+Benchmark V1 population identity, accepted Stage 2–8 chain, Stage 8 handoff,
+or Stage 9 readiness.
 
 ## Downstream handoff
 

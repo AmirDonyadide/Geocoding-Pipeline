@@ -154,7 +154,8 @@ documentation test pass.
   materialization completed as job `1764273`; its scientific and v3 terminal
   reconciliation passed. Exact candidate `231cdbf9…` then passed corrected
   independent rereview commit `f8a456f…` and job `1764376` with zero candidate
-  defects. No new Stage 8 job is authorized. Production Stage 8 and Stage 9
-  remain **NOT STARTED**; the next task is the full Stages 0–8 pipeline audit.
+defects. No new Stage 8 job is authorized. Production Stage 8 and Stage 9
+remain **NOT STARTED**; the pre-Stage-9 baseline is frozen and Stage 9 design
+requires separate authorization.
 
 This policy grants no scientific-stage or production-run authorization.

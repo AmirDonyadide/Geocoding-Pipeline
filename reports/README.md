@@ -25,5 +25,6 @@ available through Git history; protected execution artifacts remain only on
 authorized controlled infrastructure.
 
 The DEVELOPMENT pipeline is `STAGE_8_ACCEPTED`, so Stages 0–8 are accepted.
-Stage 9 has not started. Production Stage 0 and Stage 1 are accepted separately;
-production Stage 2 and later stages have not started.
+The pre-Stage-9 baseline is frozen and Stage 9 has not started. Production
+Stage 0 and Stage 1 are accepted separately; production Stage 2 and later
+stages have not started.

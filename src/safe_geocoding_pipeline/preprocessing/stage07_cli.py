@@ -60,9 +60,7 @@ def build_parser() -> argparse.ArgumentParser:
     validate.add_argument("--expected-stage07-manifest-sha256", required=True)
     validate.add_argument("--parser-bundle-directory", required=True, type=Path)
     validate.add_argument("--batch-rows", type=int, default=64)
-    validate.add_argument(
-        "--target-batch-bytes", type=int, default=128 * 1024 * 1024
-    )
+    validate.add_argument("--target-batch-bytes", type=int, default=128 * 1024 * 1024)
 
     review = subparsers.add_parser("materialize-review")
     review.add_argument("--stage05-output-directory", required=True, type=Path)
@@ -93,8 +91,7 @@ def _create_binding(args: argparse.Namespace) -> None:
     )
     if (
         bundle.parser_bundle_fingerprint != binding.parser_bundle_fingerprint
-        or bundle.parser_model_data_fingerprint
-        != binding.parser_model_data_fingerprint
+        or bundle.parser_model_data_fingerprint != binding.parser_model_data_fingerprint
         or bundle.pypostal_runtime_fingerprint != binding.pypostal_runtime_fingerprint
         or bundle.libpostal_shared_library_sha256
         != binding.libpostal_shared_library_sha256
@@ -198,8 +195,7 @@ def _materialize_review(args: argparse.Namespace) -> None:
     print(f"fixed500_mismatches={outcome.fixed_mismatches}")
     print(f"qualitative_candidates={outcome.qualitative_candidates}")
     print(
-        "qualitative_selection_fingerprint="
-        f"{outcome.qualitative_selection_fingerprint}"
+        f"qualitative_selection_fingerprint={outcome.qualitative_selection_fingerprint}"
     )
     print(f"stage07_review_manifest_sha256={outcome.manifest_sha256}")
     print(f"fixed500_seconds={outcome.fixed500_seconds}")

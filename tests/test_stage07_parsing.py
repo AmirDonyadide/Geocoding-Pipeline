@@ -90,7 +90,10 @@ def _fixture_stage06(root: Path) -> tuple[Path, tuple[str, ...], tuple[bytes, ..
         (
             pa.array(candidate_ids, type=pa.binary(32)),
             pa.array(candidates, type=pa.string()),
-            *(pa.array((row[index] for row in counts), type=pa.uint64()) for index in range(3)),
+            *(
+                pa.array((row[index] for row in counts), type=pa.uint64())
+                for index in range(3)
+            ),
         ),
         schema=registry_schema(),
     )
@@ -190,21 +193,21 @@ def _run(
     _FakeSupervisor.parsed_inputs = []
     output = tmp_path / output_name
     config = Stage07RunConfig(
-            stage05_output_directory=stage05,
-            stage06_output_directory=stage06,
-            input_binding_file=binding_path,
-            expected_input_binding_sha256=binding_sha,
-            parser_bundle_directory=bundle,
-            expected_parser_bundle_fingerprint=ACCEPTED_PARSER_BUNDLE_FINGERPRINT,
-            output_directory=output,
-            execution_git_sha="a" * 40,
-            authoritative_development=False,
-            production=False,
-            input_batch_rows=input_batch_rows,
-            output_batch_rows=output_batch_rows,
-            target_batch_bytes=256,
-            output_shard_rows=output_shard_rows,
-        )
+        stage05_output_directory=stage05,
+        stage06_output_directory=stage06,
+        input_binding_file=binding_path,
+        expected_input_binding_sha256=binding_sha,
+        parser_bundle_directory=bundle,
+        expected_parser_bundle_fingerprint=ACCEPTED_PARSER_BUNDLE_FINGERPRINT,
+        output_directory=output,
+        execution_git_sha="a" * 40,
+        authoritative_development=False,
+        production=False,
+        input_batch_rows=input_batch_rows,
+        output_batch_rows=output_batch_rows,
+        target_batch_bytes=256,
+        output_shard_rows=output_shard_rows,
+    )
     outcome = materialize_stage07(config)
     return outcome, candidates, output, config
 
@@ -344,7 +347,9 @@ def test_published_validator_rejects_partial_mutated_and_wrong_manifest(
         output_shard_rows=2,
     )
 
-    def validate_copy(root: Path, manifest_sha256: str = outcome.manifest_sha256) -> None:
+    def validate_copy(
+        root: Path, manifest_sha256: str = outcome.manifest_sha256
+    ) -> None:
         validate_stage07_bundle(
             root,
             expected_manifest_sha256=manifest_sha256,
@@ -369,7 +374,9 @@ def test_published_validator_rejects_partial_mutated_and_wrong_manifest(
     with pytest.raises(Stage07ValidationError, match="STAGE07_ARTIFACT_MISMATCH"):
         validate_copy(mutated)
 
-    with pytest.raises(Stage07ValidationError, match="STAGE07_MANIFEST_SHA256_MISMATCH"):
+    with pytest.raises(
+        Stage07ValidationError, match="STAGE07_MANIFEST_SHA256_MISMATCH"
+    ):
         validate_copy(output, "0" * 64)
 
 
@@ -468,7 +475,7 @@ def test_source_has_no_population_materialization_or_failure_status_schema() -> 
         "fetchdf(",
         "RLIMIT_AS",
         "ulimit -v",
-        "PARSER_PROCESS_CRASH\"",
+        'PARSER_PROCESS_CRASH"',
     ):
         assert forbidden not in source
     binding = accepted_stage07_input_binding()
