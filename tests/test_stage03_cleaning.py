@@ -17,7 +17,9 @@ import pytest
 import safe_geocoding_pipeline.preprocessing.stages.s03_cleaning as stage03_module
 
 from safe_geocoding_pipeline.execution_policy import ExecutionPolicyError
-from safe_geocoding_pipeline.phase02.identity import stable_source_row_id_v1
+from safe_geocoding_pipeline.preprocessing.stages.s01_identity import (
+    stable_source_row_id_v1,
+)
 from safe_geocoding_pipeline.preprocessing.benchmark_runner import (
     BENCHMARK_OUTPUT_SCHEMA_VERSION,
     benchmark_schema,

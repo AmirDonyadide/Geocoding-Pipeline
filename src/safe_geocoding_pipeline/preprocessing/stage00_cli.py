@@ -4,13 +4,13 @@ import argparse
 from pathlib import Path
 from typing import Sequence
 
-from .config import DEFAULT_PARSER_FIELD_LIMIT_CHARS, InventoryConfig
-from .runner import run_inventory
+from .stages.s00_config import DEFAULT_PARSER_FIELD_LIMIT_CHARS, InventoryConfig
+from .stages.s00_runner import run_inventory
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="safe-geocoding-phase01",
+        prog="safe-geocoding-stage00",
         description="Inventory immutable source CSV files without transforming them.",
     )
     parser.add_argument("--source-root", required=True, type=Path)
@@ -24,7 +24,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Exact lowercase SHA-256 of --population-scope-file.",
     )
     parser.add_argument(
-        "--reports-root", type=Path, default=Path("reports/generated/phase01")
+        "--reports-root", type=Path, default=Path("reports/generated/stage00")
     )
     parser.add_argument(
         "--run-scope",
@@ -93,12 +93,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         outcome = run_inventory(config_from_args(args))
     except (OSError, RuntimeError, ValueError) as error:
-        parser.exit(2, f"phase01 error: {error}\n")
+        parser.exit(2, f"stage00 error: {error}\n")
     print(f"run_id={outcome.run_id}")
     print(f"run_dir={outcome.run_dir}")
     print(f"status={outcome.status}")
     print(f"scope_gate={outcome.scope_gate}")
-    print(f"phase01_completion_gate={outcome.phase01_completion_gate}")
+    print(f"stage00_completion_gate={outcome.stage00_completion_gate}")
     return 0 if outcome.scope_gate == "PASS" else 2
 
 

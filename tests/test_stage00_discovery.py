@@ -4,8 +4,10 @@ from pathlib import Path
 
 import pytest
 
-from safe_geocoding_pipeline.phase01.config import InventoryConfig
-from safe_geocoding_pipeline.phase01.discovery import discover_source_files
+from safe_geocoding_pipeline.preprocessing.stages.s00_config import InventoryConfig
+from safe_geocoding_pipeline.preprocessing.stages.s00_discovery import (
+    discover_source_files,
+)
 
 
 def test_discovery_is_nonrecursive_sorted_and_does_not_follow_symlinks(
@@ -36,4 +38,3 @@ def test_include_rejects_paths_and_missing_files(source_dir: Path) -> None:
 def test_full_inventory_requires_explicit_acknowledgement(source_dir: Path) -> None:
     with pytest.raises(ValueError, match="authorize-full-inventory"):
         InventoryConfig(source_root=source_dir, run_scope="FULL_INVENTORY").validate()
-

@@ -113,11 +113,11 @@ acceptance gate remains in force.
 
 - **Purpose:** Freeze the exact source population and establish parser, schema,
   count, anomaly, hash, and identity evidence without transforming rows.
-- **Input:** Immutable source CSV scope plus the accepted historical Phase 1
-  inventory contract.
+- **Input:** Immutable source CSV scope plus the accepted Stage 0 inventory
+  contract.
 - **Output:** Population scope, file manifest, parser/schema evidence,
   scientific inventory fingerprints, and explicit diagnostics.
-- **Primary libraries:** existing Phase 1 inventory, Python `hashlib`, Python
+- **Primary libraries:** canonical Stage 0 scanner, Python `hashlib`, Python
   `csv`.
 - **Data effect:** None. It reads and reports; it does not rewrite source data.
 - **Status:** **ACCEPTED** on DEVELOPMENT and production. Production status is

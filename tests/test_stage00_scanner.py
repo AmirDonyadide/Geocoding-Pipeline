@@ -9,10 +9,13 @@ from pathlib import Path
 
 import pytest
 
-from safe_geocoding_pipeline.phase01.config import InventoryConfig
-from safe_geocoding_pipeline.phase01.constants import EXPECTED_COLUMNS, REPORT_NAMES
-from safe_geocoding_pipeline.phase01.profiling import sha256_text
-from safe_geocoding_pipeline.phase01.runner import run_inventory
+from safe_geocoding_pipeline.preprocessing.stages.s00_config import InventoryConfig
+from safe_geocoding_pipeline.preprocessing.stages.s00_constants import (
+    EXPECTED_COLUMNS,
+    REPORT_NAMES,
+)
+from safe_geocoding_pipeline.preprocessing.stages.s00_profiling import sha256_text
+from safe_geocoding_pipeline.preprocessing.stages.s00_runner import run_inventory
 
 
 def _copy(fixtures_dir: Path, source_dir: Path, *names: str) -> None:
@@ -68,7 +71,7 @@ def test_ordinary_csv_preserves_csv_semantics_unicode_and_postcodes(
     outcome = run_inventory(_config(source_dir, tmp_path, run_id_suffix="ordinary"))
 
     assert outcome.scope_gate == "PASS"
-    assert outcome.phase01_completion_gate == "NOT_EVALUATED"
+    assert outcome.stage00_completion_gate == "NOT_EVALUATED"
     result = outcome.file_results[0]
     assert result.logical_record_count == 3
     assert result.schema_matches_expected is True
@@ -95,7 +98,9 @@ def test_ordinary_csv_preserves_csv_semantics_unicode_and_postcodes(
         assert (outcome.run_dir / name).stat().st_mode & 0o777 == 0o600
     assert outcome.run_dir.stat().st_mode & 0o777 == 0o700
     assert (outcome.run_dir / "_work").stat().st_mode & 0o777 == 0o700
-    assert (outcome.run_dir / "_work/phase01.sqlite3").stat().st_mode & 0o777 == 0o600
+    assert (
+        outcome.run_dir / "_work/stage00_inventory.sqlite3"
+    ).stat().st_mode & 0o777 == 0o600
     run_payload = json.loads(
         (outcome.run_dir / "phase01_run.json").read_text(encoding="utf-8")
     )

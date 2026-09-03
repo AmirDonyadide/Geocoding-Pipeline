@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from safe_geocoding_pipeline.phase01.profiling import (
+from safe_geocoding_pipeline.preprocessing.stages.s00_profiling import (
     SafeCategoryCounter,
     character_class,
     native_pair_state,
@@ -69,6 +69,6 @@ def test_categorical_counter_discards_raw_values_after_length_limit() -> None:
 
 def test_categorical_counter_suppresses_spreadsheet_formulas() -> None:
     counter = SafeCategoryCounter(max_distinct=10, max_value_chars=100)
-    assert counter.add("=HYPERLINK(\"https://invalid.example\")") is True
+    assert counter.add('=HYPERLINK("https://invalid.example")') is True
     assert counter.suppression_reason == "UNSAFE_SPREADSHEET_VALUE"
     assert counter.counts == {}

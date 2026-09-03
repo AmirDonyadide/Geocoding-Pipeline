@@ -8,8 +8,8 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any
 
-from ..raw_csv import SOURCE_COLUMNS, source_schema_fingerprint
-from .constants import INVENTORY_VERSION
+from ...raw_csv import SOURCE_COLUMNS, source_schema_fingerprint
+from .s00_constants import INVENTORY_VERSION
 
 POPULATION_SCOPE_VERSION = "stage00_population_scope_v1"
 
@@ -33,7 +33,7 @@ class PopulationScope:
     artifact_sha256: str
     population_scope_version: str
     population_id: str
-    phase01_inventory_version: str
+    inventory_version: str
     source_schema_fingerprint: str
     parser_field_limit_chars: int
     expected_source_count: int
@@ -45,7 +45,7 @@ class PopulationScope:
             "population_id": self.population_id,
             "population_scope_artifact_sha256": self.artifact_sha256,
             "population_scope_artifact_size_bytes": self.artifact_size_bytes,
-            "phase01_inventory_version": self.phase01_inventory_version,
+            "phase01_inventory_version": self.inventory_version,
             "source_schema_fingerprint": self.source_schema_fingerprint,
             "parser_field_limit_chars": self.parser_field_limit_chars,
             "expected_source_count": self.expected_source_count,
@@ -154,7 +154,7 @@ def load_population_scope(
         artifact_sha256=observed_sha256,
         population_scope_version=POPULATION_SCOPE_VERSION,
         population_id=population_id,
-        phase01_inventory_version=INVENTORY_VERSION,
+        inventory_version=INVENTORY_VERSION,
         source_schema_fingerprint=expected_schema_fingerprint,
         parser_field_limit_chars=parser_field_limit_chars,
         expected_source_count=expected_source_count,

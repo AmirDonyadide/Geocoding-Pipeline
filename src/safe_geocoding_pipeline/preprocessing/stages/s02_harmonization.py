@@ -18,13 +18,13 @@ import pyarrow.compute as pc
 import pyarrow.parquet as pq
 
 from ...execution_policy import require_goethe_nhr_slurm
-from ...phase02.constants import (
+from .s01_constants import (
     PARSER_VERSION,
     SOURCE_SCHEMA_VERSION,
     STAGING_VERSION,
 )
-from ...phase02.identity import stable_source_row_id_v1
-from ...phase02.schema import base_staging_schema, schema_fingerprint
+from .s01_identity import stable_source_row_id_v1
+from .s01_schema import base_staging_schema, schema_fingerprint
 from ...raw_csv import SOURCE_COLUMNS
 from ..benchmark_runner import (
     BENCHMARK_OUTPUT_SCHEMA_VERSION,

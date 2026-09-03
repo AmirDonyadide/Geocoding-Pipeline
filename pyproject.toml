@@ -13,8 +13,7 @@ dependencies = ["duckdb==1.5.5", "ftfy==6.3.1", "pyarrow==25.0.0"]
 dev = ["mypy==1.20.2", "pytest==8.4.2", "ruff==0.15.14"]
 
 [project.scripts]
-safe-geocoding-phase01 = "safe_geocoding_pipeline.phase01.cli:main"
-safe-geocoding-phase02 = "safe_geocoding_pipeline.phase02.cli:main"
+safe-geocoding-stage00 = "safe_geocoding_pipeline.preprocessing.stage00_cli:main"
 safe-geocoding-benchmark-sample = "safe_geocoding_pipeline.preprocessing.benchmark_cli:main"
 safe-geocoding-stage02 = "safe_geocoding_pipeline.preprocessing.stage02_cli:main"
 safe-geocoding-stage03 = "safe_geocoding_pipeline.preprocessing.stage03_cli:main"
@@ -48,7 +47,7 @@ addopts = "-ra"
 testpaths = ["tests"]
 markers = [
     "slow: generated large-field tests",
-    "requires_production_transfer_payload: requires the ignored completed Phase 1/2 transfer payload",
+    "requires_production_transfer_payload: requires an ignored controlled production transfer payload",
 ]
 
 [tool.mypy]

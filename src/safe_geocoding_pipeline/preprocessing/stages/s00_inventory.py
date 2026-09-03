@@ -16,10 +16,10 @@ from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 from typing import Any, NoReturn, cast
 
-from ...phase01.config import DEFAULT_PARSER_FIELD_LIMIT_CHARS, InventoryConfig
-from ...phase01.constants import INVENTORY_VERSION, REPORT_NAMES
-from ...phase01.reports import MANIFEST_COLUMNS
-from ...phase01.runner import TERMINAL_MARKER_TEXT, InventoryOutcome, run_inventory
+from .s00_config import DEFAULT_PARSER_FIELD_LIMIT_CHARS, InventoryConfig
+from .s00_constants import INVENTORY_VERSION, REPORT_NAMES
+from .s00_reports import MANIFEST_COLUMNS
+from .s00_runner import TERMINAL_MARKER_TEXT, InventoryOutcome, run_inventory
 from ...raw_csv import (
     CSV_DELIMITER,
     CSV_DOUBLEQUOTE,
@@ -40,16 +40,18 @@ from ...raw_csv import (
 )
 
 STAGE00_CONTRACT_VERSION = "stage00_inventory_contract_v1"
+# Stage 0 must continue to validate the exact, immutable source-foundation
+# artifact names and keys recorded before Stage terminology was adopted.
 STAGE00_VALIDATION_CONTRACT_VERSION = "stage00_bundle_validation_v1"
 STAGE00_IMPLEMENTATION_STATUS = "STAGE_0_ACCEPTED"
 SOURCE_POPULATION_DOMAIN = b"SAFE_STAGE00_SOURCE_POPULATION_V1"
 SCIENTIFIC_INVENTORY_DOMAIN = b"SAFE_STAGE00_SCIENTIFIC_INVENTORY_V1"
 PARSER_CONTRACT_DOMAIN = b"SAFE_STAGE00_PARSER_CONTRACT_V1"
 ADOPTION_RECORD_NAME = "stage00_adoption.json"
-PHASE01_SUCCESS_MARKER = "_SCOPE_PASS"
-PHASE01_FAILURE_MARKER = "_SCOPE_FAIL"
-PHASE01_IN_PROGRESS_MARKER = "_IN_PROGRESS"
-PHASE01_DISCOVERY_MODE = "DIRECT_CSV_CHILDREN_NON_RECURSIVE_NO_SYMLINKS"
+SOURCE_INVENTORY_SUCCESS_MARKER = "_SCOPE_PASS"
+SOURCE_INVENTORY_FAILURE_MARKER = "_SCOPE_FAIL"
+SOURCE_INVENTORY_IN_PROGRESS_MARKER = "_IN_PROGRESS"
+SOURCE_INVENTORY_DISCOVERY_MODE = "DIRECT_CSV_CHILDREN_NON_RECURSIVE_NO_SYMLINKS"
 
 _LOWER_SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 _UNSIGNED_DECIMAL_RE = re.compile(r"^(?:0|[1-9][0-9]*)$")
@@ -106,7 +108,7 @@ class ArtifactIdentity:
 
 
 @dataclass(frozen=True, slots=True)
-class ValidatedPhase01Bundle:
+class ValidatedSourceInventoryBundle:
     run_dir: Path
     run_id: str
     inventory_version: str
@@ -131,7 +133,7 @@ class Stage00AdoptionOutcome:
     output_directory: Path
     adoption_record_path: Path
     adoption_record_sha256: str
-    bundle: ValidatedPhase01Bundle
+    bundle: ValidatedSourceInventoryBundle
     permissions: PermissionHardeningResult
 
 
@@ -411,7 +413,7 @@ def _load_manifest_unchecked(
     with path.open("r", encoding="utf-8", newline="") as stream:
         reader = csv.DictReader(stream)
         if tuple(reader.fieldnames or ()) != MANIFEST_COLUMNS:
-            _fail("MANIFEST_SCHEMA_MISMATCH", "Phase 1 manifest columns are not exact")
+            _fail("MANIFEST_SCHEMA_MISMATCH", "Stage 0 manifest columns are not exact")
         for row in reader:
             if None in row or any(value is None for value in row.values()):
                 _fail(
@@ -526,7 +528,7 @@ def _load_manifest(path: Path, run_id: str) -> tuple[Stage00InventoryRecord, ...
         raise
     except (OSError, UnicodeError, csv.Error, TypeError, ValueError) as error:
         raise Stage00ValidationError(
-            "MALFORMED_MANIFEST", "Phase 1 manifest cannot be interpreted safely"
+            "MALFORMED_MANIFEST", "Stage 0 manifest cannot be interpreted safely"
         ) from error
 
 
@@ -536,10 +538,10 @@ def _load_json_object(path: Path) -> dict[str, Any]:
             value = json.load(stream)
     except (OSError, UnicodeError, json.JSONDecodeError) as error:
         raise Stage00ValidationError(
-            "MALFORMED_RUN_METADATA", "Phase 1 run metadata cannot be read"
+            "MALFORMED_RUN_METADATA", "Stage 0 run metadata cannot be read"
         ) from error
     if not isinstance(value, dict):
-        _fail("MALFORMED_RUN_METADATA", "Phase 1 run metadata is not an object")
+        _fail("MALFORMED_RUN_METADATA", "Stage 0 run metadata is not an object")
     return cast(dict[str, Any], value)
 
 
@@ -570,37 +572,37 @@ def _artifact_identity(path: Path, relative_path: str) -> ArtifactIdentity:
     ):
         _fail(
             "BUNDLE_CHANGED_DURING_VALIDATION",
-            "Phase 1 artifact changed while Stage 0 validation was in progress",
+            "Stage 0 artifact changed while Stage 0 validation was in progress",
         )
     return ArtifactIdentity(relative_path, after.st_size, sha256)
 
 
-def validate_phase01_bundle(
+def validate_stage00_inventory(
     run_dir: Path,
     *,
     expected_file_count: int,
     expected_producing_git_commit: str,
-) -> ValidatedPhase01Bundle:
-    """Validate and project a completed Phase 1 bundle without source access."""
+) -> ValidatedSourceInventoryBundle:
+    """Validate and project a completed Stage 0 bundle without source access."""
     if run_dir.is_symlink() or not run_dir.is_dir():
-        _fail("INVALID_BUNDLE_DIRECTORY", "Phase 1 bundle is not a regular directory")
+        _fail("INVALID_BUNDLE_DIRECTORY", "Stage 0 bundle is not a regular directory")
     if _FULL_GIT_SHA_RE.fullmatch(expected_producing_git_commit) is None:
         _fail("INVALID_GIT_COMMIT", "Expected producing Git commit is not a full SHA")
     if isinstance(expected_file_count, bool) or expected_file_count < 1:
         _fail("INVALID_POPULATION_CONTRACT", "Expected file count must be positive")
 
-    in_progress = run_dir / PHASE01_IN_PROGRESS_MARKER
-    failure_marker = run_dir / PHASE01_FAILURE_MARKER
-    success_marker_path = run_dir / PHASE01_SUCCESS_MARKER
+    in_progress = run_dir / SOURCE_INVENTORY_IN_PROGRESS_MARKER
+    failure_marker = run_dir / SOURCE_INVENTORY_FAILURE_MARKER
+    success_marker_path = run_dir / SOURCE_INVENTORY_SUCCESS_MARKER
     if in_progress.exists() or in_progress.is_symlink():
-        _fail("BUNDLE_IN_PROGRESS", "Phase 1 bundle still has an in-progress marker")
+        _fail("BUNDLE_IN_PROGRESS", "Stage 0 bundle still has an in-progress marker")
     if failure_marker.exists() or failure_marker.is_symlink():
-        _fail("INCONSISTENT_TERMINAL_STATE", "Phase 1 bundle has a failure marker")
+        _fail("INCONSISTENT_TERMINAL_STATE", "Stage 0 bundle has a failure marker")
     _require_regular_file(success_marker_path, "MISSING_SUCCESS_MARKER")
     if success_marker_path.read_bytes() != TERMINAL_MARKER_TEXT.encode("utf-8"):
         _fail(
             "INCONSISTENT_TERMINAL_STATE",
-            "Phase 1 success marker content is not canonical",
+            "Stage 0 success marker content is not canonical",
         )
 
     artifact_paths = {name: run_dir / name for name in REPORT_NAMES}
@@ -614,7 +616,7 @@ def validate_phase01_bundle(
         "scope_gate": "PASS",
         "phase01_completion_gate": "PASS",
         "run_scope": "FULL_INVENTORY",
-        "discovery_mode": PHASE01_DISCOVERY_MODE,
+        "discovery_mode": SOURCE_INVENTORY_DISCOVERY_MODE,
         "files_discovered": expected_file_count,
         "git_dirty": False,
     }
@@ -622,11 +624,11 @@ def validate_phase01_bundle(
         if run.get(key) != expected:
             _fail(
                 "PHASE01_GATE_MISMATCH",
-                "Phase 1 run metadata does not satisfy adoption",
+                "Stage 0 run metadata does not satisfy adoption",
             )
     run_id_value = run.get("run_id")
     if not isinstance(run_id_value, str) or run_id_value != run_dir.name:
-        _fail("PHASE01_RUN_ID_MISMATCH", "Phase 1 run identity is inconsistent")
+        _fail("PHASE01_RUN_ID_MISMATCH", "Stage 0 run identity is inconsistent")
     run_id = run_id_value
     producing_commit = run.get("git_commit")
     if (
@@ -634,15 +636,15 @@ def validate_phase01_bundle(
         or _HISTORICAL_GIT_SHA_RE.fullmatch(producing_commit) is None
         or not expected_producing_git_commit.startswith(producing_commit)
     ):
-        _fail("PRODUCING_COMMIT_MISMATCH", "Phase 1 producing commit is inconsistent")
+        _fail("PRODUCING_COMMIT_MISMATCH", "Stage 0 producing commit is inconsistent")
     if run.get("parser_configuration") != _expected_parser_configuration():
         _fail(
-            "PARSER_CONTRACT_MISMATCH", "Phase 1 parser configuration is not approved"
+            "PARSER_CONTRACT_MISMATCH", "Stage 0 parser configuration is not approved"
         )
     if run.get("parser_limits") != {
         "field_limit_chars": DEFAULT_PARSER_FIELD_LIMIT_CHARS
     }:
-        _fail("PARSER_CONTRACT_MISMATCH", "Phase 1 parser limits are not approved")
+        _fail("PARSER_CONTRACT_MISMATCH", "Stage 0 parser limits are not approved")
 
     output_files_value = run.get("output_files")
     expected_output_names = set(REPORT_NAMES) - {"phase01_run.json"}
@@ -650,7 +652,7 @@ def validate_phase01_bundle(
         not isinstance(output_files_value, dict)
         or set(output_files_value) != expected_output_names
     ):
-        _fail("ARTIFACT_SET_MISMATCH", "Phase 1 artifact set is not exact")
+        _fail("ARTIFACT_SET_MISMATCH", "Stage 0 artifact set is not exact")
     output_files = cast(dict[str, Any], output_files_value)
     artifacts: list[ArtifactIdentity] = []
     for name in REPORT_NAMES:
@@ -660,14 +662,14 @@ def validate_phase01_bundle(
             continue
         expected_identity = output_files.get(name)
         if not isinstance(expected_identity, dict):
-            _fail("ARTIFACT_SET_MISMATCH", "Phase 1 artifact metadata is malformed")
+            _fail("ARTIFACT_SET_MISMATCH", "Stage 0 artifact metadata is malformed")
         if (
             expected_identity.get("size_bytes") != identity.size_bytes
             or expected_identity.get("sha256") != identity.sha256
         ):
             _fail(
                 "ARTIFACT_INTEGRITY_MISMATCH",
-                "Phase 1 artifact identity does not match",
+                "Stage 0 artifact identity does not match",
             )
 
     records = _load_manifest(artifact_paths["phase01_file_manifest.csv"], run_id)
@@ -699,7 +701,7 @@ def validate_phase01_bundle(
             or record.scan_status != "COMPLETE"
         ):
             _fail(
-                "UNSUCCESSFUL_INVENTORY_ROW", "A Phase 1 inventory row is not complete"
+                "UNSUCCESSFUL_INVENTORY_ROW", "A Stage 0 inventory row is not complete"
             )
 
     parser_fingerprint = parser_contract_fingerprint_v1()
@@ -709,31 +711,33 @@ def validate_phase01_bundle(
         parser_contract_fingerprint=parser_fingerprint,
         source_population_fingerprint=source_fingerprint,
     )
-    return ValidatedPhase01Bundle(
+    return ValidatedSourceInventoryBundle(
         run_dir=run_dir.resolve(),
         run_id=run_id,
         inventory_version=INVENTORY_VERSION,
         producing_git_commit=expected_producing_git_commit,
         records=records,
         artifacts=tuple(artifacts),
-        success_marker=_artifact_identity(success_marker_path, PHASE01_SUCCESS_MARKER),
+        success_marker=_artifact_identity(
+            success_marker_path, SOURCE_INVENTORY_SUCCESS_MARKER
+        ),
         parser_contract_fingerprint=parser_fingerprint,
         source_population_sha256_v1=source_fingerprint,
         stage00_scientific_inventory_sha256_v1=scientific_fingerprint,
     )
 
 
-def harden_phase01_work_state(run_dir: Path) -> PermissionHardeningResult:
-    """Make retained protected Phase 1 working state owner-only."""
+def harden_stage00_work_state(run_dir: Path) -> PermissionHardeningResult:
+    """Make retained protected Stage 0 working state owner-only."""
     if run_dir.is_symlink() or not run_dir.is_dir():
-        _fail("INVALID_BUNDLE_DIRECTORY", "Phase 1 bundle is not a regular directory")
+        _fail("INVALID_BUNDLE_DIRECTORY", "Stage 0 bundle is not a regular directory")
     work_dir = run_dir / "_work"
     if work_dir.is_symlink():
-        _fail("UNSAFE_WORK_STATE", "Phase 1 working state is a symlink")
+        _fail("UNSAFE_WORK_STATE", "Stage 0 working state is a symlink")
     if not work_dir.exists():
         return PermissionHardeningResult(False, 0, 0)
     if not work_dir.is_dir():
-        _fail("UNSAFE_WORK_STATE", "Phase 1 working state is not a regular directory")
+        _fail("UNSAFE_WORK_STATE", "Stage 0 working state is not a regular directory")
 
     directories: list[Path] = []
     files: list[Path] = []
@@ -771,7 +775,7 @@ def harden_phase01_work_state(run_dir: Path) -> PermissionHardeningResult:
             if path.is_symlink() or not path.is_file():
                 _fail("UNSAFE_WORK_STATE", "Protected working-state file changed")
             path.chmod(0o600)
-        verify_phase01_work_state_permissions(run_dir)
+        verify_stage00_work_state_permissions(run_dir)
     except OSError as error:
         raise Stage00ValidationError(
             "WORK_STATE_PERMISSION_FAILURE",
@@ -780,10 +784,10 @@ def harden_phase01_work_state(run_dir: Path) -> PermissionHardeningResult:
     return PermissionHardeningResult(True, len(directories), len(files))
 
 
-def verify_phase01_work_state_permissions(run_dir: Path) -> None:
+def verify_stage00_work_state_permissions(run_dir: Path) -> None:
     work_dir = run_dir / "_work"
     if work_dir.is_symlink():
-        _fail("UNSAFE_WORK_STATE", "Phase 1 working state is a symlink")
+        _fail("UNSAFE_WORK_STATE", "Stage 0 working state is a symlink")
     if not work_dir.exists():
         return
     pending = [work_dir]
@@ -823,7 +827,7 @@ def _utc_now_text() -> str:
 
 
 def _build_adoption_record(
-    bundle: ValidatedPhase01Bundle,
+    bundle: ValidatedSourceInventoryBundle,
     permissions: PermissionHardeningResult,
     *,
     adopting_git_commit: str,
@@ -920,7 +924,7 @@ def _write_owner_only_adoption_directory(
     return output_directory / ADOPTION_RECORD_NAME
 
 
-def adopt_phase01_bundle(
+def adopt_stage00_inventory(
     run_dir: Path,
     output_directory: Path,
     *,
@@ -931,14 +935,14 @@ def adopt_phase01_bundle(
     adoption_timestamp_utc: str | None = None,
     operational_metadata: Mapping[str, str] | None = None,
 ) -> Stage00AdoptionOutcome:
-    """Validate and adopt a Phase 1 bundle without opening source CSV files."""
-    bundle = validate_phase01_bundle(
+    """Validate and adopt a Stage 0 bundle without opening source CSV files."""
+    bundle = validate_stage00_inventory(
         run_dir,
         expected_file_count=expected_file_count,
         expected_producing_git_commit=expected_producing_git_commit,
     )
-    permissions = harden_phase01_work_state(run_dir)
-    verified_bundle = validate_phase01_bundle(
+    permissions = harden_stage00_work_state(run_dir)
+    verified_bundle = validate_stage00_inventory(
         run_dir,
         expected_file_count=expected_file_count,
         expected_producing_git_commit=expected_producing_git_commit,
@@ -946,7 +950,7 @@ def adopt_phase01_bundle(
     if verified_bundle != bundle:
         _fail(
             "BUNDLE_CHANGED_DURING_ADOPTION",
-            "Phase 1 bundle changed while Stage 0 adoption was in progress",
+            "Stage 0 bundle changed while Stage 0 adoption was in progress",
         )
     record = _build_adoption_record(
         verified_bundle,
@@ -966,8 +970,8 @@ def adopt_phase01_bundle(
     )
 
 
-def run_authoritative_phase01_scan(config: InventoryConfig) -> InventoryOutcome:
-    """Delegate any future Stage 0 source scan to the authoritative Phase 1 scanner."""
+def run_stage00_inventory(config: InventoryConfig) -> InventoryOutcome:
+    """Delegate any future Stage 0 source scan to the authoritative Stage 0 scanner."""
     return run_inventory(config)
 
 
@@ -979,13 +983,13 @@ __all__ = [
     "Stage00AdoptionOutcome",
     "Stage00InventoryRecord",
     "Stage00ValidationError",
-    "ValidatedPhase01Bundle",
-    "adopt_phase01_bundle",
-    "harden_phase01_work_state",
+    "ValidatedSourceInventoryBundle",
+    "adopt_stage00_inventory",
+    "harden_stage00_work_state",
     "parser_contract_fingerprint_v1",
-    "run_authoritative_phase01_scan",
+    "run_stage00_inventory",
     "source_population_sha256_v1",
     "stage00_scientific_inventory_sha256_v1",
-    "validate_phase01_bundle",
-    "verify_phase01_work_state_permissions",
+    "validate_stage00_inventory",
+    "verify_stage00_work_state_permissions",
 ]

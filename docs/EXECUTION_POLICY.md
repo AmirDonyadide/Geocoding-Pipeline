@@ -89,12 +89,11 @@ are preserved for diagnosis rather than silently replaced.
 
 ## Data transfer boundary
 
-The repository's transfer scripts are explicit allowlist helpers for reviewed
-historical payloads or hash-pinned source scopes. They do not upload to an
-external service and do not transfer source code/Git metadata. Existing helpers
-that name an exact historical 206-shard Phase 2 payload remain historical
-reproducibility assets; they are not generic authorization for the 1,411-file
-production population.
+The repository's transfer scripts are explicit allowlist helpers for current
+hash-pinned source scopes. They do not upload to an external service and do not
+transfer source code/Git metadata. The superseded fixed 206-shard staging
+payload synchronization helper has been removed; Git history retains it for
+historical reproducibility.
 
 No full source collection is transferred without explicit approval. A transfer
 does not itself authorize processing.

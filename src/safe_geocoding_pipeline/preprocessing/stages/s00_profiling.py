@@ -5,13 +5,13 @@ import re
 from collections import Counter
 from dataclasses import dataclass, field
 
-from .config import InventoryConfig
-from .constants import (
+from .s00_config import InventoryConfig
+from .s00_constants import (
     EXPECTED_COLUMNS,
     NATIVE_PAIRS,
     RAW_CATEGORICAL_FIELDS,
 )
-from .models import FieldProfile, ValueProfileRow
+from .s00_models import FieldProfile, ValueProfileRow
 
 _DECIMAL_RE = re.compile(r"^[+-]?\d+\.\d+$")
 _ALPHANUMERIC_RE = re.compile(r"^[A-Za-z0-9]+$")
@@ -35,7 +35,11 @@ def postcode_lexical_category(value: str, placeholders: set[str]) -> str:
     if "-" in value:
         return "CONTAINS_HYPHEN"
     if _DIGITS_RE.fullmatch(value):
-        return "DIGITS_LEADING_ZERO" if len(value) > 1 and value.startswith("0") else "DIGITS_ONLY"
+        return (
+            "DIGITS_LEADING_ZERO"
+            if len(value) > 1 and value.startswith("0")
+            else "DIGITS_ONLY"
+        )
     if _ALPHA_RE.fullmatch(value):
         return "ALPHABETIC_ONLY"
     if _ALPHANUMERIC_RE.fullmatch(value):
@@ -111,9 +115,7 @@ class FileProfiler:
             f"{left}__{right}": Counter() for left, right in NATIVE_PAIRS
         }
         self.native_character_counts: dict[str, Counter[str]] = {
-            name: Counter()
-            for pair in NATIVE_PAIRS
-            for name in pair
+            name: Counter() for pair in NATIVE_PAIRS for name in pair
         }
         self.categorical_counts = {
             name: SafeCategoryCounter(
@@ -123,7 +125,9 @@ class FileProfiler:
             for name in RAW_CATEGORICAL_FIELDS
         }
 
-    def observe(self, row: list[str], logical_record_number: int) -> list[tuple[str, str]]:
+    def observe(
+        self, row: list[str], logical_record_number: int
+    ) -> list[tuple[str, str]]:
         values = dict(zip(EXPECTED_COLUMNS, row, strict=True))
         triggered_safeguards: list[tuple[str, str]] = []
 
@@ -176,21 +180,29 @@ class FileProfiler:
         for name, counts in self.placeholder_counts.items():
             for category, count in sorted(counts.items()):
                 rows.append(
-                    ValueProfileRow(name, "PLACEHOLDER_EXACT", category, count, denominator)
+                    ValueProfileRow(
+                        name, "PLACEHOLDER_EXACT", category, count, denominator
+                    )
                 )
         for category, count in sorted(self.postcode_counts.items()):
             rows.append(
-                ValueProfileRow("postcode", "POSTCODE_LEXICAL_PATTERN", category, count, denominator)
+                ValueProfileRow(
+                    "postcode", "POSTCODE_LEXICAL_PATTERN", category, count, denominator
+                )
             )
         for name, counts in self.native_pair_counts.items():
             for category, count in sorted(counts.items()):
                 rows.append(
-                    ValueProfileRow(name, "NATIVE_PAIR_STATE", category, count, denominator)
+                    ValueProfileRow(
+                        name, "NATIVE_PAIR_STATE", category, count, denominator
+                    )
                 )
         for name, counts in self.native_character_counts.items():
             for category, count in sorted(counts.items()):
                 rows.append(
-                    ValueProfileRow(name, "NATIVE_SCRIPT_DIAGNOSTIC", category, count, denominator)
+                    ValueProfileRow(
+                        name, "NATIVE_SCRIPT_DIAGNOSTIC", category, count, denominator
+                    )
                 )
         for name, counter in self.categorical_counts.items():
             family = {
@@ -210,5 +222,7 @@ class FileProfiler:
                 )
             else:
                 for category, count in sorted(counter.counts.items()):
-                    rows.append(ValueProfileRow(name, family, category, count, denominator))
+                    rows.append(
+                        ValueProfileRow(name, family, category, count, denominator)
+                    )
         return rows

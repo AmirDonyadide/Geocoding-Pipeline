@@ -18,9 +18,9 @@ readonly DATA_ROOT="/work/footprint/donyadidegan/safe_geocoding_pipeline"
 readonly INTEGRATION_ROOT="$(realpath -e -- "${STAGE01_INTEGRATION_ROOT}")"
 
 readonly STAGE00_RECORD="${DATA_ROOT}/reports/generated/stage00/stage00_phase01_20260810T151626Z_7df9bc8f_accepted_v1/stage00_adoption.json"
-readonly PHASE01_RUN="${DATA_ROOT}/reports/generated/phase01/phase01_20260810T151626Z_7df9bc8f"
-readonly PHASE02_RUN="${DATA_ROOT}/staging/controlled/phase02_v1/runs/phase02_20260810T173851Z_1349152b"
-readonly PHASE02_REPORTS="${DATA_ROOT}/reports/generated/phase02/phase02_20260810T173851Z_1349152b"
+readonly SOURCE_INVENTORY_RUN="${DATA_ROOT}/reports/generated/phase01/phase01_20260810T151626Z_7df9bc8f"
+readonly INGESTION_RUN="${DATA_ROOT}/staging/controlled/phase02_v1/runs/phase02_20260810T173851Z_1349152b"
+readonly INGESTION_REPORTS="${DATA_ROOT}/reports/generated/phase02/phase02_20260810T173851Z_1349152b"
 readonly OUTPUT="${DATA_ROOT}/reports/generated/stage01/stage01_phase02_20260810T173851Z_1349152b_accepted_v1"
 
 cd "${INTEGRATION_ROOT}"
@@ -43,14 +43,14 @@ echo "job_id=${SLURM_JOB_ID}"
 echo "git_commit=${ACTUAL_COMMIT}"
 echo "stage=stage01_production_bundle_adoption"
 
-python - "${STAGE00_RECORD}" "${PHASE01_RUN}" "${PHASE02_RUN}" \
-  "${PHASE02_REPORTS}" "${OUTPUT}" "${STAGE01_GIT_COMMIT}" "${SLURM_JOB_ID}" <<'PY'
+python - "${STAGE00_RECORD}" "${SOURCE_INVENTORY_RUN}" "${INGESTION_RUN}" \
+  "${INGESTION_REPORTS}" "${OUTPUT}" "${STAGE01_GIT_COMMIT}" "${SLURM_JOB_ID}" <<'PY'
 from pathlib import Path
 import sys
 
-from safe_geocoding_pipeline.preprocessing.stages.s01_ingestion import adopt_phase02_bundle
+from safe_geocoding_pipeline.preprocessing.stages.s01_ingestion import adopt_stage01_bundle
 
-outcome = adopt_phase02_bundle(
+outcome = adopt_stage01_bundle(
     Path(sys.argv[3]),
     Path(sys.argv[4]),
     Path(sys.argv[2]),
@@ -60,8 +60,8 @@ outcome = adopt_phase02_bundle(
     expected_source_population_sha256="bdedb3f425a337048aaf21245b76246f92a36693cdbf0e28acb16f18b14fffc3",
     expected_scientific_inventory_sha256="551d893a8c6d16b799c1e38ecf4715cbe3bb0865d811eb44aaa6f46fa45b2631",
     expected_parser_contract_fingerprint="d071da05a76ca7c6ae5111894628fe8a5427f354838dbe0eb84e6cdf6ecd4b79",
-    expected_phase02_run_id="phase02_20260810T173851Z_1349152b",
-    expected_phase02_producing_git_commit="1349152bcbfa240aa402c9794f4c4351c94100ec",
+    expected_ingestion_run_id="phase02_20260810T173851Z_1349152b",
+    expected_ingestion_producing_git_commit="1349152bcbfa240aa402c9794f4c4351c94100ec",
     adopting_git_commit=sys.argv[6],
     adopting_git_dirty=False,
     production=True,

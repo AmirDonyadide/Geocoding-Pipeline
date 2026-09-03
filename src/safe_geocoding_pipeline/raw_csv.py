@@ -40,7 +40,7 @@ CSV_STRICT = True
 
 
 def source_schema_fingerprint(columns: Sequence[str]) -> str:
-    """Return the authoritative Phase 1 ordered-schema fingerprint."""
+    """Return the authoritative Stage 0 ordered-schema fingerprint."""
     payload = SOURCE_SCHEMA_FINGERPRINT_SEPARATOR.join(columns).encode("utf-8")
     return hashlib.sha256(payload).hexdigest()
 

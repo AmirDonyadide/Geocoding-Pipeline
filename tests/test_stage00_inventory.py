@@ -12,22 +12,27 @@ from typing import Any
 import pytest
 import safe_geocoding_pipeline.preprocessing.stages.s00_inventory as s00_inventory
 
-from safe_geocoding_pipeline.phase01.config import DEFAULT_PARSER_FIELD_LIMIT_CHARS
-from safe_geocoding_pipeline.phase01.constants import INVENTORY_VERSION, REPORT_NAMES
-from safe_geocoding_pipeline.phase01.reports import MANIFEST_COLUMNS
-from safe_geocoding_pipeline.phase01.runner import TERMINAL_MARKER_TEXT
+from safe_geocoding_pipeline.preprocessing.stages.s00_config import (
+    DEFAULT_PARSER_FIELD_LIMIT_CHARS,
+)
+from safe_geocoding_pipeline.preprocessing.stages.s00_constants import (
+    INVENTORY_VERSION,
+    REPORT_NAMES,
+)
+from safe_geocoding_pipeline.preprocessing.stages.s00_reports import MANIFEST_COLUMNS
+from safe_geocoding_pipeline.preprocessing.stages.s00_runner import TERMINAL_MARKER_TEXT
 from safe_geocoding_pipeline.preprocessing.stages.s00_inventory import (
     ADOPTION_RECORD_NAME,
     STAGE00_CONTRACT_VERSION,
     Stage00InventoryRecord,
     Stage00ValidationError,
-    adopt_phase01_bundle,
-    harden_phase01_work_state,
+    adopt_stage00_inventory,
+    harden_stage00_work_state,
     parser_contract_fingerprint_v1,
     source_population_sha256_v1,
     stage00_scientific_inventory_sha256_v1,
-    validate_phase01_bundle,
-    verify_phase01_work_state_permissions,
+    validate_stage00_inventory,
+    verify_stage00_work_state_permissions,
 )
 from safe_geocoding_pipeline.raw_csv import (
     CSV_DELIMITER,
@@ -307,7 +312,7 @@ def _synthetic_bundle(
     (run_dir / "_SCOPE_PASS").write_text(TERMINAL_MARKER_TEXT, encoding="utf-8")
     work = run_dir / "_work"
     work.mkdir(mode=0o755)
-    database = work / "phase01.sqlite3"
+    database = work / "stage00_inventory.sqlite3"
     database.write_bytes(b"fictional protected ID state")
     work.chmod(0o755)
     database.chmod(0o644)
@@ -315,7 +320,7 @@ def _synthetic_bundle(
 
 
 def _validate(run_dir: Path, expected_file_count: int = 1) -> None:
-    validate_phase01_bundle(
+    validate_stage00_inventory(
         run_dir,
         expected_file_count=expected_file_count,
         expected_producing_git_commit=PRODUCING_COMMIT,
@@ -443,7 +448,7 @@ def test_valid_bundle_adoption_is_owner_only_and_operationally_invariant(
     tmp_path: Path,
 ) -> None:
     run_dir = _synthetic_bundle(tmp_path)
-    first = adopt_phase01_bundle(
+    first = adopt_stage00_inventory(
         run_dir,
         tmp_path / "adoption-one",
         expected_file_count=1,
@@ -457,7 +462,7 @@ def test_valid_bundle_adoption_is_owner_only_and_operationally_invariant(
             "duration": "2",
         },
     )
-    second = adopt_phase01_bundle(
+    second = adopt_stage00_inventory(
         run_dir,
         tmp_path / "adoption-two",
         expected_file_count=1,
@@ -481,7 +486,7 @@ def test_valid_bundle_adoption_is_owner_only_and_operationally_invariant(
     assert first.output_directory.stat().st_mode & 0o777 == 0o700
     assert first.adoption_record_path.stat().st_mode & 0o777 == 0o600
     assert (run_dir / "_work").stat().st_mode & 0o777 == 0o700
-    assert (run_dir / "_work/phase01.sqlite3").stat().st_mode & 0o777 == 0o600
+    assert (run_dir / "_work/stage00_inventory.sqlite3").stat().st_mode & 0o777 == 0o600
 
 
 @pytest.mark.parametrize(
@@ -619,7 +624,7 @@ def test_adoption_output_collision_is_fail_closed(tmp_path: Path) -> None:
     output = tmp_path / "adoption"
     output.mkdir()
     with pytest.raises(Stage00ValidationError, match="OUTPUT_COLLISION"):
-        adopt_phase01_bundle(
+        adopt_stage00_inventory(
             run_dir,
             output,
             expected_file_count=1,
@@ -633,7 +638,7 @@ def test_bundle_change_between_adoption_validations_is_rejected(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     run_dir = _synthetic_bundle(tmp_path)
-    original_hardener = s00_inventory.harden_phase01_work_state
+    original_hardener = s00_inventory.harden_stage00_work_state
 
     def harden_then_change_bundle(path: Path) -> object:
         result = original_hardener(path)
@@ -644,10 +649,10 @@ def test_bundle_change_between_adoption_validations_is_rejected(
         return result
 
     monkeypatch.setattr(
-        s00_inventory, "harden_phase01_work_state", harden_then_change_bundle
+        s00_inventory, "harden_stage00_work_state", harden_then_change_bundle
     )
     with pytest.raises(Stage00ValidationError, match="BUNDLE_CHANGED_DURING_ADOPTION"):
-        adopt_phase01_bundle(
+        adopt_stage00_inventory(
             run_dir,
             tmp_path / "adoption",
             expected_file_count=1,
@@ -688,14 +693,14 @@ def test_permission_hardening_does_not_touch_source_and_rejects_symlinks(
     fictional_source = tmp_path / "fictional-source.csv"
     fictional_source.write_text("fictional source\n", encoding="utf-8")
     fictional_source.chmod(0o644)
-    harden_phase01_work_state(run_dir)
+    harden_stage00_work_state(run_dir)
     assert fictional_source.stat().st_mode & 0o777 == 0o644
 
     unsafe = run_dir / "_work/unsafe-link"
     unsafe.symlink_to(fictional_source)
     (run_dir / "_work").chmod(0o755)
     with pytest.raises(Stage00ValidationError, match="UNSAFE_WORK_STATE_SYMLINK"):
-        harden_phase01_work_state(run_dir)
+        harden_stage00_work_state(run_dir)
     assert (run_dir / "_work").stat().st_mode & 0o777 == 0o755
 
 
@@ -703,21 +708,21 @@ def test_permission_hardening_rejects_broken_root_symlink_and_special_file(
     tmp_path: Path,
 ) -> None:
     run_dir = _synthetic_bundle(tmp_path)
-    database = run_dir / "_work/phase01.sqlite3"
+    database = run_dir / "_work/stage00_inventory.sqlite3"
     database.unlink()
     (run_dir / "_work").rmdir()
     (run_dir / "_work").symlink_to(tmp_path / "missing-work-state")
     with pytest.raises(Stage00ValidationError, match="UNSAFE_WORK_STATE"):
-        harden_phase01_work_state(run_dir)
+        harden_stage00_work_state(run_dir)
     with pytest.raises(Stage00ValidationError, match="UNSAFE_WORK_STATE"):
-        verify_phase01_work_state_permissions(run_dir)
+        verify_stage00_work_state_permissions(run_dir)
 
     other_root = tmp_path / "special"
     other_root.mkdir()
     other_run = _synthetic_bundle(other_root)
     os.mkfifo(other_run / "_work/unsafe-fifo")
     with pytest.raises(Stage00ValidationError, match="UNSAFE_WORK_STATE"):
-        harden_phase01_work_state(other_run)
+        harden_stage00_work_state(other_run)
 
 
 def test_permission_failure_stops_adoption(
@@ -729,13 +734,13 @@ def test_permission_failure_stops_adoption(
     def deny_database_chmod(
         path: Path, mode: int, *, follow_symlinks: bool = True
     ) -> None:
-        if path.name == "phase01.sqlite3":
+        if path.name == "stage00_inventory.sqlite3":
             raise PermissionError("fictional denial")
         original_chmod(path, mode, follow_symlinks=follow_symlinks)
 
     monkeypatch.setattr(Path, "chmod", deny_database_chmod)
     with pytest.raises(Stage00ValidationError, match="WORK_STATE_PERMISSION_FAILURE"):
-        adopt_phase01_bundle(
+        adopt_stage00_inventory(
             run_dir,
             tmp_path / "adoption",
             expected_file_count=1,
@@ -751,9 +756,9 @@ def test_adoption_record_does_not_copy_fictional_protected_values(
 ) -> None:
     run_dir = _synthetic_bundle(tmp_path)
     protected_values = ("fictional raw ID secret", "fictional address secret")
-    with (run_dir / "_work/phase01.sqlite3").open("ab") as stream:
+    with (run_dir / "_work/stage00_inventory.sqlite3").open("ab") as stream:
         stream.write("|".join(protected_values).encode())
-    outcome = adopt_phase01_bundle(
+    outcome = adopt_stage00_inventory(
         run_dir,
         tmp_path / "adoption",
         expected_file_count=1,
@@ -772,7 +777,7 @@ def test_adoption_succeeds_when_source_root_is_absent(tmp_path: Path) -> None:
     nonexistent_source_root = tmp_path / "source-csv-corpus"
     assert not nonexistent_source_root.exists()
 
-    outcome = adopt_phase01_bundle(
+    outcome = adopt_stage00_inventory(
         run_dir,
         tmp_path / "adoption-without-source",
         expected_file_count=1,

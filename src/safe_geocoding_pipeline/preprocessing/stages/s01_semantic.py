@@ -4,8 +4,8 @@ import hashlib
 import struct
 from collections.abc import Sequence
 
-from ..raw_csv import SOURCE_COLUMNS
-from .constants import SOURCE_SCHEMA_VERSION
+from ...raw_csv import SOURCE_COLUMNS
+from .s01_constants import SOURCE_SCHEMA_VERSION
 
 SEMANTIC_DIGEST_DOMAIN = b"safe_geocoding_pipeline:raw_semantic_digest_v1\0"
 _ROW_MARKER = b"\x52"

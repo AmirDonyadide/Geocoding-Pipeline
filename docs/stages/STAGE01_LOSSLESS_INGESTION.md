@@ -4,8 +4,9 @@
 
 Convert accepted CSV logical records into validated PyArrow/Parquet storage
 without changing any decoded source string, while adding immutable source
-provenance and stable row identity. The library-first adapter reuses the
-accepted historical Phase 2 converter rather than duplicating conversion.
+provenance and stable row identity. The canonical Stage 1 implementation
+validates and adopts the accepted immutable ingestion bundle without
+duplicating conversion or retaining the superseded Phase runner.
 
 ## Input
 
@@ -69,6 +70,8 @@ The population-generic implementation and logical identity contract are
 accepted. Benchmark V1's 35,000 DEVELOPMENT rows retain Stage 1 provenance and
 provide the accepted input foundation for Stage 2. Historical converter reports
 are under [`docs/history/source_foundation/`](../history/source_foundation/README.md).
+Phase-prefixed keys and filenames in that immutable bundle remain provenance
+compatibility identifiers only.
 
 ## Production status
 

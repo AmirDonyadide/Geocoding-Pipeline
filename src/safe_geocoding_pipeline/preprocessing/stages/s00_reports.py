@@ -9,9 +9,9 @@ import time
 from pathlib import Path
 from typing import Any, Iterable
 
-from .constants import ANOMALY_COLUMNS, REPORT_NAMES
-from .models import FileResult
-from .store import IdStore
+from .s00_constants import ANOMALY_COLUMNS, REPORT_NAMES
+from .s00_models import FileResult
+from .s00_store import IdStore
 
 MANIFEST_COLUMNS = (
     "run_id",
@@ -432,14 +432,14 @@ def render_summary(
     ]
     duplicates = store.duplicate_summary()
     approved_inputs = ", ".join(f"`{result.relative_path}`" for result in results)
-    return f"""# Phase 1 inventory run summary
+    return f"""# Stage 0 inventory run summary
 
 - Run ID: `{run_payload["run_id"]}`
 - Inventory version: `{run_payload["inventory_version"]}`
 - Run scope: `{run_payload["run_scope"]}`
 - Execution status: `{run_payload["status"]}`
 - Scope gate: `{run_payload["scope_gate"]}`
-- Phase 1 completion gate: `{run_payload["phase01_completion_gate"]}`
+- Stage 0 completion gate: `{run_payload["phase01_completion_gate"]}`
 - Input files: {approved_inputs or "none"}
 
 ## Structural results
@@ -469,5 +469,5 @@ def render_summary(
 
 ## Gate interpretation
 
-This report inventories only the configured `{run_payload["run_scope"]}` scope. A successful smoke or test gate does not complete Phase 1 and does not authorize Phase 2. FULL_INVENTORY requires a separate explicitly authorized population scope and approval.
+This report inventories only the configured `{run_payload["run_scope"]}` scope. A successful smoke or test gate does not complete Stage 0 and does not authorize Stage 1. FULL_INVENTORY requires a separate explicitly authorized population scope and approval.
 """

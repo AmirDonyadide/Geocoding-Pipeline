@@ -9,23 +9,31 @@ from typing import Any
 
 import pytest
 
-from safe_geocoding_pipeline.phase01.config import (
+from safe_geocoding_pipeline.preprocessing.stages.s00_config import (
     DEFAULT_PARSER_FIELD_LIMIT_CHARS,
     InventoryConfig,
 )
-from safe_geocoding_pipeline.phase01.cli import build_parser, config_from_args
-from safe_geocoding_pipeline.phase01.constants import INVENTORY_VERSION
-from safe_geocoding_pipeline.phase01.discovery import discover_source_files
-from safe_geocoding_pipeline.phase01.population import (
+from safe_geocoding_pipeline.preprocessing.stage00_cli import (
+    build_parser,
+    config_from_args,
+)
+from safe_geocoding_pipeline.preprocessing.stages.s00_constants import INVENTORY_VERSION
+from safe_geocoding_pipeline.preprocessing.stages.s00_discovery import (
+    discover_source_files,
+)
+from safe_geocoding_pipeline.preprocessing.stages.s00_population import (
     POPULATION_SCOPE_VERSION,
     load_population_scope,
 )
-from safe_geocoding_pipeline.phase01.models import FileResult
-from safe_geocoding_pipeline.phase01.parser import scan_csv_file
-from safe_geocoding_pipeline.phase01.runner import _validate_scope, run_inventory
+from safe_geocoding_pipeline.preprocessing.stages.s00_models import FileResult
+from safe_geocoding_pipeline.preprocessing.stages.s00_parser import scan_csv_file
+from safe_geocoding_pipeline.preprocessing.stages.s00_runner import (
+    _validate_scope,
+    run_inventory,
+)
 from safe_geocoding_pipeline.preprocessing.stages.s00_inventory import (
-    adopt_phase01_bundle,
-    validate_phase01_bundle,
+    adopt_stage00_inventory,
+    validate_stage00_inventory,
 )
 from safe_geocoding_pipeline.preprocessing.stages.s01_ingestion import (
     resolve_stage00_binding,
@@ -107,7 +115,7 @@ def _full_config(
 
 def _allow_synthetic_full_run(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        "safe_geocoding_pipeline.phase01.runner.require_goethe_nhr_slurm",
+        "safe_geocoding_pipeline.preprocessing.stages.s00_runner.require_goethe_nhr_slurm",
         lambda _: None,
     )
 
@@ -135,7 +143,7 @@ def test_full_inventory_accepts_variable_authorized_populations(
         )
     )
 
-    assert outcome.phase01_completion_gate == "PASS"
+    assert outcome.stage00_completion_gate == "PASS"
     assert len(outcome.file_results) == source_count
     run = json.loads((outcome.run_dir / "phase01_run.json").read_text())
     assert run["authorized_population_scope"]["expected_source_count"] == source_count
@@ -320,7 +328,8 @@ def test_population_membership_mutation_during_inventory_fails_before_publicatio
         return result
 
     monkeypatch.setattr(
-        "safe_geocoding_pipeline.phase01.runner.scan_csv_file", scan_and_mutate
+        "safe_geocoding_pipeline.preprocessing.stages.s00_runner.scan_csv_file",
+        scan_and_mutate,
     )
     reports_root = tmp_path / "reports"
     run_id = "phase01_20260101T000000Z_membership_change"
@@ -344,11 +353,12 @@ def test_real_scans_change_stage00_population_identity_without_contract_change(
 ) -> None:
     _allow_synthetic_full_run(monkeypatch)
     monkeypatch.setattr(
-        "safe_geocoding_pipeline.phase01.runner._git_commit",
+        "safe_geocoding_pipeline.preprocessing.stages.s00_runner._git_commit",
         lambda: _PRODUCING_COMMIT,
     )
     monkeypatch.setattr(
-        "safe_geocoding_pipeline.phase01.runner._git_dirty", lambda: False
+        "safe_geocoding_pipeline.preprocessing.stages.s00_runner._git_dirty",
+        lambda: False,
     )
     fingerprints: list[str] = []
     for source_count in (1, 2):
@@ -370,14 +380,14 @@ def test_real_scans_change_stage00_population_identity_without_contract_change(
                 run_id=f"phase01_20260101T000000Z_identity{source_count}",
             )
         )
-        bundle = validate_phase01_bundle(
+        bundle = validate_stage00_inventory(
             outcome.run_dir,
             expected_file_count=source_count,
             expected_producing_git_commit=_PRODUCING_COMMIT,
         )
         fingerprints.append(bundle.source_population_sha256_v1)
         if source_count == 2:
-            adoption = adopt_phase01_bundle(
+            adoption = adopt_stage00_inventory(
                 outcome.run_dir,
                 tmp_path / "stage00_adoption",
                 expected_file_count=source_count,
@@ -391,6 +401,6 @@ def test_real_scans_change_stage00_population_identity_without_contract_change(
                 outcome.run_dir,
                 expected_stage00_adoption_sha256=adoption.adoption_record_sha256,
             )
-            assert len(binding.phase01_bundle.records) == source_count
+            assert len(binding.source_inventory_bundle.records) == source_count
 
     assert fingerprints[0] != fingerprints[1]

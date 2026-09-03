@@ -5,9 +5,13 @@ from pathlib import Path
 
 import pytest
 
-from safe_geocoding_pipeline.phase01.models import FileResult, IdObservation, SourceFile
-from safe_geocoding_pipeline.phase01.profiling import sha256_text
-from safe_geocoding_pipeline.phase01.store import IdStore
+from safe_geocoding_pipeline.preprocessing.stages.s00_models import (
+    FileResult,
+    IdObservation,
+    SourceFile,
+)
+from safe_geocoding_pipeline.preprocessing.stages.s00_profiling import sha256_text
+from safe_geocoding_pipeline.preprocessing.stages.s00_store import IdStore
 
 
 def test_store_rejects_sqlite_symlink_before_opening_it(tmp_path: Path) -> None:

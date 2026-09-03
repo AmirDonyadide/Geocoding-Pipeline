@@ -17,12 +17,12 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 
 from ..execution_policy import require_goethe_nhr_slurm
-from ..phase01.config import DEFAULT_PARSER_FIELD_LIMIT_CHARS, InventoryConfig
-from ..phase01.discovery import discover_source_files
-from ..phase01.models import FileMetadata, SourceFile
-from ..phase01.parser import detect_bom, file_metadata, hash_file
-from ..phase01.population import PopulationScope, load_population_scope
-from ..phase02.identity import stable_source_row_id_v1
+from .stages.s00_config import DEFAULT_PARSER_FIELD_LIMIT_CHARS, InventoryConfig
+from .stages.s00_discovery import discover_source_files
+from .stages.s00_models import FileMetadata, SourceFile
+from .stages.s00_parser import detect_bom, file_metadata, hash_file
+from .stages.s00_population import PopulationScope, load_population_scope
+from .stages.s01_identity import stable_source_row_id_v1
 from ..raw_csv import (
     CSV_NEWLINE,
     SOURCE_COLUMNS,

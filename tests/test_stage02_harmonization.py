@@ -13,13 +13,15 @@ import pyarrow.parquet as pq
 import pytest
 
 from safe_geocoding_pipeline.execution_policy import ExecutionPolicyError
-from safe_geocoding_pipeline.phase02.constants import (
+from safe_geocoding_pipeline.preprocessing.stages.s01_constants import (
     PARSER_VERSION,
     SOURCE_SCHEMA_VERSION,
     STAGING_VERSION,
 )
-from safe_geocoding_pipeline.phase02.identity import stable_source_row_id_v1
-from safe_geocoding_pipeline.phase02.schema import (
+from safe_geocoding_pipeline.preprocessing.stages.s01_identity import (
+    stable_source_row_id_v1,
+)
+from safe_geocoding_pipeline.preprocessing.stages.s01_schema import (
     base_staging_schema,
     schema_fingerprint,
 )

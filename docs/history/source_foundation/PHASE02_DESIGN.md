@@ -1,5 +1,8 @@
 # Phase 2 design — controlled staging dataset
 
+> **HISTORICAL / SUPERSEDED ARCHITECTURE.** This is preserved design history,
+> not a current run instruction. The only active architecture is Stage 0–8.
+
 ## Status
 
 This finalized Phase 2 design is approved in principle. It does not authorize implementation, a real-data smoke conversion, or the complete 206-file conversion.

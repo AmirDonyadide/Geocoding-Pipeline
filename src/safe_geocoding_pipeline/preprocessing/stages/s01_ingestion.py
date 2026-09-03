@@ -23,8 +23,9 @@ import pyarrow
 import pyarrow.parquet as pq
 
 from ...execution_policy import require_goethe_nhr_slurm
-from ...phase01.constants import INVENTORY_VERSION
-from ...phase02.constants import (
+from .s00_constants import INVENTORY_VERSION
+from .s01_constants import (
+    FILE_VALIDATION_COLUMNS,
     PARSER_VERSION,
     REPORT_NAMES,
     SEMANTIC_DIGEST_VERSION,
@@ -32,8 +33,7 @@ from ...phase02.constants import (
     STABLE_ROW_ID_VERSION,
     STAGING_VERSION,
 )
-from ...phase02.reports import FILE_VALIDATION_COLUMNS
-from ...phase02.schema import (
+from .s01_schema import (
     base_staging_schema,
     exact_schema_matches,
     schema_fingerprint,
@@ -41,19 +41,22 @@ from ...phase02.schema import (
 from .s00_inventory import (
     STAGE00_CONTRACT_VERSION,
     ArtifactIdentity,
-    ValidatedPhase01Bundle,
-    validate_phase01_bundle,
+    ValidatedSourceInventoryBundle,
+    validate_stage00_inventory,
 )
 
 STAGE01_CONTRACT_VERSION = "stage01_lossless_ingestion_contract_v1"
+# Phase-prefixed values below are frozen identifiers at the accepted artifact
+# boundary. All executable APIs and implementation names in this module use the
+# authoritative Stage architecture.
 STAGE01_VALIDATION_CONTRACT_VERSION = "stage01_phase02_bundle_validation_v1"
 STAGE01_IMPLEMENTATION_STATUS = "STAGE_1_ACCEPTED"
 STAGE01_LOGICAL_DATASET_DOMAIN = b"SAFE_STAGE01_LOGICAL_DATASET_V1"
 STAGE01_ADOPTION_RECORD_NAME = "stage01_adoption.json"
 
-PHASE02_MANIFEST_NAME = "dataset_manifest.json"
-PHASE02_SUCCESS_MARKER = "_SUCCESS.json"
-PHASE02_STATE_NAME = "_work/phase02_state.sqlite3"
+INGESTION_MANIFEST_NAME = "dataset_manifest.json"
+INGESTION_SUCCESS_MARKER = "_SUCCESS.json"
+INGESTION_STATE_NAME = "_work/phase02_state.sqlite3"
 
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 _FULL_GIT_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
@@ -84,8 +87,8 @@ class Stage01SourceRecord:
 @dataclass(frozen=True, slots=True)
 class Stage00Binding:
     adoption_record: ArtifactIdentity
-    phase01_bundle: ValidatedPhase01Bundle
-    phase01_input_manifest_sha256: str
+    source_inventory_bundle: ValidatedSourceInventoryBundle
+    source_inventory_manifest_sha256: str
     source_population_sha256_v1: str
     scientific_inventory_sha256_v1: str
     parser_contract_fingerprint: str
@@ -102,7 +105,7 @@ class _FileSnapshot:
 
 
 @dataclass(frozen=True, slots=True)
-class ValidatedPhase02Bundle:
+class ValidatedStage01Bundle:
     run_directory: Path
     reports_directory: Path
     run_id: str
@@ -134,7 +137,7 @@ class Stage01AdoptionOutcome:
     output_directory: Path
     adoption_record_path: Path
     adoption_record_sha256: str
-    bundle: ValidatedPhase02Bundle
+    bundle: ValidatedStage01Bundle
 
 
 class _CanonicalEncoder:
@@ -373,14 +376,14 @@ def _artifact_map(value: object, code: str) -> dict[str, ArtifactIdentity]:
 
 def validate_stage00_binding(
     stage00_adoption_record_path: Path,
-    phase01_run_directory: Path,
+    source_inventory_run_directory: Path,
     *,
     expected_stage00_adoption_sha256: str,
     expected_source_population_sha256: str,
     expected_scientific_inventory_sha256: str,
     expected_parser_contract_fingerprint: str,
 ) -> tuple[Stage00Binding, _FileSnapshot]:
-    """Validate Stage 0 and its Phase 1 bundle without opening source CSV files."""
+    """Validate Stage 0 and its legacy Stage 0 source-inventory bundle without opening source CSV files."""
     _digest_bytes(expected_stage00_adoption_sha256)
     _digest_bytes(expected_source_population_sha256)
     _digest_bytes(expected_scientific_inventory_sha256)
@@ -426,23 +429,34 @@ def validate_stage00_binding(
         identity.get("producing_git_commit"), "MALFORMED_STAGE00_RECORD"
     )
     if _FULL_GIT_SHA_RE.fullmatch(producing_commit) is None:
-        _fail("MALFORMED_STAGE00_RECORD", "Phase 1 producing commit is not a full SHA")
+        _fail(
+            "MALFORMED_STAGE00_RECORD",
+            "legacy Stage 0 source-inventory producing commit is not a full SHA",
+        )
 
-    phase01 = validate_phase01_bundle(
-        phase01_run_directory,
+    source_inventory = validate_stage00_inventory(
+        source_inventory_run_directory,
         expected_file_count=source_file_count,
         expected_producing_git_commit=producing_commit,
     )
     if (
-        identity.get("adopted_phase01_run_id") != phase01.run_id
-        or identity.get("phase01_inventory_version") != phase01.inventory_version
-        or phase01.source_population_sha256_v1 != expected_source_population_sha256
-        or phase01.stage00_scientific_inventory_sha256_v1
+        identity.get("adopted_phase01_run_id") != source_inventory.run_id
+        or identity.get("phase01_inventory_version")
+        != source_inventory.inventory_version
+        or source_inventory.source_population_sha256_v1
+        != expected_source_population_sha256
+        or source_inventory.stage00_scientific_inventory_sha256_v1
         != expected_scientific_inventory_sha256
-        or phase01.parser_contract_fingerprint != expected_parser_contract_fingerprint
+        or source_inventory.parser_contract_fingerprint
+        != expected_parser_contract_fingerprint
     ):
-        _fail("STAGE00_PHASE01_BINDING_MISMATCH", "Stage 0 and Phase 1 differ")
-    if len({record.file_sha256 for record in phase01.records}) != len(phase01.records):
+        _fail(
+            "STAGE00_PHASE01_BINDING_MISMATCH",
+            "Stage 0 and legacy Stage 0 source-inventory differ",
+        )
+    if len({record.file_sha256 for record in source_inventory.records}) != len(
+        source_inventory.records
+    ):
         _fail(
             "DUPLICATE_SOURCE_CONTENT",
             "Duplicate source content would violate stable source-row identity",
@@ -454,7 +468,7 @@ def validate_stage00_binding(
     recorded_artifacts = _artifact_map(
         bundle_integrity.get("artifacts"), "MALFORMED_STAGE00_RECORD"
     )
-    actual_artifacts = {item.relative_path: item for item in phase01.artifacts}
+    actual_artifacts = {item.relative_path: item for item in source_inventory.artifacts}
     if recorded_artifacts != actual_artifacts:
         _fail("STAGE00_ARTIFACT_MISMATCH", "Stage 0 artifact identities differ")
     terminal = _mapping(
@@ -462,24 +476,24 @@ def validate_stage00_binding(
     )
     success = _mapping(terminal.get("success_marker"), "MALFORMED_STAGE00_RECORD")
     if (
-        success != phase01.success_marker.to_dict()
+        success != source_inventory.success_marker.to_dict()
         or terminal.get("failure_marker_present") is not False
         or terminal.get("in_progress_marker_present") is not False
     ):
         _fail("STAGE00_TERMINAL_MISMATCH", "Stage 0 terminal evidence differs")
 
-    phase01_run = _load_json_object(
-        phase01.run_dir / "phase01_run.json", "MALFORMED_PHASE01_RUN"
+    source_inventory_run = _load_json_object(
+        source_inventory.run_dir / "phase01_run.json", "MALFORMED_PHASE01_RUN"
     )
     input_manifest_sha = _canonical_text(
-        phase01_run.get("input_manifest_sha256"), "MALFORMED_PHASE01_RUN"
+        source_inventory_run.get("input_manifest_sha256"), "MALFORMED_PHASE01_RUN"
     )
     _digest_bytes(input_manifest_sha)
     return (
         Stage00Binding(
             adoption_record=adoption_artifact,
-            phase01_bundle=phase01,
-            phase01_input_manifest_sha256=input_manifest_sha,
+            source_inventory_bundle=source_inventory,
+            source_inventory_manifest_sha256=input_manifest_sha,
             source_population_sha256_v1=expected_source_population_sha256,
             scientific_inventory_sha256_v1=expected_scientific_inventory_sha256,
             parser_contract_fingerprint=expected_parser_contract_fingerprint,
@@ -490,7 +504,7 @@ def validate_stage00_binding(
 
 def resolve_stage00_binding(
     stage00_adoption_record_path: Path,
-    phase01_run_directory: Path,
+    source_inventory_run_directory: Path,
     *,
     expected_stage00_adoption_sha256: str,
 ) -> Stage00Binding:
@@ -507,7 +521,7 @@ def resolve_stage00_binding(
     identity = _mapping(record.get("identity"), "MALFORMED_STAGE00_RECORD")
     binding, _ = validate_stage00_binding(
         stage00_adoption_record_path,
-        phase01_run_directory,
+        source_inventory_run_directory,
         expected_stage00_adoption_sha256=expected_stage00_adoption_sha256,
         expected_source_population_sha256=_canonical_text(
             identity.get("source_population_sha256_v1"),
@@ -615,12 +629,12 @@ def _directory_topology(
     return tuple(sorted(topology))
 
 
-def _validate_phase02_state(
+def _validate_stage01_state(
     state_path: Path,
     records: Sequence[Stage01SourceRecord],
     *,
     run_id: str,
-    phase01_input_manifest_sha256: str,
+    source_inventory_manifest_sha256: str,
     configuration_fingerprint: str,
     implementation_fingerprint: str,
     manifest_files: Mapping[str, Mapping[str, Any]],
@@ -632,7 +646,7 @@ def _validate_phase02_state(
         if wal_path.stat().st_size != 0:
             _fail(
                 "STATE_NOT_CHECKPOINTED",
-                "Completed Phase 2 state has an uncheckpointed WAL",
+                "Completed accepted Stage 1 ingestion state has an uncheckpointed WAL",
             )
     try:
         with tempfile.TemporaryDirectory(prefix="safe-stage01-state-") as temporary:
@@ -646,7 +660,10 @@ def _validate_phase02_state(
             try:
                 integrity = connection.execute("PRAGMA integrity_check").fetchone()
                 if integrity is None or integrity[0] != "ok":
-                    _fail("STATE_INTEGRITY_FAILURE", "Phase 2 state store is not valid")
+                    _fail(
+                        "STATE_INTEGRITY_FAILURE",
+                        "accepted Stage 1 ingestion state store is not valid",
+                    )
                 rows = connection.execute(
                     """
                     SELECT relative_path, source_sha256, expected_rows, status, attempt,
@@ -669,12 +686,16 @@ def _validate_phase02_state(
         raise
     except (OSError, sqlite3.Error) as error:
         raise Stage01ValidationError(
-            "STATE_INTEGRITY_FAILURE", "Phase 2 state store cannot be validated"
+            "STATE_INTEGRITY_FAILURE",
+            "accepted Stage 1 ingestion state store cannot be validated",
         ) from error
     if len(rows) != len(expected) or {row["relative_path"] for row in rows} != set(
         expected
     ):
-        _fail("STATE_SCOPE_MISMATCH", "Phase 2 state source scope differs")
+        _fail(
+            "STATE_SCOPE_MISMATCH",
+            "accepted Stage 1 ingestion state source scope differs",
+        )
     for row in rows:
         record = expected[str(row["relative_path"])]
         manifest_file = manifest_files[record.relative_path]
@@ -696,21 +717,30 @@ def _validate_phase02_state(
             or row["failure_code"] != ""
             or row["failure_detail"] != ""
         ):
-            _fail("STATE_FILE_MISMATCH", "Phase 2 state file evidence differs")
+            _fail(
+                "STATE_FILE_MISMATCH",
+                "accepted Stage 1 ingestion state file evidence differs",
+            )
     expected_meta = {
         "run_id": run_id,
         "run_scope": "FULL_CONVERSION",
-        "phase01_input_manifest_sha256": phase01_input_manifest_sha256,
+        "phase01_input_manifest_sha256": source_inventory_manifest_sha256,
         "configuration_fingerprint": configuration_fingerprint,
         "implementation_fingerprint": implementation_fingerprint,
     }
     if any(run_meta.get(key) != value for key, value in expected_meta.items()):
-        _fail("STATE_META_MISMATCH", "Phase 2 state run metadata differs")
+        _fail(
+            "STATE_META_MISMATCH",
+            "accepted Stage 1 ingestion state run metadata differs",
+        )
     attempts_by_path: dict[str, list[sqlite3.Row]] = {}
     for attempt_row in attempts:
         relative_path = attempt_row["relative_path"]
         if relative_path not in expected:
-            _fail("STATE_TERMINAL_MISMATCH", "Phase 2 attempt scope differs")
+            _fail(
+                "STATE_TERMINAL_MISMATCH",
+                "accepted Stage 1 ingestion attempt scope differs",
+            )
         attempts_by_path.setdefault(relative_path, []).append(attempt_row)
     state_by_path = {str(row["relative_path"]): row for row in rows}
     for relative_path, record in expected.items():
@@ -727,7 +757,10 @@ def _validate_phase02_state(
             or history[-1]["output_sha256"]
             != manifest_files[record.relative_path]["output_sha256"]
         ):
-            _fail("STATE_TERMINAL_MISMATCH", "Phase 2 attempt history is not complete")
+            _fail(
+                "STATE_TERMINAL_MISMATCH",
+                "accepted Stage 1 ingestion attempt history is not complete",
+            )
 
 
 def _validate_file_report(
@@ -741,19 +774,21 @@ def _validate_file_report(
             reader = csv.DictReader(stream)
             if tuple(reader.fieldnames or ()) != FILE_VALIDATION_COLUMNS:
                 _fail(
-                    "FILE_REPORT_SCHEMA_MISMATCH", "Phase 2 file report schema differs"
+                    "FILE_REPORT_SCHEMA_MISMATCH",
+                    "accepted Stage 1 ingestion file report schema differs",
                 )
             seen: set[str] = set()
             for row in reader:
                 if None in row or any(value is None for value in row.values()):
                     _fail(
-                        "MALFORMED_FILE_REPORT", "Phase 2 file report row is malformed"
+                        "MALFORMED_FILE_REPORT",
+                        "accepted Stage 1 ingestion file report row is malformed",
                     )
                 source_path = row["relative_path"]
                 if source_path in seen or source_path not in manifest_files:
                     _fail(
                         "FILE_REPORT_SCOPE_MISMATCH",
-                        "Phase 2 file report scope differs",
+                        "accepted Stage 1 ingestion file report scope differs",
                     )
                 seen.add(source_path)
                 expected = manifest_files[source_path]
@@ -781,16 +816,20 @@ def _validate_file_report(
                 ):
                     _fail(
                         "FILE_REPORT_VALIDATION_MISMATCH",
-                        "Phase 2 file evidence differs",
+                        "accepted Stage 1 ingestion file evidence differs",
                     )
     except Stage01ValidationError:
         raise
     except (OSError, UnicodeError, csv.Error, KeyError, TypeError, ValueError) as error:
         raise Stage01ValidationError(
-            "MALFORMED_FILE_REPORT", "Phase 2 file report cannot be interpreted"
+            "MALFORMED_FILE_REPORT",
+            "accepted Stage 1 ingestion file report cannot be interpreted",
         ) from error
     if seen != set(manifest_files):
-        _fail("FILE_REPORT_SCOPE_MISMATCH", "Phase 2 file report is incomplete")
+        _fail(
+            "FILE_REPORT_SCOPE_MISMATCH",
+            "accepted Stage 1 ingestion file report is incomplete",
+        )
 
 
 def _validate_failures_report(path: Path) -> None:
@@ -807,16 +846,20 @@ def _validate_failures_report(path: Path) -> None:
                 )
                 or next(reader, None) is not None
             ):
-                _fail("PHASE02_FAILURES_PRESENT", "Phase 2 failure report is not empty")
+                _fail(
+                    "PHASE02_FAILURES_PRESENT",
+                    "accepted Stage 1 ingestion failure report is not empty",
+                )
     except Stage01ValidationError:
         raise
     except (OSError, UnicodeError, csv.Error) as error:
         raise Stage01ValidationError(
-            "MALFORMED_FAILURE_REPORT", "Phase 2 failure report cannot be interpreted"
+            "MALFORMED_FAILURE_REPORT",
+            "accepted Stage 1 ingestion failure report cannot be interpreted",
         ) from error
 
 
-def _validate_phase02_reports(
+def _validate_stage01_reports(
     reports_directory: Path,
     *,
     run_id: str,
@@ -828,7 +871,8 @@ def _validate_phase02_reports(
 ) -> tuple[tuple[ArtifactIdentity, ...], tuple[_FileSnapshot, ...], dict[str, Any]]:
     if reports_directory.is_symlink() or not reports_directory.is_dir():
         _fail(
-            "INVALID_REPORT_DIRECTORY", "Phase 2 report directory is missing or unsafe"
+            "INVALID_REPORT_DIRECTORY",
+            "accepted Stage 1 ingestion report directory is missing or unsafe",
         )
     report_identities: list[ArtifactIdentity] = []
     snapshots: list[_FileSnapshot] = []
@@ -851,15 +895,18 @@ def _validate_phase02_reports(
         or not isinstance(run_commit, str)
         or _HISTORICAL_GIT_SHA_RE.fullmatch(run_commit) is None
         or not producing_git_commit.startswith(run_commit)
-        or run.get("phase01_run_id") != stage00.phase01_bundle.run_id
+        or run.get("phase01_run_id") != stage00.source_inventory_bundle.run_id
         or run.get("phase01_input_manifest_sha256")
-        != stage00.phase01_input_manifest_sha256
+        != stage00.source_inventory_manifest_sha256
         or run.get("configuration_fingerprint")
         != manifest.get("configuration_fingerprint")
         or run.get("implementation_fingerprint")
         != manifest.get("implementation_fingerprint")
     ):
-        _fail("PHASE02_RUN_MISMATCH", "Phase 2 run provenance or gates differ")
+        _fail(
+            "PHASE02_RUN_MISMATCH",
+            "accepted Stage 1 ingestion run provenance or gates differ",
+        )
     configuration = _mapping(run.get("configuration"), "MALFORMED_PHASE02_RUN")
     if (
         configuration.get("source_schema_version") != SOURCE_SCHEMA_VERSION
@@ -869,7 +916,10 @@ def _validate_phase02_reports(
         or configuration.get("stable_row_id_version") != STABLE_ROW_ID_VERSION
         or configuration.get("schema_fingerprint") != schema_fingerprint()
     ):
-        _fail("PHASE02_SCIENTIFIC_CONTRACT_MISMATCH", "Phase 2 contracts differ")
+        _fail(
+            "PHASE02_SCIENTIFIC_CONTRACT_MISMATCH",
+            "accepted Stage 1 ingestion contracts differ",
+        )
     accepted_population = configuration.get("accepted_stage00_population")
     if accepted_population is not None:
         expected_population = {
@@ -880,20 +930,25 @@ def _validate_phase02_reports(
                 stage00.scientific_inventory_sha256_v1
             ),
             "parser_contract_fingerprint": stage00.parser_contract_fingerprint,
-            "phase01_run_id": stage00.phase01_bundle.run_id,
-            "phase01_input_manifest_sha256": stage00.phase01_input_manifest_sha256,
-            "source_file_count": len(stage00.phase01_bundle.records),
+            "phase01_run_id": stage00.source_inventory_bundle.run_id,
+            "phase01_input_manifest_sha256": stage00.source_inventory_manifest_sha256,
+            "source_file_count": len(stage00.source_inventory_bundle.records),
         }
         if accepted_population != expected_population:
             _fail(
                 "PHASE02_POPULATION_CONTRACT_MISMATCH",
-                "Phase 2 accepted Stage 0 population identity differs",
+                "accepted Stage 1 ingestion accepted Stage 0 population identity differs",
             )
     metrics = _mapping(run.get("metrics"), "MALFORMED_PHASE02_RUN")
     if metrics.get("parquet_bytes") != total_parquet_bytes or metrics.get(
         "source_bytes"
-    ) != sum(record.file_size_bytes for record in stage00.phase01_bundle.records):
-        _fail("PHASE02_METRIC_MISMATCH", "Phase 2 aggregate byte evidence differs")
+    ) != sum(
+        record.file_size_bytes for record in stage00.source_inventory_bundle.records
+    ):
+        _fail(
+            "PHASE02_METRIC_MISMATCH",
+            "accepted Stage 1 ingestion aggregate byte evidence differs",
+        )
 
     schema_report = _load_json_object(
         reports_directory / "phase02_schema.json", "MALFORMED_SCHEMA_REPORT"
@@ -912,7 +967,9 @@ def _validate_phase02_reports(
         or schema_report.get("schema_fingerprint") != schema_fingerprint()
         or schema_report.get("fields") != expected_fields
     ):
-        _fail("SCHEMA_REPORT_MISMATCH", "Phase 2 schema report differs")
+        _fail(
+            "SCHEMA_REPORT_MISMATCH", "accepted Stage 1 ingestion schema report differs"
+        )
 
     reconciliation_report = _load_json_object(
         reports_directory / "phase02_reconciliation.json",
@@ -935,7 +992,10 @@ def _validate_phase02_reports(
         "extra_files",
     ):
         if reconciliation_report.get(key) != reconciliation.get(key):
-            _fail("RECONCILIATION_REPORT_MISMATCH", "Phase 2 reconciliation differs")
+            _fail(
+                "RECONCILIATION_REPORT_MISMATCH",
+                "accepted Stage 1 ingestion reconciliation differs",
+            )
     _validate_file_report(
         reports_directory / "phase02_file_validation.csv",
         run_id=run_id,
@@ -955,7 +1015,10 @@ def _output_path(value: object) -> str:
         or candidate.suffix.lower() != ".parquet"
         or candidate.name in {".", ".."}
     ):
-        _fail("UNSAFE_SHARD_PATH", "Phase 2 output path is outside the data directory")
+        _fail(
+            "UNSAFE_SHARD_PATH",
+            "accepted Stage 1 ingestion output path is outside the data directory",
+        )
     return text
 
 
@@ -991,43 +1054,53 @@ def _validate_manifest_shape(manifest: Mapping[str, Any]) -> None:
     }
     if set(manifest) != expected_keys:
         _fail(
-            "PHASE02_MANIFEST_SCHEMA_MISMATCH", "Phase 2 manifest fields are not exact"
+            "PHASE02_MANIFEST_SCHEMA_MISMATCH",
+            "accepted Stage 1 ingestion manifest fields are not exact",
         )
 
 
-def validate_phase02_bundle(
-    phase02_run_directory: Path,
-    phase02_reports_directory: Path,
-    phase01_run_directory: Path,
+def validate_stage01_bundle(
+    ingestion_run_directory: Path,
+    ingestion_reports_directory: Path,
+    source_inventory_run_directory: Path,
     stage00_adoption_record_path: Path,
     *,
     expected_stage00_adoption_sha256: str,
     expected_source_population_sha256: str,
     expected_scientific_inventory_sha256: str,
     expected_parser_contract_fingerprint: str,
-    expected_phase02_run_id: str,
-    expected_phase02_producing_git_commit: str,
+    expected_ingestion_run_id: str,
+    expected_ingestion_producing_git_commit: str,
     production: bool,
-) -> ValidatedPhase02Bundle:
-    """Validate a completed Phase 2 bundle without opening source CSV files."""
+) -> ValidatedStage01Bundle:
+    """Validate a completed accepted Stage 1 ingestion bundle without opening source CSV files."""
     if production:
-        require_goethe_nhr_slurm("stage01.phase02-bundle-validation")
-    if _RUN_ID_RE.fullmatch(expected_phase02_run_id) is None:
-        _fail("INVALID_PHASE02_RUN_ID", "Expected Phase 2 run ID is malformed")
-    if _FULL_GIT_SHA_RE.fullmatch(expected_phase02_producing_git_commit) is None:
-        _fail("INVALID_GIT_COMMIT", "Phase 2 producing commit is not a full SHA")
+        require_goethe_nhr_slurm("stage01.bundle-validation")
+    if _RUN_ID_RE.fullmatch(expected_ingestion_run_id) is None:
+        _fail(
+            "INVALID_PHASE02_RUN_ID",
+            "Expected accepted Stage 1 ingestion run ID is malformed",
+        )
+    if _FULL_GIT_SHA_RE.fullmatch(expected_ingestion_producing_git_commit) is None:
+        _fail(
+            "INVALID_GIT_COMMIT",
+            "accepted Stage 1 ingestion producing commit is not a full SHA",
+        )
 
     stage00, stage00_snapshot = validate_stage00_binding(
         stage00_adoption_record_path,
-        phase01_run_directory,
+        source_inventory_run_directory,
         expected_stage00_adoption_sha256=expected_stage00_adoption_sha256,
         expected_source_population_sha256=expected_source_population_sha256,
         expected_scientific_inventory_sha256=expected_scientific_inventory_sha256,
         expected_parser_contract_fingerprint=expected_parser_contract_fingerprint,
     )
-    if phase02_run_directory.is_symlink():
-        _fail("INVALID_RUN_DIRECTORY", "Phase 2 run directory is a symlink")
-    run_dir = phase02_run_directory.resolve()
+    if ingestion_run_directory.is_symlink():
+        _fail(
+            "INVALID_RUN_DIRECTORY",
+            "accepted Stage 1 ingestion run directory is a symlink",
+        )
+    run_dir = ingestion_run_directory.resolve()
     _verify_directory_mode(run_dir, 0o700, "PERMISSION_FAILURE")
     data_dir = run_dir / "data"
     work_dir = run_dir / "_work"
@@ -1052,7 +1125,10 @@ def validate_phase02_bundle(
         in_progress_dir, recursive=True, protected=True
     )
     if in_progress_snapshots:
-        _fail("BUNDLE_IN_PROGRESS", "Phase 2 in-progress directory is not empty")
+        _fail(
+            "BUNDLE_IN_PROGRESS",
+            "accepted Stage 1 ingestion in-progress directory is not empty",
+        )
     for marker in (
         "_IN_PROGRESS",
         "_FAILURE.json",
@@ -1064,21 +1140,27 @@ def validate_phase02_bundle(
         if candidate.exists() or candidate.is_symlink():
             _fail(
                 "CONTRADICTORY_TERMINAL_STATE",
-                "Phase 2 terminal state is contradictory",
+                "accepted Stage 1 ingestion terminal state is contradictory",
             )
 
-    manifest_path = run_dir / PHASE02_MANIFEST_NAME
-    success_path = run_dir / PHASE02_SUCCESS_MARKER
+    manifest_path = run_dir / INGESTION_MANIFEST_NAME
+    success_path = run_dir / INGESTION_SUCCESS_MARKER
     manifest_identity, manifest_snapshot = _artifact_identity(
-        manifest_path, PHASE02_MANIFEST_NAME
+        manifest_path, INGESTION_MANIFEST_NAME
     )
     success_identity, success_snapshot = _artifact_identity(
-        success_path, PHASE02_SUCCESS_MARKER
+        success_path, INGESTION_SUCCESS_MARKER
     )
     if run_topology != expected_run_topology:
-        _fail("PHASE02_RUN_TOPOLOGY_MISMATCH", "Phase 2 run artifact set differs")
+        _fail(
+            "PHASE02_RUN_TOPOLOGY_MISMATCH",
+            "accepted Stage 1 ingestion run artifact set differs",
+        )
     if manifest_snapshot.mode != 0o600 or success_snapshot.mode != 0o600:
-        _fail("PERMISSION_FAILURE", "Phase 2 terminal artifacts are not owner-only")
+        _fail(
+            "PERMISSION_FAILURE",
+            "accepted Stage 1 ingestion terminal artifacts are not owner-only",
+        )
     manifest = _load_json_object(manifest_path, "MALFORMED_PHASE02_MANIFEST")
     _validate_manifest_shape(manifest)
     success = _load_json_object(success_path, "MALFORMED_PHASE02_SUCCESS")
@@ -1098,30 +1180,40 @@ def validate_phase02_bundle(
         "staging_bytes",
     }
     if set(success) not in (historical_success_keys, extended_success_keys):
-        _fail("PHASE02_SUCCESS_SCHEMA_MISMATCH", "Phase 2 success fields differ")
+        _fail(
+            "PHASE02_SUCCESS_SCHEMA_MISMATCH",
+            "accepted Stage 1 ingestion success fields differ",
+        )
     if (
-        manifest.get("run_id") != expected_phase02_run_id
-        or run_dir.name != expected_phase02_run_id
+        manifest.get("run_id") != expected_ingestion_run_id
+        or run_dir.name != expected_ingestion_run_id
         or manifest.get("run_scope") != "FULL_CONVERSION"
         or manifest.get("phase02_completion_gate") != "PASS"
         or manifest.get("phase01_input_manifest_sha256")
-        != stage00.phase01_input_manifest_sha256
+        != stage00.source_inventory_manifest_sha256
         or manifest.get("schema_fingerprint") != schema_fingerprint()
     ):
-        _fail("PHASE02_MANIFEST_IDENTITY_MISMATCH", "Phase 2 manifest identity differs")
+        _fail(
+            "PHASE02_MANIFEST_IDENTITY_MISMATCH",
+            "accepted Stage 1 ingestion manifest identity differs",
+        )
     for key in ("configuration_fingerprint", "implementation_fingerprint"):
         _digest_bytes(_canonical_text(manifest.get(key), "MALFORMED_PHASE02_MANIFEST"))
     if (
-        success.get("run_id") != expected_phase02_run_id
+        success.get("run_id") != expected_ingestion_run_id
         or success.get("run_scope") != "FULL_CONVERSION"
         or success.get("scope_gate") != "PASS"
         or success.get("phase02_completion_gate") != "PASS"
         or success.get("dataset_manifest_sha256") != manifest_identity.sha256
     ):
-        _fail("PHASE02_SUCCESS_MISMATCH", "Phase 2 success marker differs")
+        _fail(
+            "PHASE02_SUCCESS_MISMATCH",
+            "accepted Stage 1 ingestion success marker differs",
+        )
 
     stage00_by_path = {
-        record.relative_path: record for record in stage00.phase01_bundle.records
+        record.relative_path: record
+        for record in stage00.source_inventory_bundle.records
     }
     manifest_file_values = _sequence(
         manifest.get("files"), "MALFORMED_PHASE02_MANIFEST"
@@ -1146,14 +1238,18 @@ def validate_phase02_bundle(
         item = _mapping(raw, "MALFORMED_PHASE02_MANIFEST")
         if set(item) != expected_file_keys:
             _fail(
-                "PHASE02_MANIFEST_SCHEMA_MISMATCH", "Phase 2 file fields are not exact"
+                "PHASE02_MANIFEST_SCHEMA_MISMATCH",
+                "accepted Stage 1 ingestion file fields are not exact",
             )
         source_path = _canonical_text(
             item.get("source_file"), "MALFORMED_PHASE02_MANIFEST"
         )
         _canonical_source_path(source_path)
         if source_path in manifest_files or source_path not in stage00_by_path:
-            _fail("PHASE02_SOURCE_SCOPE_MISMATCH", "Phase 2 source scope differs")
+            _fail(
+                "PHASE02_SOURCE_SCOPE_MISMATCH",
+                "accepted Stage 1 ingestion source scope differs",
+            )
         source_sha = _canonical_text(
             item.get("source_sha256"), "MALFORMED_PHASE02_MANIFEST"
         )
@@ -1186,17 +1282,20 @@ def validate_phase02_bundle(
         ):
             _fail(
                 "PHASE02_SOURCE_PROJECTION_MISMATCH",
-                "Phase 2 source projection differs",
+                "accepted Stage 1 ingestion source projection differs",
             )
         output_path = _output_path(item.get("output_file"))
         if output_path in output_paths:
-            _fail("DUPLICATE_SHARD_PATH", "Phase 2 shard path is duplicated")
+            _fail(
+                "DUPLICATE_SHARD_PATH",
+                "accepted Stage 1 ingestion shard path is duplicated",
+            )
         output_paths.add(output_path)
         output_size = _canonical_uint(
             item.get("output_size_bytes"), "MALFORMED_PHASE02_MANIFEST"
         )
         if output_size == 0:
-            _fail("INVALID_SHARD_SIZE", "Phase 2 shard size is zero")
+            _fail("INVALID_SHARD_SIZE", "accepted Stage 1 ingestion shard size is zero")
         manifest_files[source_path] = item
         expected_shards[output_path] = item
         sources.append(
@@ -1204,20 +1303,30 @@ def validate_phase02_bundle(
         )
     if set(manifest_files) != set(stage00_by_path):
         _fail(
-            "PHASE02_SOURCE_SCOPE_MISMATCH", "Phase 2 source population is incomplete"
+            "PHASE02_SOURCE_SCOPE_MISMATCH",
+            "accepted Stage 1 ingestion source population is incomplete",
         )
     if [record.relative_path for record in sources] != sorted(stage00_by_path):
-        _fail("PHASE02_SOURCE_ORDER_MISMATCH", "Phase 2 source order is not canonical")
+        _fail(
+            "PHASE02_SOURCE_ORDER_MISMATCH",
+            "accepted Stage 1 ingestion source order is not canonical",
+        )
     ordered_sources = _canonical_sources(sources)
 
     observed_entries = list(data_dir.iterdir())
     if any(path.is_symlink() or not path.is_file() for path in observed_entries):
-        _fail("UNSAFE_SHARD", "Phase 2 data directory contains an unsafe entry")
+        _fail(
+            "UNSAFE_SHARD",
+            "accepted Stage 1 ingestion data directory contains an unsafe entry",
+        )
     observed_relative = {
         path.relative_to(run_dir).as_posix() for path in observed_entries
     }
     if observed_relative != set(expected_shards):
-        _fail("PHASE02_SHARD_SET_MISMATCH", "Phase 2 shard set differs from manifest")
+        _fail(
+            "PHASE02_SHARD_SET_MISMATCH",
+            "accepted Stage 1 ingestion shard set differs from manifest",
+        )
     data_topology = _directory_topology(data_dir, protected=True)
 
     shard_identities: list[ArtifactIdentity] = []
@@ -1233,14 +1342,17 @@ def validate_phase02_bundle(
             expected_sha256=cast(str, shard_item["output_sha256"]),
         )
         if snapshot.mode != 0o600:
-            _fail("PERMISSION_FAILURE", "Phase 2 shard is not owner-only")
+            _fail(
+                "PERMISSION_FAILURE",
+                "accepted Stage 1 ingestion shard is not owner-only",
+            )
         metadata, parquet_metadata = _parquet_metadata(path)
         source_path = cast(str, shard_item["source_file"])
         required_metadata = {
-            "phase02_run_id": expected_phase02_run_id,
-            "phase01_run_id": stage00.phase01_bundle.run_id,
-            "phase01_input_manifest_sha256": stage00.phase01_input_manifest_sha256,
-            "pipeline_git_commit": expected_phase02_producing_git_commit[:8],
+            "phase02_run_id": expected_ingestion_run_id,
+            "phase01_run_id": stage00.source_inventory_bundle.run_id,
+            "phase01_input_manifest_sha256": stage00.source_inventory_manifest_sha256,
+            "pipeline_git_commit": expected_ingestion_producing_git_commit[:8],
             "source_file": source_path,
             "source_file_sha256": cast(str, shard_item["source_sha256"]),
             "source_schema_version": SOURCE_SCHEMA_VERSION,
@@ -1259,9 +1371,15 @@ def validate_phase02_bundle(
             parquet_metadata.get(key) != value
             for key, value in required_metadata.items()
         ):
-            _fail("PARQUET_METADATA_MISMATCH", "Phase 2 Parquet metadata differs")
+            _fail(
+                "PARQUET_METADATA_MISMATCH",
+                "accepted Stage 1 ingestion Parquet metadata differs",
+            )
         if metadata.num_rows != shard_item["staging_rows"]:
-            _fail("PARQUET_ROW_COUNT_MISMATCH", "Phase 2 Parquet row count differs")
+            _fail(
+                "PARQUET_ROW_COUNT_MISMATCH",
+                "accepted Stage 1 ingestion Parquet row count differs",
+            )
         shard_identities.append(identity)
         shard_snapshots.append(snapshot)
         total_parquet_bytes += identity.size_bytes
@@ -1281,53 +1399,70 @@ def validate_phase02_bundle(
         or reconciliation.get("missing_files") != []
         or reconciliation.get("extra_files") != []
     ):
-        _fail("PHASE02_RECONCILIATION_FAILURE", "Phase 2 reconciliation did not pass")
+        _fail(
+            "PHASE02_RECONCILIATION_FAILURE",
+            "accepted Stage 1 ingestion reconciliation did not pass",
+        )
     if (
         success.get("files") != len(shard_identities)
         or success.get("rows") != total_rows
     ):
-        _fail("PHASE02_SUCCESS_MISMATCH", "Phase 2 success counts differ")
+        _fail(
+            "PHASE02_SUCCESS_MISMATCH",
+            "accepted Stage 1 ingestion success counts differ",
+        )
     if set(success) == extended_success_keys:
         marker_commit = success.get("git_commit")
         if (
             not isinstance(marker_commit, str)
             or _HISTORICAL_GIT_SHA_RE.fullmatch(marker_commit) is None
-            or not expected_phase02_producing_git_commit.startswith(marker_commit)
+            or not expected_ingestion_producing_git_commit.startswith(marker_commit)
             or success.get("source_bytes")
-            != sum(record.file_size_bytes for record in stage00.phase01_bundle.records)
+            != sum(
+                record.file_size_bytes
+                for record in stage00.source_inventory_bundle.records
+            )
             or success.get("staging_bytes") != total_parquet_bytes
         ):
-            _fail("PHASE02_SUCCESS_MISMATCH", "Phase 2 success evidence differs")
+            _fail(
+                "PHASE02_SUCCESS_MISMATCH",
+                "accepted Stage 1 ingestion success evidence differs",
+            )
 
-    state_path = run_dir / PHASE02_STATE_NAME
-    state_identity, state_snapshot = _artifact_identity(state_path, PHASE02_STATE_NAME)
+    state_path = run_dir / INGESTION_STATE_NAME
+    state_identity, state_snapshot = _artifact_identity(
+        state_path, INGESTION_STATE_NAME
+    )
     if state_snapshot.mode != 0o600:
-        _fail("PERMISSION_FAILURE", "Phase 2 state store is not owner-only")
-    _validate_phase02_state(
+        _fail(
+            "PERMISSION_FAILURE",
+            "accepted Stage 1 ingestion state store is not owner-only",
+        )
+    _validate_stage01_state(
         state_path,
         ordered_sources,
-        run_id=expected_phase02_run_id,
-        phase01_input_manifest_sha256=stage00.phase01_input_manifest_sha256,
+        run_id=expected_ingestion_run_id,
+        source_inventory_manifest_sha256=stage00.source_inventory_manifest_sha256,
         configuration_fingerprint=cast(str, manifest["configuration_fingerprint"]),
         implementation_fingerprint=cast(str, manifest["implementation_fingerprint"]),
         manifest_files=manifest_files,
     )
 
-    reports, report_snapshots, run = _validate_phase02_reports(
-        phase02_reports_directory,
-        run_id=expected_phase02_run_id,
-        producing_git_commit=expected_phase02_producing_git_commit,
+    reports, report_snapshots, run = _validate_stage01_reports(
+        ingestion_reports_directory,
+        run_id=expected_ingestion_run_id,
+        producing_git_commit=expected_ingestion_producing_git_commit,
         stage00=stage00,
         manifest=manifest,
         manifest_files=manifest_files,
         total_parquet_bytes=total_parquet_bytes,
     )
-    reports_topology = _directory_topology(phase02_reports_directory)
+    reports_topology = _directory_topology(ingestion_reports_directory)
     expected_reports_topology = tuple(sorted((name, "file") for name in REPORT_NAMES))
     if reports_topology != expected_reports_topology:
         _fail(
             "PHASE02_REPORT_TOPOLOGY_MISMATCH",
-            "Phase 2 report artifact set differs",
+            "accepted Stage 1 ingestion report artifact set differs",
         )
     logical_digest = stage01_logical_dataset_sha256_v1(
         ordered_sources,
@@ -1342,11 +1477,11 @@ def validate_phase02_bundle(
         + tuple(shard_snapshots)
         + report_snapshots
     )
-    return ValidatedPhase02Bundle(
+    return ValidatedStage01Bundle(
         run_directory=run_dir,
-        reports_directory=phase02_reports_directory.resolve(),
-        run_id=expected_phase02_run_id,
-        producing_git_commit=expected_phase02_producing_git_commit,
+        reports_directory=ingestion_reports_directory.resolve(),
+        run_id=expected_ingestion_run_id,
+        producing_git_commit=expected_ingestion_producing_git_commit,
         stage00=stage00,
         sources=ordered_sources,
         schema_fingerprint=cast(str, manifest["schema_fingerprint"]),
@@ -1375,30 +1510,45 @@ def _verify_snapshots_unchanged(snapshots: Sequence[_FileSnapshot]) -> None:
         if _snapshot(expected.path) != expected:
             _fail(
                 "BUNDLE_CHANGED_DURING_ADOPTION",
-                "Phase 2 bundle changed before adoption",
+                "accepted Stage 1 ingestion bundle changed before adoption",
             )
 
 
-def _verify_bundle_topology_unchanged(bundle: ValidatedPhase02Bundle) -> None:
+def _verify_bundle_topology_unchanged(bundle: ValidatedStage01Bundle) -> None:
     run_dir = bundle.run_directory
     _verify_directory_mode(run_dir, 0o700, "PERMISSION_FAILURE")
     _verify_directory_mode(run_dir / "data", 0o700, "PERMISSION_FAILURE")
     if _directory_topology(run_dir) != bundle.run_topology:
-        _fail("BUNDLE_CHANGED_DURING_ADOPTION", "Phase 2 run topology changed")
+        _fail(
+            "BUNDLE_CHANGED_DURING_ADOPTION",
+            "accepted Stage 1 ingestion run topology changed",
+        )
     if _directory_topology(run_dir / "data", protected=True) != bundle.data_topology:
-        _fail("BUNDLE_CHANGED_DURING_ADOPTION", "Phase 2 data topology changed")
+        _fail(
+            "BUNDLE_CHANGED_DURING_ADOPTION",
+            "accepted Stage 1 ingestion data topology changed",
+        )
     if (
         _directory_topology(run_dir / "_work", recursive=True, protected=True)
         != bundle.work_topology
     ):
-        _fail("BUNDLE_CHANGED_DURING_ADOPTION", "Phase 2 work topology changed")
+        _fail(
+            "BUNDLE_CHANGED_DURING_ADOPTION",
+            "accepted Stage 1 ingestion work topology changed",
+        )
     if (
         _directory_topology(run_dir / ".in_progress", recursive=True, protected=True)
         != bundle.in_progress_topology
     ):
-        _fail("BUNDLE_CHANGED_DURING_ADOPTION", "Phase 2 progress topology changed")
+        _fail(
+            "BUNDLE_CHANGED_DURING_ADOPTION",
+            "accepted Stage 1 ingestion progress topology changed",
+        )
     if _directory_topology(bundle.reports_directory) != bundle.reports_topology:
-        _fail("BUNDLE_CHANGED_DURING_ADOPTION", "Phase 2 report topology changed")
+        _fail(
+            "BUNDLE_CHANGED_DURING_ADOPTION",
+            "accepted Stage 1 ingestion report topology changed",
+        )
 
 
 def _utc_now_text() -> str:
@@ -1406,7 +1556,7 @@ def _utc_now_text() -> str:
 
 
 def _build_adoption_record(
-    bundle: ValidatedPhase02Bundle,
+    bundle: ValidatedStage01Bundle,
     *,
     adopting_git_commit: str,
     adopting_git_dirty: bool,
@@ -1445,10 +1595,10 @@ def _build_adoption_record(
             "stage00_parser_contract_fingerprint": (
                 bundle.stage00.parser_contract_fingerprint
             ),
-            "phase01_run_id": bundle.stage00.phase01_bundle.run_id,
-            "phase01_inventory_version": bundle.stage00.phase01_bundle.inventory_version,
+            "phase01_run_id": bundle.stage00.source_inventory_bundle.run_id,
+            "phase01_inventory_version": bundle.stage00.source_inventory_bundle.inventory_version,
             "phase01_input_manifest_sha256": (
-                bundle.stage00.phase01_input_manifest_sha256
+                bundle.stage00.source_inventory_manifest_sha256
             ),
             "phase02_staging_version": STAGING_VERSION,
             "source_schema_version": SOURCE_SCHEMA_VERSION,
@@ -1534,10 +1684,10 @@ def _write_owner_only_adoption_directory(
     return output_directory / STAGE01_ADOPTION_RECORD_NAME
 
 
-def adopt_phase02_bundle(
-    phase02_run_directory: Path,
-    phase02_reports_directory: Path,
-    phase01_run_directory: Path,
+def adopt_stage01_bundle(
+    ingestion_run_directory: Path,
+    ingestion_reports_directory: Path,
+    source_inventory_run_directory: Path,
     stage00_adoption_record_path: Path,
     output_directory: Path,
     *,
@@ -1545,26 +1695,26 @@ def adopt_phase02_bundle(
     expected_source_population_sha256: str,
     expected_scientific_inventory_sha256: str,
     expected_parser_contract_fingerprint: str,
-    expected_phase02_run_id: str,
-    expected_phase02_producing_git_commit: str,
+    expected_ingestion_run_id: str,
+    expected_ingestion_producing_git_commit: str,
     adopting_git_commit: str,
     adopting_git_dirty: bool,
     production: bool,
     adoption_timestamp_utc: str | None = None,
     operational_metadata: Mapping[str, str] | None = None,
 ) -> Stage01AdoptionOutcome:
-    """Validate and adopt Phase 2 without reading source CSV or rewriting Parquet."""
-    bundle = validate_phase02_bundle(
-        phase02_run_directory,
-        phase02_reports_directory,
-        phase01_run_directory,
+    """Validate and adopt accepted Stage 1 ingestion without reading source CSV or rewriting Parquet."""
+    bundle = validate_stage01_bundle(
+        ingestion_run_directory,
+        ingestion_reports_directory,
+        source_inventory_run_directory,
         stage00_adoption_record_path,
         expected_stage00_adoption_sha256=expected_stage00_adoption_sha256,
         expected_source_population_sha256=expected_source_population_sha256,
         expected_scientific_inventory_sha256=expected_scientific_inventory_sha256,
         expected_parser_contract_fingerprint=expected_parser_contract_fingerprint,
-        expected_phase02_run_id=expected_phase02_run_id,
-        expected_phase02_producing_git_commit=expected_phase02_producing_git_commit,
+        expected_ingestion_run_id=expected_ingestion_run_id,
+        expected_ingestion_producing_git_commit=expected_ingestion_producing_git_commit,
         production=production,
     )
     record = _build_adoption_record(
@@ -1595,10 +1745,10 @@ __all__ = [
     "Stage01AdoptionOutcome",
     "Stage01SourceRecord",
     "Stage01ValidationError",
-    "ValidatedPhase02Bundle",
-    "adopt_phase02_bundle",
+    "ValidatedStage01Bundle",
+    "adopt_stage01_bundle",
     "stage01_logical_dataset_sha256_v1",
-    "validate_phase02_bundle",
+    "validate_stage01_bundle",
     "validate_stage00_binding",
     "resolve_stage00_binding",
 ]

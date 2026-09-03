@@ -1,5 +1,8 @@
 # Phase 1 design — raw file inventory
 
+> **HISTORICAL / SUPERSEDED ARCHITECTURE.** This is preserved design history,
+> not a current run instruction. The only active architecture is Stage 0–8.
+
 ## Status
 
 The Phase 1 design is approved in principle with the revisions recorded here. Implementation and the complete 206-file run are not approved.

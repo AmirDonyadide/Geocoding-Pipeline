@@ -1,5 +1,8 @@
 # Phase 2 report — controlled staging dataset
 
+> **HISTORICAL / SUPERSEDED ARCHITECTURE.** This is preserved run evidence, not
+> a current report or run instruction. The only active architecture is Stage 0–8.
+
 ## Status
 
 **Phase 2 gate: PASS.**

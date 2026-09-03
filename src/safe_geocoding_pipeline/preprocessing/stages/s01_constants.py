@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from ..raw_csv import SOURCE_COLUMNS
+from ...raw_csv import SOURCE_COLUMNS
 
 STAGING_VERSION = "phase02_v1"
 SOURCE_SCHEMA_VERSION = "source_csv_15col_v1"
@@ -44,6 +44,48 @@ REPORT_NAMES = (
     "phase02_reconciliation.json",
     "phase02_failures.csv.gz",
     "phase02_summary.md",
+)
+
+# Frozen column order of the accepted Stage 1 validation artifact. The artifact
+# filenames and serialized phase-prefixed keys below are immutable provenance
+# compatibility identifiers; they do not expose a runnable Phase pipeline.
+FILE_VALIDATION_COLUMNS = (
+    "run_id",
+    "relative_path",
+    "status",
+    "failure_code",
+    "failure_detail",
+    "source_size_bytes",
+    "source_sha256",
+    "source_rows",
+    "staging_rows",
+    "source_semantic_digest",
+    "staging_semantic_digest",
+    "semantic_digest_match",
+    "output_path",
+    "output_size_bytes",
+    "output_sha256",
+    "compression_ratio",
+    "row_group_count",
+    "row_group_rows_json",
+    "isolated_record_count",
+    "source_empty_counts_json",
+    "staging_empty_counts_json",
+    "source_non_ascii_counts_json",
+    "staging_non_ascii_counts_json",
+    "raw_null_count",
+    "provenance_valid",
+    "stable_ids_valid",
+    "stable_ids_distinct",
+    "known_extremes_valid",
+    "extreme_observations_json",
+    "page_checksums_verified",
+    "conversion_seconds",
+    "validation_seconds",
+    "hashing_seconds",
+    "promotion_seconds",
+    "peak_temporary_bytes",
+    "peak_rss_bytes",
 )
 
 FILE_STATUSES = ("PENDING", "WRITING", "VALIDATING", "COMPLETE", "FAILED")

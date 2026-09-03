@@ -130,4 +130,3 @@ class IdObservation:
     id_value: str
     file_id: int
     logical_record_number: int
-

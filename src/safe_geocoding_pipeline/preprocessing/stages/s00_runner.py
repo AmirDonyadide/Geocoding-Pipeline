@@ -12,8 +12,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from ..execution_policy import require_goethe_nhr_slurm
-from ..raw_csv import (
+from ...execution_policy import require_goethe_nhr_slurm
+from ...raw_csv import (
     CSV_DELIMITER,
     CSV_DOUBLEQUOTE,
     CSV_ESCAPE_CHARACTER,
@@ -23,20 +23,23 @@ from ..raw_csv import (
     CSV_STRICT,
     SOURCE_ENCODING_POLICY,
 )
-from .config import InventoryConfig
-from .constants import INVENTORY_VERSION
-from .discovery import discover_source_files
-from .models import FileMetadata, FileResult, SourceFile
-from .parser import (
+from .s00_config import InventoryConfig
+from .s00_constants import INVENTORY_VERSION
+from .s00_discovery import discover_source_files
+from .s00_models import FileMetadata, FileResult, SourceFile
+from .s00_parser import (
     append_terminal_anomaly,
     file_metadata,
     hash_file,
     scan_csv_file,
 )
-from .population import PopulationScope, load_population_scope
-from .reports import atomic_json, write_reports
-from .store import IdStore
+from .s00_population import PopulationScope, load_population_scope
+from .s00_reports import atomic_json, write_reports
+from .s00_store import IdStore
 
+# These phase-prefixed run IDs, artifact filenames, and serialized keys are a
+# frozen Stage 0 provenance format. They are retained only so accepted bundles
+# remain verifiable; this module is the sole Stage 0 scanner implementation.
 _RUN_ID_RE = re.compile(r"^phase01_[0-9]{8}T[0-9]{6}Z_[A-Za-z0-9._-]+$")
 TERMINAL_MARKER_TEXT = "This marker describes only the configured run scope.\n"
 
@@ -47,7 +50,7 @@ class InventoryOutcome:
     run_dir: Path
     status: str
     scope_gate: str
-    phase01_completion_gate: str
+    stage00_completion_gate: str
     file_results: tuple[FileResult, ...]
     metrics: dict[str, float | int]
 
@@ -302,7 +305,7 @@ def _verify_resumable_completed_file(
 
 def run_inventory(config: InventoryConfig) -> InventoryOutcome:
     if config.run_scope == "FULL_INVENTORY":
-        require_goethe_nhr_slurm("phase01.full-inventory")
+        require_goethe_nhr_slurm("stage00.full-inventory")
     config.validate()
     population_scope: PopulationScope | None = None
     if config.run_scope == "FULL_INVENTORY":
@@ -348,7 +351,7 @@ def run_inventory(config: InventoryConfig) -> InventoryOutcome:
         for source in files
     }
 
-    store_path = work_dir / "phase01.sqlite3"
+    store_path = work_dir / "stage00_inventory.sqlite3"
     with IdStore(store_path) as store:
         expected_metadata = {
             "run_id": run_id,
@@ -382,7 +385,7 @@ def run_inventory(config: InventoryConfig) -> InventoryOutcome:
         marker = run_dir / "_IN_PROGRESS"
         (run_dir / "_SCOPE_PASS").unlink(missing_ok=True)
         (run_dir / "_SCOPE_FAIL").unlink(missing_ok=True)
-        marker.write_text("Phase 1 inventory is in progress.\n", encoding="utf-8")
+        marker.write_text("Stage 0 inventory is in progress.\n", encoding="utf-8")
         marker.chmod(0o600)
         atomic_json(run_dir / "phase01_run.json", payload)
 
@@ -491,7 +494,7 @@ def run_inventory(config: InventoryConfig) -> InventoryOutcome:
             and integrity == "ok"
         )
         scope_gate = "PASS" if all_complete else "FAIL"
-        phase_gate = (
+        stage00_gate = (
             scope_gate if config.run_scope == "FULL_INVENTORY" else "NOT_EVALUATED"
         )
         status = "COMPLETED_SCOPE_PASS" if all_complete else "COMPLETED_SCOPE_FAIL"
@@ -508,7 +511,7 @@ def run_inventory(config: InventoryConfig) -> InventoryOutcome:
             {
                 "status": status,
                 "scope_gate": scope_gate,
-                "phase01_completion_gate": phase_gate,
+                "phase01_completion_gate": stage00_gate,
                 "completed_at_utc": _iso_utc(completed_at),
                 "error_counts": {
                     "failed_files": sum(
@@ -554,7 +557,7 @@ def run_inventory(config: InventoryConfig) -> InventoryOutcome:
         run_dir=run_dir,
         status=status,
         scope_gate=scope_gate,
-        phase01_completion_gate=phase_gate,
+        stage00_completion_gate=stage00_gate,
         file_results=tuple(results),
         metrics=metrics,
     )

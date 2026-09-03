@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from ..raw_csv import SOURCE_COLUMNS
+from ...raw_csv import SOURCE_COLUMNS
 
 INVENTORY_VERSION = "phase01_v1"
 

@@ -1,5 +1,8 @@
 # Current source-data evidence
 
+> **HISTORICAL / SUPERSEDED ARCHITECTURE.** This is preserved evidence, not a
+> current run instruction. The only active architecture is Stage 0–8.
+
 This document records what has been learned from filesystem metadata and read-only inspection of ten representative CSV files. It is evidence for Phase 1 design, not a substitute for the complete Phase 1 inventory.
 
 ## Observed

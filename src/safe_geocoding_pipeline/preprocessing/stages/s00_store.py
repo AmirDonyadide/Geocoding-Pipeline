@@ -7,8 +7,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
 
-from .models import FileResult, IdObservation, SourceFile
-from .profiling import sha256_text
+from .s00_models import FileResult, IdObservation, SourceFile
+from .s00_profiling import sha256_text
 
 
 SCHEMA_SQL = """
@@ -67,7 +67,7 @@ class IdStore:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.parent.chmod(0o700)
         if path.is_symlink() or (path.exists() and not path.is_file()):
-            raise OSError("Phase 1 SQLite state is not a regular file")
+            raise OSError("Stage 0 SQLite state is not a regular file")
         if not path.exists():
             descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
             os.close(descriptor)
@@ -87,7 +87,7 @@ class IdStore:
             candidate = Path(f"{self.path}{suffix}")
             if candidate.exists():
                 if candidate.is_symlink() or not candidate.is_file():
-                    raise OSError("Phase 1 SQLite state is not a regular file")
+                    raise OSError("Stage 0 SQLite state is not a regular file")
                 candidate.chmod(0o600)
 
     def close(self) -> None:

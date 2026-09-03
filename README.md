@@ -79,19 +79,20 @@ to every `stable_source_row_id_v1`.
 
 | Path | Contents |
 |---|---|
-| `src/safe_geocoding_pipeline/` | Pipeline package, contracts, execution guards, accepted stages, reporting, and historical source-foundation code |
+| `src/safe_geocoding_pipeline/` | Pipeline package, contracts, execution guards, accepted Stage 0–8 implementations, and reporting |
 | `tests/` | Synthetic/unit tests and guarded integration tests; no protected records |
 | `cluster/goethe_nhr/` | Reviewed SLURM and environment assets for Goethe-NHR |
-| `scripts/` | Controlled transfer and synchronization helpers |
+| `scripts/` | Current controlled transfer helpers |
 | `docs/` | Current project, pipeline, workflow, privacy, execution, and reproducibility documentation |
 | `docs/stages/` | Stage 0–8 accepted records and their frozen contracts/history |
 | `docs/history/` | Accepted source-foundation records that predate the Stage terminology |
 | `reports/development/` | One human-readable authoritative DEVELOPMENT report per accepted Stage 0–8 |
 | `reports/generated/` | One machine-readable sanitized evidence summary per accepted Stage 0–8 |
 
-The older `phase01` and `phase02` package namespaces remain because accepted
-source-foundation work underpins Stage 0 and Stage 1. The active library-first
-Stage 0–8 adapters live under `src/safe_geocoding_pipeline/preprocessing/`.
+The single authoritative implementation pipeline is Stage 0–8 under
+`src/safe_geocoding_pipeline/preprocessing/stages/`. Frozen phase-prefixed
+artifact identifiers may appear only where Stage 0 or Stage 1 validates
+immutable source-foundation provenance created before Stage terminology.
 
 ## DEVELOPMENT, HOLDOUT, and production
 

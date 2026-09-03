@@ -1,5 +1,8 @@
 # Phase 1 report — raw file inventory
 
+> **HISTORICAL / SUPERSEDED ARCHITECTURE.** This is preserved run evidence, not
+> a current report or run instruction. The only active architecture is Stage 0–8.
+
 ## Status
 
 **Phase 1 gate: PASS.**

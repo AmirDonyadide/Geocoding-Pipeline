@@ -5,9 +5,9 @@ from typing import cast
 
 import pyarrow as pa
 
-from ..raw_csv import SOURCE_COLUMNS
-from .constants import PROVENANCE_COLUMNS, STAGING_COLUMNS
-from .fingerprints import fingerprint
+from ...raw_csv import SOURCE_COLUMNS
+from .s01_constants import PROVENANCE_COLUMNS, STAGING_COLUMNS
+from ..fingerprints import fingerprint
 
 
 def base_staging_schema() -> pa.Schema:
@@ -25,12 +25,14 @@ def base_staging_schema() -> pa.Schema:
     )
     schema = pa.schema(fields)
     if schema.names != list(STAGING_COLUMNS) or len(PROVENANCE_COLUMNS) != 7:
-        raise AssertionError("internal Phase 2 schema order error")
+        raise AssertionError("internal accepted Stage 1 ingestion schema order error")
     return schema
 
 
 def schema_with_metadata(metadata: Mapping[str, str]) -> pa.Schema:
-    encoded = {key.encode("utf-8"): value.encode("utf-8") for key, value in metadata.items()}
+    encoded = {
+        key.encode("utf-8"): value.encode("utf-8") for key, value in metadata.items()
+    }
     return base_staging_schema().with_metadata(encoded)
 
 
@@ -40,7 +42,11 @@ def schema_fingerprint() -> str:
         {
             "version": "phase02_arrow_schema_v1",
             "fields": [
-                {"name": field.name, "type": str(field.type), "nullable": field.nullable}
+                {
+                    "name": field.name,
+                    "type": str(field.type),
+                    "nullable": field.nullable,
+                }
                 for field in schema
             ],
         }

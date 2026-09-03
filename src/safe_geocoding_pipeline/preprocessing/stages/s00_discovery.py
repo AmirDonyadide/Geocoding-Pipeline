@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from .config import InventoryConfig
-from .models import SourceFile
+from .s00_config import InventoryConfig
+from .s00_models import SourceFile
 
 
 def discover_source_files(

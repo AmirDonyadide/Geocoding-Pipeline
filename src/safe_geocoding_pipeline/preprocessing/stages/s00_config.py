@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
 
-from .constants import DEFAULT_PLACEHOLDER_CANDIDATES
+from .s00_constants import DEFAULT_PLACEHOLDER_CANDIDATES
 
 RunScope = Literal["TEST", "SMOKE_TEST", "FULL_INVENTORY"]
 DEFAULT_PARSER_FIELD_LIMIT_CHARS = 64 * 1024 * 1024
@@ -15,7 +15,7 @@ class InventoryConfig:
     source_root: Path
     population_scope_file: Path | None = None
     expected_population_scope_sha256: str | None = None
-    reports_root: Path = Path("reports/generated/phase01")
+    reports_root: Path = Path("reports/generated/stage00")
     run_scope: RunScope = "TEST"
     include_files: tuple[str, ...] = ()
     source_root_label: str | None = None

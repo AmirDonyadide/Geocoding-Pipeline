@@ -1238,6 +1238,29 @@ to change a decision or start a stage.
   started and unauthorized. The exact next task is **FULL STAGES 0–8 PIPELINE
   AUDIT BEFORE STAGE 9**, then stop.
 
+### D048 — Remove the superseded Phase implementation architecture
+
+- **Date:** 2026-09-03.
+- **Decision:** The only active pipeline architecture is Stage 0–8. Remove the
+  `phase01` and `phase02` source packages, Phase-named entry points, the obsolete
+  conversion runner, and the fixed historical payload synchronization helper.
+- **Required migration:** Move the sole accepted source-inventory scanner into
+  canonical `s00_*` modules. Move the Stage 1 constants, stable-row identity,
+  Arrow schema, semantic digest, and generic fingerprint helper required by
+  current Stage 0–2 validation into Stage/common locations. Update every caller
+  without changing formulas, schemas, values, or accepted evidence.
+- **Compatibility boundary:** Immutable source-foundation bundles retain their
+  original phase-prefixed run IDs, filenames, serialized keys, schema/version
+  identifiers, and diagnostic codes. Current Stage 0/1 code may read or emit
+  those exact frozen identifiers, but no Phase package, CLI, runner, launcher,
+  configuration, or report hierarchy remains active.
+- **Historical preservation:** `docs/history/source_foundation/` remains
+  explicitly marked historical/superseded. Git history remains the archive for
+  deleted implementations and is not rewritten.
+- **Scientific preservation:** Accepted Stage 0–8 science and fingerprints are
+  unchanged. This decision does not authorize Stage 9, protected execution,
+  HOLDOUT access, production Stage 2, parsing, references, or geocoding.
+
 ## Open decisions
 
 These questions require future stage designs and explicit approval:
@@ -1264,4 +1287,6 @@ third bounded terminal-status/ownership remediation; it grants no execution or
 later-stage authority. D046 freezes the resulting DEVELOPMENT candidate
 without granting acceptance or later-stage authority. D047 alone records final
 Stage 8 DEVELOPMENT acceptance and preserves all prior Stage 8 failures as
-historical evidence.
+historical evidence. D048 records the architecture-only removal of superseded
+Phase implementation surfaces while preserving frozen source-foundation
+identifiers and accepted Stage 0–8 science.

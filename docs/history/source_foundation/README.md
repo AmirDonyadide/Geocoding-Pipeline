@@ -1,9 +1,12 @@
 # Historical source foundation
 
+> **HISTORICAL / SUPERSEDED ARCHITECTURE.** These records are not current run
+> instructions. The only active architecture is Stage 0–8; use `docs/stages/`.
+
 These records describe the accepted Phase 1 raw-file inventory and Phase 2
-lossless CSV-to-Parquet staging work that library-first Stage 0 and Stage 1
-reuse. They retain historical names because their contracts, reports, and code
-were accepted under those names.
+lossless CSV-to-Parquet staging work that now underpins Stage 0 and Stage 1.
+They retain historical names because their contracts and reports were accepted
+under those names; the Phase packages and executable entry points are removed.
 
 | Record | Purpose |
 |---|---|

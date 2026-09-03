@@ -66,8 +66,8 @@ import os
 import sys
 from pathlib import Path
 
-from safe_geocoding_pipeline.phase01.config import DEFAULT_PARSER_FIELD_LIMIT_CHARS
-from safe_geocoding_pipeline.phase01.population import load_population_scope
+from safe_geocoding_pipeline.preprocessing.stages.s00_config import DEFAULT_PARSER_FIELD_LIMIT_CHARS
+from safe_geocoding_pipeline.preprocessing.stages.s00_population import load_population_scope
 
 source_root = Path(sys.argv[1])
 scope_path = Path(sys.argv[2])

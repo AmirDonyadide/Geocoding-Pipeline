@@ -14,11 +14,13 @@ import pytest
 
 from benchmark_helpers import fictional_script_reference
 from safe_geocoding_pipeline.execution_policy import ExecutionPolicyError
-from safe_geocoding_pipeline.phase01.config import (
+from safe_geocoding_pipeline.preprocessing.stages.s00_config import (
     DEFAULT_PARSER_FIELD_LIMIT_CHARS,
 )
-from safe_geocoding_pipeline.phase01.constants import INVENTORY_VERSION
-from safe_geocoding_pipeline.phase01.population import POPULATION_SCOPE_VERSION
+from safe_geocoding_pipeline.preprocessing.stages.s00_constants import INVENTORY_VERSION
+from safe_geocoding_pipeline.preprocessing.stages.s00_population import (
+    POPULATION_SCOPE_VERSION,
+)
 from safe_geocoding_pipeline.preprocessing.benchmark_runner import (
     DEVELOPMENT_RELATIVE_PATH,
     HOLDOUT_RELATIVE_PATH,

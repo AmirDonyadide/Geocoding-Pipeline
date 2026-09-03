@@ -4,8 +4,8 @@
 
 Freeze an exact source population and establish its parser, schema, file/hash,
 logical-record, anomaly, and identity evidence without transforming source
-rows. Stage 0 adopts the existing Phase 1 inventory as the authoritative
-scanner instead of duplicating it.
+rows. The accepted scanner is implemented as the canonical Stage 0 source
+inventory; the earlier Phase-named package has been superseded and removed.
 
 ## Input
 
@@ -13,15 +13,15 @@ scanner instead of duplicating it.
   exact sorted direct-child CSV paths;
 - the expected scope SHA-256 and population identity;
 - immutable source CSV files; and
-- completed Phase 1 inventory reports produced under the accepted parser
-  contract.
+- completed source-inventory reports produced under the accepted Stage 0
+  parser contract.
 
 Directory contents never expand the authorized population implicitly.
 
 ## Output
 
 - exact source-population and scientific-inventory fingerprints;
-- an adoption record binding population scope, Phase 1 artifacts, source
+- an adoption record binding population scope, source-inventory artifacts, source
   hashes, schemas, and counts;
 - explicit file/parser/schema/anomaly results; and
 - owner-only terminal validation/publication evidence.
@@ -48,7 +48,7 @@ text, infer missingness, reconstruct/parse addresses, deduplicate, or geocode.
 
 ## Libraries
 
-Existing Phase 1 inventory code, Python `csv`, and Python `hashlib`. DuckDB may
+Canonical Stage 0 inventory code, Python `csv`, and Python `hashlib`. DuckDB may
 be used only as an independent check, not as the authoritative CSV parser.
 
 ## Validation
@@ -65,6 +65,8 @@ accepted 1,405-file Stage 0 snapshot containing 140,448,582 logical rows. That
 identity remains frozen and is not retroactively changed by six later files.
 Historical source-foundation reports are retained under
 [`docs/history/source_foundation/`](../history/source_foundation/README.md).
+Their phase-prefixed artifact names remain immutable provenance identifiers,
+not a second executable pipeline.
 
 ## Production status
 

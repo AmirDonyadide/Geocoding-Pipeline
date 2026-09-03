@@ -142,7 +142,7 @@ Accepted/currently proposed technology choices are:
 
 | Stage | Primary technology direction |
 |---:|---|
-| 0 | Existing Phase 1 inventory, Python `hashlib`, Python `csv` |
+| 0 | Canonical Stage 0 inventory, Python `hashlib`, Python `csv` |
 | 1 | PyArrow/Parquet, DuckDB |
 | 2 | PyArrow, SAFE schema/provenance layer |
 | 3 | Python `unicodedata`, ftfy, regex/Arrow, SAFE orchestration |

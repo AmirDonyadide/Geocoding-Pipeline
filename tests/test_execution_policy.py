@@ -8,10 +8,8 @@ from safe_geocoding_pipeline.execution_policy import (
     ExecutionPolicyError,
     require_goethe_nhr_slurm,
 )
-from safe_geocoding_pipeline.phase01.config import InventoryConfig
-from safe_geocoding_pipeline.phase01.runner import run_inventory
-from safe_geocoding_pipeline.phase02.config import Phase02Config
-from safe_geocoding_pipeline.phase02.runner import run_phase02
+from safe_geocoding_pipeline.preprocessing.stages.s00_config import InventoryConfig
+from safe_geocoding_pipeline.preprocessing.stages.s00_runner import run_inventory
 
 
 def test_missing_execution_site_fails_closed() -> None:
@@ -38,7 +36,7 @@ def test_exact_cluster_markers_allow_execution() -> None:
     )
 
 
-def test_completed_phase_full_scopes_also_use_common_guard(
+def test_stage00_full_scope_uses_common_guard(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     monkeypatch.delenv("SAFE_EXECUTION_SITE", raising=False)
@@ -49,14 +47,5 @@ def test_completed_phase_full_scopes_also_use_common_guard(
                 source_root=tmp_path / "raw",
                 run_scope="FULL_INVENTORY",
                 authorize_full_inventory=True,
-            )
-        )
-    with pytest.raises(ExecutionPolicyError, match="HEAVY_PROCESS_CLUSTER_REQUIRED"):
-        run_phase02(
-            Phase02Config(
-                source_root=tmp_path / "raw",
-                phase01_run_dir=tmp_path / "phase01",
-                run_scope="FULL_CONVERSION",
-                authorize_full_conversion=True,
             )
         )

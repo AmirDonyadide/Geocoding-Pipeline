@@ -11,7 +11,9 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 
-from safe_geocoding_pipeline.phase02.identity import stable_source_row_id_v1
+from safe_geocoding_pipeline.preprocessing.stages.s01_identity import (
+    stable_source_row_id_v1,
+)
 from safe_geocoding_pipeline.preprocessing.benchmark_runner import (
     BENCHMARK_OUTPUT_SCHEMA_VERSION,
     benchmark_schema,

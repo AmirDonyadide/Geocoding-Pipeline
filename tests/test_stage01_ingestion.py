@@ -5,6 +5,7 @@ import gzip
 import hashlib
 import json
 import os
+import sqlite3
 import struct
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -16,8 +17,8 @@ import pytest
 import safe_geocoding_pipeline.preprocessing.stages.s01_ingestion as s01
 
 from safe_geocoding_pipeline.execution_policy import ExecutionPolicyError
-from safe_geocoding_pipeline.phase01.constants import INVENTORY_VERSION
-from safe_geocoding_pipeline.phase02.constants import (
+from safe_geocoding_pipeline.preprocessing.stages.s00_constants import INVENTORY_VERSION
+from safe_geocoding_pipeline.preprocessing.stages.s01_constants import (
     PARSER_VERSION,
     REPORT_NAMES,
     SEMANTIC_DIGEST_VERSION,
@@ -25,21 +26,23 @@ from safe_geocoding_pipeline.phase02.constants import (
     STABLE_ROW_ID_VERSION,
     STAGING_VERSION,
 )
-from safe_geocoding_pipeline.phase02.identity import stable_source_row_id_v1
-from safe_geocoding_pipeline.phase02.models import Phase01FileEntry
-from safe_geocoding_pipeline.phase02.reports import FILE_VALIDATION_COLUMNS
-from safe_geocoding_pipeline.phase02.schema import (
+from safe_geocoding_pipeline.preprocessing.stages.s01_identity import (
+    stable_source_row_id_v1,
+)
+from safe_geocoding_pipeline.preprocessing.stages.s01_constants import (
+    FILE_VALIDATION_COLUMNS,
+)
+from safe_geocoding_pipeline.preprocessing.stages.s01_schema import (
     base_staging_schema,
     schema_fingerprint,
     schema_with_metadata,
 )
-from safe_geocoding_pipeline.phase02.semantic import RawSemanticDigest
-from safe_geocoding_pipeline.phase02.state import RunState
+from safe_geocoding_pipeline.preprocessing.stages.s01_semantic import RawSemanticDigest
 from safe_geocoding_pipeline.preprocessing.stages.s00_inventory import (
     STAGE00_CONTRACT_VERSION,
     ArtifactIdentity,
     Stage00InventoryRecord,
-    ValidatedPhase01Bundle,
+    ValidatedSourceInventoryBundle,
 )
 from safe_geocoding_pipeline.preprocessing.stages.s01_ingestion import (
     STAGE01_ADOPTION_RECORD_NAME,
@@ -47,19 +50,19 @@ from safe_geocoding_pipeline.preprocessing.stages.s01_ingestion import (
     STAGE01_LOGICAL_DATASET_DOMAIN,
     Stage01SourceRecord,
     Stage01ValidationError,
-    adopt_phase02_bundle,
+    adopt_stage01_bundle,
     stage01_logical_dataset_sha256_v1,
-    validate_phase02_bundle,
+    validate_stage01_bundle,
 )
 from safe_geocoding_pipeline.raw_csv import SOURCE_COLUMNS
 
-PHASE01_COMMIT = "1" * 40
-PHASE02_COMMIT = "2" * 40
+SOURCE_INVENTORY_COMMIT = "1" * 40
+INGESTION_COMMIT = "2" * 40
 ADOPTING_COMMIT = "3" * 40
 SOURCE_POPULATION_DIGEST = "4" * 64
 SCIENTIFIC_INVENTORY_DIGEST = "5" * 64
 PARSER_CONTRACT_DIGEST = "6" * 64
-PHASE01_INPUT_MANIFEST_DIGEST = "7" * 64
+SOURCE_INVENTORY_MANIFEST_DIGEST = "7" * 64
 CONFIGURATION_DIGEST = "8" * 64
 IMPLEMENTATION_DIGEST = "9" * 64
 RUN_ID = "phase02_20260101T000000Z_fixture"
@@ -69,12 +72,106 @@ RUN_ID = "phase02_20260101T000000Z_fixture"
 class SyntheticBundle:
     stage00_record: Path
     stage00_record_sha256: str
-    phase01_run: Path
-    phase01_bundle: ValidatedPhase01Bundle
-    phase02_run: Path
-    phase02_reports: Path
+    source_inventory_run: Path
+    source_inventory_bundle: ValidatedSourceInventoryBundle
+    ingestion_run: Path
+    ingestion_reports: Path
     output: Path
     manifest: dict[str, Any]
+
+
+@dataclass(frozen=True, slots=True)
+class SourceInventoryFileEntry:
+    """Synthetic input used only to construct an accepted-format state fixture."""
+
+    file_id: int
+    relative_path: str
+    file_name: str
+    size_bytes: int
+    mtime_utc: str
+    sha256: str
+    logical_record_count: int
+    schema_fingerprint: str
+    bom_type: str
+
+
+def _write_completed_state(
+    path: Path,
+    entries: list[SourceInventoryFileEntry],
+    manifest_files: list[dict[str, Any]],
+) -> None:
+    """Build the minimum frozen Stage 1 SQLite evidence used by the validator."""
+    by_path = {item["source_file"]: item for item in manifest_files}
+    connection = sqlite3.connect(path)
+    connection.executescript(
+        """
+        CREATE TABLE run_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL) WITHOUT ROWID;
+        CREATE TABLE file_state (
+            relative_path TEXT PRIMARY KEY,
+            source_sha256 TEXT NOT NULL,
+            expected_rows INTEGER NOT NULL,
+            status TEXT NOT NULL,
+            attempt INTEGER NOT NULL,
+            config_fingerprint TEXT NOT NULL,
+            implementation_fingerprint TEXT NOT NULL,
+            final_path TEXT NOT NULL,
+            source_semantic_digest TEXT NOT NULL,
+            staging_semantic_digest TEXT NOT NULL,
+            output_sha256 TEXT NOT NULL,
+            output_size_bytes INTEGER NOT NULL,
+            source_rows INTEGER NOT NULL,
+            staging_rows INTEGER NOT NULL,
+            failure_code TEXT NOT NULL,
+            failure_detail TEXT NOT NULL
+        ) WITHOUT ROWID;
+        CREATE TABLE attempt_history (
+            relative_path TEXT NOT NULL,
+            attempt INTEGER NOT NULL,
+            completed_at_utc TEXT NOT NULL,
+            terminal_status TEXT NOT NULL,
+            failure_code TEXT NOT NULL,
+            output_sha256 TEXT NOT NULL
+        );
+        """
+    )
+    connection.executemany(
+        "INSERT INTO run_meta(key, value) VALUES (?, ?)",
+        (
+            ("run_id", RUN_ID),
+            ("run_scope", "FULL_CONVERSION"),
+            ("phase01_input_manifest_sha256", SOURCE_INVENTORY_MANIFEST_DIGEST),
+            ("configuration_fingerprint", CONFIGURATION_DIGEST),
+            ("implementation_fingerprint", IMPLEMENTATION_DIGEST),
+        ),
+    )
+    for entry in entries:
+        item = by_path[entry.relative_path]
+        connection.execute(
+            """
+            INSERT INTO file_state VALUES (?, ?, ?, 'COMPLETE', 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', '')
+            """,
+            (
+                entry.relative_path,
+                entry.sha256,
+                entry.logical_record_count,
+                CONFIGURATION_DIGEST,
+                IMPLEMENTATION_DIGEST,
+                item["output_file"],
+                item["source_semantic_digest"],
+                item["staging_semantic_digest"],
+                item["output_sha256"],
+                item["output_size_bytes"],
+                item["source_rows"],
+                item["staging_rows"],
+            ),
+        )
+        connection.execute(
+            "INSERT INTO attempt_history VALUES (?, 1, ?, 'COMPLETE', '', ?)",
+            (entry.relative_path, "2026-01-01T00:00:00Z", item["output_sha256"]),
+        )
+    connection.commit()
+    connection.close()
+    path.chmod(0o600)
 
 
 def _sha256(path: Path) -> str:
@@ -162,8 +259,8 @@ def _write_parquet(
     metadata = {
         "phase02_run_id": RUN_ID,
         "phase01_run_id": "phase01_fictional",
-        "phase01_input_manifest_sha256": PHASE01_INPUT_MANIFEST_DIGEST,
-        "pipeline_git_commit": PHASE02_COMMIT[:8],
+        "phase01_input_manifest_sha256": SOURCE_INVENTORY_MANIFEST_DIGEST,
+        "pipeline_git_commit": INGESTION_COMMIT[:8],
         "source_file": source_path,
         "source_file_sha256": source_sha256,
         "source_schema_version": SOURCE_SCHEMA_VERSION,
@@ -239,23 +336,23 @@ def _file_report_row(run_id: str, item: dict[str, Any]) -> dict[str, Any]:
 
 
 def _refresh_manifest_and_marker(bundle: SyntheticBundle) -> None:
-    manifest_path = bundle.phase02_run / "dataset_manifest.json"
+    manifest_path = bundle.ingestion_run / "dataset_manifest.json"
     _write_json(manifest_path, bundle.manifest)
     marker = json.loads(
-        (bundle.phase02_run / "_SUCCESS.json").read_text(encoding="utf-8")
+        (bundle.ingestion_run / "_SUCCESS.json").read_text(encoding="utf-8")
     )
     marker["dataset_manifest_sha256"] = _sha256(manifest_path)
-    _write_json(bundle.phase02_run / "_SUCCESS.json", marker)
+    _write_json(bundle.ingestion_run / "_SUCCESS.json", marker)
 
 
 def _synthetic_bundle(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> SyntheticBundle:
-    phase01_run = tmp_path / "phase01_fictional"
-    phase01_run.mkdir(mode=0o700)
+    source_inventory_run = tmp_path / "phase01_fictional"
+    source_inventory_run.mkdir(mode=0o700)
     _write_json(
-        phase01_run / "phase01_run.json",
-        {"input_manifest_sha256": PHASE01_INPUT_MANIFEST_DIGEST},
+        source_inventory_run / "phase01_run.json",
+        {"input_manifest_sha256": SOURCE_INVENTORY_MANIFEST_DIGEST},
     )
     source_rows = {
         "fictional_a.csv": [
@@ -277,24 +374,26 @@ def _synthetic_bundle(
         )
         for index, relative in enumerate(sorted(source_rows), start=1)
     )
-    phase01_artifacts = (
+    source_inventory_artifacts = (
         ArtifactIdentity("phase01_run.json", 10, "d" * 64),
         ArtifactIdentity("phase01_file_manifest.csv", 20, "e" * 64),
     )
-    phase01_bundle = ValidatedPhase01Bundle(
-        run_dir=phase01_run,
+    source_inventory_bundle = ValidatedSourceInventoryBundle(
+        run_dir=source_inventory_run,
         run_id="phase01_fictional",
         inventory_version=INVENTORY_VERSION,
-        producing_git_commit=PHASE01_COMMIT,
+        producing_git_commit=SOURCE_INVENTORY_COMMIT,
         records=inventory_records,
-        artifacts=phase01_artifacts,
+        artifacts=source_inventory_artifacts,
         success_marker=ArtifactIdentity("_SCOPE_PASS", 5, "f" * 64),
         parser_contract_fingerprint=PARSER_CONTRACT_DIGEST,
         source_population_sha256_v1=SOURCE_POPULATION_DIGEST,
         stage00_scientific_inventory_sha256_v1=SCIENTIFIC_INVENTORY_DIGEST,
     )
     monkeypatch.setattr(
-        s01, "validate_phase01_bundle", lambda *_args, **_kwargs: phase01_bundle
+        s01,
+        "validate_stage00_inventory",
+        lambda *_args, **_kwargs: source_inventory_bundle,
     )
 
     stage00_dir = tmp_path / "stage00"
@@ -306,17 +405,17 @@ def _synthetic_bundle(
             "stage00_contract_version": STAGE00_CONTRACT_VERSION,
             "status": "STAGE_0_ACCEPTED",
             "identity": {
-                "adopted_phase01_run_id": phase01_bundle.run_id,
-                "phase01_inventory_version": phase01_bundle.inventory_version,
-                "producing_git_commit": PHASE01_COMMIT,
+                "adopted_phase01_run_id": source_inventory_bundle.run_id,
+                "phase01_inventory_version": source_inventory_bundle.inventory_version,
+                "producing_git_commit": SOURCE_INVENTORY_COMMIT,
                 "source_population_sha256_v1": SOURCE_POPULATION_DIGEST,
                 "stage00_scientific_inventory_sha256_v1": SCIENTIFIC_INVENTORY_DIGEST,
                 "parser_contract_fingerprint": PARSER_CONTRACT_DIGEST,
             },
             "bundle_integrity": {
-                "artifacts": [item.to_dict() for item in phase01_artifacts],
+                "artifacts": [item.to_dict() for item in source_inventory_artifacts],
                 "terminal_state": {
-                    "success_marker": phase01_bundle.success_marker.to_dict(),
+                    "success_marker": source_inventory_bundle.success_marker.to_dict(),
                     "failure_marker_present": False,
                     "in_progress_marker_present": False,
                 },
@@ -334,19 +433,19 @@ def _synthetic_bundle(
         },
     )
 
-    phase02_run = tmp_path / RUN_ID
-    data = phase02_run / "data"
-    work = phase02_run / "_work"
-    in_progress = phase02_run / ".in_progress"
-    for directory in (phase02_run, data, work, in_progress):
+    ingestion_run = tmp_path / RUN_ID
+    data = ingestion_run / "data"
+    work = ingestion_run / "_work"
+    in_progress = ingestion_run / ".in_progress"
+    for directory in (ingestion_run, data, work, in_progress):
         directory.mkdir(mode=0o700, exist_ok=True)
         directory.chmod(0o700)
 
     manifest_files: list[dict[str, Any]] = []
-    entries: list[Phase01FileEntry] = []
+    entries: list[SourceInventoryFileEntry] = []
     for index, relative in enumerate(sorted(source_rows), start=1):
         output_relative = f"data/part-{index:03d}.parquet"
-        output = phase02_run / output_relative
+        output = ingestion_run / output_relative
         _write_parquet(
             output,
             source_path=relative,
@@ -369,7 +468,7 @@ def _synthetic_bundle(
             }
         )
         entries.append(
-            Phase01FileEntry(
+            SourceInventoryFileEntry(
                 file_id=index,
                 relative_path=relative,
                 file_name=relative,
@@ -402,17 +501,17 @@ def _synthetic_bundle(
         "run_id": RUN_ID,
         "run_scope": "FULL_CONVERSION",
         "phase02_completion_gate": "PASS",
-        "phase01_input_manifest_sha256": PHASE01_INPUT_MANIFEST_DIGEST,
+        "phase01_input_manifest_sha256": SOURCE_INVENTORY_MANIFEST_DIGEST,
         "configuration_fingerprint": CONFIGURATION_DIGEST,
         "implementation_fingerprint": IMPLEMENTATION_DIGEST,
         "schema_fingerprint": schema_fingerprint(),
         "files": manifest_files,
         "reconciliation": reconciliation,
     }
-    manifest_path = phase02_run / "dataset_manifest.json"
+    manifest_path = ingestion_run / "dataset_manifest.json"
     _write_json(manifest_path, manifest)
     _write_json(
-        phase02_run / "_SUCCESS.json",
+        ingestion_run / "_SUCCESS.json",
         {
             "run_id": RUN_ID,
             "run_scope": "FULL_CONVERSION",
@@ -426,41 +525,9 @@ def _synthetic_bundle(
     )
 
     state_path = work / "phase02_state.sqlite3"
-    with RunState(state_path) as state:
-        for key, value in (
-            ("run_id", RUN_ID),
-            ("run_scope", "FULL_CONVERSION"),
-            ("phase01_input_manifest_sha256", PHASE01_INPUT_MANIFEST_DIGEST),
-            ("configuration_fingerprint", CONFIGURATION_DIGEST),
-            ("implementation_fingerprint", IMPLEMENTATION_DIGEST),
-        ):
-            state.set_meta(key, value)
-        state.prepare_files(
-            entries,
-            config_fingerprint=CONFIGURATION_DIGEST,
-            implementation_fingerprint=IMPLEMENTATION_DIGEST,
-        )
-        by_path = {item["source_file"]: item for item in manifest_files}
-        for entry in entries:
-            item = by_path[entry.relative_path]
-            state.mark_writing(
-                entry.relative_path, ".in_progress/x", item["output_file"]
-            )
-            state.mark_validating(entry.relative_path)
-            state.mark_complete(
-                entry.relative_path,
-                {
-                    "source_semantic_digest": item["source_semantic_digest"],
-                    "staging_semantic_digest": item["staging_semantic_digest"],
-                    "output_sha256": item["output_sha256"],
-                    "output_size_bytes": item["output_size_bytes"],
-                    "source_rows": item["source_rows"],
-                    "staging_rows": item["staging_rows"],
-                },
-            )
-    state_path.chmod(0o600)
+    _write_completed_state(state_path, entries, manifest_files)
 
-    reports = tmp_path / "phase02_reports"
+    reports = tmp_path / "ingestion_reports"
     reports.mkdir(mode=0o700)
     total_parquet_bytes = sum(item["output_size_bytes"] for item in manifest_files)
     _write_json(
@@ -471,10 +538,10 @@ def _synthetic_bundle(
             "status": "COMPLETED_SCOPE_PASS",
             "scope_gate": "PASS",
             "phase02_completion_gate": "PASS",
-            "git_commit": PHASE02_COMMIT[:8],
+            "git_commit": INGESTION_COMMIT[:8],
             "git_dirty": False,
-            "phase01_run_id": phase01_bundle.run_id,
-            "phase01_input_manifest_sha256": PHASE01_INPUT_MANIFEST_DIGEST,
+            "phase01_run_id": source_inventory_bundle.run_id,
+            "phase01_input_manifest_sha256": SOURCE_INVENTORY_MANIFEST_DIGEST,
             "configuration": {
                 "source_schema_version": SOURCE_SCHEMA_VERSION,
                 "parser_version": PARSER_VERSION,
@@ -525,7 +592,7 @@ def _synthetic_bundle(
         )
         writer.writeheader()
     (reports / "phase02_summary.md").write_text(
-        "# Fictional Phase 2 PASS\n", encoding="utf-8"
+        "# Fictional Stage 1 PASS\n", encoding="utf-8"
     )
     for name in REPORT_NAMES:
         (reports / name).chmod(0o600)
@@ -533,44 +600,44 @@ def _synthetic_bundle(
     return SyntheticBundle(
         stage00_record=stage00_record,
         stage00_record_sha256=_sha256(stage00_record),
-        phase01_run=phase01_run,
-        phase01_bundle=phase01_bundle,
-        phase02_run=phase02_run,
-        phase02_reports=reports,
+        source_inventory_run=source_inventory_run,
+        source_inventory_bundle=source_inventory_bundle,
+        ingestion_run=ingestion_run,
+        ingestion_reports=reports,
         output=tmp_path / "stage01",
         manifest=manifest,
     )
 
 
-def _validate(bundle: SyntheticBundle) -> s01.ValidatedPhase02Bundle:
-    return validate_phase02_bundle(
-        bundle.phase02_run,
-        bundle.phase02_reports,
-        bundle.phase01_run,
+def _validate(bundle: SyntheticBundle) -> s01.ValidatedStage01Bundle:
+    return validate_stage01_bundle(
+        bundle.ingestion_run,
+        bundle.ingestion_reports,
+        bundle.source_inventory_run,
         bundle.stage00_record,
         expected_stage00_adoption_sha256=bundle.stage00_record_sha256,
         expected_source_population_sha256=SOURCE_POPULATION_DIGEST,
         expected_scientific_inventory_sha256=SCIENTIFIC_INVENTORY_DIGEST,
         expected_parser_contract_fingerprint=PARSER_CONTRACT_DIGEST,
-        expected_phase02_run_id=RUN_ID,
-        expected_phase02_producing_git_commit=PHASE02_COMMIT,
+        expected_ingestion_run_id=RUN_ID,
+        expected_ingestion_producing_git_commit=INGESTION_COMMIT,
         production=False,
     )
 
 
 def _adopt(bundle: SyntheticBundle) -> s01.Stage01AdoptionOutcome:
-    return adopt_phase02_bundle(
-        bundle.phase02_run,
-        bundle.phase02_reports,
-        bundle.phase01_run,
+    return adopt_stage01_bundle(
+        bundle.ingestion_run,
+        bundle.ingestion_reports,
+        bundle.source_inventory_run,
         bundle.stage00_record,
         bundle.output,
         expected_stage00_adoption_sha256=bundle.stage00_record_sha256,
         expected_source_population_sha256=SOURCE_POPULATION_DIGEST,
         expected_scientific_inventory_sha256=SCIENTIFIC_INVENTORY_DIGEST,
         expected_parser_contract_fingerprint=PARSER_CONTRACT_DIGEST,
-        expected_phase02_run_id=RUN_ID,
-        expected_phase02_producing_git_commit=PHASE02_COMMIT,
+        expected_ingestion_run_id=RUN_ID,
+        expected_ingestion_producing_git_commit=INGESTION_COMMIT,
         adopting_git_commit=ADOPTING_COMMIT,
         adopting_git_dirty=False,
         production=False,
@@ -588,19 +655,21 @@ def test_resolve_stage00_binding_uses_hash_pinned_accepted_record(
     bundle = _synthetic_bundle(tmp_path, monkeypatch)
     binding = s01.resolve_stage00_binding(
         bundle.stage00_record,
-        bundle.phase01_run,
+        bundle.source_inventory_run,
         expected_stage00_adoption_sha256=bundle.stage00_record_sha256,
     )
     assert binding.adoption_record.sha256 == bundle.stage00_record_sha256
     assert binding.source_population_sha256_v1 == SOURCE_POPULATION_DIGEST
-    assert tuple(record.relative_path for record in binding.phase01_bundle.records) == (
+    assert tuple(
+        record.relative_path for record in binding.source_inventory_bundle.records
+    ) == (
         "fictional_a.csv",
         "fictional_b.csv",
     )
     with pytest.raises(s01.Stage01ValidationError, match="ARTIFACT_SHA256_MISMATCH"):
         s01.resolve_stage00_binding(
             bundle.stage00_record,
-            bundle.phase01_run,
+            bundle.source_inventory_run,
             expected_stage00_adoption_sha256="0" * 64,
         )
 
@@ -841,7 +910,7 @@ def test_valid_adoption_is_source_free_private_and_sanitized(
         b"0001",
     ):
         assert protected not in payload
-    assert not hasattr(s01, "run_phase02")
+    assert not hasattr(s01, "run_stage01")
 
 
 def test_production_validation_requires_goethe_slurm_before_bundle_access(
@@ -851,7 +920,7 @@ def test_production_validation_requires_goethe_slurm_before_bundle_access(
     monkeypatch.delenv("SLURM_JOB_ID", raising=False)
     missing = tmp_path / "bundle-must-not-be-opened"
     with pytest.raises(ExecutionPolicyError, match="HEAVY_PROCESS_CLUSTER_REQUIRED"):
-        validate_phase02_bundle(
+        validate_stage01_bundle(
             missing,
             missing,
             missing,
@@ -860,8 +929,8 @@ def test_production_validation_requires_goethe_slurm_before_bundle_access(
             expected_source_population_sha256="1" * 64,
             expected_scientific_inventory_sha256="2" * 64,
             expected_parser_contract_fingerprint="3" * 64,
-            expected_phase02_run_id=RUN_ID,
-            expected_phase02_producing_git_commit=PHASE02_COMMIT,
+            expected_ingestion_run_id=RUN_ID,
+            expected_ingestion_producing_git_commit=INGESTION_COMMIT,
             production=True,
         )
 
@@ -900,7 +969,7 @@ def test_stage00_fingerprint_mismatch_fails(
         ("stable_uniqueness", "PHASE02_RECONCILIATION_FAILURE"),
     ],
 )
-def test_stage00_to_phase02_projection_and_reconciliation_fail_closed(
+def test_stage00_to_stage01_projection_and_reconciliation_fail_closed(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     mutation: str,
@@ -955,9 +1024,9 @@ def test_physical_bundle_tampering_fails_closed(
     expected_code: str,
 ) -> None:
     bundle = _synthetic_bundle(tmp_path, monkeypatch)
-    manifest_path = bundle.phase02_run / "dataset_manifest.json"
-    marker_path = bundle.phase02_run / "_SUCCESS.json"
-    shard = bundle.phase02_run / bundle.manifest["files"][0]["output_file"]
+    manifest_path = bundle.ingestion_run / "dataset_manifest.json"
+    marker_path = bundle.ingestion_run / "_SUCCESS.json"
+    shard = bundle.ingestion_run / bundle.manifest["files"][0]["output_file"]
     if mutation == "missing_manifest":
         manifest_path.unlink()
     elif mutation == "malformed_manifest":
@@ -980,7 +1049,7 @@ def test_physical_bundle_tampering_fails_closed(
     elif mutation == "missing_shard":
         shard.unlink()
     elif mutation == "unexpected_shard":
-        extra = bundle.phase02_run / "data/extra.parquet"
+        extra = bundle.ingestion_run / "data/extra.parquet"
         extra.write_bytes(shard.read_bytes())
         extra.chmod(0o600)
     elif mutation == "symlinked_shard":
@@ -991,7 +1060,7 @@ def test_physical_bundle_tampering_fails_closed(
         shard.symlink_to(replacement)
     elif mutation == "broken_symlinked_shard":
         shard.unlink()
-        shard.symlink_to(bundle.phase02_run / "absent.parquet")
+        shard.symlink_to(bundle.ingestion_run / "absent.parquet")
     elif mutation == "special_shard":
         shard.unlink()
         os.mkfifo(shard, mode=0o600)
@@ -1024,24 +1093,24 @@ def test_physical_bundle_tampering_fails_closed(
         bundle.manifest["configuration_fingerprint"] = "0" * 64
         _refresh_manifest_and_marker(bundle)
     elif mutation == "in_progress":
-        pending = bundle.phase02_run / ".in_progress/pending.tmp"
+        pending = bundle.ingestion_run / ".in_progress/pending.tmp"
         pending.write_bytes(b"pending")
         pending.chmod(0o600)
     elif mutation == "contradictory_marker":
-        _write_json(bundle.phase02_run / "_FAILURE.json", {"status": "FAIL"})
+        _write_json(bundle.ingestion_run / "_FAILURE.json", {"status": "FAIL"})
     else:
         shard.chmod(0o640)
     with pytest.raises(Stage01ValidationError, match=expected_code):
         _validate(bundle)
 
 
-def test_symlinked_phase02_run_directory_fails_closed(
+def test_symlinked_stage01_run_directory_fails_closed(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     bundle = _synthetic_bundle(tmp_path, monkeypatch)
-    link = tmp_path / "phase02_run_link"
-    link.symlink_to(bundle.phase02_run, target_is_directory=True)
-    bundle.phase02_run = link
+    link = tmp_path / "stage01_run_link"
+    link.symlink_to(bundle.ingestion_run, target_is_directory=True)
+    bundle.ingestion_run = link
     with pytest.raises(Stage01ValidationError, match="INVALID_RUN_DIRECTORY"):
         _validate(bundle)
 
@@ -1050,7 +1119,7 @@ def test_schema_and_page_checksum_evidence_mismatch_fail(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     bundle = _synthetic_bundle(tmp_path, monkeypatch)
-    schema_report = bundle.phase02_reports / "phase02_schema.json"
+    schema_report = bundle.ingestion_reports / "phase02_schema.json"
     value = json.loads(schema_report.read_text(encoding="utf-8"))
     value["schema_fingerprint"] = "0" * 64
     _write_json(schema_report, value)
@@ -1060,7 +1129,7 @@ def test_schema_and_page_checksum_evidence_mismatch_fail(
     other = tmp_path / "page-evidence"
     other.mkdir()
     bundle = _synthetic_bundle(other, monkeypatch)
-    report = bundle.phase02_reports / "phase02_file_validation.csv"
+    report = bundle.ingestion_reports / "phase02_file_validation.csv"
     with report.open("r", encoding="utf-8", newline="") as stream:
         rows = list(csv.DictReader(stream))
     rows[0]["page_checksums_verified"] = "False"
@@ -1073,17 +1142,18 @@ def test_schema_and_page_checksum_evidence_mismatch_fail(
         _validate(bundle)
 
 
-def test_extended_phase02_success_marker_is_validated(
+def test_extended_stage01_success_marker_is_validated(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     bundle = _synthetic_bundle(tmp_path, monkeypatch)
-    marker_path = bundle.phase02_run / "_SUCCESS.json"
+    marker_path = bundle.ingestion_run / "_SUCCESS.json"
     marker = json.loads(marker_path.read_text(encoding="utf-8"))
     marker.update(
         {
-            "git_commit": PHASE02_COMMIT,
+            "git_commit": INGESTION_COMMIT,
             "source_bytes": sum(
-                record.file_size_bytes for record in bundle.phase01_bundle.records
+                record.file_size_bytes
+                for record in bundle.source_inventory_bundle.records
             ),
             "staging_bytes": sum(
                 item["output_size_bytes"] for item in bundle.manifest["files"]
@@ -1103,7 +1173,7 @@ def test_state_failure_and_output_collision_fail_closed(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     bundle = _synthetic_bundle(tmp_path, monkeypatch)
-    state = bundle.phase02_run / "_work/phase02_state.sqlite3"
+    state = bundle.ingestion_run / "_work/phase02_state.sqlite3"
     connection = __import__("sqlite3").connect(state)
     connection.execute(
         "UPDATE file_state SET status='FAILED' WHERE relative_path='fictional_a.csv'"
@@ -1125,7 +1195,7 @@ def test_state_validation_does_not_mutate_authoritative_sqlite_sidecars(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     bundle = _synthetic_bundle(tmp_path, monkeypatch)
-    state = bundle.phase02_run / "_work/phase02_state.sqlite3"
+    state = bundle.ingestion_run / "_work/phase02_state.sqlite3"
     shm = state.with_name(f"{state.name}-shm")
     shm.write_bytes(b"fictional sqlite shared-memory sidecar")
     shm.chmod(0o600)
@@ -1151,7 +1221,7 @@ def test_uncheckpointed_state_wal_fails_closed(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     bundle = _synthetic_bundle(tmp_path, monkeypatch)
-    state = bundle.phase02_run / "_work/phase02_state.sqlite3"
+    state = bundle.ingestion_run / "_work/phase02_state.sqlite3"
     wal = state.with_name(f"{state.name}-wal")
     wal.write_bytes(b"fictional uncheckpointed state")
     wal.chmod(0o600)
@@ -1176,7 +1246,7 @@ def test_state_manifest_and_terminal_evidence_must_reconcile(
     expected_code: str,
 ) -> None:
     bundle = _synthetic_bundle(tmp_path, monkeypatch)
-    state = bundle.phase02_run / "_work/phase02_state.sqlite3"
+    state = bundle.ingestion_run / "_work/phase02_state.sqlite3"
     connection = __import__("sqlite3").connect(state)
     if mutation == "output_sha":
         connection.execute(
@@ -1214,15 +1284,17 @@ def test_duplicate_source_content_and_stable_id_policy_fail_closed(
 ) -> None:
     bundle = _synthetic_bundle(tmp_path, monkeypatch)
     duplicate = replace(
-        bundle.phase01_bundle.records[1],
-        file_sha256=bundle.phase01_bundle.records[0].file_sha256,
+        bundle.source_inventory_bundle.records[1],
+        file_sha256=bundle.source_inventory_bundle.records[0].file_sha256,
     )
-    bundle.phase01_bundle = replace(
-        bundle.phase01_bundle,
-        records=(bundle.phase01_bundle.records[0], duplicate),
+    bundle.source_inventory_bundle = replace(
+        bundle.source_inventory_bundle,
+        records=(bundle.source_inventory_bundle.records[0], duplicate),
     )
     monkeypatch.setattr(
-        s01, "validate_phase01_bundle", lambda *_args, **_kwargs: bundle.phase01_bundle
+        s01,
+        "validate_stage00_inventory",
+        lambda *_args, **_kwargs: bundle.source_inventory_bundle,
     )
     with pytest.raises(Stage01ValidationError, match="DUPLICATE_SOURCE_CONTENT"):
         _validate(bundle)
@@ -1259,26 +1331,26 @@ def test_bundle_mutation_before_publication_is_detected(
     def mutate(*args: Any, **kwargs: Any) -> dict[str, Any]:
         record = original(*args, **kwargs)
         if mutation == "existing_marker":
-            marker = bundle.phase02_run / "_SUCCESS.json"
+            marker = bundle.ingestion_run / "_SUCCESS.json"
             os.utime(
                 marker, ns=(marker.stat().st_atime_ns, marker.stat().st_mtime_ns + 1)
             )
         elif mutation == "new_shard":
-            added = bundle.phase02_run / "data/late.parquet"
+            added = bundle.ingestion_run / "data/late.parquet"
             added.write_bytes(b"late")
             added.chmod(0o600)
         elif mutation == "new_work_file":
-            added = bundle.phase02_run / "_work/late.state"
+            added = bundle.ingestion_run / "_work/late.state"
             added.write_bytes(b"late")
             added.chmod(0o600)
         elif mutation == "new_in_progress_file":
-            added = bundle.phase02_run / ".in_progress/late.tmp"
+            added = bundle.ingestion_run / ".in_progress/late.tmp"
             added.write_bytes(b"late")
             added.chmod(0o600)
         elif mutation == "new_failure_marker":
-            _write_json(bundle.phase02_run / "_FAILURE.json", {"status": "FAIL"})
+            _write_json(bundle.ingestion_run / "_FAILURE.json", {"status": "FAIL"})
         else:
-            added = bundle.phase02_reports / "late_report.json"
+            added = bundle.ingestion_reports / "late_report.json"
             _write_json(added, {"status": "late"})
         return record
 
