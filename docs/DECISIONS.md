@@ -1349,6 +1349,33 @@ to change a decision or start a stage.
   reference status only. Stage 9 implementation and protected execution are
   NOT STARTED; no Stage 9 acceptance or geocoding authorization is granted.
 
+### D051 — Implement frozen Stage 9 and prepare one controlled DEVELOPMENT run
+
+- **Date:** 2026-09-08.
+- **Authority:** The owner explicitly authorized Stage 9 implementation,
+  substantial synthetic/local tests, exact executable commit/push and one
+  controlled Goethe-NHR SLURM DEVELOPMENT execution with validation/publication
+  and sanitized reporting. If PENDING/RUNNING, record the job and stop; do not
+  repeatedly poll, cancel or submit a duplicate. Stop at the candidate for
+  independent review; no Stage 9 acceptance or Stage 10 authority is granted.
+- **Preservation:** Design-freeze commit `f85510f938a8506bf3d4a4f8d2b908d801957414`,
+  frozen design/lock bytes, Stage 0–8 science and all accepted fingerprints remain
+  unchanged. HOLDOUT stays sealed; production and Pelias are outside scope.
+- **Implementation:** Six logical relations only; exact Stage 8 pointers,
+  four-state/negative-authority enforcement, locked public inputs, bounded
+  Arrow/DuckDB joins and deterministic canonical identities. Reusable public
+  objects/indexes never project coordinates. No new authoritative mapping layer.
+- **Execution/publication:** Exact detached Git executable, unchanged runtime
+  guards, private directories/files, public raw-hash verification and full input
+  binding before protected evaluation; checkpointed 16-group execution, full
+  reversed-group validation replay and atomic no-replace publication/reopening.
+  Historical cross-job inode equality is not used.
+- **Evidence/status:** [Implementation record](stages/STAGE09_IMPLEMENTATION.md)
+  and [DEVELOPMENT execution record](../reports/development/stage09.md) contain
+  local validation, the complete pre-run defect ledger and current submission
+  state. Implementation is complete and execution prepared; this is not a
+  completed protected candidate or scientific acceptance.
+
 ## Open decisions
 
 These questions require future stage designs and explicit approval:
@@ -1360,8 +1387,9 @@ These questions require future stage designs and explicit approval:
   interpolated Pelias address results.
 
 Nothing in this register authorizes HOLDOUT, another Stage 8 protected
-execution, Stage 9 materialization, geocoding, or production Stage 2 through
-Stage 8. D050 alone records the approved Stage 9 design/public-reference scope.
+execution, geocoding, or production Stage 2 through Stage 8. D050 records the
+approved Stage 9 design/public-reference scope; D051 records the separate bounded
+Stage 9 implementation/DEVELOPMENT authorization, not acceptance or later stages.
 Stage 7 decisions
 D023–D036 retain their stated historical DEVELOPMENT scopes; D037 alone
 records final Stage 7 DEVELOPMENT acceptance. D038 records the prospective

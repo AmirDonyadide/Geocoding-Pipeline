@@ -70,7 +70,8 @@ production Stage 2 through Stage 6 have not started. The old Stages 8–19 have
 not started. The first three compact replacement Stage 8 DEVELOPMENT
 candidates remain rejected and immutable; the third-remediation candidate is
 accepted on DEVELOPMENT. Stage 9 has an owner-approved, reference-frozen design;
-implementation and execution have not started. Replacement Stages 10–14 remain
+its separately authorized implementation/local tests are complete and one
+controlled DEVELOPMENT execution is prepared, not accepted. Replacement Stages 10–14 remain
 proposed and not started. Production Stage 7 and Stage 8 have not started.
 
 ## Cross-stage scientific rules
@@ -292,8 +293,9 @@ parser/reference evidence, hypotheses, geocoder results, and the final accepted
 match. The first three Stage 8 candidates are rejected. The third-remediation
 candidate from job `1764273` passed corrected independent rereview job
 `1764376` with zero candidate defects and is accepted as `STAGE_8_ACCEPTED`.
-Stage 9 is **DESIGN OWNER-APPROVED — REFERENCES FROZEN**, with implementation and
-execution not started. Stages 10–14 remain **PROPOSED — NOT STARTED**.
+Stage 9 is **DESIGN OWNER-APPROVED — REFERENCES FROZEN**, with separately
+authorized implementation/local tests complete and controlled DEVELOPMENT
+execution prepared. It is not accepted. Stages 10–14 remain **PROPOSED — NOT STARTED**.
 Their responsibilities, tool
 choices, and legacy mapping are maintained in this pipeline specification; the
 accepted transition boundary is summarized in the authoritative
@@ -337,7 +339,7 @@ accepted transition boundary is summarized in the authoritative
   in its [JSON summary](../reports/generated/stage08.json). The detailed stage
   contract remains in the
   [Stage 8 record](stages/STAGE08_ADDRESS_EVIDENCE_PROJECTION.md). The
-  pre-Stage-9 baseline is frozen; Stage 9 implementation has not started.
+  pre-Stage-9 baseline remains frozen; later Stage 9 activity is recorded separately below.
 
 ### Stage 9 — Offline geographic reference evidence
 
@@ -355,13 +357,16 @@ accepted transition boundary is summarized in the authoritative
 - **Acceptance:** Reviewed design/implementation, frozen reference pack,
   authority-scoped contradictions, exact source/representation map-back,
   DEVELOPMENT diagnostics, independent review and explicit owner acceptance.
-- **Status:** **DESIGN OWNER-APPROVED — REFERENCES FROZEN**. Implementation and
-  execution NOT STARTED. The complete design contract is the
+- **Status:** **DESIGN OWNER-APPROVED — REFERENCES FROZEN**. Separately authorized
+  implementation/local validation are complete; one controlled DEVELOPMENT
+  execution is prepared. No Stage 9 acceptance is claimed. The complete design contract is the
   [Stage 9 design](stages/STAGE09_OFFLINE_REFERENCE_EVIDENCE.md). No Stage 0–8
   change is required; the Stage 10 boundary handoff is sufficient through the
   accepted Stage 8 → Stage 6 map-back. Stage 8 remains the sole source/occurrence
-  mapping authority. This session stops after the design/reference-freeze commit;
-  no materializer or protected execution is authorized here.
+  mapping authority. The new [implementation record](stages/STAGE09_IMPLEMENTATION.md)
+  and [execution report](../reports/development/stage09.md) describe the bounded
+  owner authorization and current job state. Stop at the DEVELOPMENT candidate
+  for independent review; no Stage 10 or geocoding execution is authorized.
 
 ### Stage 10 — Multi-hypothesis query-plan generation
 
