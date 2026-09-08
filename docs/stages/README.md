@@ -17,7 +17,7 @@ independent review records acceptance.
 | 6 | [Early exact deduplication](STAGE06_EARLY_EXACT_DEDUPLICATION.md) | `STAGE_6_ACCEPTED` | NOT STARTED |
 | 7 | [libpostal parsing/evidence](STAGE07_LIBPOSTAL_PARSING.md) | `STAGE_7_ACCEPTED` | NOT STARTED |
 | 8 | [Lossless address-evidence projection](STAGE08_ADDRESS_EVIDENCE_PROJECTION.md) | `STAGE_8_ACCEPTED`; candidate `231cdbf9…`, executable `c04cb972…`, job `1764273`, independent job `1764376` | NOT STARTED |
-| 9 | [Conservative offline geographic reference evidence](STAGE09_OFFLINE_REFERENCE_EVIDENCE.md) | Design/references frozen; [implementation and synthetic validation complete](STAGE09_IMPLEMENTATION.md); [controlled execution prepared](../../reports/development/stage09.md); NOT ACCEPTED | NOT STARTED |
+| 9 | [Conservative offline geographic reference evidence](STAGE09_OFFLINE_REFERENCE_EVIDENCE.md) | Design/references frozen; [implementation and synthetic validation complete](STAGE09_IMPLEMENTATION.md); [job 1770156 in progress](../../reports/development/stage09.md), PENDING at submission; NOT ACCEPTED | NOT STARTED |
 
 Stage 9 design is owner-approved; replacement Stages 10–14 remain proposed in
 [the pipeline specification](../PIPELINE.md). The authoritative
@@ -31,6 +31,6 @@ baseline is frozen. The separately authorized Stage 9 owner-revision session
 completed the design and bounded public-reference freeze linked above.
 The owner subsequently authorized implementation, synthetic/local tests and one
 controlled DEVELOPMENT SLURM execution. Implementation and local validation are
-complete; execution is prepared, not yet a validated candidate or acceptance.
+complete; job `1770156` is submitted, not yet a validated candidate or acceptance.
 The linked execution record carries current job status. Stages 10–14 remain
 proposed and not started.

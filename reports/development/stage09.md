@@ -2,8 +2,9 @@
 
 ## Status
 
-IMPLEMENTATION COMPLETE; CONTROLLED DEVELOPMENT EXECUTION PREPARED.
-No Stage 9 artifact/result is claimed in this pre-submission record.
+STAGE09_DEVELOPMENT_RUN_IN_PROGRESS.
+Job `1770156` was submitted once and observed PENDING (Resources) at submission.
+No completed Stage 9 artifact/result is claimed in this submission record.
 Stage 9 is NOT ACCEPTED. No protected DEVELOPMENT input has been materialized
 locally; HOLDOUT remains sealed, production/Pelias untouched.
 
@@ -24,8 +25,8 @@ NOT_FOUND is not contradiction; reference mismatch is not source invalidity.
   `pre-stage09-baseline-v1`.
 - Starting `main == origin/main`, clean and exactly at the design freeze, was
   verified before implementation. Stage 8 remained accepted and HOLDOUT sealed.
-- Exact executable commit: recorded after committing this implementation and
-  before the one controlled submission; never a dirty-worktree executable.
+- Exact executable commit: `3c3864f0b42a6bc69d293415f7cd755c74187fc2`, pushed
+  before submission and verified in a new clean detached Goethe Git clone.
 - Accepted Stage 8 artifact:
   `/work/footprint/donyadidegan/safe_geocoding_pipeline/derived/controlled/stage08/development/stage08_development_20260902T132726Z_c04cb97214a9`.
 - Stage 8 manifest SHA-256:
@@ -107,9 +108,44 @@ validation, and performs atomic publication/private/final reopening. The frozen
 planning bound is 20.56M evaluation rows, not an expected hit count or measured
 performance. Production resource requests cannot be inferred from this run.
 
-Submission ID/time/state/dependencies, exact SHA, output/index targets and the
-next validation action will be appended after the single submission. If the job
-is materially PENDING/RUNNING, stop immediately; do not poll, cancel or resubmit.
+### Single submission receipt
+
+- SLURM job: `1770156`; submission UTC `2026-09-08T12:40:20Z`.
+- State from the single submission-time `scontrol` query: PENDING;
+  reason Resources; dependencies none. No further polling/cancellation/resubmission.
+- Partition/account: `general1` / `footprint`; four CPUs, 32 GiB, 24-hour limit.
+- Executable: `3c3864f0b42a6bc69d293415f7cd755c74187fc2`.
+- Target artifact:
+  `/work/footprint/donyadidegan/safe_geocoding_pipeline/derived/controlled/stage09/development/stage09_development_20260908T124020Z_3c3864f0b42a`.
+- Public pack target:
+  `/work/footprint/donyadidegan/safe_geocoding_pipeline/derived/controlled/stage09/public_pack/stage09_public_pack_20260907_v1_3c3864f0b42a`.
+- Locked raw reference root:
+  `/work/footprint/donyadidegan/safe_geocoding_pipeline/derived/controlled/stage09/public_raw/20260907_v1`.
+  All 50 locked bodies/headers were copied (24 MiB total raw directory scale)
+  and their exact hashes/0600 file/0700 directory modes verified on Goethe.
+  Archive members were locally rehashed and are verified again inside the job.
+- Integration root:
+  `/work/footprint/donyadidegan/safe_geocoding_pipeline/integration_stage09/3c3864f0b42a6bc69d293415f7cd755c74187fc2`.
+- Runtime root:
+  `/work/footprint/donyadidegan/safe_geocoding_pipeline/runtimes/stage06/stage06_development_20260828T223804Z_f39047cc825d`.
+  Interpreter/package paths were checked using shell metadata only; exact
+  executable/runtime and filesystem preflight runs on the scheduled compute node.
+- Logs: private `logs/slurm/safe-stage09-reference-evidence_1770156.out` and `.err`
+  below the controlled project root. No row values are logged.
+
+Next action requires owner `continue`. Inspect accounting once:
+
+```sh
+ssh goethe 'sacct -j 1770156 --format=JobID,State,ExitCode,Elapsed,AllocCPUS,MaxRSS,Start,End --parsable2'
+```
+
+If still PENDING/RUNNING, record state and stop again. If completed, reconcile
+the immutable manifest, `_SUCCESS.json`, complete file/reference/input bindings,
+in-job private/final reopen certificates and aggregate diagnostics before
+declaring a DEVELOPMENT candidate ready. Further protected validation, if
+needed, remains SLURM-only; no login-node data processing or automatic rerun.
+For a failed job, preserve artifacts and collect sanitized failure/checkpoint
+metadata first. This record does not predict the job's eventual outcome.
 
 ## Validation and complete pre-submission defect ledger
 
@@ -157,6 +193,15 @@ No unresolved design contradiction, Stage 0–8 blocker or semantic contract cha
 was found. The same-executable deterministic replay does not replace the required
 independent review. Resource/throughput sufficiency remains to be observed in the
 one authorized execution; failures remain failures and preserve attempts.
+
+One reporting-only integration issue was found while recording submission:
+after the new Stage 9 report became Git-tracked, the report validator's exact
+file allowlist still listed only the historical Stage 0–8 report surface. The
+reporting commit adds this one explicit Markdown path; it does not change the
+accepted-stage range, any accepted fingerprint/check or any execution source.
+The report-validator regression tests pass after this bookkeeping correction.
+The in-flight executable remains exactly `3c3864f0b42a6bc69d293415f7cd755c74187fc2`;
+no cancellation, resubmission or output-semantic change is needed or performed.
 
 ## Candidate diagnostics and acceptance gate
 

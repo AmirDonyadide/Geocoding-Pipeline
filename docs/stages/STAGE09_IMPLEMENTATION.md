@@ -4,7 +4,8 @@
 
 The owner authorized implementation, synthetic/local validation, one controlled
 Goethe-NHR SLURM DEVELOPMENT execution, publication validation and a candidate
-report. Stage 9 is **IMPLEMENTED — DEVELOPMENT EXECUTION PREPARED — NOT ACCEPTED**.
+report. Stage 9 is **IMPLEMENTED — DEVELOPMENT RUN IN PROGRESS — NOT ACCEPTED**.
+Job `1770156` was observed PENDING at submission; no repeated polling is performed.
 Execution details and subsequent state belong in the
 [DEVELOPMENT record](../../reports/development/stage09.md).
 
