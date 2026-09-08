@@ -69,8 +69,9 @@ Production Stage 0 and Stage 1 are accepted for the 1,411-file population;
 production Stage 2 through Stage 6 have not started. The old Stages 8–19 have
 not started. The first three compact replacement Stage 8 DEVELOPMENT
 candidates remain rejected and immutable; the third-remediation candidate is
-accepted on DEVELOPMENT. Replacement Stages 9–14 remain proposed and not
-started. Production Stage 7 and Stage 8 have not started.
+accepted on DEVELOPMENT. Stage 9 has an owner-approved, reference-frozen design;
+implementation and execution have not started. Replacement Stages 10–14 remain
+proposed and not started. Production Stage 7 and Stage 8 have not started.
 
 ## Cross-stage scientific rules
 
@@ -84,8 +85,9 @@ started. Production Stage 7 and Stage 8 have not started.
 - Transliteration, if later approved, is a separate derived candidate.
 - Absence from an open reference is not invalidity. `MISMATCH` requires strong
   positive contradictory evidence.
-- Validation statuses are `CONFIRMED`, `MISMATCH`, `NOT_FOUND`, `AMBIGUOUS`,
-  `UNSUPPORTED`, and `INVALID_FORMAT`.
+- Legacy/later-stage validation statuses are `CONFIRMED`, `MISMATCH`,
+  `NOT_FOUND`, `AMBIGUOUS`, `UNSUPPORTED`, and `INVALID_FORMAT`. The proposed
+  Stage 9 evidence contract uses its own four-state model below.
 - Protected address values never leave controlled infrastructure.
 - Pandas is not used for production transformations; it is permitted for small
   DEVELOPMENT inspection.
@@ -102,8 +104,9 @@ started. Production Stage 7 and Stage 8 have not started.
 11 query identity/QA -> 12 Pelias top-N -> 13 scoring -> 14 granularity/abstain
 ```
 
-Stage 8 is accepted on DEVELOPMENT. Stages 9–14 are still a proposed
-replacement, not an accepted execution order. Every stage still requires its
+Stage 8 is accepted on DEVELOPMENT. Stage 9's design and public references are
+owner-approved/frozen; Stages 10–14 remain proposed, not an accepted execution
+order. Every stage still requires its
 own design, owner
 authorization, DEVELOPMENT evidence, independent review, acceptance, and stop
 gate. The current prohibition on geocoding before the governing pre-geocoding
@@ -289,7 +292,9 @@ parser/reference evidence, hypotheses, geocoder results, and the final accepted
 match. The first three Stage 8 candidates are rejected. The third-remediation
 candidate from job `1764273` passed corrected independent rereview job
 `1764376` with zero candidate defects and is accepted as `STAGE_8_ACCEPTED`.
-Stages 9–14 remain **PROPOSED — NOT STARTED**. Their responsibilities, tool
+Stage 9 is **DESIGN OWNER-APPROVED — REFERENCES FROZEN**, with implementation and
+execution not started. Stages 10–14 remain **PROPOSED — NOT STARTED**.
+Their responsibilities, tool
 choices, and legacy mapping are maintained in this pipeline specification; the
 accepted transition boundary is summarized in the authoritative
 [Stage 8 report](../reports/development/stage08.md).
@@ -332,22 +337,31 @@ accepted transition boundary is summarized in the authoritative
   in its [JSON summary](../reports/generated/stage08.json). The detailed stage
   contract remains in the
   [Stage 8 record](stages/STAGE08_ADDRESS_EVIDENCE_PROJECTION.md). The
-  pre-Stage-9 baseline is frozen; Stage 9 has not started.
+  pre-Stage-9 baseline is frozen; Stage 9 implementation has not started.
 
 ### Stage 9 — Offline geographic reference evidence
 
-- **Purpose:** Add country/postcode/locality/admin/street/house-number evidence
-  and bounded similarity within strong geographic blocks. Absence from an open
-  reference is not invalidity.
-- **Primary tools/data:** pinned GeoNames, Overture Maps Addresses, optional
-  approved OSM evidence, RapidFuzz, DuckDB, and PyArrow; Polars optional.
-  Exact-code pycountry/subdivision metadata and pinned offline libaddressinput
-  format metadata may be considered here, not in Stage 8, under the Stage 9
-  design. Runtime Address Data Service and Google Address Validation API calls
-  remain prohibited.
-- **Acceptance:** Pinned licenses/vintages, bounded candidates, contradiction
-  precision, coverage caveats, and complete evidence lineage.
-- **Status:** **PROPOSED — NOT STARTED**.
+- **Purpose:** Add conservative offline country/postcode/locality/admin and
+  format evidence only. Each check is SUPPORTED, CONTRADICTED, NOT_FOUND, or
+  NOT_EVALUABLE; absence never silently becomes contradiction or invalidity.
+- **Frozen design tools/data:** iso-codes 4.20.1-1 country/subdivision JSON, offline
+  libaddressinput metadata, one frozen GeoNames postal snapshot, DuckDB and
+  PyArrow. Actual metadata and postal snapshot hashes are in the
+  [reference freeze](stages/STAGE09_REFERENCE_FREEZE.md). V1 excludes street/house-number references, fuzzy matching,
+  corrections, queries, and coordinates. References carry per-country/question
+  capabilities with separate positive/negative authority, concrete ISO_CODES /
+  LIBADDRESSINPUT_METADATA / GEONAMES_POSTAL families, and explicit dependence
+  lineage for later Pelias comparisons. GeoNames negative authority is FALSE.
+- **Acceptance:** Reviewed design/implementation, frozen reference pack,
+  authority-scoped contradictions, exact source/representation map-back,
+  DEVELOPMENT diagnostics, independent review and explicit owner acceptance.
+- **Status:** **DESIGN OWNER-APPROVED — REFERENCES FROZEN**. Implementation and
+  execution NOT STARTED. The complete design contract is the
+  [Stage 9 design](stages/STAGE09_OFFLINE_REFERENCE_EVIDENCE.md). No Stage 0–8
+  change is required; the Stage 10 boundary handoff is sufficient through the
+  accepted Stage 8 → Stage 6 map-back. Stage 8 remains the sole source/occurrence
+  mapping authority. This session stops after the design/reference-freeze commit;
+  no materializer or protected execution is authorized here.
 
 ### Stage 10 — Multi-hypothesis query-plan generation
 

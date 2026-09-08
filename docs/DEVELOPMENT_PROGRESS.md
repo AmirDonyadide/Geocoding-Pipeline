@@ -14,7 +14,8 @@ are in the linked stage records and sanitized reports.
 | 6 | Early exact deduplication | **`STAGE_6_ACCEPTED`** | Job `1759819`; independent job `1760055`; 69,747 occurrences → 51,779 exact candidates; [report](../reports/development/stage06.md) | **NOT STARTED** |
 | 7 | libpostal parsing/evidence | **`STAGE_7_ACCEPTED`** | Evidence-only job `1763516`; rereview job `1763656`; no semantic-trust claim; [report](../reports/development/stage07.md) | **NOT STARTED** |
 | 8 | Lossless address-evidence projection | **`STAGE_8_ACCEPTED`** | Candidate `231cdbf9…`; executable `c04cb972…`; jobs `1764273`/`1764376`; zero candidate defects; [report](../reports/development/stage08.md) | **NOT STARTED** |
-| 9–14 proposed | Reference evidence → hypotheses → Pelias top-N → scoring → granularity/abstain | **PROPOSED — NOT STARTED** | Remaining compact replacement architecture; [pipeline specification](PIPELINE.md) | **NOT STARTED** |
+| 9 | Conservative offline reference evidence | **DESIGN OWNER-APPROVED — REFERENCES FROZEN; IMPLEMENTATION NOT STARTED** | [Design](stages/STAGE09_OFFLINE_REFERENCE_EVIDENCE.md) and [public reference freeze](stages/STAGE09_REFERENCE_FREEZE.md); no protected execution | **NOT STARTED** |
+| 10–14 proposed | Hypotheses → Pelias top-N → scoring → granularity/abstain | **PROPOSED — NOT STARTED** | Remaining compact replacement architecture; [pipeline specification](PIPELINE.md) | **NOT STARTED** |
 
 Benchmark V1 contains 35,000 DEVELOPMENT and 15,000 sealed HOLDOUT rows from
 the permanent 1,405-file population. The fixed 500-row qualitative subset has
@@ -58,8 +59,10 @@ candidate `231cdbf9…` with zero candidate defects and zero infrastructure-
 incomplete checks. Review-only RH-001 remains preserved and is not a candidate
 defect. Stage 8 is `STAGE_8_ACCEPTED`; its scientific contract remained
 unchanged through every publication remediation.
-The old Stages 8–19 were never started; replacement Stages 9–14 remain proposed
-and not started. Production Stage 0 and Stage 1 are accepted; production Stages
+The old Stages 8–19 were never started. Stage 9 design is owner-approved with
+the required revisions incorporated and public references frozen; replacement
+Stages 10–14 remain proposed and not started. Production Stage 0 and Stage 1
+are accepted; production Stages
 2–8 are not started. HOLDOUT is untouched and sealed. No new Stage 8 job is
-authorized by acceptance. The pre-Stage-9 baseline is frozen. Stage 9 has not
-started and requires a separate design and authorization.
+authorized by acceptance. The pre-Stage-9 baseline remains frozen. Stage 9
+implementation, index construction and protected execution are NOT STARTED.

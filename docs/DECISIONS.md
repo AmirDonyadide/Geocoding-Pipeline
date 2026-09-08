@@ -1316,19 +1316,53 @@ to change a decision or start a stage.
   This freeze does not authorize Stage 9, HOLDOUT, production, reference work,
   parsing, Pelias, or geocoding.
 
+### D050 — Approve the Stage 9 design revisions and freeze public references
+
+- **Date:** 2026-09-07.
+- **Authority/scope:** Owner approved the Stage 9 scientific direction with
+  four required revisions, bounded public-reference acquisition, design/lock
+  commit and normal push, then stop. Materializer/index implementation and
+  protected execution are explicitly excluded from this session.
+- **Design:** [Stage 9 contract](stages/STAGE09_OFFLINE_REFERENCE_EVIDENCE.md)
+  and [freeze record](stages/STAGE09_REFERENCE_FREEZE.md). Actual provenance
+  families are ISO_CODES, LIBADDRESSINPUT_METADATA and GEONAMES_POSTAL.
+  Every capability has independent positive/negative authority booleans.
+  GeoNames cannot contradict; missing metadata is unavailable. Only exact
+  recognized ISO code ownership and enabled frozen format/prefix predicates
+  have scoped negative authority. NOT_FOUND is never invalidity.
+- **References:** iso-codes upstream 4.20.1 / Debian 4.20.1-1, selected after
+  comparison with 4.18.0-1; actual libaddressinput all.json from the current
+  suitable google-i18n-address 3.1.1 release; one GeoNames postal snapshot
+  acquired 2026-09-07. The [lock](scientific_assets/stage09_reference_pack_lock_v1.json)
+  freezes exact archives, members, provenance, licenses, per-country component
+  observations and capability exclusions. Raw bytes remain offline/ignored;
+  there is no automatic refresh within DEVELOPMENT, HOLDOUT or an accepted run.
+- **Minimal model:** Registry, capability, public reference objects, candidate
+  evidence, multi-match members only when necessary, and aggregate coverage.
+  Stage 8 remains the only authoritative source/representation map; evidence
+  uses exact immutable candidate/source/component pointers. No correction,
+  query, coordinates, parser truth or final address-validity output.
+- **Boundary:** BOUNDARY_HANDOFF_SUFFICIENT through Stage 8→Stage 6 source-line
+  lineage. No Stage 0–8 science/source/schema/fingerprint change; accepted audit
+  remains closed. HOLDOUT sealed, production and Pelias untouched.
+- **Status:** STAGE09_REFERENCE_DESIGN_OWNER_APPROVED_AND_FROZEN is design/public
+  reference status only. Stage 9 implementation and protected execution are
+  NOT STARTED; no Stage 9 acceptance or geocoding authorization is granted.
+
 ## Open decisions
 
 These questions require future stage designs and explicit approval:
 
-- exact offline reference releases/licenses and blocking semantics;
+- future reference vintages/country-specific extensions beyond frozen Stage 9 v1;
 - the bounded Stage 10 hypothesis/query ladder;
 - Stage 13 scoring/calibration and contradiction policy; and
 - Stage 14 granularity-specific usability thresholds, including treatment of
   interpolated Pelias address results.
 
 Nothing in this register authorizes HOLDOUT, another Stage 8 protected
-execution, Stage 9, geocoding, or production Stage 2 through Stage 8. Stage 7
-decisions
+execution, Stage 9 materialization, geocoding, or production Stage 2 through
+Stage 8. D050 alone records the approved Stage 9 design/public-reference scope.
+Stage 7 decisions
 D023–D036 retain their stated historical DEVELOPMENT scopes; D037 alone
 records final Stage 7 DEVELOPMENT acceptance. D038 records the prospective
 Stage 8 design boundary; D039/D040 record the rejected implementation and its

@@ -110,8 +110,11 @@ zero infrastructure-incomplete checks. Its scientific contract stayed
 unchanged through every publication remediation, and the owner accepted it as
 `STAGE_8_ACCEPTED`. Jobs `1763747`, `1763984`, and `1764219` remain immutable
 historical evidence for their exact executables; every failed review remains
-truthful. Replacement Stages 9–14 remain proposed and not started. The
-pre-Stage-9 baseline is frozen; Stage 9 design remains separate and unauthorized.
+truthful. The pre-Stage-9 baseline is frozen. A separately authorized
+[Stage 9 design](stages/STAGE09_OFFLINE_REFERENCE_EVIDENCE.md) is owner-approved
+with required revisions incorporated and public reference bytes frozen;
+its implementation and execution remain not started. Replacement
+Stages 10–14 remain proposed and not started.
 See
 [PIPELINE.md](PIPELINE.md).
 
@@ -143,8 +146,10 @@ The project favors high-precision evidence over aggressive correction:
   evidence, reference version, and decision; and
 - protected addresses never leave controlled infrastructure.
 
-Pre-geocoding validation uses the closed statuses `CONFIRMED`, `MISMATCH`,
-`NOT_FOUND`, `AMBIGUOUS`, `UNSUPPORTED`, and `INVALID_FORMAT`.
+The legacy/later-stage validation vocabulary is `CONFIRMED`, `MISMATCH`,
+`NOT_FOUND`, `AMBIGUOUS`, `UNSUPPORTED`, and `INVALID_FORMAT`. The proposed
+Stage 9 reference-only contract separately uses `SUPPORTED`, `CONTRADICTED`,
+`NOT_FOUND`, and `NOT_EVALUABLE`, without mapping these to address validity.
 
 ## Library-first architecture
 
@@ -160,10 +165,12 @@ libpostal/pypostal. DeepParse is closed and is not a planned runtime
 dependency. Implemented Stage 8 uses PyArrow/Parquet and bounded DuckDB
 validation only; it adds no pycountry, libaddressinput, or reference-data
 dependency.
-Proposed Stage 9 may evaluate pinned offline pycountry and libaddressinput
-metadata, direct GeoNames data, local Overture Maps Addresses GeoParquet,
-optional approved OSM evidence, RapidFuzz inside strong blocks, DuckDB,
-PyArrow/Parquet, and optional Polars transformations.
+The owner-approved Stage 9 design freezes ISO country/subdivision JSON,
+offline libaddressinput metadata, and GeoNames postal evidence with bounded
+DuckDB and PyArrow/Parquet. It excludes fuzzy matching and street/house-number
+references from v1. The [public freeze](stages/STAGE09_REFERENCE_FREEZE.md)
+records concrete families and explicit negative-authority gates; the stack
+is not implemented.
 Self-hosted SAFE Pelias would retain top-N features for later scoring, never
 treat the first result as truth. A planned library or dataset is not an
 implemented dependency; every new stage requires design and review before use.

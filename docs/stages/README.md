@@ -1,6 +1,7 @@
 # Stage records
 
-These documents describe implemented library-first stages. They summarize
+These documents describe accepted library-first stages and proposed designs.
+They summarize
 contracts and sanitized evidence without reproducing audit transcripts or
 protected rows. A DEVELOPMENT candidate is not accepted until a fresh
 independent review records acceptance.
@@ -16,8 +17,9 @@ independent review records acceptance.
 | 6 | [Early exact deduplication](STAGE06_EARLY_EXACT_DEDUPLICATION.md) | `STAGE_6_ACCEPTED` | NOT STARTED |
 | 7 | [libpostal parsing/evidence](STAGE07_LIBPOSTAL_PARSING.md) | `STAGE_7_ACCEPTED` | NOT STARTED |
 | 8 | [Lossless address-evidence projection](STAGE08_ADDRESS_EVIDENCE_PROJECTION.md) | `STAGE_8_ACCEPTED`; candidate `231cdbf9…`, executable `c04cb972…`, job `1764273`, independent job `1764376` | NOT STARTED |
+| 9 | [Conservative offline geographic reference evidence](STAGE09_OFFLINE_REFERENCE_EVIDENCE.md) | DESIGN OWNER-APPROVED — [REFERENCES FROZEN](STAGE09_REFERENCE_FREEZE.md); implementation NOT STARTED | NOT STARTED |
 
-Replacement Stages 9–14 remain proposed in
+Stage 9 design is owner-approved; replacement Stages 10–14 remain proposed in
 [the pipeline specification](../PIPELINE.md). The authoritative
 [Stage 8 report](../../reports/development/stage08.md) consolidates jobs
 `1763747`, `1763984`, `1764219`, and accepted job `1764273`; all publication
@@ -25,5 +27,7 @@ remediations; corrected independent rereview job `1764376`; and review-only
 RH-001 without relabeling any historical failure. Its
 [machine summary](../../reports/generated/stage08.json) provides the exact
 structured evidence. The required audit is complete and the pre-Stage-9
-baseline is frozen; Stage 9 remains not started pending separate design and
-authorization.
+baseline is frozen. The separately authorized Stage 9 owner-revision session
+completed the design and bounded public-reference freeze linked above.
+Implementation, index construction, protected execution and stage acceptance
+have not started. Stages 10–14 remain proposed and not started.
