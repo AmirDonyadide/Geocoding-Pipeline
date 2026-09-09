@@ -4,8 +4,11 @@
 
 The owner authorized implementation, synthetic/local validation, one controlled
 Goethe-NHR SLURM DEVELOPMENT execution, publication validation and a candidate
-report. Stage 9 is **IMPLEMENTED — DEVELOPMENT RUN IN PROGRESS — NOT ACCEPTED**.
-Job `1770156` was observed PENDING at submission; no repeated polling is performed.
+report. Stage 9 is **IMPLEMENTED — DEVELOPMENT PREFLIGHT FAILED — NOT ACCEPTED**.
+Job `1770156` failed before materializer invocation: the synthetic atomic
+no-replace rename returned an error on the compute filesystem. No public pack
+or protected candidate was created. Exact errno was not retained; a bounded
+synthetic-only filesystem diagnostic needs owner authorization before retry.
 Execution details and subsequent state belong in the
 [DEVELOPMENT record](../../reports/development/stage09.md).
 

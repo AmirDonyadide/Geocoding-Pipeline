@@ -71,7 +71,8 @@ not started. The first three compact replacement Stage 8 DEVELOPMENT
 candidates remain rejected and immutable; the third-remediation candidate is
 accepted on DEVELOPMENT. Stage 9 has an owner-approved, reference-frozen design;
 its separately authorized implementation/local tests are complete and one
-controlled DEVELOPMENT job `1770156` is submitted, not accepted. Replacement Stages 10–14 remain
+controlled DEVELOPMENT job `1770156` failed in the synthetic filesystem preflight,
+before protected input access. Stage 9 is not accepted. Replacement Stages 10–14 remain
 proposed and not started. Production Stage 7 and Stage 8 have not started.
 
 ## Cross-stage scientific rules
@@ -295,7 +296,8 @@ candidate from job `1764273` passed corrected independent rereview job
 `1764376` with zero candidate defects and is accepted as `STAGE_8_ACCEPTED`.
 Stage 9 is **DESIGN OWNER-APPROVED — REFERENCES FROZEN**, with separately
 authorized implementation/local tests complete and controlled DEVELOPMENT
-job `1770156` submitted. It is not accepted. Stages 10–14 remain **PROPOSED — NOT STARTED**.
+job `1770156` failed before materializer invocation. It is not accepted.
+Stages 10–14 remain **PROPOSED — NOT STARTED**.
 Their responsibilities, tool
 choices, and legacy mapping are maintained in this pipeline specification; the
 accepted transition boundary is summarized in the authoritative
@@ -359,7 +361,10 @@ accepted transition boundary is summarized in the authoritative
   DEVELOPMENT diagnostics, independent review and explicit owner acceptance.
 - **Status:** **DESIGN OWNER-APPROVED — REFERENCES FROZEN**. Separately authorized
   implementation/local validation are complete; one controlled DEVELOPMENT
-  job `1770156` was submitted and observed PENDING (Resources). No Stage 9 acceptance is claimed. The complete design contract is the
+  job `1770156` failed in the synthetic atomic-rename preflight, before public-pack
+  construction or protected input access. No Stage 9 candidate/acceptance is claimed.
+  A bounded synthetic filesystem diagnostic is proposed for owner authorization.
+  The complete design contract is the
   [Stage 9 design](stages/STAGE09_OFFLINE_REFERENCE_EVIDENCE.md). No Stage 0–8
   change is required; the Stage 10 boundary handoff is sufficient through the
   accepted Stage 8 → Stage 6 map-back. Stage 8 remains the sole source/occurrence

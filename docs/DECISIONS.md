@@ -1376,6 +1376,29 @@ to change a decision or start a stage.
   state. Implementation is complete and execution prepared; this is not a
   completed protected candidate or scientific acceptance.
 
+### D052 — Record Stage 9 startup failure without weakening publication
+
+- **Date:** 2026-09-10; continuation of the authorized Stage 9 session.
+- **Evidence:** Job `1770156`, exact executable
+  `3c3864f0b42a6bc69d293415f7cd755c74187fc2`, failed after five seconds with exit
+  `1:0` on 2026-09-09. The scheduled synthetic filesystem preflight reached
+  `renameat2(RENAME_NOREPLACE)` and returned `ATOMIC_NO_REPLACE_FAILED` before
+  public-index construction or protected Stage 8 access. No candidate, manifest,
+  success marker or reusable reference pack was created. Invented sentinels and
+  logs remain private and preserved; the exact checkout remains clean.
+- **Diagnostic limit:** Errno was discarded by the helper. PanFS flag support
+  is not established; an unsupported-operation explanation is a hypothesis,
+  not a verified kernel diagnosis. Do not weaken no-overwrite/publication guards
+  or alter the frozen scientific design to guess around the failure.
+- **Disposition:** Record the failed attempt in the
+  [execution report](../reports/development/stage09.md); no automatic rerun or
+  new SLURM job. Request owner authorization for one bounded synthetic-only
+  compute-filesystem diagnostic, then resolve all compatibility issues before
+  proposing a controlled DEVELOPMENT retry. No accepted Stage 0–8 science,
+  source, fingerprints, reference versions or executable changed in this
+  continuation. HOLDOUT sealed; production/Pelias untouched. Stage 9 remains
+  NOT ACCEPTED and no ready candidate is claimed.
+
 ## Open decisions
 
 These questions require future stage designs and explicit approval:

@@ -114,7 +114,8 @@ truthful. The pre-Stage-9 baseline is frozen. A separately authorized
 [Stage 9 design](stages/STAGE09_OFFLINE_REFERENCE_EVIDENCE.md) is owner-approved
 with required revisions incorporated and public reference bytes frozen;
 its separately authorized implementation and synthetic validation are complete,
-with controlled DEVELOPMENT job `1770156` submitted (PENDING at submission). Stage 9 is not accepted;
+but controlled DEVELOPMENT job `1770156` failed in the synthetic filesystem
+preflight before protected input access. No candidate was published. Stage 9 is not accepted;
 see the [execution record](../reports/development/stage09.md). Replacement
 Stages 10–14 remain proposed and not started.
 See

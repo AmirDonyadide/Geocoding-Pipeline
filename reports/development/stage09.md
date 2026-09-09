@@ -2,9 +2,11 @@
 
 ## Status
 
-STAGE09_DEVELOPMENT_RUN_IN_PROGRESS.
-Job `1770156` was submitted once and observed PENDING (Resources) at submission.
-No completed Stage 9 artifact/result is claimed in this submission record.
+STAGE09_DEVELOPMENT_RUN_FAILED_PREFLIGHT.
+Job `1770156` was submitted once, then failed in the synthetic filesystem
+preflight on 2026-09-09. Reconciliation on 2026-09-10 found no public pack,
+protected candidate artifact, manifest or success marker. The materializer was
+never invoked. No completed Stage 9 candidate/result is claimed.
 Stage 9 is NOT ACCEPTED. No protected DEVELOPMENT input has been materialized
 locally; HOLDOUT remains sealed, production/Pelias untouched.
 
@@ -133,19 +135,77 @@ performance. Production resource requests cannot be inferred from this run.
 - Logs: private `logs/slurm/safe-stage09-reference-evidence_1770156.out` and `.err`
   below the controlled project root. No row values are logged.
 
-Next action requires owner `continue`. Inspect accounting once:
+The original continuation command was:
 
 ```sh
 ssh goethe 'sacct -j 1770156 --format=JobID,State,ExitCode,Elapsed,AllocCPUS,MaxRSS,Start,End --parsable2'
 ```
 
-If still PENDING/RUNNING, record state and stop again. If completed, reconcile
-the immutable manifest, `_SUCCESS.json`, complete file/reference/input bindings,
-in-job private/final reopen certificates and aggregate diagnostics before
-declaring a DEVELOPMENT candidate ready. Further protected validation, if
-needed, remains SLURM-only; no login-node data processing or automatic rerun.
-For a failed job, preserve artifacts and collect sanitized failure/checkpoint
-metadata first. This record does not predict the job's eventual outcome.
+The 2026-09-10 owner continuation observed a terminal failure, not a running
+job. The subsequent read-only checks below reconcile that failure; no polling
+loop, cancellation, resubmission or protected row inspection occurred.
+
+### Terminal reconciliation — 2026-09-10
+
+| Item | Observed result |
+|---|---|
+| Job/state/exit | 1770156 / FAILED / 1:0 |
+| Start UTC | 2026-09-09T19:18:04Z |
+| End UTC | 2026-09-09T19:18:09Z |
+| Elapsed | 00:00:05 |
+| Requested resources | 4 CPUs, 32 GiB, 24-hour limit |
+| Scheduler allocation | 80 CPUs, 32 GiB, one node; not measured CPU use |
+| MaxRSS | Accounting reported 0 for this short step; no usable peak-memory measurement |
+| Execution location | Scheduled compute job; private PanFS project filesystem |
+| Failure | ATOMIC_NO_REPLACE_FAILED in synthetic `_atomic_rename` preflight |
+| Source/target state | Synthetic source directory/file preserved (0700/0600); rename target absent |
+| Public derived pack | Not created |
+| Protected Stage 8 payload access | Not reached; materializer invocation follows the failed preflight |
+| Stage 9 evidence/publication | Not started; no evidence counts, candidate/profile/logical fingerprint, manifest or success marker |
+
+The exact launcher and traceback establish the failing call: Linux
+`renameat2(..., RENAME_NOREPLACE)` returned nonzero. The site and exact runtime
+checks preceding it passed; the filesystem preflight success print was never
+reached. This is an operational/publication-compatibility failure, not reference
+evidence, address invalidity, an upstream scientific defect or a validated run.
+No filesystem fallback was enabled and no execution guard was weakened.
+
+The helper discarded `ctypes.get_errno()`, so the exact kernel error is **not
+established**. Unsupported PanFS flag semantics is a hypothesis, not a proven
+root cause. A local synthetic pass did not establish compute-filesystem support.
+The frozen design's prohibition on unsupported publication primitives remains
+binding; do not replace the operation with an unchecked check-then-rename race.
+
+Preserved private diagnostic directory:
+`/work/footprint/donyadidegan/safe_geocoding_pipeline/derived/controlled/stage09/tmp/job_1770156`.
+Only its 31-byte invented preflight sentinel exists. Log reconciliation:
+
+| Private log | Bytes | SHA-256 |
+|---|---:|---|
+| safe-stage09-reference-evidence_1770156.out | 0 | e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 |
+| safe-stage09-reference-evidence_1770156.err | 777 | 23c1de40ff92e1d14447ee708f94832157adb581a59686c806e79eeb4a57b847 |
+
+The exact detached executable checkout remains clean. The frozen reference
+versions/lock, Stage 0–8 source and accepted fingerprints remain unchanged.
+HOLDOUT is sealed; production/Pelias untouched. This continuation changes only
+sanitized status/report documentation; no executable or reference changes.
+
+### Next bounded step — owner authorization required
+
+Request one short, **synthetic-only SLURM filesystem diagnostic**, not a
+DEVELOPMENT materializer retry. Commit/push its executable first. In a new
+private diagnostic directory on the same filesystem, capture the numeric/symbolic
+errno immediately after `renameat2` and test fresh-target and existing-target
+collision behavior, directory fsync and same-invocation ownership. Retain all
+invented sentinels and attempts; emit only fixed codes/OS numbers and aggregates.
+Do not open Stage 8, address rows, reference payloads, HOLDOUT or production.
+
+Use that evidence to determine whether a compatible implementation fix is
+possible under the frozen publication contract. If the contract genuinely
+requires a filesystem/design exception, obtain owner review before changing it.
+Collect the complete compatibility defect ledger and test the correction before
+requesting a new controlled DEVELOPMENT run. No additional job is authorized by
+this report itself and no automatic retry has been submitted.
 
 ## Validation and complete pre-submission defect ledger
 
