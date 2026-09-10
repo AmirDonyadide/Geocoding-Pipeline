@@ -8,7 +8,8 @@ report. Stage 9 is **IMPLEMENTED — DEVELOPMENT PREFLIGHT FAILED — NOT ACCEPT
 Job `1770156` failed before materializer invocation: the synthetic atomic
 no-replace rename returned an error on the compute filesystem. No public pack
 or protected candidate was created. Exact errno was not retained; a bounded
-synthetic-only filesystem diagnostic needs owner authorization before retry.
+synthetic-only filesystem diagnostic was separately authorized by the owner on
+2026-09-10. It does not authorize a DEVELOPMENT retry or publication fallback.
 Execution details and subsequent state belong in the
 [DEVELOPMENT record](../../reports/development/stage09.md).
 

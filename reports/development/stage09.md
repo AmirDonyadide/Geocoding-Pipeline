@@ -190,7 +190,7 @@ versions/lock, Stage 0–8 source and accepted fingerprints remain unchanged.
 HOLDOUT is sealed; production/Pelias untouched. This continuation changes only
 sanitized status/report documentation; no executable or reference changes.
 
-### Next bounded step — owner authorization required
+### Proposed bounded step after the failure
 
 Request one short, **synthetic-only SLURM filesystem diagnostic**, not a
 DEVELOPMENT materializer retry. Commit/push its executable first. In a new
@@ -204,8 +204,60 @@ Use that evidence to determine whether a compatible implementation fix is
 possible under the frozen publication contract. If the contract genuinely
 requires a filesystem/design exception, obtain owner review before changing it.
 Collect the complete compatibility defect ledger and test the correction before
-requesting a new controlled DEVELOPMENT run. No additional job is authorized by
-this report itself and no automatic retry has been submitted.
+requesting a new controlled DEVELOPMENT run. This proposal did not itself
+authorize an additional job; no automatic retry was submitted.
+
+### Synthetic-only filesystem diagnostic — authorized 2026-09-10
+
+The owner's subsequent `continue` approved the specifically requested short
+synthetic-only SLURM filesystem diagnostic. This is not authorization to rerun
+DEVELOPMENT, change the frozen design or enable a publication fallback.
+
+The diagnostic module `preprocessing/stage09_filesystem_diagnostic.py` and
+[`stage09_filesystem_diagnostic.sbatch`](../../cluster/goethe_nhr/stage09_filesystem_diagnostic.sbatch)
+accept no scientific input paths. They use the unchanged exact existing runtime
+and a new clean detached Git executable. The new output directory is restricted
+to the private Stage 9 `filesystem_diagnostics` parent. Original job `1770156`
+and its sentinel/logs are never altered.
+
+Six bounded cases are collected: NOREPLACE against an absent target, an empty
+directory, a nonempty directory and a file; zero-flag rename against a fresh
+target; ordinary POSIX rename against a fresh target. The last two are diagnostic
+baselines only, never a materializer fallback, and never operate on an existing
+target. Capture return code and numeric/symbolic errno immediately after the
+native call. Check same filesystem, source/target sentinel preservation,
+within-invocation ownership, before/after directory fsync and correspondence
+between return code and observed effect. Retain all invented files/directories.
+
+Resources: one CPU, 2 GiB, five minutes, `general1`, `--no-requeue`. Site/SLURM,
+runtime, exact pushed/clean/detached executable and new/private output guards
+precede creation. No Stage 8, references, HOLDOUT, production, network API or
+materializer call is present. The report is an operational JSON diagnostic,
+not Stage 9 evidence; no `_SUCCESS.json` or candidate publication is generated.
+Successful diagnostic collection can report an unavailable primitive and must
+not be interpreted as successful Stage 9 publication.
+
+Local diagnostic tests: 18 pass, covering actual local synthetic rename/collision
+behavior, unsupported errno values, native signatures/flags, stale-errno reset,
+missing symbols, fsync errors, inconsistent syscall outcomes, private/existing
+targets and guard-before-access. Mypy (94 source files), Ruff and format checks
+pass. Error-handling/testing skills informed immediate errno capture and the
+fault-injection checks. These tests do not establish PanFS behavior.
+
+The complete safe local suite passes 710 tests (17.21 seconds); report/link
+validation, CLI help, SBATCH syntax, source mypy, Ruff/format and frozen-contract
+checks pass. No Stage 9 materializer source, scientific schema, reference lock
+or accepted Stage 0–8 file is changed by the probe.
+
+At preparation time, two bounded SSH attempts failed to resolve
+`goethe.hhlr-gu.de`. No diagnostic job has been submitted. Restore Goethe/VPN
+connectivity before the already authorized single submission; do not infer a
+job from a failed SSH attempt.
+
+Submit the diagnostic once after its executable commit/push; record the exact
+job/SHA/output. If pending/running, stop without repeated polling or resubmission.
+After completion, review only its synthetic result and establish the exact
+compatibility issue before proposing a correction and DEVELOPMENT retry.
 
 ## Validation and complete pre-submission defect ledger
 

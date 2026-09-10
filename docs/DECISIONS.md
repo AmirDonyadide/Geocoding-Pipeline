@@ -1399,6 +1399,28 @@ to change a decision or start a stage.
   continuation. HOLDOUT sealed; production/Pelias untouched. Stage 9 remains
   NOT ACCEPTED and no ready candidate is claimed.
 
+### D053 — Authorize one bounded synthetic filesystem diagnostic
+
+- **Date:** 2026-09-10.
+- **Authority:** The owner answered `continue` to the explicit request for one
+  short synthetic-only SLURM filesystem diagnostic after D052. This authorizes
+  preparing/testing/pushing the probe and submitting it once; not a protected
+  DEVELOPMENT rerun, scientific redesign or publication fallback.
+- **Scope:** A new owner-only diagnostic tree, fixed invented sentinels, immediate
+  native errno capture, absent/existing-target collision behavior, fsync and
+  same-invocation ownership checks. Zero-flag/POSIX fresh-target baselines are
+  measurements only, never an enabled materializer fallback. No prior attempt,
+  source data or public-reference payload is opened or altered.
+- **Execution:** Exact pushed detached Git checkout, existing guarded runtime;
+  one CPU, 2 GiB, five minutes on `general1`, automatic requeue disabled. No
+  scientific Stage 9 output or success marker is produced. Stop if pending or
+  running; use the completed diagnostic to establish the compatibility issue
+  before proposing any Stage 9 execution correction or retry.
+- **Evidence:** Test and submission details are maintained in the
+  [Stage 9 execution record](../reports/development/stage09.md). The frozen
+  contract/reference pack, Stage 0–8 accepted science and original failed
+  executable remain unchanged; Stage 9 remains NOT ACCEPTED.
+
 ## Open decisions
 
 These questions require future stage designs and explicit approval:

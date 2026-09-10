@@ -363,7 +363,8 @@ accepted transition boundary is summarized in the authoritative
   implementation/local validation are complete; one controlled DEVELOPMENT
   job `1770156` failed in the synthetic atomic-rename preflight, before public-pack
   construction or protected input access. No Stage 9 candidate/acceptance is claimed.
-  A bounded synthetic filesystem diagnostic is proposed for owner authorization.
+  A bounded synthetic-only filesystem diagnostic is separately owner-authorized;
+  no DEVELOPMENT retry or publication fallback is authorized by that diagnostic.
   The complete design contract is the
   [Stage 9 design](stages/STAGE09_OFFLINE_REFERENCE_EVIDENCE.md). No Stage 0–8
   change is required; the Stage 10 boundary handoff is sufficient through the
