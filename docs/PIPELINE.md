@@ -375,6 +375,8 @@ accepted transition boundary is summarized in the authoritative
   requires one separately authorized synthetic PanFS exclusive-create diagnostic
   before integration. No active materializer/DEVELOPMENT launcher change or
   DEVELOPMENT retry is authorized by that diagnostic.
+  Diagnostic `1771149` is submitted and was PENDING (Priority) at submission;
+  its eventual capability result must precede a new owner integration decision.
   The complete design contract is the
   [Stage 9 design](stages/STAGE09_OFFLINE_REFERENCE_EVIDENCE.md). No Stage 0–8
   change is required; the Stage 10 boundary handoff is sufficient through the

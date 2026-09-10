@@ -502,6 +502,42 @@ contracts/reports are unchanged. Existing materializer, publication helper,
 DEVELOPMENT launcher and earlier diagnostic sources are byte-for-byte unchanged.
 No PanFS capability result is claimed until the scheduled diagnostic is complete.
 
+#### Exclusive-create diagnostic submission receipt
+
+- Job `1771149`; submission UTC `2026-09-10T15:10:06Z`.
+- Single submission-time observation: PENDING, reason Priority, dependencies
+  none, `Requeue=0`, `Restarts=0`. Stop without polling/cancellation/resubmission.
+- Exact pushed diagnostic executable:
+  `a9e6ede7c8aa45f8f11b0eadc797839e46c5b057`.
+- Clean detached Git checkout:
+  `/work/footprint/donyadidegan/safe_geocoding_pipeline/integration_stage09/a9e6ede7c8aa45f8f11b0eadc797839e46c5b057`.
+  HTTPS cloning lacked credentials on Goethe; the existing approved checkout's
+  configured Git remote successfully supplied the new clone. No source rsync,
+  credential printing or old-checkout mutation occurred.
+- New synthetic output:
+  `/work/footprint/donyadidegan/safe_geocoding_pipeline/derived/controlled/stage09/filesystem_diagnostics/stage09_fsdiag_20260910T150932Z_a9e6ede7c8aa`.
+- Result filename: `stage09_exclusive_create_diagnostic.json`; no hash or
+  capability confirmation is invented before completion.
+- Requested resources: `general1`, account `footprint`, one node, one task,
+  one CPU, 2 GiB, five minutes, no automatic requeue.
+- Existing unchanged runtime:
+  `/work/footprint/donyadidegan/safe_geocoding_pipeline/runtimes/stage06/stage06_development_20260828T223804Z_f39047cc825d`.
+- Private logs: `logs/slurm/safe-stage09-excldiag_1771149.out` and `.err` under
+  the controlled project root. No protected/reference input is supplied.
+
+On owner `continue`, inspect accounting once:
+
+```sh
+ssh goethe 'TZ=UTC sacct -j 1771149 --format=JobID,State,ExitCode,Elapsed,AllocCPUS,MaxRSS,Start,End --parsable2'
+```
+
+If still pending/running, stop. If terminal, reconcile only the exact synthetic
+report, syscall/errno and collision/barrier/sentinel/seal/reservation/fsync/
+reopen/topology evidence. A passing capability result is not permission to
+integrate or retry DEVELOPMENT. Stop for explicit owner integration authorization.
+Original jobs `1770156`/`1771054`, Stage 0–8 and frozen Stage 9 science/references
+remain unchanged; HOLDOUT sealed, production/Pelias untouched.
+
 ## Validation and complete pre-submission defect ledger
 
 Local runtime is exact Python 3.14.3/Unicode 16.0.0, PyArrow 25.0.0, DuckDB 1.5.5.

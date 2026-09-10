@@ -26,6 +26,9 @@ conditionally approved its logic but requires direct PanFS exclusive-create,
 collision and multi-process evidence before integration. Exactly one small
 synthetic-only diagnostic is authorized under D056. The active materializer and
 DEVELOPMENT launcher remain unchanged; no DEVELOPMENT retry is authorized.
+Exclusive-create diagnostic `1771149` was submitted once at exact executable
+`a9e6ede7c8aa45f8f11b0eadc797839e46c5b057` and observed PENDING (Priority).
+No capability result is claimed before completion.
 Execution details and subsequent state belong in the
 [DEVELOPMENT record](../../reports/development/stage09.md).
 
