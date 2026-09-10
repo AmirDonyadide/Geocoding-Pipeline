@@ -7,8 +7,11 @@ Job `1770156` was submitted once, then failed in the synthetic filesystem
 preflight on 2026-09-09. Reconciliation on 2026-09-10 found no public pack,
 protected candidate artifact, manifest or success marker. The materializer was
 never invoked. No completed Stage 9 candidate/result is claimed.
-The separately authorized synthetic-only filesystem diagnostic is now submitted
-as job `1771054`, observed PENDING (Resources) at submission on 2026-09-10.
+The separately authorized synthetic-only filesystem diagnostic, job `1771054`,
+completed on 2026-09-10. Fresh-target `renameat2(RENAME_NOREPLACE)` failed with
+`EINVAL` (22); zero-flag and POSIX fresh-target baselines succeeded. The tested
+no-replace publication primitive is not usable in that compute/filesystem
+environment. No fallback or DEVELOPMENT retry has been enabled or submitted.
 Stage 9 is NOT ACCEPTED. No protected DEVELOPMENT input has been materialized
 locally; HOLDOUT remains sealed, production/Pelias untouched.
 
@@ -295,6 +298,114 @@ and logs, including immediate errno, collision preservation, fsync and ownership
 observations. Do not infer a materializer fallback or submit a DEVELOPMENT retry
 from a successful diagnostic. Original job `1770156` remains a failed preflight;
 no Stage 9 candidate exists and no Stage 0–8/ref-pack/scientific change is made.
+
+#### Diagnostic terminal reconciliation — 2026-09-10
+
+The next owner `continue` observed COMPLETED through one accounting query, then
+read only this diagnostic's synthetic JSON, logs and checkout metadata. No new
+job, protected input inspection, reference preparation or materializer invocation
+occurred. Submission-time PENDING observations above remain historical receipts.
+
+| Item | Observed result |
+|---|---|
+| Job/state/exit | 1771054 / COMPLETED / 0:0 |
+| Start UTC | 2026-09-10T12:31:30Z |
+| End UTC | 2026-09-10T12:31:33Z |
+| Elapsed | 00:00:03 |
+| Requested resources | 1 CPU, 2 GiB, five-minute limit |
+| Scheduler allocation | 80 CPUs; allocation is not measured CPU use |
+| MaxRSS | Batch accounting reported 0; no usable peak-memory measurement |
+| Exact executable | 4915852d874a11a5f437d6cfac8837b5f9b6ebd8; detached checkout still clean |
+| Kernel/platform | Linux 5.14.0-611.9.1.el9_7.x86_64 |
+| Exact semantic runtime | Python 3.14.3, Unicode 16.0.0, PyArrow 25.0.0, DuckDB 1.5.5 |
+| Output meaning | Synthetic filesystem diagnostic only; not a Stage 9 candidate or publication success |
+
+All six cases used same-filesystem source/target locations in the private PanFS
+project tree. Every before/after directory fsync succeeded (12 observations).
+No unexpected mutation or inconsistent return-code/effect pair was observed.
+
+| Case | Native result / errno | Observed effect |
+|---|---|---|
+| NOREPLACE, absent target | -1 / 22 EINVAL | Source intact; target still absent |
+| NOREPLACE, empty-directory collision | -1 / 17 EEXIST | Source and original target intact |
+| NOREPLACE, nonempty-directory collision | -1 / 17 EEXIST | Source and original target intact |
+| NOREPLACE, file collision | -1 / 17 EEXIST | Source and original target intact |
+| renameat2, zero flags, absent target | 0 / 0 | Source moved intact; same-invocation identity preserved |
+| POSIX rename, absent target | 0 / 0 | Source moved intact; same-invocation identity preserved |
+
+`noreplace_supported_in_this_probe=false` and
+`all_observed_effects_consistent=true`. The fresh-target flag-dependent failure
+establishes incompatibility of the current no-replace publication operation in
+this observed kernel/filesystem environment. It does not identify an internal
+PanFS defect, establish behavior on every PanFS installation, or recover the
+discarded errno from original job `1770156`. That original error remains unknown;
+the later probe reproduces the failing operation with immediate errno capture.
+
+The existing collision checks are useful but do not compensate for failure to
+publish a fresh target. Successful ordinary-rename baselines establish only the
+tested fresh-target behavior. They do not prove a race-free no-overwrite protocol;
+an existence check followed by ordinary rename is not an approved replacement.
+Directory fsync returning success likewise is not a power-loss durability test.
+
+The report remains in the exact synthetic target recorded above. Its bytes were
+independently retrieved and SHA-256 checked locally, then its job/executable/
+runtime/scope, all six case results and all preservation/ownership/fsync fields
+were checked against the observed results. Only these sanitized summaries and
+hashes enter Git; the diagnostic tree and logs remain private and preserved.
+
+| Private diagnostic file | Bytes | SHA-256 |
+|---|---:|---|
+| stage09_filesystem_diagnostic.json | 4719 | 8742918b6647ef4283a1f5445a6240c84009239257c782ee367903c30549ed5a |
+| safe-stage09-fsdiag_1771054.out | 740 | c22ef98b0b007aae75b2f6131bf2126627cddc5eeacc8f5f200ddc06ea71ebbb |
+| safe-stage09-fsdiag_1771054.err | 0 | e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 |
+
+These files are 0600; the diagnostic's topology validation required 0700
+directories, 0600 regular files and no symlinks/hardlinks. The probe's scope and
+executable contain no protected/reference input reads or network API calls.
+Reported protected/reference payloads opened and network calls are all zero;
+materializer/fallback/candidate flags are all false. No scientific success marker
+was created. This is a completed diagnostic, not a successful DEVELOPMENT run.
+
+#### Complete bounded compatibility ledger and next decision
+
+| Issue | Evidence and disposition |
+|---|---|
+| Fresh no-replace publication is incompatible with the observed environment | EINVAL on an absent target while zero-flag/POSIX baselines succeed; current preflight remains fail-closed |
+| Original helper loses the native error | Original job's errno is unrecoverable; diagnostic now captures it immediately. Any approved correction must retain fixed numeric/symbolic diagnostics without printing input values |
+| Baseline success does not establish collision safety | No check-then-rename fallback. A replacement must explicitly preserve no-overwrite, ownership, fault reconciliation and immutable final-path semantics |
+| Local synthetic behavior did not prove Goethe compatibility | Any approved protocol needs its complete local fault/race suite and one separately authorized synthetic compute-filesystem validation before requesting a DEVELOPMENT retry |
+| Successful syscall/fsync observations have limited scope | No claim of global PanFS support, actual power-loss durability, address evidence, candidate publication or Stage 9 acceptance |
+
+All findings were collected before this reporting-only update. No scientific
+contract, reference version, schema, Stage 0–8 source/fingerprint or materializer
+executable was changed. The operational blocker is **not resolved** merely by
+recording it; there is no approved replacement protocol yet.
+
+Proposed next bounded step, requiring owner approval: prepare a publication-only
+compatibility revision for review. Evaluate exclusive per-run namespace ownership
+followed by atomic fresh-child rename on the supported filesystem, with an
+explicit concurrency/threat model, exact final topology and failure/reopen tests.
+This is a proposal to assess, not a claim of equivalence to kernel no-replace.
+Concurrent writers, foreign-target preservation, stale ownership, ambiguous
+post-rename failure, pre-success interruption, fsync failure and last-operation
+ownership checks must all be addressed together. If that cannot preserve the
+frozen guarantees, report the required filesystem/design exception instead of
+weakening them. No Stage 0–8 change or protected input is needed for that review.
+
+Do not implement a fallback, change the frozen design, submit another synthetic
+job or retry DEVELOPMENT on the authority of this completed diagnostic alone.
+Owner review of the bounded publication correction is the next gate.
+
+Reconciliation validation: 710 safe local tests pass (17.41 seconds), including
+the 18 diagnostic tests and Stage 7/8 regressions. Report/link validation, strict
+source mypy (94 files), Ruff lint/format (140 files), both Stage 9 SBATCH syntax
+checks and `git diff --check` pass. The changed-file/privacy review contains
+only four sanitized Markdown documents, no generated payload or executable.
+Direct Git comparison with the design-freeze commit confirms accepted Stage 7/8
+source/tests/contracts/reports and execution guards are unchanged; frozen Stage 9
+design/reference-lock hashes still match. There is no unexpected runtime-guard
+result or local test failure. These local passes do not resolve the observed
+Goethe publication incompatibility.
 
 ## Validation and complete pre-submission defect ledger
 

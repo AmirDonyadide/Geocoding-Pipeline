@@ -1421,6 +1421,31 @@ to change a decision or start a stage.
   contract/reference pack, Stage 0–8 accepted science and original failed
   executable remain unchanged; Stage 9 remains NOT ACCEPTED.
 
+### D054 — Reconcile the synthetic diagnostic; retain the publication blocker
+
+- **Date:** 2026-09-10; owner continuation after diagnostic submission.
+- **Evidence:** Diagnostic `1771054`, exact executable
+  `4915852d874a11a5f437d6cfac8837b5f9b6ebd8`, completed with exit `0:0` in three
+  seconds. Immediate errno capture found `EINVAL` (22) for a fresh-target
+  `renameat2(RENAME_NOREPLACE)`; three existing-target collisions returned
+  `EEXIST` with both sides preserved. Zero-flag and POSIX fresh-target baselines
+  succeeded; all 12 directory-fsync observations passed. The report hash is
+  `8742918b6647ef4283a1f5445a6240c84009239257c782ee367903c30549ed5a`.
+- **Conclusion and limits:** The current no-replace operation is incompatible
+  with the tested kernel/filesystem environment. This is not a diagnosis of
+  every PanFS installation or recovery of original job `1770156`'s lost errno.
+  Baseline success does not prove a collision-safe replacement; fsync success
+  is not a power-loss test. Diagnostic completion is not Stage 9 publication.
+- **Disposition:** Preserve both attempts and all synthetic diagnostics. The
+  [execution report](../reports/development/stage09.md) records the complete
+  bounded compatibility ledger and proposes owner review of a publication-only
+  correction, including ownership/concurrency/fault behavior. No fallback,
+  scientific-design exception or additional job is authorized by this result.
+  No executable, Stage 0–8 source/fingerprint or reference asset changed in this
+  reconciliation. No protected/reference payload was opened by the diagnostic;
+  HOLDOUT stays sealed and production/Pelias untouched. Stage 9 is NOT ACCEPTED;
+  the operational blocker remains open and no ready candidate is claimed.
+
 ## Open decisions
 
 These questions require future stage designs and explicit approval:
