@@ -10,6 +10,8 @@ no-replace rename returned an error on the compute filesystem. No public pack
 or protected candidate was created. Exact errno was not retained; a bounded
 synthetic-only filesystem diagnostic was separately authorized by the owner on
 2026-09-10. It does not authorize a DEVELOPMENT retry or publication fallback.
+Diagnostic job `1771054` was submitted once and observed PENDING (Resources);
+its executable is `4915852d874a11a5f437d6cfac8837b5f9b6ebd8`. No result is yet claimed.
 Execution details and subsequent state belong in the
 [DEVELOPMENT record](../../reports/development/stage09.md).
 

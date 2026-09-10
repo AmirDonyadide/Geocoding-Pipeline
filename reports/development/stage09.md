@@ -7,6 +7,8 @@ Job `1770156` was submitted once, then failed in the synthetic filesystem
 preflight on 2026-09-09. Reconciliation on 2026-09-10 found no public pack,
 protected candidate artifact, manifest or success marker. The materializer was
 never invoked. No completed Stage 9 candidate/result is claimed.
+The separately authorized synthetic-only filesystem diagnostic is now submitted
+as job `1771054`, observed PENDING (Resources) at submission on 2026-09-10.
 Stage 9 is NOT ACCEPTED. No protected DEVELOPMENT input has been materialized
 locally; HOLDOUT remains sealed, production/Pelias untouched.
 
@@ -250,14 +252,49 @@ checks pass. No Stage 9 materializer source, scientific schema, reference lock
 or accepted Stage 0–8 file is changed by the probe.
 
 At preparation time, two bounded SSH attempts failed to resolve
-`goethe.hhlr-gu.de`. No diagnostic job has been submitted. Restore Goethe/VPN
-connectivity before the already authorized single submission; do not infer a
-job from a failed SSH attempt.
+`goethe.hhlr-gu.de`, and no job was submitted during that failure. The owner's
+subsequent `nslookup`/`continue` request resolved both DNS and SSH connectivity.
+The exact pushed diagnostic checkout was then prepared and verified clean and
+detached before the single submission below.
 
 Submit the diagnostic once after its executable commit/push; record the exact
 job/SHA/output. If pending/running, stop without repeated polling or resubmission.
 After completion, review only its synthetic result and establish the exact
 compatibility issue before proposing a correction and DEVELOPMENT retry.
+
+#### Diagnostic submission receipt
+
+- Job: `1771054`; UTC submission `2026-09-10T11:16:01Z`.
+- Single submission-time observation: PENDING, reason Resources, dependencies
+  none; `Requeue=0`, `Restarts=0`. No further polling/cancellation/resubmission.
+- Exact diagnostic executable: `4915852d874a11a5f437d6cfac8837b5f9b6ebd8`.
+- Requested resources: one CPU, 2 GiB, five minutes; partition `general1`,
+  account `footprint`. Actual allocation/use is not yet measured.
+- New synthetic-only target:
+  `/work/footprint/donyadidegan/safe_geocoding_pipeline/derived/controlled/stage09/filesystem_diagnostics/stage09_fsdiag_20260910T111601Z_4915852d874a`.
+- Result filename: `stage09_filesystem_diagnostic.json`. No result/hash or
+  filesystem capability conclusion is claimed before collection.
+- Exact detached integration checkout:
+  `/work/footprint/donyadidegan/safe_geocoding_pipeline/integration_stage09/4915852d874a11a5f437d6cfac8837b5f9b6ebd8`.
+- Runtime: the unchanged private Stage 6 runtime recorded above. No installation,
+  dynamic source pull, reference refresh or shared-environment change.
+- Private logs: `logs/slurm/safe-stage09-fsdiag_1771054.out` and `.err` under the
+  controlled project root. No scientific input paths are passed to this job.
+- Local continuation checks: all 18 diagnostic tests pass again; SBATCH syntax,
+  exact main/origin identity and clean tree verified before submission. The
+  earlier full local gate remains 710 passing tests.
+
+On owner `continue`, inspect accounting once:
+
+```sh
+ssh goethe 'TZ=UTC sacct -j 1771054 --format=JobID,State,ExitCode,Elapsed,AllocCPUS,MaxRSS,Start,End --parsable2'
+```
+
+If PENDING/RUNNING, stop again. If terminal, reconcile the exact synthetic report
+and logs, including immediate errno, collision preservation, fsync and ownership
+observations. Do not infer a materializer fallback or submit a DEVELOPMENT retry
+from a successful diagnostic. Original job `1770156` remains a failed preflight;
+no Stage 9 candidate exists and no Stage 0–8/ref-pack/scientific change is made.
 
 ## Validation and complete pre-submission defect ledger
 
