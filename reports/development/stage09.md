@@ -2,9 +2,9 @@
 
 ## Status
 
-Current: owner-approved publication integration complete; one corrected
-DEVELOPMENT retry is being prepared under D058 after the local gate. No corrected
-candidate is claimed before scheduled execution and full reconciliation.
+Current: STAGE09_CORRECTED_DEVELOPMENT_RUN_IN_PROGRESS. Corrected job `1771191`
+was submitted once after the complete local gate and observed PENDING (Resources).
+No corrected candidate is claimed before scheduled execution and full reconciliation.
 
 Historical result: STAGE09_DEVELOPMENT_RUN_FAILED_PREFLIGHT.
 Job `1770156` was submitted once, then failed in the synthetic filesystem
@@ -725,6 +725,50 @@ login-node shell checks. The exact existing runtime is executable, and reported
 PanFS free capacity exceeds the 256 GiB guard (capacity is not a personal quota
 guarantee). Full input/inventory/candidate verification remains a scheduled job
 gate before evaluation. No reference refresh or new public acquisition occurred.
+
+### Corrected single-submission receipt
+
+- Corrected executable, pushed main and new clean detached Goethe checkout:
+  `3e10ac7c1309c2636f35c0709fa283305d60d998`.
+- Job `1771191`; submission UTC `2026-09-10T15:56:41Z`.
+- One submission-time state observation: **PENDING**, reason **Resources**,
+  dependencies none, `Requeue=0`, `Restarts=0`. No follow-up polling,
+  cancellation or second corrected submission.
+- Requested: general1 / footprint, one node, one task, four CPUs, 32 GiB,
+  24 hours; automatic requeue disabled. No running resource measurements yet.
+- Publication key: `stage09_development_20260910T155542Z_3e10ac7c1309`.
+- Artifact target:
+  `/work/footprint/donyadidegan/safe_geocoding_pipeline/derived/controlled/stage09/development/stage09_development_20260910T155542Z_3e10ac7c1309`.
+- New public-pack target:
+  `/work/footprint/donyadidegan/safe_geocoding_pipeline/derived/controlled/stage09/public_pack/stage09_public_pack_20260907_v1_3e10ac7c1309`.
+- Executable checkout:
+  `/work/footprint/donyadidegan/safe_geocoding_pipeline/integration_stage09/3e10ac7c1309c2636f35c0709fa283305d60d998`.
+- The exact existing Stage 6 runtime, accepted Stage 8 artifact and frozen raw
+  reference root are unchanged from the original receipt above. The new checkout
+  arrived through Git, passed clean/detached/SHA and shell-syntax checks, and
+  contains the exact `61cc5850…` reference lock. Prior checkouts were not mutated.
+- Both publication namespaces were empty immediately before submission; both
+  new targets were absent and not symlinks. Canonical-path/scope, exclusive
+  ownership, complete reference/input verification and actual filesystem
+  preflight are rechecked inside the scheduled process.
+- Private logs: `logs/slurm/safe-stage09-reference-evidence_1771191.out` and
+  `.err` beneath the controlled project root. No reference-pack/candidate manifest,
+  registration, commit ID, profile hash or logical result is fabricated in this
+  pending receipt.
+
+On owner `continue`, inspect accounting once:
+
+```sh
+ssh goethe 'TZ=UTC sacct -j 1771191 --format=JobID,State,ExitCode,Elapsed,AllocCPUS,MaxRSS,Start,End --parsable2'
+```
+
+If still pending/running, record the state and stop. If terminal, reconcile the
+exact new run/public-pack reservation, manifest, bound `_SUCCESS.json`, empty
+`_COMMITTED`, inventory and publication effects; do not use directory existence or
+SLURM exit alone as success. Validate all scientific/input/reference/logical
+bindings and sanitized aggregates before a candidate-ready claim. A failed run
+must be classified and preserved for owner review, never automatically retried.
+HOLDOUT remains sealed; production/Pelias untouched. Stage 9 is NOT ACCEPTED.
 
 ## Historical original validation and complete pre-submission defect ledger
 

@@ -9,6 +9,10 @@ integration below replaces only Stage 9 publication; no scientific/reference
 change or Stage 0–8 modification. The prior failures and diagnostics below remain
 historical evidence. Stage 9 is NOT ACCEPTED; no corrected candidate is claimed
 before its scheduled execution and validation.
+The corrected executable is `3e10ac7c1309c2636f35c0709fa283305d60d998`.
+Job `1771191` was submitted once at `2026-09-10T15:56:41Z` and observed PENDING
+(Resources), without dependencies or requeue. The execution record carries the
+immutable targets and next accounting/reconciliation action; stop without polling.
 
 The owner authorized implementation, synthetic/local validation, one controlled
 Goethe-NHR SLURM DEVELOPMENT execution, publication validation and a candidate

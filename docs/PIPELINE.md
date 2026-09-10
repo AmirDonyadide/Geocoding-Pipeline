@@ -383,6 +383,9 @@ accepted transition boundary is summarized in the authoritative
   and candidate publication. No active publication path or corrected preflight
   requires no-replace rename. No corrected candidate is claimed before execution
   and full reconciliation; Stage 9 is not accepted.
+  Corrected job `1771191`, executable `3e10ac7c1309c2636f35c0709fa283305d60d998`,
+  was submitted once and observed PENDING (Resources); no repeated polling or
+  further retry is authorized.
   The complete design contract is the
   [Stage 9 design](stages/STAGE09_OFFLINE_REFERENCE_EVIDENCE.md). No Stage 0–8
   change is required; the Stage 10 boundary handoff is sufficient through the
