@@ -407,6 +407,41 @@ design/reference-lock hashes still match. There is no unexpected runtime-guard
 result or local test failure. These local passes do not resolve the observed
 Goethe publication incompatibility.
 
+### Publication-protocol revision — design/local-only owner authorization
+
+Following the completed diagnostic, the owner explicitly authorized preparation
+of a bounded publication-protocol revision for review, with synthetic/local tests
+only. No cluster probe or DEVELOPMENT retry was authorized or submitted; no
+protected Stage 8 payload, HOLDOUT, production or Pelias was accessed.
+
+The [revision candidate](../../docs/stages/STAGE09_PUBLICATION_PROTOCOL_REVISION.md)
+selects exclusive permanent run reservation plus fully validated registration and
+an atomic empty commit seal. No rename, hard-link, symlink or stale-lock takeover
+is required. Existing ordinary creation/fsync observations and cited POSIX
+semantics support the choice; no new PanFS capability probe is required to
+present it for review. Namespace visibility and durable acknowledgment remain
+distinct, and unverified postcommit outcomes explicitly require reconciliation.
+Exact accepted publications can be adopted; conflicting/incomplete keys are
+preserved and fail closed. This is operational publication, not Stage 9 scientific
+acceptance or a new evidence state.
+
+The executable model and fault tests live only under `tests/`. The active
+materializer, public-pack builder, terminal validator, launcher and generic
+publication infrastructure are unchanged. The addendum lists their exact future
+integration delta, including requiring the seal in all readers. Frozen Stage 9
+science/design/reference bytes and Stage 0–8 source/fingerprints are unchanged.
+The complete bounded defect ledger is in the addendum; no deployment-ready fix
+or successful DEVELOPMENT artifact is claimed. Stop at owner review of the
+publication-protocol proposal, not at another job submission.
+
+Local revision gate: 62 focused model tests pass; the complete safe suite passes
+772 tests (17.81 seconds), including Stage 7/8 regressions. Mypy passes for 94
+installed source files plus the model; Ruff lint/format (142 files), report/link
+and whitespace validation pass. Only the design addendum, two tests-only Python
+files, this report and three current documentation/decision records changed.
+No executable publication infrastructure changed. Skills informed the bounded
+protocol/fault review; they did not authorize another run or broader refactor.
+
 ## Validation and complete pre-submission defect ledger
 
 Local runtime is exact Python 3.14.3/Unicode 16.0.0, PyArrow 25.0.0, DuckDB 1.5.5.

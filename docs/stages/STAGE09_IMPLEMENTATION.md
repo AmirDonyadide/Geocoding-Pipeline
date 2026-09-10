@@ -18,6 +18,12 @@ and directory fsync checks passed. The current no-replace primitive is unusable
 in that observed environment. This does not authorize a check-then-rename
 fallback or establish a replacement publication protocol. The bounded
 compatibility ledger is recorded; publication correction requires owner review.
+The subsequent bounded authorization produced the
+[publication-protocol revision candidate](STAGE09_PUBLICATION_PROTOCOL_REVISION.md):
+exclusive permanent run reservation plus an atomic empty commit seal, supported
+by standard creation semantics and a tests-only synthetic model. It is not yet
+approved or integrated; the active materializer/launcher remain unchanged and
+no additional job is submitted.
 Execution details and subsequent state belong in the
 [DEVELOPMENT record](../../reports/development/stage09.md).
 

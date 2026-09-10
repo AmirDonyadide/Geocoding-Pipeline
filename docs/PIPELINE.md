@@ -368,6 +368,11 @@ accepted transition boundary is summarized in the authoritative
   succeeded. Collision preservation and directory fsync checks passed. The
   publication compatibility blocker remains unresolved; owner review is required
   before a correction. No DEVELOPMENT retry or fallback is authorized by the probe.
+  A separately authorized design/local-only
+  [publication revision candidate](stages/STAGE09_PUBLICATION_PROTOCOL_REVISION.md)
+  now proposes exclusive run reservation and a zero-byte commit seal; a tests-only
+  model exercises its fault/recovery rules. No active materializer or launcher
+  change, cluster probe or DEVELOPMENT retry accompanies this proposal.
   The complete design contract is the
   [Stage 9 design](stages/STAGE09_OFFLINE_REFERENCE_EVIDENCE.md). No Stage 0–8
   change is required; the Stage 10 boundary handoff is sufficient through the

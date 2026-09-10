@@ -1446,6 +1446,33 @@ to change a decision or start a stage.
   HOLDOUT stays sealed and production/Pelias untouched. Stage 9 is NOT ACCEPTED;
   the operational blocker remains open and no ready candidate is claimed.
 
+### D055 — Propose exclusive run reservation and commit seal for owner review
+
+- **Date/authority:** 2026-09-10. The owner expressly authorized one bounded
+  publication-protocol revision with design and synthetic/local validation only.
+  No protected input, cluster probe, DEVELOPMENT retry or scientific change.
+- **Proposal:** A canonical run is exclusively created once and never moved or
+  taken over. Its bound registration is prepared and fully validated before
+  exclusive creation of an empty `_COMMITTED` file atomically commits it.
+  Directory or `_SUCCESS.json` existence alone is not success. Exact external
+  expectations and complete reopening are mandatory; old consumers must be
+  changed only in a subsequently approved integration. No replacing rename,
+  hard-link, symlink or stale-lock recovery is introduced.
+- **Evidence:** Existing diagnostic creation/fsync success plus the documented
+  POSIX exclusive-create/mkdir semantics support selecting this protocol without
+  another cluster capability probe. Local tests cover faults and concurrent
+  publishers but do not claim a cross-node or power-loss experiment. The
+  [revision candidate](stages/STAGE09_PUBLICATION_PROTOCOL_REVISION.md) states
+  exact assumptions, identities, adoption rules, test matrix and full ledger.
+- **Disposition:** Design addendum and tests-only executable model, not an
+  installed publication change. Active Stage 9 source/launcher and generic
+  infrastructure remain unchanged pending owner review. A commit that may have
+  happened is reconciled once or reported explicitly unverified; it is never
+  destructively demoted. Exact existing success may be adopted without claiming
+  a new build. Failed/incomplete keys are never reused. Frozen Stage 9 science,
+  references and accepted Stage 0–8 remain unchanged; HOLDOUT sealed and
+  production/Pelias untouched. Stage 9 is NOT ACCEPTED.
+
 ## Open decisions
 
 These questions require future stage designs and explicit approval:
