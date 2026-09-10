@@ -7,14 +7,24 @@ Owner review after candidate `96d17e763addc21b0a1c321c3a03666e928c25c7`:
 requires direct Goethe PanFS exclusive-create/collision/concurrency evidence,
 superseding the original proposal's conclusion that standard semantics were
 sufficient without another diagnostic. Exactly one synthetic-only SLURM probe
-is now authorized; its scope/status is in the
+was authorized and has completed; its scope/status is in the
 [execution record](../../reports/development/stage09.md). No DEVELOPMENT retry,
 protected/reference input or publication integration is authorized.
 
-2026-09-10. DESIGN + SYNTHETIC/LOCAL VALIDATION ONLY, under the owner's bounded
-publication-revision authorization following reporting commit
-`780d96d9d8101d9974159b98a402dddeb2930e07`. No SLURM job, protected input access,
-reference refresh or DEVELOPMENT retry is authorized or performed here.
+Completed environment evidence: diagnostic `1771149`, exact executable
+`a9e6ede7c8aa45f8f11b0eadc797839e46c5b057`, passed all ten required cases on PanFS.
+Report SHA-256:
+`e8d8333201a8c0b061d12288fadf404d833a875ffe0a4d160d535b88e6844f35`.
+Fresh/colliding record, seal and reservation; three synchronized four-process
+races; directory fsync; repeated reopening/private topology; and symlink rejection
+all reconciled successfully. D057 records the measured capability confirmation.
+The environment gate is met, but **integration is still not authorized**.
+
+Original revision scope (2026-09-10): DESIGN + SYNTHETIC/LOCAL VALIDATION ONLY,
+under the owner's bounded publication-revision authorization following reporting
+commit `780d96d9d8101d9974159b98a402dddeb2930e07`. That authorization included
+no SLURM job, protected input access, reference refresh or DEVELOPMENT retry.
+The later diagnostic authorization and its completed evidence are recorded above.
 
 Proposed protocol: `exclusive_run_commit_seal_v2_candidate`. This addendum is
 **not adopted or connected to the materializer**. The installed publication
@@ -386,8 +396,9 @@ required. HOLDOUT, production, Pelias and protected Stage 8 payloads were untouc
 ## Owner gate
 
 The protocol is conditionally approved in principle, not authorized for
-integration. Complete only the newly authorized synthetic capability diagnostic,
-then stop for the owner. No DEVELOPMENT retry is authorized. Stage 9 stays
-NOT ACCEPTED and the previous DEVELOPMENT preflight failure remains truthful.
+integration. The separately authorized synthetic capability diagnostic is now
+complete and reconciled; stop for the owner. No DEVELOPMENT retry is authorized.
+Stage 9 stays NOT ACCEPTED and the previous DEVELOPMENT preflight failure remains
+truthful.
 
-NEXT: EXCLUSIVE-CREATE CAPABILITY DIAGNOSTIC, THEN OWNER AUTHORIZATION TO INTEGRATE.
+NEXT: OWNER AUTHORIZATION TO INTEGRATE PUBLICATION PROTOCOL.

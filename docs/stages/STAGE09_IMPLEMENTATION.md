@@ -27,8 +27,11 @@ collision and multi-process evidence before integration. Exactly one small
 synthetic-only diagnostic is authorized under D056. The active materializer and
 DEVELOPMENT launcher remain unchanged; no DEVELOPMENT retry is authorized.
 Exclusive-create diagnostic `1771149` was submitted once at exact executable
-`a9e6ede7c8aa45f8f11b0eadc797839e46c5b057` and observed PENDING (Priority).
-No capability result is claimed before completion.
+`a9e6ede7c8aa45f8f11b0eadc797839e46c5b057` and completed successfully. All ten
+PanFS cases passed: fresh create, EEXIST collision preservation, three four-process
+single-winner races, exact seal/reservation, fsync/reopen/private topology and
+symlink rejection. The environment-evidence gate is met; integration still
+requires explicit owner authorization. No DEVELOPMENT retry or source change.
 Execution details and subsequent state belong in the
 [DEVELOPMENT record](../../reports/development/stage09.md).
 

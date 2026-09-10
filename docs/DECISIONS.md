@@ -1497,6 +1497,31 @@ to change a decision or start a stage.
   carries exact executable/submission/result metadata. Stage 0–8 and frozen
   Stage 9 science/reference contracts remain unchanged; Stage 9 NOT ACCEPTED.
 
+### D057 — Confirm measured PanFS exclusive-create capability; stop before integration
+
+- **Date:** 2026-09-10; owner continuation of the one authorized synthetic job.
+- **Evidence:** Job `1771149`, exact executable
+  `a9e6ede7c8aa45f8f11b0eadc797839e46c5b057`, completed in five seconds with exit
+  `0:0`. All ten cases passed on PanFS: fresh O_CREAT|O_EXCL|O_NOFOLLOW and
+  mkdir, EEXIST collision preservation, three synchronized four-process races
+  with one winner/three losers each, exact empty seal, repeated byte/mode/owner/
+  single-link reopening and all four synthetic symlink rejections. All 23 recorded
+  parent-fsync checks passed. Report SHA-256:
+  `e8d8333201a8c0b061d12288fadf404d833a875ffe0a4d160d535b88e6844f35`.
+- **Independent reconciliation:** Report bytes/hash and all case outcomes checked
+  separately; exact hashes of all 11 regular files and full synthetic topology
+  reconfirmed through read-only shell metadata. Attempts/sentinels/logs preserved.
+  [Full evidence](../reports/development/stage09.md) distinguishes requested
+  resources, allocated CPUs and unavailable peak-memory measurement.
+- **Disposition:** D056's direct environment-evidence requirement is met for the
+  tested same-node operations. No cross-node, power-loss or integrated-protocol
+  result is inferred. This is capability evidence, not integration authorization
+  or Stage 9 acceptance. Only sanitized documentation changes in this continuation;
+  materializer/launcher, original jobs, accepted Stage 0–8 and frozen Stage 9
+  scientific/reference contracts remain unchanged. No protected/reference payload,
+  HOLDOUT, production or Pelias access and no DEVELOPMENT retry. Stop for explicit
+  owner authorization to integrate the publication protocol.
+
 ## Open decisions
 
 These questions require future stage designs and explicit approval:

@@ -12,6 +12,10 @@ completed on 2026-09-10. Fresh-target `renameat2(RENAME_NOREPLACE)` failed with
 `EINVAL` (22); zero-flag and POSIX fresh-target baselines succeeded. The tested
 no-replace publication primitive is not usable in that compute/filesystem
 environment. No fallback or DEVELOPMENT retry has been enabled or submitted.
+The separately authorized exclusive-create diagnostic `1771149` has now passed
+all ten required cases on PanFS. This confirms the measured publication
+primitives, not the integrated protocol or a Stage 9 candidate. Explicit owner
+authorization to integrate is the next gate; active publication code is unchanged.
 Stage 9 is NOT ACCEPTED. No protected DEVELOPMENT input has been materialized
 locally; HOLDOUT remains sealed, production/Pelias untouched.
 
@@ -537,6 +541,104 @@ reopen/topology evidence. A passing capability result is not permission to
 integrate or retry DEVELOPMENT. Stop for explicit owner integration authorization.
 Original jobs `1770156`/`1771054`, Stage 0–8 and frozen Stage 9 science/references
 remain unchanged; HOLDOUT sealed, production/Pelias untouched.
+
+#### Exclusive-create terminal reconciliation — 2026-09-10
+
+STAGE09_EXCLUSIVE_CREATE_PANFS_CAPABILITY_CONFIRMED.
+The owner continuation observed COMPLETED through one accounting query. Only
+the exact synthetic report, logs, retained fixture hashes/topology and detached
+checkout metadata were read subsequently. No additional job or integration.
+
+| Execution item | Observed value |
+|---|---|
+| Job/state/exit | 1771149 / COMPLETED / 0:0 |
+| Exact diagnostic executable | a9e6ede7c8aa45f8f11b0eadc797839e46c5b057 |
+| Start/end UTC | 2026-09-10T15:10:14Z / 2026-09-10T15:10:19Z |
+| Elapsed | 00:00:05 |
+| Requested | One node, one CPU, 2 GiB, five minutes; general1; no requeue |
+| Scheduler CPU allocation | 80 CPUs; not measured CPU usage |
+| MaxRSS | Batch accounting reported 0; no usable peak-memory measurement |
+| Filesystem/kernel | panfs / Linux 5.14.0-611.9.1.el9_7.x86_64 |
+| Runtime | Python 3.14.3, Unicode 16.0.0, PyArrow 25.0.0, DuckDB 1.5.5 |
+| Checkout | Exact executable HEAD, still clean and detached |
+
+The native open flags were `131265` on this Linux runtime:
+O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, with requested mode 0600 and no
+O_TRUNC. Native mkdir requested 0700. Errno was captured immediately after
+each tested call, independently of later write/fsync/close observations.
+
+| Case | Result |
+|---|---|
+| Fresh sentinel record | open returned descriptor 4, errno 0; exact 35-byte contents |
+| Second record create | -1 / EEXIST (17); same-invocation identity and bytes preserved |
+| Fresh `_COMMITTED` | open returned descriptor 4, errno 0; exact empty file, bound synthetic metadata unchanged |
+| Second seal create | -1 / EEXIST (17); empty seal unchanged, no truncation/replacement |
+| Fresh permanent run reservation | mkdir returned 0, errno 0; owner sentinel and private directory intact |
+| Second reservation | -1 / EEXIST (17); directory identity and owner sentinel preserved |
+| Concurrent sentinel | Four independent processes; one winner (worker 0, descriptor 8), three -1/EEXIST losers |
+| Concurrent `_COMMITTED` | Four independent processes; one winner (worker 0, descriptor 8), three -1/EEXIST losers |
+| Concurrent reservation | Four independent processes; one winner (worker 1, mkdir return 0), three -1/EEXIST losers |
+| Existing/dangling symlinks, open/mkdir | All four returned -1/EEXIST; links and referents unchanged, missing referents remain absent |
+
+Every race had four distinct worker PIDs, all-ready-before-release synchronization,
+worker/result identity correspondence and clean worker exits. The recorded
+attempt-start spreads were 202,610 ns (record), 173,681 ns (seal), and 158,049 ns
+(reservation). These are bounded same-node multi-process observations, not
+proof of simultaneous CPU execution, cross-node behavior or performance limits.
+The required winner/loser and exact-content semantics all passed.
+
+Final nonempty race sentinels were exactly those of the corresponding winners:
+
+| Fixture | SHA-256 |
+|---|---|
+| Sequential record/reservation sentinel | 039d248921bd1fc68ccbbb6e1de21c3be85ec8bd8e3a921bf9cf4c1dbdefd6cc |
+| Concurrent record, worker 0 | 24cb9f14731f07714e175cbf81aaec0c57a45927b3e7cab710f2005a299721f4 |
+| Concurrent reservation, worker 1 | b9f80fb5bf3f2c94d1c37805eac4f2244df015a3622d913d3f174bf4de5c62a9 |
+| Both empty commit seals | e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 |
+
+All 23 recorded parent-directory fsync observations passed. Successful creators'
+post-create file/directory I/O checks passed. All 18 recorded repeated no-follow
+reopens passed exact bytes/size, owner, 0600 and single-link checks. The complete
+synthetic topology remained private: directories 0700, ordinary files 0600 with
+one link, and exactly four retained deliberate symlinks restricted to their
+fixed within-case synthetic referents. This does not weaken publication's
+no-symlink policy. No scientific success marker exists at the diagnostic root.
+
+Independent reconciliation retrieved the report bytes again and checked its
+SHA-256 before parsing; verified job/executable/runtime/scope and every native
+case/result; recomputed each expected sentinel hash; then compared a separate
+shell-generated inventory of all **11 regular files** with the exact expected
+hashes, including both synthetic metadata files and all retained referents.
+Shell metadata independently reconfirmed modes/owner/link counts and the four
+expected symlinks. No remote Python/data processing ran on the login node.
+
+| Private report/log | Bytes | SHA-256 |
+|---|---:|---|
+| stage09_exclusive_create_diagnostic.json | 16898 | e8d8333201a8c0b061d12288fadf404d833a875ffe0a4d160d535b88e6844f35 |
+| safe-stage09-excldiag_1771149.out | 183 | 034c6edba600a8c3ae67c4ae7aea1faf9762c19cdb36d6a416d7efbf0cae1116 |
+| safe-stage09-excldiag_1771149.err | 0 | e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 |
+
+The report and logs are 0600 and remain at the exact paths in the submission
+receipt. All synthetic fixtures are retained. Reported protected/reference
+payload opens and network API calls are zero; materializer, protocol integration,
+DEVELOPMENT retry and Stage 9 candidate flags are false. The inspected executable
+has no scientific input arguments or loaders in this diagnostic path.
+
+The owner's specific environment-evidence gate is satisfied for the tested
+same-node PanFS operations. No cross-node, power-loss or end-to-end integrated
+publication guarantee is inferred. The original no-replace failure remains
+truthful, and the active materializer is still unchanged/fail-closed. Nothing
+here authorizes integration, another diagnostic or DEVELOPMENT execution.
+Error-handling guidance informed separate syscall/effect/status reconciliation;
+completion alone was not treated as capability evidence. Stop for owner
+authorization to integrate the publication protocol. Stage 9 remains NOT ACCEPTED.
+
+Reconciliation's safe local gate: 790 tests passed (17.43 seconds), including
+Stage 7/8 regressions; strict source mypy (95 files), Ruff lint/format (144 files),
+report validation and whitespace checks passed. Only five sanitized documentation
+files changed. Source, tests, launchers and scientific assets are unchanged from
+the submission record; accepted Stage 7/8 assets and frozen Stage 9 design/lock
+remain byte-identical to their checked baselines.
 
 ## Validation and complete pre-submission defect ledger
 
