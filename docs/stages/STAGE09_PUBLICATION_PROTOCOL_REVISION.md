@@ -2,6 +2,15 @@
 
 ## Status, authority and conclusion
 
+Owner review after candidate `96d17e763addc21b0a1c321c3a03666e928c25c7`:
+**CONDITIONALLY APPROVED IN PRINCIPLE — INTEGRATION NOT AUTHORIZED**. D056
+requires direct Goethe PanFS exclusive-create/collision/concurrency evidence,
+superseding the original proposal's conclusion that standard semantics were
+sufficient without another diagnostic. Exactly one synthetic-only SLURM probe
+is now authorized; its scope/status is in the
+[execution record](../../reports/development/stage09.md). No DEVELOPMENT retry,
+protected/reference input or publication integration is authorized.
+
 2026-09-10. DESIGN + SYNTHETIC/LOCAL VALIDATION ONLY, under the owner's bounded
 publication-revision authorization following reporting commit
 `780d96d9d8101d9974159b98a402dddeb2930e07`. No SLURM job, protected input access,
@@ -71,16 +80,17 @@ transaction-logged metadata operations; this supports applicability, not proof
 of a specific installed release or a power-loss test.
 [Panasas architecture](https://performance.panasas.com/rs/523-HTY-343/images/Panasas%20ActiveStor%20Architecture%20White%20Paper.pdf).
 
-Accordingly no **new** filesystem-specific capability must be established to
-select this design: the owner explicitly permits relevant standard semantics
-as evidence, and successful fresh creation/fsync is already observed locally
-and on Goethe. Local concurrent collision tests exercise the protocol; they do
-not establish cross-node performance. Any future authorized execution must
+The original proposal treated relevant standard semantics and observed fresh
+creation/fsync as sufficient to select this design. Owner review now requires
+direct environment evidence for exclusive collision behavior and synchronized
+independent-process creation before integration. Local tests and the earlier
+rename diagnostic do not meet that gate. Any future authorized execution must
 replace the old preflight with bounded fresh/existing exclusive mkdir/create,
 empty-seal, mode and fsync checks before inputs. This is an integration gate,
-not permission to submit a diagnostic or run now. Unexpected results stop
-before input access, without fallback. A later owner may request a separate
-compute probe, but this candidate does not require or submit one.
+not permission to submit DEVELOPMENT. Unexpected results stop before input
+access, without fallback. The owner has separately authorized exactly one small
+same-node synthetic exclusive-create/reservation/seal probe; even a passing
+result requires new owner authorization before integration.
 
 ## Scope, trust and topology
 
@@ -366,17 +376,18 @@ the explicit ownership boundary and the synthetic fault matrix.
 | Production-scale registry expansion | One small record/seal per run; streaming inventory and unchanged bounded validators |
 | Model mistaken for production validation | Tests-only fixed synthetic model; no installed helper or data path introduced |
 
-No unresolved design defect or new cluster-capability experiment is required for
-this **owner-review proposal**. Integration and its end-to-end synthetic tests
+The original proposal's design review found no remaining logical defect. Owner
+review conditionally agrees but requires the direct PanFS capability diagnostic
+specified in D056 before authorizing integration. Integration and its end-to-end synthetic tests
 remain required work after review; their absence is not presented as an executed
 materializer fix. No Stage 0–8 modification or scientific-contract amendment is
 required. HOLDOUT, production, Pelias and protected Stage 8 payloads were untouched.
 
 ## Owner gate
 
-Review this precise operational amendment and its local evidence. Approval may
-authorize bounded integration and synthetic validation; it does not implicitly
-authorize DEVELOPMENT execution. No probe/retry is submitted now. Stage 9 stays
+The protocol is conditionally approved in principle, not authorized for
+integration. Complete only the newly authorized synthetic capability diagnostic,
+then stop for the owner. No DEVELOPMENT retry is authorized. Stage 9 stays
 NOT ACCEPTED and the previous DEVELOPMENT preflight failure remains truthful.
 
-NEXT: OWNER REVIEW OF PUBLICATION-PROTOCOL REVISION.
+NEXT: EXCLUSIVE-CREATE CAPABILITY DIAGNOSTIC, THEN OWNER AUTHORIZATION TO INTEGRATE.

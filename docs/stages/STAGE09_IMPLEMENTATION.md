@@ -21,9 +21,11 @@ compatibility ledger is recorded; publication correction requires owner review.
 The subsequent bounded authorization produced the
 [publication-protocol revision candidate](STAGE09_PUBLICATION_PROTOCOL_REVISION.md):
 exclusive permanent run reservation plus an atomic empty commit seal, supported
-by standard creation semantics and a tests-only synthetic model. It is not yet
-approved or integrated; the active materializer/launcher remain unchanged and
-no additional job is submitted.
+by standard creation semantics and a tests-only synthetic model. The owner has
+conditionally approved its logic but requires direct PanFS exclusive-create,
+collision and multi-process evidence before integration. Exactly one small
+synthetic-only diagnostic is authorized under D056. The active materializer and
+DEVELOPMENT launcher remain unchanged; no DEVELOPMENT retry is authorized.
 Execution details and subsequent state belong in the
 [DEVELOPMENT record](../../reports/development/stage09.md).
 

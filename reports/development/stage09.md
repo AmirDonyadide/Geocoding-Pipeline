@@ -442,6 +442,66 @@ files, this report and three current documentation/decision records changed.
 No executable publication infrastructure changed. Skills informed the bounded
 protocol/fault review; they did not authorize another run or broader refactor.
 
+### Exclusive-create diagnostic — owner authorization 2026-09-10
+
+The owner conditionally approved the publication protocol in principle but
+withheld integration until direct PanFS exclusive-create evidence exists. This
+supersedes the earlier proposal's no-additional-probe conclusion. Exactly one
+new synthetic-only Goethe SLURM diagnostic is authorized, not a DEVELOPMENT
+retry or protected/reference input access.
+
+Executable module: `preprocessing/stage09_exclusive_create_diagnostic.py`.
+Launcher:
+[`stage09_exclusive_create_diagnostic.sbatch`](../../cluster/goethe_nhr/stage09_exclusive_create_diagnostic.sbatch).
+It reuses the unchanged fail-closed diagnostic site/runtime/path/executable
+guard, takes only a new synthetic output path and exact executable SHA, and
+requires the measured filesystem type `panfs` for cluster confirmation.
+
+Ten cases: three sequential fresh/collision tests (sentinel file, `_COMMITTED`,
+permanent mkdir reservation); three four-process races for those same primitives;
+four existing/dangling symlink cases for open and mkdir. Each independent spawned
+process reports ready through anonymous unidirectional pipes; the parent releases
+GO only after all four are ready. Worker identities/start times and exit status
+are checked. Exactly one creator must win, all losers must report EEXIST, and
+the resulting sentinel must match that winner. Three repeated no-follow reopens
+check bytes/modes/single-link topology. Capture native return/errno immediately,
+plus file and parent-directory fsync results; no truncation or rename fallback.
+
+The exact zero-byte seal cases use `_COMMITTED` beside fixed invented metadata
+in nested synthetic case directories. There is no scientific success marker at
+the diagnostic root. Four deliberately created symlinks are allowed only at
+their exact fixed fixture paths to fixed within-case referents; this is not a
+relaxation of any publication topology validator. All fixtures and attempts are
+preserved, directories 0700 and ordinary files 0600. Only a probe's own stalled
+child processes may be terminated on timeout, never a SLURM job or prior attempt.
+
+Resources: one node, one requested CPU, 2 GiB, five minutes, `general1`, account
+`footprint`, no requeue. Login-node checks are shell/Git metadata only; no Python
+or data processing is run there. Shell inspection confirms the approved
+`filesystem_diagnostics` parent is private and on PanFS, and the existing exact
+runtime is available. No reference or protected payload is passed to the probe.
+
+Pre-submission review collected and resolved the new probe's issues: native
+`open` is variadic (only fixed arguments in ctypes argtypes; explicitly typed
+mode), preventing a Mac arm64 calling-convention error observed by the local
+mode tests; collision checks must never write on unexpected sequential success;
+workers require a real all-ready barrier rather than merely near-simultaneous
+launch; outcome/PID correspondence, symlink fixture scope and exact topology
+must be verified. The variadic declaration follows
+[Python ctypes guidance](https://docs.python.org/3/library/ctypes.html#calling-variadic-functions).
+These are diagnostic-only corrections, not publication/scientific changes.
+
+Local focused gate: 18 diagnostic tests pass, including the real local spawned
+process cases, immediate errno/signatures, stale errno, failed primitives,
+symlink preservation, fsync errors, privacy/execution guard and launcher syntax.
+The full safe local suite passes 790 tests (18.09 seconds), including accepted
+Stage 7/8 regressions. Strict source mypy (95 files), Ruff lint/format (144 files),
+report/link validation, CLI help, shell syntax and whitespace checks pass.
+The raw reference lock/frozen design hashes and accepted Stage 7/8 source/tests/
+contracts/reports are unchanged. Existing materializer, publication helper,
+DEVELOPMENT launcher and earlier diagnostic sources are byte-for-byte unchanged.
+No PanFS capability result is claimed until the scheduled diagnostic is complete.
+
 ## Validation and complete pre-submission defect ledger
 
 Local runtime is exact Python 3.14.3/Unicode 16.0.0, PyArrow 25.0.0, DuckDB 1.5.5.

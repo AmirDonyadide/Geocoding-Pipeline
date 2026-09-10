@@ -1473,6 +1473,30 @@ to change a decision or start a stage.
   references and accepted Stage 0–8 remain unchanged; HOLDOUT sealed and
   production/Pelias untouched. Stage 9 is NOT ACCEPTED.
 
+### D056 — Require and authorize one PanFS exclusive-create diagnostic
+
+- **Date/authority:** 2026-09-10. Owner conditionally approves the publication
+  protocol's scientific/logical direction but explicitly withholds integration.
+  The direct environment-evidence gap supersedes D055's original judgment that
+  generic standards plus observed ordinary creation were enough to proceed.
+- **Authorized scope:** Prepare/test/commit/push and submit exactly one
+  synthetic-only SLURM diagnostic on the Stage 9 PanFS filesystem. One node,
+  one requested CPU, 2 GiB, five minutes, `general1`, `--no-requeue`. No protected
+  Stage 8, references, HOLDOUT, production, Pelias or DEVELOPMENT retry.
+- **Required evidence:** Fresh O_CREAT|O_EXCL creation; exact collision errno
+  and sentinel preservation; four independent spawned processes released only
+  after all report ready; exact `_COMMITTED` seal and permanent mkdir reservation;
+  directory fsync, same-invocation effects, repeated reopen/modes/single-link
+  checks, and rejection of existing/dangling synthetic symlinks. No replacing
+  rename, integration or unsafe fallback. Preserve all diagnostic fixtures.
+- **Disposition:** Diagnostic source/tests/launcher only; original jobs `1770156`
+  and `1771054` and their artifacts remain untouched. Fixed diagnostics capture
+  native return/errno immediately. Stop after one submission if pending/running;
+  after completion reconcile results, then stop for explicit owner integration
+  authorization. The [execution record](../reports/development/stage09.md)
+  carries exact executable/submission/result metadata. Stage 0–8 and frozen
+  Stage 9 science/reference contracts remain unchanged; Stage 9 NOT ACCEPTED.
+
 ## Open decisions
 
 These questions require future stage designs and explicit approval:
