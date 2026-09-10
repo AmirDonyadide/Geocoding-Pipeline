@@ -1,7 +1,7 @@
 """Bounded Arrow I/O and fail-closed immutable publication for Stage 9.
 
-Inodes prove only ownership of this invocation's private directory during a
-rename. Reopening across jobs verifies bytes and logical identity, never an
+Inodes prove only ownership during this invocation. Reopening across jobs
+verifies bytes and logical identity, never an
 historical inode. Failed attempts are retained and are not silently adopted.
 """
 
@@ -11,11 +11,10 @@ import os
 import stat
 import ctypes
 import sys
-import tempfile
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import duckdb
 import pyarrow as pa
@@ -28,7 +27,7 @@ SUCCESS_NAME = "_SUCCESS.json"
 
 
 def fsync_directory(path: Path) -> None:
-    descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+    descriptor = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
     try:
         os.fsync(descriptor)
     finally:
@@ -37,7 +36,7 @@ def fsync_directory(path: Path) -> None:
 
 def write_exclusive(path: Path, payload: bytes) -> None:
     descriptor = os.open(
-        path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0), 0o600
+        path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600
     )
     with os.fdopen(descriptor, "wb") as stream:
         stream.write(payload)
@@ -60,8 +59,15 @@ def fsync_tree(root: Path) -> None:
             path = parent / name
             info = path.lstat()
             c.require(stat.S_ISREG(info.st_mode), "PUBLICATION_FILE_TYPE_INVALID")
-            with path.open("rb") as stream:
-                os.fsync(stream.fileno())
+            descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+            try:
+                c.require(
+                    stat.S_ISREG(os.fstat(descriptor).st_mode),
+                    "PUBLICATION_FILE_TYPE_INVALID",
+                )
+                os.fsync(descriptor)
+            finally:
+                os.close(descriptor)
         fsync_directory(parent)
 
 
@@ -69,7 +75,8 @@ def topology(root: Path, expected_files: Sequence[str] | None = None) -> None:
     c.require(
         root.is_dir()
         and not root.is_symlink()
-        and stat.S_IMODE(root.stat().st_mode) == 0o700,
+        and stat.S_IMODE(root.stat().st_mode) == 0o700
+        and root.stat().st_uid == os.geteuid(),
         "PUBLICATION_ROOT_INVALID",
     )
     found = []
@@ -79,7 +86,8 @@ def topology(root: Path, expected_files: Sequence[str] | None = None) -> None:
         if parent != root:
             found_directories.add(parent.relative_to(root).as_posix())
         c.require(
-            stat.S_IMODE(parent.lstat().st_mode) == 0o700,
+            stat.S_IMODE(parent.lstat().st_mode) == 0o700
+            and parent.lstat().st_uid == os.geteuid(),
             "PUBLICATION_DIRECTORY_MODE_INVALID",
         )
         for name in children:
@@ -95,6 +103,7 @@ def topology(root: Path, expected_files: Sequence[str] | None = None) -> None:
                 and info.st_nlink == 1,
                 "PUBLICATION_FILE_TOPOLOGY_INVALID",
             )
+            c.require(info.st_uid == os.geteuid(), "PUBLICATION_FILE_OWNER_INVALID")
             found.append(path.relative_to(root).as_posix())
     if expected_files is not None:
         c.require(
@@ -162,8 +171,7 @@ class RelationWriter:
 
     def _open(self) -> None:
         path = self.directory / f"part-{len(self.paths):06}.parquet"
-        # The attempt is private, and all caller umasks are restored at the
-        # publication boundary. Explicit mode is still set on every file.
+        # Explicit owner-only mode; publication does not mutate process umask.
         descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
         os.close(descriptor)
         self.paths.append(path)
@@ -348,14 +356,18 @@ class PublicationResult:
     path: Path
     manifest_sha256: str
     manifest: Mapping[str, Any]
+    disposition: str = "PASS"
+    commit_record_id: str = ""
+    registration_sha256: str = ""
 
 
 Build = Callable[[Path], Mapping[str, Any]]
-Validate = Callable[[Path, str, bool], Mapping[str, Any]]
+PublicationState = bool | Literal["prepared"]
+Validate = Callable[[Path, str, PublicationState], Mapping[str, Any]]
 
 
 def _atomic_rename(source: Path, destination: Path) -> None:
-    # The kernel, not a check-then-rename race, enforces no replacement.
+    # HISTORICAL DIAGNOSTICS ONLY. Active Stage 9 publication never calls this.
     c.require(not os.path.lexists(destination), "PUBLICATION_TARGET_EXISTS")
     library = ctypes.CDLL(None, use_errno=True)
     if sys.platform == "linux":
@@ -379,131 +391,30 @@ def _atomic_rename(source: Path, destination: Path) -> None:
     c.require(result == 0, "ATOMIC_NO_REPLACE_FAILED")
 
 
-def _final_ownership(path: Path, expected: tuple[int, int]) -> None:
-    c.require(
-        directory_identity(path) == expected, "FINAL_PUBLICATION_OWNERSHIP_MISMATCH"
+def publish(
+    final: Path,
+    build: Build,
+    validate: Validate,
+    *,
+    expected_manifest: str | None = None,
+) -> PublicationResult:
+    """Approved reservation/seal protocol; no rename or destructive demotion."""
+    from . import s09_reference_publication as publication
+
+    return publication.publish(
+        final, build, validate, expected_manifest=expected_manifest
     )
-
-
-def _demote_owned(path: Path, owned: tuple[int, int]) -> None:
-    if directory_identity(path) != owned:
-        return
-    success = path / SUCCESS_NAME
-    if os.path.lexists(success):
-        c.require(
-            success.is_file() and not success.is_symlink(),
-            "SUCCESS_MARKER_TYPE_INVALID",
-        )
-        success.unlink()
-    if not os.path.lexists(path / "_IN_PROGRESS"):
-        write_exclusive(path / "_IN_PROGRESS", b"in_progress\n")
-    fsync_directory(path)
-
-
-def publish(final: Path, build: Build, validate: Validate) -> PublicationResult:
-    """Private validation → manifest → private success → rename → final reopen.
-
-    Existing final directories are a separate readonly validation operation,
-    not publication adoption. The only exception adoption is a rename that
-    happened before its caller raised, and still exposes our owned attempt.
-    """
-    c.require(not os.path.lexists(final), "PUBLICATION_TARGET_EXISTS")
-    c.require(
-        final.parent.is_dir() and not final.parent.is_symlink(),
-        "PUBLICATION_PARENT_INVALID",
-    )
-    c.require(
-        stat.S_IMODE(final.parent.stat().st_mode) == 0o700,
-        "PUBLICATION_PARENT_NOT_PRIVATE",
-    )
-    previous_umask = os.umask(0o077)
-    temporary: Path | None = None
-    owned = None
-    restored = False
-    result = None
-    try:
-        temporary = Path(
-            tempfile.mkdtemp(prefix=f".{final.name}.attempt-", dir=final.parent)
-        )
-        owned = directory_identity(temporary)
-        assert owned is not None
-        write_exclusive(temporary / "_IN_PROGRESS", b"in_progress\n")
-        manifest = build(temporary)
-        write_json(temporary / MANIFEST_NAME, manifest)
-        manifest_hash = c.sha256_file(temporary / MANIFEST_NAME)
-        fsync_tree(temporary)
-        validate(temporary, manifest_hash, False)
-        write_json(
-            temporary / SUCCESS_NAME,
-            {
-                "manifest_sha256": manifest_hash,
-                "logical_sha256": manifest["logical_sha256"],
-                "status": "STAGE09_CANDIDATE_PUBLISHED",
-            },
-        )
-        (temporary / "_IN_PROGRESS").unlink()
-        fsync_tree(temporary)
-        try:
-            _atomic_rename(temporary, final)
-        except BaseException:
-            if (
-                directory_identity(temporary) is not None
-                or directory_identity(final) != owned
-            ):
-                raise
-            # Exactly the rename-then-raise case, never equal-content adoption.
-        c.require(
-            directory_identity(temporary) is None
-            and directory_identity(final) == owned,
-            "POST_RENAME_STATE_INVALID",
-        )
-        fsync_directory(final.parent)
-        reopened = validate(final, manifest_hash, True)
-        result = PublicationResult(final, manifest_hash, reopened)
-        os.umask(previous_umask)
-        restored = True
-        _final_ownership(final, owned)  # Last fallible operation before return.
-        return result
-    except BaseException as error:
-        if owned is not None:
-            for path in (temporary, final):
-                if path is not None:
-                    _demote_owned(path, owned)
-        if isinstance(error, c.Stage09Error):
-            raise
-        # Engine errors can contain queried values: do not chain them into CLI
-        # tracebacks/logs. Synthetic tests target the static failure code.
-        raise c.Stage09Error("STAGE09_PUBLICATION_FAILED_ATTEMPT_PRESERVED") from None
-    finally:
-        if not restored:
-            os.umask(previous_umask)
 
 
 def validate_terminal(
-    root: Path, expected_manifest: str, published: bool
+    root: Path, expected_manifest: str, published: PublicationState
 ) -> dict[str, Any]:
-    c.require(
-        c.sha256_file(root / MANIFEST_NAME) == expected_manifest,
-        "MANIFEST_HASH_MISMATCH",
-    )
-    manifest = c.read_json(root / MANIFEST_NAME)
-    if published:
-        c.require(
-            not os.path.lexists(root / "_IN_PROGRESS"), "PUBLISHED_IN_PROGRESS_CONFLICT"
-        )
-        c.require(
-            c.read_json(root / SUCCESS_NAME)
-            == {
-                "manifest_sha256": expected_manifest,
-                "logical_sha256": manifest["logical_sha256"],
-                "status": "STAGE09_CANDIDATE_PUBLISHED",
-            },
-            "SUCCESS_BINDING_MISMATCH",
-        )
-    else:
-        c.require(
-            not os.path.lexists(root / SUCCESS_NAME)
-            and (root / "_IN_PROGRESS").read_bytes() == b"in_progress\n",
-            "PRIVATE_PUBLICATION_STATE_INVALID",
-        )
-    return manifest
+    from . import s09_reference_publication as publication
+
+    return publication.validate_terminal(root, expected_manifest, published)
+
+
+def terminal_files(published: PublicationState) -> list[str]:
+    from . import s09_reference_publication as publication
+
+    return publication.terminal_files(published)

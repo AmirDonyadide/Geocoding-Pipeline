@@ -2,7 +2,11 @@
 
 ## Status
 
-STAGE09_DEVELOPMENT_RUN_FAILED_PREFLIGHT.
+Current: owner-approved publication integration complete; one corrected
+DEVELOPMENT retry is being prepared under D058 after the local gate. No corrected
+candidate is claimed before scheduled execution and full reconciliation.
+
+Historical result: STAGE09_DEVELOPMENT_RUN_FAILED_PREFLIGHT.
 Job `1770156` was submitted once, then failed in the synthetic filesystem
 preflight on 2026-09-09. Reconciliation on 2026-09-10 found no public pack,
 protected candidate artifact, manifest or success marker. The materializer was
@@ -11,11 +15,11 @@ The separately authorized synthetic-only filesystem diagnostic, job `1771054`,
 completed on 2026-09-10. Fresh-target `renameat2(RENAME_NOREPLACE)` failed with
 `EINVAL` (22); zero-flag and POSIX fresh-target baselines succeeded. The tested
 no-replace publication primitive is not usable in that compute/filesystem
-environment. No fallback or DEVELOPMENT retry has been enabled or submitted.
+environment. No fallback or retry was enabled by that diagnostic.
 The separately authorized exclusive-create diagnostic `1771149` has now passed
 all ten required cases on PanFS. This confirms the measured publication
-primitives, not the integrated protocol or a Stage 9 candidate. Explicit owner
-authorization to integrate is the next gate; active publication code is unchanged.
+primitives, not a Stage 9 candidate. The owner subsequently approved integration
+and exactly one corrected DEVELOPMENT retry; current integration evidence is below.
 Stage 9 is NOT ACCEPTED. No protected DEVELOPMENT input has been materialized
 locally; HOLDOUT remains sealed, production/Pelias untouched.
 
@@ -640,7 +644,89 @@ files changed. Source, tests, launchers and scientific assets are unchanged from
 the submission record; accepted Stage 7/8 assets and frozen Stage 9 design/lock
 remain byte-identical to their checked baselines.
 
-## Validation and complete pre-submission defect ledger
+## Corrected publication integration and bounded pre-retry review — 2026-09-10
+
+Owner approval starts from clean exact main/origin-main
+`a2949199ea47ad453d3441e9f46429b395b00274`. Approved protocol candidate
+`96d17e763addc21b0a1c321c3a03666e928c25c7` and diagnostic executable
+`a9e6ede7c8aa45f8f11b0eadc797839e46c5b057` are ancestors. Job `1771149`'s
+retained report hash is `e8d8333201a8c0b061d12288fadf404d833a875ffe0a4d160d535b88e6844f35`.
+Read-only shell inspection found both controlled Stage 9 DEVELOPMENT/public-pack
+namespaces empty before edits; no candidate existed to migrate or overwrite.
+Original failed job `1770156`, its checkout and all diagnostic artifacts remain
+untouched. Frozen Stage 9 design/reference bytes and accepted Stage 7/8 inputs
+are unchanged; no protected strings were inspected.
+
+Integration adds one Stage 9-local reusable operational helper, not a project-wide
+refactor. Both reference-pack and candidate adapters use permanent exclusive
+mkdir ownership, canonical `_SUCCESS.json` registration, full prepared validation,
+fsync and exclusive empty `_COMMITTED` creation. Exact committed reopening and
+all existing scientific validators are required. Historical no-replace diagnostic
+code remains, but neither active publication nor corrected launcher preflight
+calls it. No ordinary rename fallback or destructive demotion exists.
+
+The protocol string is the exact reviewed `exclusive_run_commit_seal_v2_candidate`.
+Its operational registration fingerprint and streaming file-inventory fingerprint
+do not change the Stage 9 contract/profile/schema/logical formulas. Public pack
+registration binds the raw lock; candidate registration binds the exact published
+pack manifest and accepted Stage 8 binding. Job/runtime provenance remains in the
+manifest; public-pack provenance now also records its execution job and protocol.
+Registration is not itself acceptance, and a seal alone cannot validate a bundle.
+
+Review collected the complete bounded operational ledger before final corrections:
+
+| Concern | Resolved disposition |
+|---|---|
+| Unsupported rename in either publisher or preflight | Both adapters use the new helper; preflight exercises fresh/colliding mkdir, exclusive sentinel and exact empty seal with fsync/reopen |
+| Check-then-act race / concurrent overwrite | mkdir and O_EXCL arbitrate; only the reservation winner builds, losers never write |
+| Stale/incomplete reservation | Never taken over or repaired; age and same executable confer no ownership |
+| Registration partial write / precommit crash | Prepared record is not success; no seal until full prepared validation and sync |
+| Uncertain seal return/effect | One bounded owned exact reconciliation; ADOPT only if full committed validation succeeds |
+| Descriptor close failure after effect | Teardown is inside outcome reconciliation; final ownership/record checks occur after all publication descriptors close |
+| Persistent postcommit I/O failure | Explicit unverified/uncertain FAIL_CLOSED, with seal and evidence preserved for later exact adoption; CLI retains a fixed uncertainty diagnostic without exposing arbitrary errors |
+| Content-equal foreign directory / historical inode gate | Same-invocation ownership guards writer reconciliation; cross-job adoption verifies exact content/key/provenance, never old inode values |
+| Adoption exposure in actual materializer/CLI | External expected-manifest option and full read-only consumer path; no self-pinning and no rebuild of committed output |
+| Launcher resolving prohibited symlinks away | Resolve only configured mount alias; verify canonical private parents and reject artifact symlinks |
+| Reader opens before topology checks | No-follow owner/mode/type/single-link inventory check before manifest/data validation; parse the exact verified manifest bytes |
+| Registration encoding and full bindings | Compact canonical ASCII JSON and reviewed domain-separated ID match the independent synthetic model byte-for-byte |
+| Output/reporting failure | Presentation remains isolated after verified outcome; tests prove broken stdout does not modify/demote committed bytes |
+| Science, lineage, negative authority and scale | Existing bounded engines/validators and all scientific formulas unchanged; added bookkeeping is per run/file inventory, not per candidate/source row |
+
+No unresolved scientific contradiction or upstream blocker was found. Error-handling
+and testing skills informed explicit uncertainty handling and parameterized faults;
+no scientific rule or runtime guard was weakened. Synthetic tests cover every
+required owner case without protected/reference input dependencies. The full suite
+also separately verifies the exact optional public reference lock, not a refresh.
+
+Local gate: 62 integrated publication tests; 62 retained approved-model tests.
+Full safe suite: 836 passing tests (17.40 seconds), including Stage 7/8 regressions.
+The separate Stage 7/8/execution-policy gate passes 164 tests (5.70 seconds).
+Strict source mypy passes for
+96 files; Ruff lint/format passes for 145 files. Exact Python 3.14.3 / Unicode 16 /
+PyArrow 25.0.0 / DuckDB 1.5.5 is retained. Expected guard rejection is tested;
+there is no unresolved runtime guard or remaining real failure.
+CLI help/contract display, report/link validation, JSON/lock validation,
+SBATCH shell syntax, changed/tracked-data privacy audit and whitespace checks
+also pass. Exact-runtime negative guard tests remain fail-closed; no bypass.
+
+The corrected run will use a new publication key and exact pushed detached
+executable, four requested CPUs, 32 GiB, 24 hours, general1, no requeue, and no
+dependencies. All protected validation remains inside SLURM. Submission occurs
+only after final static/document/lock checks and pre-submission reconciliation.
+Stop if pending/running; no second corrected submission is authorized.
+
+Pre-submission read-only reconciliation: all 50 frozen public bodies/provenance
+headers on Goethe matched the lock; exact inventory, 0600 single-link files and
+0700 root were checked. All 263 archive-member identities are separately checked
+by the local public-lock tests and will be verified again inside SLURM. Accepted
+Stage 8 manifest rehash matched `2a50bd8c…`; its root/manifest/success modes were
+private and IN_PROGRESS absent. No Stage 8 relation payload was opened by these
+login-node shell checks. The exact existing runtime is executable, and reported
+PanFS free capacity exceeds the 256 GiB guard (capacity is not a personal quota
+guarantee). Full input/inventory/candidate verification remains a scheduled job
+gate before evaluation. No reference refresh or new public acquisition occurred.
+
+## Historical original validation and complete pre-submission defect ledger
 
 Local runtime is exact Python 3.14.3/Unicode 16.0.0, PyArrow 25.0.0, DuckDB 1.5.5.
 The runtime guard was not weakened to use installed Python 3.14.7. Tests use

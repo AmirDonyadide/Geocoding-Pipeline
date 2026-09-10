@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import struct
 import tempfile
 from collections.abc import Iterator, Mapping, Sequence
@@ -15,6 +16,7 @@ import pyarrow.parquet as pq
 from . import s09_reference_contract as c
 from . import s09_reference_io as io
 from . import s09_reference_pack as p
+from . import s09_reference_publication as publication
 
 
 def index_schema_fingerprint() -> bytes:
@@ -179,6 +181,8 @@ def build_public_pack(
             "logical_sha256": pack_logical_fingerprint(relations, index).hex(),
             "operational_provenance": {
                 "execution_git_sha": execution_sha,
+                "job_id": os.environ.get("SLURM_JOB_ID", "SYNTHETIC"),
+                "publication_protocol": publication.PROTOCOL,
                 "semantic_runtime": list(c.SEMANTIC_RUNTIME),
                 "raw_reference_root": str(inputs.root),
                 "preserved_build_work": str(work),
@@ -196,15 +200,29 @@ def build_public_pack(
         final,
         build,
         lambda root, digest, published: validate_public_pack(
-            root, digest, inputs=inputs, published=published
+            root,
+            digest,
+            inputs=inputs,
+            published=published,
+            execution_sha=execution_sha,
         ),
     )
 
 
 def validate_public_pack(
-    root: Path, manifest_sha: str, *, inputs: p.PublicInputs, published: bool = True
+    root: Path,
+    manifest_sha: str,
+    *,
+    inputs: p.PublicInputs,
+    published: io.PublicationState = True,
+    execution_sha: str | None = None,
 ) -> dict[str, Any]:
     manifest = io.validate_terminal(root, manifest_sha, published)
+    if execution_sha is not None:
+        c.require(
+            manifest["operational_provenance"]["execution_git_sha"] == execution_sha,
+            "PUBLIC_PACK_EXECUTABLE_BINDING_MISMATCH",
+        )
     c.require(
         manifest["kind"] == "STAGE09_PUBLIC_REFERENCE_PACK"
         and manifest["lock_sha256"] == c.LOCK_SHA256,
@@ -215,7 +233,7 @@ def validate_public_pack(
         == ["reference_registry", "reference_capability", "reference_object"],
         "PUBLIC_PACK_RELATION_SET_INVALID",
     )
-    inventory = [io.MANIFEST_NAME, io.SUCCESS_NAME if published else "_IN_PROGRESS"]
+    inventory = io.terminal_files(published)
     relation_paths = {}
     for relation in manifest["relations"]:
         relation_paths[relation["name"]] = io.validate_relation(root, relation)

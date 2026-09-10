@@ -6,6 +6,7 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=32G
 #SBATCH --time=24:00:00
+#SBATCH --no-requeue
 #SBATCH --output=/work/footprint/donyadidegan/safe_geocoding_pipeline/logs/slurm/%x_%j.out
 #SBATCH --error=/work/footprint/donyadidegan/safe_geocoding_pipeline/logs/slurm/%x_%j.err
 
@@ -27,8 +28,18 @@ readonly INTEGRATION_ROOT="$(realpath -e -- "${STAGE09_INTEGRATION_ROOT}")"
 readonly RUNTIME_ROOT="$(realpath -e -- "${STAGE09_RUNTIME_ROOT}")"
 readonly STAGE08_ROOT="$(realpath -e -- "${STAGE09_STAGE08_ROOT}")"
 readonly REFERENCE_RAW_ROOT="$(realpath -e -- "${STAGE09_REFERENCE_RAW_ROOT}")"
-readonly REFERENCE_PACK_ROOT="$(realpath -m -- "${STAGE09_REFERENCE_PACK_ROOT}")"
-readonly OUTPUT_DIRECTORY="$(realpath -m -- "${STAGE09_OUTPUT_DIRECTORY}")"
+# Resolve only the configured mount alias; never hide artifact-path symlinks.
+publication_path() {
+  case "$1" in
+    /work/footprint/donyadidegan/safe_geocoding_pipeline/*)
+      printf '%s/%s\n' "${DATA_ROOT}" "${1#/work/footprint/donyadidegan/safe_geocoding_pipeline/}" ;;
+    "${DATA_ROOT}"/*) printf '%s\n' "$1" ;;
+    *) return 1 ;;
+  esac
+}
+REFERENCE_PACK_ROOT="$(publication_path "${STAGE09_REFERENCE_PACK_ROOT}")"
+OUTPUT_DIRECTORY="$(publication_path "${STAGE09_OUTPUT_DIRECTORY}")"
+readonly REFERENCE_PACK_ROOT OUTPUT_DIRECTORY
 readonly REFERENCE_LOCK="${INTEGRATION_ROOT}/docs/scientific_assets/stage09_reference_pack_lock_v1.json"
 readonly PYTHON="${RUNTIME_ROOT}/venv/bin/python"
 
@@ -69,16 +80,12 @@ import os
 from pathlib import Path
 from safe_geocoding_pipeline.execution_policy import require_goethe_nhr_slurm
 from safe_geocoding_pipeline.preprocessing.stages import s09_reference_contract as c
-from safe_geocoding_pipeline.preprocessing.stages import s09_reference_io as io
+from safe_geocoding_pipeline.preprocessing.stages import s09_reference_publication as publication
 
 require_goethe_nhr_slurm("stage09-compute-preflight")
 c.require_runtime()
 root = Path(os.environ["STAGE09_PREFLIGHT_DIRECTORY"])
-source, target = root / "synthetic_rename_source", root / "synthetic_rename_target"
-source.mkdir(mode=0o700)
-io.write_exclusive(source / "synthetic.txt", b"synthetic filesystem preflight\n")
-io._atomic_rename(source, target)
-c.require(not source.exists() and (target / "synthetic.txt").is_file(), "SYNTHETIC_RENAME_PREFLIGHT_FAILED")
+publication.preflight(root)
 print("STAGE09_EXACT_RUNTIME_AND_FILESYSTEM_PREFLIGHT_PASS")
 PY
 

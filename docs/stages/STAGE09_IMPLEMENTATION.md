@@ -2,6 +2,14 @@
 
 ## Status and authority
 
+Current owner authorization (2026-09-10, D058): integrate the approved permanent
+reservation / exclusive commit-seal protocol, complete local/fault validation,
+push an exact executable and submit **one corrected DEVELOPMENT retry**. The
+integration below replaces only Stage 9 publication; no scientific/reference
+change or Stage 0–8 modification. The prior failures and diagnostics below remain
+historical evidence. Stage 9 is NOT ACCEPTED; no corrected candidate is claimed
+before its scheduled execution and validation.
+
 The owner authorized implementation, synthetic/local validation, one controlled
 Goethe-NHR SLURM DEVELOPMENT execution, publication validation and a candidate
 report. Stage 9 is **IMPLEMENTED — DEVELOPMENT PREFLIGHT FAILED — NOT ACCEPTED**.
@@ -166,7 +174,10 @@ The frozen aggregate planning ceiling is 20.56M evaluations before lookup reuse;
 the 141,048,582-row production scenario is not accessed or authorized.
 
 The launcher verifies site/job, exact detached executable, controlled private
-paths and a compute-node synthetic no-replace rename before protected input.
+paths and a compute-node synthetic exclusive-create/reservation/seal preflight
+before protected input. It no longer requires no-replace rename. Only the
+configured mount alias is canonicalized; artifact-path symlinks are not resolved
+away. Automatic requeue is disabled.
 Public preparation and all protected processing are inside the same scheduled
 job. Login nodes perform shell/Git/submission orchestration only. Python sockets
 and DNS are denied during execution; DuckDB extension autoload/install is disabled.
@@ -179,13 +190,39 @@ or launch an automatic retry loop.
 
 ## Publication and validation
 
-Private IN_PROGRESS → deterministic relations → full validation → manifest →
-private success marker → atomic no-replace publish → final reopen → last-operation
-ownership check. A success marker never bypasses validation. All files are 0600,
-directories 0700; no symlink/hardlink/uninventoried object is permitted.
-Same-invocation filesystem identity handles ambiguous rename ownership only.
-Cross-job reopening is byte/logical identity based, not historical inode equality.
-Presentation failure after successful publication cannot turn success into failure.
+Exclusive permanent run mkdir → IN_PROGRESS → deterministic relations/manifest →
+full scientific validation → canonical bound registration `_SUCCESS.json` →
+remove owned IN_PROGRESS, fsync → full prepared reopen → exclusive empty
+`_COMMITTED` creation → seal/parent fsync → full committed reopen → descriptor
+teardown → last-operation record/seal/ownership check. Directory or registration
+existence alone is never success. All files are 0600, directories 0700; no
+symlink/hardlink/uninventoried object is permitted.
+
+The Stage 9-local reusable helper is `s09_reference_publication.py`, called by
+the public-pack and candidate adapters through `s09_reference_io.publish`.
+No Stage 0–8 or project-wide helper is migrated. The reviewed protocol identifier
+remains exactly `exclusive_run_commit_seal_v2_candidate`; the retained spelling
+is an operational version, not scientific acceptance. Its compact ASCII JSON,
+domain-separated commit-record ID and streaming file-inventory hash are separate
+from the unchanged scientific fingerprints. CLI receipts include protocol,
+disposition, publication key, registration hash and commit-record ID.
+
+Existing exact success requires an external expected manifest and all scientific,
+executable, input/reference and publication bindings; `validate-published` uses
+that same full read-only adoption path. `materialize --expected-manifest-sha256`
+can adopt an already committed exact candidate without rebuilding. The single
+corrected launcher intentionally requests a fresh key, not adoption. Existing
+incomplete reservations are never stolen or repaired, even for identical jobs
+or old timestamps. Verified checkpoints may only be copied to a separately
+authorized new-key build as before.
+
+Catchable errors after a possible commit trigger exactly one full reconciliation,
+including descriptor-close-after-effect errors. Valid exact state is adopted;
+unverifiable state is explicitly fail-closed/uncertain and preserved. No marker
+demotion, cleanup or rename occurs. Cross-job identity remains byte/provenance
+based; only immediate invocation ownership uses device/inode evidence. Fallible
+descriptor teardown precedes the final ownership check. No global umask change
+is introduced by publication. Presentation errors cannot demote committed data.
 
 Before publication, a full reversed-group replay independently traverses accepted
 inputs again and compares evidence/member logical fingerprints. This tests

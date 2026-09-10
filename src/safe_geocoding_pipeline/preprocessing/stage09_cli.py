@@ -10,6 +10,7 @@ from pathlib import Path
 from ..execution_policy import ExecutionPolicyError, require_goethe_nhr_slurm
 from .stages import s09_reference_contract as c
 from .stages import s09_reference_io as io
+from .stages import s09_reference_publication as publication
 from .stages.s09_reference_materializer import (
     Stage09Config,
     materialize_stage09,
@@ -36,9 +37,9 @@ def build_parser() -> argparse.ArgumentParser:
         command.add_argument("--output-directory", type=Path, required=True)
         command.add_argument("--execution-git-sha", required=True)
         command.add_argument("--resume-work-root", type=Path)
-    commands.choices["validate-published"].add_argument(
-        "--expected-manifest-sha256", required=True
-    )
+        command.add_argument(
+            "--expected-manifest-sha256", required=name == "validate-published"
+        )
     return parser
 
 
@@ -59,6 +60,11 @@ def _present(outcome: io.PublicationResult) -> None:
                 "manifest_sha256=" + outcome.manifest_sha256,
                 "logical_sha256=" + outcome.manifest["logical_sha256"],
                 "profile_sha256=" + outcome.manifest["profile_sha256"],
+                "publication_protocol=" + publication.PROTOCOL,
+                "publication_disposition=" + outcome.disposition,
+                "publication_key=" + outcome.path.name,
+                "commit_record_id=" + outcome.commit_record_id,
+                "registration_sha256=" + outcome.registration_sha256,
                 "candidate_count=" + str(metrics["total_stage06_candidates"]),
                 "evidence_count=" + str(metrics["evidence_rows"]),
                 "technical_failures=0",
@@ -93,17 +99,23 @@ def main(argv: Sequence[str] | None = None) -> int:
             output_directory=args.output_directory,
             execution_git_sha=args.execution_git_sha,
             reference_pack_manifest_sha256=args.reference_pack_manifest_sha256,
+            expected_manifest_sha256=args.expected_manifest_sha256,
             resume_work_root=args.resume_work_root,
         )
         if args.command == "materialize":
             outcome = materialize_stage09(config)
         else:
             outcome = validate_published_stage09(config, args.expected_manifest_sha256)
-    except (ExecutionPolicyError, c.Stage09Error):
+    except (ExecutionPolicyError, c.Stage09Error) as error:
         # Even a nested engine/filesystem exception may carry a queried value.
         # The controlled attempt records its last completed checkpoint, while
         # process diagnostics contain no arbitrary exception text or traceback.
-        _diagnostic("STAGE09_GUARD_OR_VALIDATION_FAILURE_ATTEMPT_PRESERVED")
+        if isinstance(error, c.Stage09Error) and str(error) == (
+            "FAIL_CLOSED_COMMIT_OUTCOME_REQUIRES_RECONCILIATION"
+        ):
+            _diagnostic("STAGE09_COMMIT_OUTCOME_UNVERIFIED_RECONCILIATION_REQUIRED")
+        else:
+            _diagnostic("STAGE09_GUARD_OR_VALIDATION_FAILURE_ATTEMPT_PRESERVED")
         return 1
     except BaseException:
         _diagnostic("STAGE09_OPERATIONAL_FAILURE_ATTEMPT_PRESERVED")

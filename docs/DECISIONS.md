@@ -1522,6 +1522,37 @@ to change a decision or start a stage.
   HOLDOUT, production or Pelias access and no DEVELOPMENT retry. Stop for explicit
   owner authorization to integrate the publication protocol.
 
+### D058 — Integrate approved PanFS publication protocol; authorize one corrected retry
+
+- **Date/authority:** 2026-09-10. Owner explicitly approves integration of protocol
+  candidate `96d17e763addc21b0a1c321c3a03666e928c25c7` after PanFS diagnostic
+  `1771149` confirmed the exact creation primitives. Starting main/origin-main
+  `a2949199ea47ad453d3441e9f46429b395b00274` was clean and exact; protocol/diagnostic
+  commits are in history. Read-only namespace inspection found no candidate or
+  public-pack publication before integration.
+- **Bounded change:** Stage 9-only reusable permanent reservation, canonical
+  registration and exclusive empty `_COMMITTED` seal helper; both public-pack and
+  candidate adapters and the compute preflight use it. No active no-replace rename,
+  ordinary-rename fallback, destructive demotion or stale-reservation takeover.
+  Prepared/committed validators remain separate and full scientific validation
+  remains mandatory. Exact expected manifest and all transitive bindings govern
+  adoption, not historical inode equality. One bounded effect reconciliation
+  handles uncertain commit/close results; final ownership checks follow teardown.
+- **Validation:** Full local/synthetic/fault gate and complete bounded ledger in
+  the [execution report](../reports/development/stage09.md). Accepted Stage 7/8
+  regressions and all frozen Stage 9 scientific/reference bytes remain unchanged.
+  No protected local materialization or protected examples are needed.
+- **Execution:** Commit/push before one fresh detached Goethe checkout; exactly
+  one corrected DEVELOPMENT job, four requested CPUs, 32 GiB, 24 hours, general1,
+  no requeue. Accepted 35k DEVELOPMENT and exact frozen offline pack only. If
+  pending/running stop without polling/cancellation/resubmission; if failed,
+  preserve and classify all evidence and stop for owner review; if successful,
+  reconcile/publish a candidate and stop for independent review. No acceptance,
+  Stage 10, HOLDOUT, production, Pelias or external validation authorization.
+- **Preservation:** Original job `1770156`, executable `3c3864f0…`, and diagnostic
+  jobs `1771054`/`1771149` remain immutable historical evidence. No Stage 0–8
+  implementation/artifact/contract or Stage 9 scientific semantics are changed.
+
 ## Open decisions
 
 These questions require future stage designs and explicit approval:

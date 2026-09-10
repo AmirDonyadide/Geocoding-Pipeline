@@ -2,6 +2,16 @@
 
 ## Status, authority and conclusion
 
+Current disposition (D058): **OWNER APPROVED — INTEGRATED FOR ONE CORRECTED
+DEVELOPMENT RETRY**. The owner accepted direct PanFS evidence from `1771149`
+and authorized integration/local validation followed by one corrected scheduled
+run. The [implementation record](STAGE09_IMPLEMENTATION.md) describes the narrow
+delta and the [execution report](../../reports/development/stage09.md) records its
+tests, bounded defect ledger and submission state. The reviewed protocol/record
+identifier below is retained exactly; Stage 9 science remains frozen and NOT
+ACCEPTED. Earlier conditional-review language below records the pre-approval
+history, not the current authorization.
+
 Owner review after candidate `96d17e763addc21b0a1c321c3a03666e928c25c7`:
 **CONDITIONALLY APPROVED IN PRINCIPLE — INTEGRATION NOT AUTHORIZED**. D056
 requires direct Goethe PanFS exclusive-create/collision/concurrency evidence,
@@ -395,10 +405,10 @@ required. HOLDOUT, production, Pelias and protected Stage 8 payloads were untouc
 
 ## Owner gate
 
-The protocol is conditionally approved in principle, not authorized for
-integration. The separately authorized synthetic capability diagnostic is now
-complete and reconciled; stop for the owner. No DEVELOPMENT retry is authorized.
-Stage 9 stays NOT ACCEPTED and the previous DEVELOPMENT preflight failure remains
-truthful.
+The owner has approved integration and one corrected DEVELOPMENT retry after the
+complete local gate. Submit once; stop if PENDING/RUNNING. A failure requires owner
+review, not another automatic retry. A completed validated candidate requires
+independent review; it is not Stage 9 acceptance. Original failed attempts and
+both filesystem diagnostics remain untouched.
 
-NEXT: OWNER AUTHORIZATION TO INTEGRATE PUBLICATION PROTOCOL.
+NEXT: ONE CORRECTED DEVELOPMENT EXECUTION, THEN INDEPENDENT CANDIDATE REVIEW.

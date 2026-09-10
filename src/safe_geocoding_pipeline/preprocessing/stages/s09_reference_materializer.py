@@ -34,6 +34,7 @@ from . import s09_reference_input as upstream
 from . import s09_reference_io as io
 from . import s09_reference_pack as pack
 from . import s09_reference_postal as postal
+from . import s09_reference_publication as publication
 from . import s09_reference_validation as validation
 
 
@@ -54,6 +55,7 @@ class Stage09Config:
     output_directory: Path
     execution_git_sha: str
     reference_pack_manifest_sha256: str | None = None
+    expected_manifest_sha256: str | None = None
     resume_work_root: Path | None = None
     duckdb_memory_limit: str = "8GB"
     threads: int = 4
@@ -88,6 +90,12 @@ class Stage09Config:
             self.reference_pack_root.resolve(),
         )
         output = self.output_directory.resolve()
+        # Publication paths must already be canonical below the configured
+        # anchor. Never erase a prohibited symlink by resolving the target.
+        publication.check_parent(self.output_directory)
+        publication.check_parent(self.reference_pack_root)
+        for target in (self.output_directory, self.reference_pack_root):
+            c.require(not target.is_symlink(), "PUBLICATION_SYMLINK_PROHIBITED")
         c.require(
             all(
                 not output.is_relative_to(path) and not path.is_relative_to(output)
@@ -528,6 +536,7 @@ def _build_candidate(
         "operational_provenance": {
             "execution_git_sha": config.execution_git_sha,
             "design_freeze_sha": c.DESIGN_COMMIT,
+            "publication_protocol": publication.PROTOCOL,
             "job_id": os.environ.get("SLURM_JOB_ID", "SYNTHETIC"),
             "created_utc": datetime.now(timezone.utc).isoformat(),
             "execution_site": os.environ.get("SAFE_EXECUTION_SITE", "SYNTHETIC"),
@@ -561,7 +570,7 @@ def validate_candidate(
     root: Path,
     manifest_sha: str,
     *,
-    published: bool,
+    published: io.PublicationState,
     config: Stage09Config,
     accepted: upstream.AcceptedStage08,
     raw: pack.PublicInputs,
@@ -599,7 +608,7 @@ def validate_candidate(
         [r["name"] for r in manifest["relations"]] == list(PROTECTED_RELATIONS),
         "PROTECTED_RELATION_SET_INVALID",
     )
-    inventory = [io.MANIFEST_NAME, io.SUCCESS_NAME if published else "_IN_PROGRESS"]
+    inventory = io.terminal_files(published)
     paths = {}
     for relation in manifest["relations"]:
         paths[relation["name"]] = io.validate_relation(root, relation)
@@ -694,7 +703,17 @@ def validate_candidate(
 
 def materialize_stage09(config: Stage09Config) -> io.PublicationResult:
     config.validate()
-    c.require(not os.path.lexists(config.output_directory), "PUBLICATION_TARGET_EXISTS")
+    if os.path.lexists(config.output_directory):
+        c.require(
+            config.expected_manifest_sha256 is not None,
+            "EXISTING_CANDIDATE_EXPECTED_HASH_REQUIRED",
+        )
+        c.require(
+            config.reference_pack_manifest_sha256 is not None,
+            "EXISTING_CANDIDATE_PACK_HASH_REQUIRED",
+        )
+        assert config.expected_manifest_sha256 is not None
+        return validate_published_stage09(config, config.expected_manifest_sha256)
     with offline_network():
         lock = pack.verify_lock(config.reference_raw_root, config.reference_lock)
         raw = pack.PublicInputs(
@@ -740,6 +759,7 @@ def materialize_stage09(config: Stage09Config) -> io.PublicationResult:
                 public_manifest=public_manifest,
                 public_sha=public_sha,
             ),
+            expected_manifest=config.expected_manifest_sha256,
         )
 
 
@@ -752,6 +772,9 @@ def validate_published_stage09(
         "PUBLIC_PACK_EXPECTED_HASH_REQUIRED",
     )
     assert config.reference_pack_manifest_sha256 is not None
+    public_sha = config.reference_pack_manifest_sha256
+    # Reject uncommitted/conflicting state before opening protected inputs.
+    publication.validate_terminal(config.output_directory, manifest_sha, True)
     with offline_network():
         lock = pack.verify_lock(config.reference_raw_root, config.reference_lock)
         raw = pack.PublicInputs(
@@ -763,14 +786,17 @@ def validate_published_stage09(
             inputs=raw,
         )
         accepted = upstream.consume_accepted_stage08(config.stage08_root)
-        manifest = validate_candidate(
+        return publication.adopt(
             config.output_directory,
             manifest_sha,
-            published=True,
-            config=config,
-            accepted=accepted,
-            raw=raw,
-            public_manifest=public_manifest,
-            public_sha=config.reference_pack_manifest_sha256,
+            lambda root, digest, state: validate_candidate(
+                root,
+                digest,
+                published=state,
+                config=config,
+                accepted=accepted,
+                raw=raw,
+                public_manifest=public_manifest,
+                public_sha=public_sha,
+            ),
         )
-        return io.PublicationResult(config.output_directory, manifest_sha, manifest)
