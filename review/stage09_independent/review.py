@@ -141,19 +141,19 @@ def main():
             db.execute("CREATE VIEW iso_admin_codes AS SELECT country_code,list_extract(list_filter(fields,x -> x.field_name='code'),1).original_value code FROM reference_object WHERE object_kind='ISO_ADMIN'")
             REPORT['diagnostics']['source_full_iso_witnesses'] = count(db,"SELECT count(*) FROM pairs JOIN source_candidate_map USING(stable_source_row_id_v1) JOIN context USING(stage06_exact_candidate_id) JOIN iso_admin_codes ON upper(stage03_clean_region_in_country)=code WHERE country<>'UNRESOLVED'")
             # Expected parser scheduling counts derived from raw Stage 8 roles, independently of scheduler.
-            db.execute("CREATE TABLE role_counts AS SELECT stage06_exact_candidate_id,stage08_safe_parser_evidence_component role,count(*) n FROM parser_component_evidence GROUP BY ALL")
+            db.execute("CREATE TABLE role_counts AS SELECT stage06_exact_candidate_id,stage08_safe_parser_evidence_component role_code,count(*) n FROM parser_component_evidence GROUP BY ALL")
             schedule_errors = 0
             atomic = {'Q04':('PARSER_POSTCODE',1),'Q05':('PARSER_POSTCODE',1),'Q09':('PARSER_CITY',2),'Q10':('PARSER_STATE',3),'Q12':('PARSER_ROAD',1),'Q14':('PARSER_COUNTRY',1)}
             for question in c.CATALOG:
                 role, slots = atomic.get(question.question_id, ('NONE',len(question.references)))
-                sql = "WITH observed AS (SELECT stage06_exact_candidate_id,count(*) n FROM e WHERE evidence_scope='PARSER_CANDIDATE' AND question_catalog_id=? GROUP BY ALL) SELECT count(*) FROM candidate_evidence a LEFT JOIN role_counts r ON a.stage06_exact_candidate_id=r.stage06_exact_candidate_id AND r.role=? LEFT JOIN observed o ON a.stage06_exact_candidate_id=o.stage06_exact_candidate_id WHERE coalesce(o.n,0)<>greatest(coalesce(r.n,0),1)*?"
+                sql = "WITH observed AS (SELECT stage06_exact_candidate_id,count(*) n FROM e WHERE evidence_scope='PARSER_CANDIDATE' AND question_catalog_id=? GROUP BY ALL) SELECT count(*) FROM candidate_evidence a LEFT JOIN role_counts r ON a.stage06_exact_candidate_id=r.stage06_exact_candidate_id AND r.role_code=? LEFT JOIN observed o ON a.stage06_exact_candidate_id=o.stage06_exact_candidate_id WHERE coalesce(o.n,0)<>greatest(coalesce(r.n,0),1)*?"
                 schedule_errors += db.execute(sql,[question.question_id,role,slots]).fetchone()[0]
             check('independent_parser_scheduling', schedule_errors == 0)
             phase('relational_sql')
             # Resolve Q04 ONLY inside controlled compute, never emit values or row identities.
             db.execute("""CREATE TABLE pattern_inputs AS
               SELECT e.evidence_id,e.stage06_exact_candidate_id,e.stable_source_row_id_v1,e.evidence_scope,e.result_state,e.reason_code,e.rule_capability_id,e.arguments[2] argument,c.country,
-              CASE WHEN e.evidence_scope='SOURCE_ROW' THEN s.stage03_clean_postcode ELSE p.stage08_raw_libpostal_value END value,
+              CASE WHEN e.evidence_scope='SOURCE_ROW' THEN s.stage03_clean_postcode ELSE p.stage08_raw_libpostal_value END input_value,
               CASE WHEN e.evidence_scope='SOURCE_ROW' THEN pairs.is_standard ELSE r.is_standard END is_standard,
               CASE WHEN e.evidence_scope='SOURCE_ROW' THEN pairs.is_native ELSE r.is_native END is_native
               FROM e JOIN context c USING(stage06_exact_candidate_id)
@@ -168,7 +168,7 @@ def main():
             oracle_mismatch = digest_mismatch = engine_mismatch = pointer_mismatch = 0
             ascii_map = str.maketrans('abcdefghijklmnopqrstuvwxyz','ABCDEFGHIJKLMNOPQRSTUVWXYZ')
             for row in io.sorted_rows(db,'SELECT * FROM pattern_inputs',batch_rows=256):
-                country, value, arg = row['country'], row['value'], row['argument']
+                country, value, arg = row['country'], row['input_value'], row['argument']
                 normalized = value.translate(ascii_map) if value is not None else None
                 rule = data.get(country,{}).get('zip')
                 available = country != 'UNRESOLVED' and bool(value) and country in selectors and bool(rule)
@@ -202,7 +202,7 @@ def main():
             REPORT['diagnostics']['q04_counterfactual_diagnostics'] = [dict(zip(('country','scope','diagnostic','n'),(*k,n))) for k,n in sorted(alternate_matches.items())]
             REPORT['diagnostics']['q04_candidate_concentration'] = aggregates(db,"SELECT country,evidence_scope,count(*) evaluable_checks,count(DISTINCT stage06_exact_candidate_id) candidates,count(*) FILTER(WHERE result_state='CONTRADICTED') conflicts,count(DISTINCT stage06_exact_candidate_id) FILTER(WHERE result_state='CONTRADICTED') conflict_candidates,count(DISTINCT (stage06_exact_candidate_id,argument.normalized_value_sha256)) unique_candidate_values FROM pattern_inputs WHERE result_state<>'NOT_EVALUABLE' GROUP BY ALL ORDER BY ALL")
             REPORT['diagnostics']['q04_largest_candidate_bins'] = aggregates(db,"WITH x AS (SELECT country,evidence_scope,stage06_exact_candidate_id,count(*) n,count(*) FILTER(WHERE result_state='CONTRADICTED') conflicts FROM pattern_inputs WHERE result_state<>'NOT_EVALUABLE' GROUP BY ALL) SELECT country,evidence_scope,count(*) candidates,max(n) max_checks_per_candidate,max(conflicts) max_conflicts_per_candidate,sum(n) evaluable,sum(conflicts) conflicts FROM x GROUP BY ALL ORDER BY ALL")
-            REPORT['diagnostics']['q08'] = aggregates(db,"SELECT country,evidence_scope,result_state,reason_code,r.scope_locator rule,count(*) n FROM e JOIN context USING(stage06_exact_candidate_id) LEFT JOIN reference_capability r ON e.rule_capability_id=r.capability_id WHERE e.question_catalog_id='Q08' GROUP BY ALL ORDER BY ALL")
+            REPORT['diagnostics']['q08'] = aggregates(db,"SELECT country,evidence_scope,result_state,reason_code,r.scope_locator rule_locator,count(*) n FROM e JOIN context USING(stage06_exact_candidate_id) LEFT JOIN reference_capability r ON e.rule_capability_id=r.capability_id WHERE e.question_catalog_id='Q08' GROUP BY ALL ORDER BY ALL")
             phase('postcode_oracle')
             # Full original validators, independently executed against immutable bytes.
             view = m._small_view(public,pub,raw,meta)
