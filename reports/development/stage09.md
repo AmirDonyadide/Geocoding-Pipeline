@@ -2,9 +2,13 @@
 
 ## Status
 
-Current: STAGE09_CORRECTED_DEVELOPMENT_RUN_IN_PROGRESS. Corrected job `1771191`
-was submitted once after the complete local gate and observed PENDING (Resources).
-No corrected candidate is claimed before scheduled execution and full reconciliation.
+Current: **STAGE09_OFFLINE_REFERENCE_EVIDENCE_DEVELOPMENT_CANDIDATE_READY**.
+Corrected job `1771191` completed with exit `0:0`; publication, full in-job
+scientific/hash reopening and subsequent sanitized reconciliation passed.
+All 51,779 candidates have evidence. Stage 9 is **NOT YET ACCEPTED**; stop for
+independent review. The high conditional postcode-format conflict rate is
+explicitly retained in the terminal reconciliation below, not called address
+invalidity. No second corrected run was submitted.
 
 Historical result: STAGE09_DEVELOPMENT_RUN_FAILED_PREFLIGHT.
 Job `1770156` was submitted once, then failed in the synthetic filesystem
@@ -769,6 +773,534 @@ SLURM exit alone as success. Validate all scientific/input/reference/logical
 bindings and sanitized aggregates before a candidate-ready claim. A failed run
 must be classified and preserved for owner review, never automatically retried.
 HOLDOUT remains sealed; production/Pelias untouched. Stage 9 is NOT ACCEPTED.
+
+### Corrected terminal reconciliation — 2026-09-12
+
+STAGE09_OFFLINE_REFERENCE_EVIDENCE_DEVELOPMENT_CANDIDATE_READY.
+
+This is a **DEVELOPMENT candidate awaiting independent review**, not Stage 9
+acceptance or address/geocoding accuracy. The owner continuation inspected
+accounting once and found COMPLETED. No further SLURM job, protected rerun,
+reference refresh, source correction or Stage 10 work occurred.
+
+#### Exact execution and publication
+
+| Item | Verified result |
+|---|---|
+| Job / executable | 1771191 / 3e10ac7c1309c2636f35c0709fa283305d60d998 |
+| State / exit | COMPLETED / 0:0 |
+| Start / end UTC | 2026-09-12T06:40:57Z / 2026-09-12T14:45:50Z |
+| Elapsed | 08:04:53 |
+| Requested resources | general1 / footprint; one node, one task, four CPUs, 32 GiB, 24 hours, no requeue |
+| Scheduler allocation | 80 CPUs (whole-node allocation, not measured CPU use) |
+| Peak batch RSS | 10,125,844 KiB = approximately 9.657 GiB |
+| Runtime | Python 3.14.3 / Unicode 16.0.0 / PyArrow 25.0.0 / DuckDB 1.5.5 (d8cdaa33fd) |
+| Publication key | stage09_development_20260910T155542Z_3e10ac7c1309 |
+| Protocol / disposition | exclusive_run_commit_seal_v2_candidate / PASS |
+| Artifact | Exact new DEVELOPMENT target in the corrected submission receipt above |
+| Public pack | Exact new public-pack target in that receipt; same executable and job |
+| Registration / seal | Canonical exact-bound registration; empty regular single-link _COMMITTED; IN_PROGRESS absent |
+| Checkout / old attempts | Exact executable still clean and detached; original failed attempt and both diagnostics preserved |
+
+The main program's PASS receipt is emitted only after exclusive reservation,
+full private validation, bound registration, fsync, full prepared validation,
+exclusive seal, fsync, full committed scientific/hash reopening, descriptor
+teardown and last-operation ownership checks. The exact executed source confirms
+that path; no unsupported rename primitive is reachable from publication.
+
+Full evidence/reference payload hashing, PK/FK/state/capability/witness validation,
+and pre/postcommit reopening **ran inside job 1771191**. This continuation
+reconciled that immutable execution; it did not run Python or protected relation
+processing on a login node. Its independent checks retrieved only sanitized
+manifests/registration/logs and the 60,977-byte aggregate coverage relation,
+compared exact hashes, recomputed registration/profile/input/logical-header
+bindings, and checked all current file names, sizes, private modes, owners,
+single-link regular files and directories using read-only shell metadata.
+It did not rehash the 0.9 GB evidence/reference payloads outside SLURM or claim
+a second protected validation execution. Current metadata and the complete
+in-job validation reconcile; there is no reliance on directory existence alone.
+
+| Identity | SHA-256 |
+|---|---|
+| DEVELOPMENT manifest | 321c9d8352fac5b78612a7c8e52f6f810f92bddb1e91f7cfe348398a6d707240 |
+| DEVELOPMENT logical dataset | 7ae84e149f4c9c2de7a791c9b326b88e387a70d155d8be55acf6b55e06bafae3 |
+| Contract | 6dc0410556bad44a6a6d1b3695beb6219c54a61dab39747a5ffa92ac9fcda3f9 |
+| Profile | b12be7ba06de2360ba7cd9b971c4b562b1c8df5d25c30024975869fd2b34efd1 |
+| Schema bundle | 7374b70fae76149b825f523e8317577bd6d868bee3fde648ea915301d4bcb716 |
+| Stage 8 accepted manifest | 2a50bd8c066552c9cb7505ed2d6071f1ee36161b9a2cc07f3ed364cf00237827 |
+| Stage 8 accepted logical | 9c9d431c2c1b92712e0cb372f2661ad48f4fe8758dc0327d25aef90ab2c2d526 |
+| Stage 9 accepted-input binding | 64f7678a76e3f29f57859f050329be925b216d2b1290eff5d36b9cb4482cea90 |
+| Frozen raw reference lock | 61cc5850372886eb4ba6477a178ebd74f6ca878815036874ad47069ca32a1c63 |
+| Published reference-pack manifest | dd7994b907250d515470b820bcbf42993a08e4f3116409b7c94168446e1c064a |
+| Published reference-pack logical | 10ae5c9baf2d781bd241ece2d28ef62430b54f511ed1e98acd8761232062040b |
+| DEVELOPMENT registration | ac4824ebd2b8a0e0d20632370507b9c1a49cc5df3622aa213b52ba48a01c42fb |
+| DEVELOPMENT commit-record ID | 9b486d4a47306c0950f41d1eab8c23a43ee29f95919b1bea0ff35d7be046e2e0 |
+| DEVELOPMENT inventory | ba7f0db287f59d7c5ff5c210b965c3c4a6aaf147982b8c69a959faa9c3fed1cd |
+| Public-pack registration | 061e3a851307465b5b87ef4bca177e5d9be57983061ffc3ccdb4deeabd8f8749 |
+| Public-pack commit-record ID | 1538d17ba13253922f3c0361032b23a815175d60230d9cb2eff0bb773e054b3f |
+| Public-pack inventory | 0961914ad443a471982833cfafe04161fd32df4b6194d9555592907cbadc3a50 |
+
+Versions remain `stage09_offline_reference_evidence_contract_v1`, `stage09_offline_reference_evidence_profile_v1`,
+`stage09_offline_reference_evidence_schema_v1`. The exact nested accepted Stage 8 binding, including its Stage 6
+transitive identity, matches the frozen source constants. Registry editions are
+ISO_CODES 4.20.1-1, LIBADDRESSINPUT_METADATA from google-i18n-address 3.1.1, and
+GEONAMES_POSTAL snapshot 2026-09-07; the individual asset hashes/licenses in this
+report's frozen reference section remain unchanged. No refresh/substitution.
+
+Candidate inventory: 21 files, eight directories including root, 639,767,626
+bytes including manifest/registration/seal. Public-pack inventory: 11 files,
+five directories including root, 274,691,380 bytes. Total committed file bytes:
+914,459,006. All directories are 0700 and owned; files are 0600, owner-matching,
+single-link and regular; no symlinks, extra paths or incomplete markers exist.
+Hashes/bytes for stdout: 989 /
+`5d3a8c1fcd641d3b5aec7fa609313b503be6a8de7e9e2de043a0c01a174b06a8`.
+Stderr is empty (SHA-256
+`e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`).
+Logs remain private and preserved.
+
+#### Relations, totality and validation
+
+| Logical relation | Rows | Schema SHA-256 | Logical SHA-256 |
+|---|---|---|---|
+| reference_registry | 3 | 35f8c9e85437f0aafb755e9aafb654053307ff1da7d25e043c28d142c317b567 | 14e715d9e038920632f50215f3cf7c4fbd00367d4bbb931af706a72ec8691b3b |
+| reference_capability | 47,578 | e0e4d90193510041179edd0dbb84f2b625436668eb55d75b1d7892207c4a8fc1 | 8d525682700889d30bf1f5f24797155248fe4c8e808a56d031ada3649fcdfa57 |
+| reference_object | 1,844,460 | d2af207938a9bbb25ed3718a68e8225414551c1a93c57c6b08fa66169ad57876 | 3636ccd9b58b5bd9a37b678ba86e0c5e3512c2e073b83bbb14a626cb9494751a |
+| candidate_reference_evidence | 6,565,329 | b0f9c93fbf4e72f0247b65586b72dbb47ff0b5e98a75ac3888798cb703b81e91 | 85850fde2e861cf6ad6716df96283986af72138ec370e2d737043f23eedc4c1a |
+| reference_match_member | 626,110 | f2d08eea797a34f921fa8ddf639e8ad6ae1f0e5ee4f8dca26c1e5faedbdf08cc | 1486e8ef3652620de6581c29304cb6ca9b7e77195361e5cb9d7c1f504efba07b |
+| coverage_summary | 48,479 | 4844b3e7f66b8337e24a51e8312ee5ac99be57c7cd8e277fbac2a7e9583be846 | ea6ce3cc414ed4aef610a99f2861004da826f1bf3a08bf60b0d2761960ec7014 |
+
+The first three relations are bound from the reusable public pack, not duplicated
+in the candidate. Its physical postal index has 1,826,904 rows, 75,838,520 bytes,
+schema `4b89c69b6e59db57f1f9a1e3ee7acd32a9f38337f258e9845b26d4c29ea7dadd`, logical
+`a27a050e58e6e5a8d8a8de5c518f6f1f21d15b6a3a9a9e3f923f6f8d7ba0b691`; it is an index, not a seventh logical
+evidence relation. Objects comprise 5,295 ISO + 12,261 metadata + 1,826,904 postal
+records. Stage 8 remains the sole authoritative source/occurrence mapping layer.
+
+All 35,000 source rows, 51,779 candidates, 69,747 occurrences (34,822 STANDARD /
+34,925 NATIVE) and 6,106,088 parser components reconcile. All 51,779 candidates
+have Stage 9 evidence; zero candidate loss, zero sources lacking a candidate,
+zero technical failures. Exactly 51,066 candidates (98.623% of 51,779) have at
+least one evaluable check; 713 have only NOT_EVALUABLE checks. “Evaluable” includes
+NOT_FOUND and CONTRADICTED and does **not** mean supported or valid address.
+A distinct candidate-with-positive-support total is not inferred from overlapping
+incidence aggregates.
+
+All seven frozen validation certificates passed:
+candidate/source/occurrence totality; complete match-member integrity;
+evidence identity/state; full scheduling/normalization/reference replay;
+GeoNames no contradictions; reference capability/authority; and exact witness
+asset/field bindings. In-job readers recomputed every relation's physical/logical
+hash and schema, enforced IDs/FKs and authority, and recomputed coverage.
+The coverage relation was independently retrieved/rehashed/recomputed in this
+continuation: 48,479 rows, exact schema, unique PKs, logical
+`ea6ce3cc414ed4aef610a99f2861004da826f1bf3a08bf60b0d2761960ec7014`.
+Its state, reason, family, scope and country totals equal the manifest, with
+no negative counts or counts exceeding their stated denominators.
+
+#### Four-state and reference-use diagnostics
+
+Denominator for the following rates: all **6,565,329 evaluation rows**, not
+source addresses, distinct candidates, or independent confirmations.
+
+| State | Rows | % of evaluations |
+|---|---|---|
+| SUPPORTED | 531,488 | 8.0954 |
+| CONTRADICTED | 54,025 | 0.8229 |
+| NOT_FOUND | 2,128,794 | 32.4248 |
+| NOT_EVALUABLE | 3,851,022 | 58.6570 |
+
+| Reference family / explicit absent slot | SUPPORTED | CONTRADICTED | NOT_FOUND | NOT_EVALUABLE |
+|---|---|---|---|---|
+| GEONAMES_POSTAL | 84,652 | 0 | 1,066,914 | 1,124,100 |
+| ISO_CODES | 112,940 | 0 | 270,961 | 223,170 |
+| LIBADDRESSINPUT_METADATA | 333,896 | 54,025 | 790,919 | 1,200,439 |
+| NONE | 0 | 0 | 0 | 1,303,313 |
+
+NONE is the frozen unconfigured reference slot for street/house-number questions,
+**not** a fourth evidence family or a dataset. Every one of its 1,303,313 rows
+is NOT_EVALUABLE. Real reference-family totals: GeoNames 2,275,666;
+ISO 607,071; libaddressinput 2,379,279. Related lineage is preserved for later
+Stage 13 dependence handling; these are not independent address confirmations.
+
+The matrix below covers question/capability evaluability. For each row the
+denominator is the sum of its four state counts; evaluable = all but NOT_EVALUABLE.
+Source- and parser-scoped evaluations are pooled here and remain separately
+identifiable in the artifact.
+
+| Question | Reference | Capability | SUPPORTED | CONTRADICTED | NOT_FOUND | NOT_EVALUABLE |
+|---|---|---|---|---|---|---|
+| Q01 | ISO_CODES | COUNTRY_CONTEXT | 101,438 | 0 | 356 | 1,819 |
+| Q02 | ISO_CODES | COUNTRY_CONTEXT | 0 | 0 | 0 | 103,613 |
+| Q03 | LIBADDRESSINPUT_METADATA | FORMAT | 99,632 | 0 | 0 | 3,981 |
+| Q04 | LIBADDRESSINPUT_METADATA | POSTCODE_PATTERN | 36,021 | 54,022 | 0 | 608,444 |
+| Q05 | GEONAMES_POSTAL | POSTCODE_EXISTENCE | 22,771 | 0 | 59,917 | 615,799 |
+| Q06 | GEONAMES_POSTAL | POSTCODE_LOCALITY | 968 | 0 | 16,341 | 86,304 |
+| Q07 | GEONAMES_POSTAL | POSTCODE_ADMIN | 903 | 0 | 12,708 | 90,002 |
+| Q08 | LIBADDRESSINPUT_METADATA | POSTCODE_PREFIX_BY_ADMIN | 901 | 3 | 0 | 102,709 |
+| Q09 | GEONAMES_POSTAL | LOCALITY | 44,447 | 0 | 877,113 | 192,981 |
+| Q09 | LIBADDRESSINPUT_METADATA | LOCALITY | 91,358 | 0 | 713,697 | 309,486 |
+| Q10 | GEONAMES_POSTAL | ADMIN | 11,407 | 0 | 69,316 | 71,076 |
+| Q10 | ISO_CODES | ADMIN | 8,944 | 0 | 76,541 | 66,314 |
+| Q10 | LIBADDRESSINPUT_METADATA | ADMIN_ENUMERATION | 19,321 | 0 | 56,824 | 75,654 |
+| Q11 | GEONAMES_POSTAL | LOCALITY_ADMIN | 4,156 | 0 | 31,519 | 67,938 |
+| Q11 | LIBADDRESSINPUT_METADATA | LOCALITY_ADMIN | 1,414 | 0 | 20,398 | 81,801 |
+| Q12 | NONE | STREET | 0 | 0 | 0 | 1,199,700 |
+| Q13 | NONE | HOUSE_NUMBER | 0 | 0 | 0 | 103,613 |
+| Q14 | ISO_CODES | COUNTRY_CONTEXT | 2,558 | 0 | 194,064 | 51,424 |
+| Q15 | LIBADDRESSINPUT_METADATA | REQUIRED_FIELDS | 85,249 | 0 | 0 | 18,364 |
+
+GeoNames: 84,652 supported, 1,066,914 not found, 1,124,100 not evaluable,
+**zero contradicted**. The 6,673 association mismatches remain NOT_FOUND diagnostics,
+not source invalidity. Frozen country-specific coverage remains 121 postal
+countries, with partial-code exclusions, Brazil's major-code limitation, US
+ZIP+4 abstention and excluded full variants. Missing libaddressinput metadata,
+BH regex incompatibility and CN unhandled alternate rules remain abstentions.
+
+#### Bounded aggregate anomaly review
+
+| Scope | Question/capability | Permitted contradiction | Rows |
+|---|---|---|---|
+| PARSER_CANDIDATE | Q04/POSTCODE_PATTERN | FORMAT_RULE_CONFLICT | 42,702 |
+| PARSER_CANDIDATE | Q08/POSTCODE_PREFIX_BY_ADMIN | PREFIX_RULE_CONFLICT | 2 |
+| SOURCE_ROW | Q04/POSTCODE_PATTERN | FORMAT_RULE_CONFLICT | 11,320 |
+| SOURCE_ROW | Q08/POSTCODE_PREFIX_BY_ADMIN | PREFIX_RULE_CONFLICT | 1 |
+
+All 54,025 contradictions are explicitly authorized libaddressinput rule conflicts:
+54,022 Q04 postcode-pattern and three Q08 admin-prefix. ISO and GeoNames emitted
+zero contradictions. Prefix conflicts are one SOURCE_ROW/AR and two
+PARSER_CANDIDATE/KR. No postcode/locality association absence was converted to
+contradiction.
+
+**High format-conflict rate is retained for independent review:** Q04 has 54,022
+conflicts / 90,043 evaluable checks = 59.996%, although this is only 0.823% of all
+Stage 9 evaluations. SOURCE_ROW: 11,320 / 20,407 evaluable = 55.471%;
+PARSER_CANDIDATE: 42,702 / 69,636 = 61.322%. Rates are evaluation-level, not
+source-row or candidate incidence rates.
+
+| Country | Scope | Q04 support | Q04 conflict | Q04 not evaluable |
+|---|---|---|---|---|
+| BR | PARSER_CANDIDATE | 0 | 52 | 4,030 |
+| BR | SOURCE_ROW | 2,097 | 1,985 | 0 |
+| CN | PARSER_CANDIDATE | 0 | 0 | 475,350 |
+| CN | SOURCE_ROW | 0 | 0 | 21,759 |
+| IT | PARSER_CANDIDATE | 1,902 | 5,571 | 340 |
+| IT | SOURCE_ROW | 38 | 303 | 3 |
+| RO | PARSER_CANDIDATE | 14,064 | 3,491 | 610 |
+| RO | SOURCE_ROW | 51 | 200 | 369 |
+| RU | PARSER_CANDIDATE | 5,645 | 18,220 | 2,234 |
+| RU | SOURCE_ROW | 410 | 2,054 | 7 |
+| UA | PARSER_CANDIDATE | 1,350 | 13,209 | 1,070 |
+| UA | SOURCE_ROW | 181 | 887 | 4 |
+
+Investigation stayed aggregate-only: scope/country/reason totals were reconciled;
+the exact source postcode locator was checked in code; Q04's full-match path,
+per-country normalization and negative-authority gate were checked against the
+frozen contract; all 1,255 supported public regex patterns and 1,092 eligible
+public metadata examples pass the existing exact-engine tests. RU/RO use the
+frozen six-digit rule, UA/IT five-digit, BR its declared eight-digit/optional
+separator rule. No input strings were inspected. This establishes faithful
+frozen-rule evaluation, **not** why individual source/parser values fail or that
+the corresponding addresses are invalid. No correction, parser correctness
+inference or scientific retuning was performed; that interpretation limit remains
+explicit for independent review.
+
+All 51,779 country assessments are COUNTRY_UNRESOLVED, with zero supported or
+contradicted. This is required by the frozen Q02-only reduction: 51,834
+SOURCE_ROW evaluations comprise 41,110 unrecognized full subdivision identifiers,
+9,609 missing admin components and 1,115 unresolved country contexts. The 51,779
+parser Q02 slots abstain as SOURCE_ONLY_QUESTION. Q01 code recognition and
+country-blocked name support cannot manufacture geographic country support.
+
+CN contributes 4,363,484 / 6,565,329 evaluations (66.463%), not that share of source
+addresses; country rates must not be interpreted as population weights.
+Its 472,630 unsupported alternate-rule and 503,920 insufficient-granularity
+diagnostics explain substantial deliberate abstention. All 497,109 CN Q04 slots
+are NOT_EVALUABLE, never contradiction. Every nonempty country-context group has
+nonzero NOT_EVALUABLE counts. Low all-evaluation support is compatible with strict
+exact lookup, incomplete coverage and repeated parser components; absence remains
+NOT_FOUND, not invalidity. No circular “global address supported” summary is made.
+
+No cardinality mismatch, impossible state, unauthorized country/capability,
+GeoNames contradiction, technical failure or publication inconsistency remained.
+High conditional pattern-conflict rates and the absence of country witnesses are
+scientific limitations/diagnostics for review, not silently removed observations.
+
+#### Complete country-context evaluability
+
+There are 214 populated ISO country-context groups plus UNRESOLVED. The remaining
+35 ISO contexts have zero DEVELOPMENT evaluations and explicit zero cells in the
+coverage artifact; absence of a DEVELOPMENT denominator is not lack of reference
+coverage. Country context is accepted upstream provenance, not geographic truth.
+Counts below are evaluation counts; evaluable = SUPPORTED + CONTRADICTED +
+NOT_FOUND. The four counts sum to each country's evaluation denominator.
+This is not a distinct-candidate-by-country accuracy/evaluability table.
+
+<details>
+<summary>All populated country-context evaluation totals</summary>
+
+| Country context | Evaluations | Evaluable | Evaluable % | SUPPORTED | CONTRADICTED | NOT_FOUND | NOT_EVALUABLE |
+|---|---|---|---|---|---|---|---|
+| AD | 703 | 125 | 17.78 | 105 | 2 | 18 | 578 |
+| AE | 2,923 | 561 | 19.19 | 474 | 0 | 87 | 2,362 |
+| AF | 741 | 80 | 10.80 | 80 | 0 | 0 | 661 |
+| AG | 596 | 64 | 10.74 | 64 | 0 | 0 | 532 |
+| AI | 684 | 135 | 19.74 | 84 | 8 | 43 | 549 |
+| AL | 3,047 | 911 | 29.90 | 444 | 41 | 426 | 2,136 |
+| AM | 4,523 | 734 | 16.23 | 488 | 2 | 244 | 3,789 |
+| AO | 1,110 | 87 | 7.84 | 87 | 0 | 0 | 1,023 |
+| AR | 31,784 | 8,650 | 27.21 | 6,243 | 831 | 1,576 | 23,134 |
+| AS | 74 | 19 | 25.68 | 14 | 1 | 4 | 55 |
+| AT | 5,587 | 2,049 | 36.67 | 1,140 | 126 | 783 | 3,538 |
+| AU | 5,922 | 2,247 | 37.94 | 1,692 | 138 | 417 | 3,675 |
+| AW | 778 | 42 | 5.40 | 42 | 0 | 0 | 736 |
+| AZ | 1,815 | 584 | 32.18 | 207 | 49 | 328 | 1,231 |
+| BA | 1,332 | 209 | 15.69 | 197 | 1 | 11 | 1,123 |
+| BB | 703 | 79 | 11.24 | 78 | 1 | 0 | 624 |
+| BD | 592 | 111 | 18.75 | 81 | 1 | 29 | 481 |
+| BE | 1,298 | 453 | 34.90 | 277 | 28 | 148 | 845 |
+| BF | 706 | 94 | 13.31 | 76 | 0 | 18 | 612 |
+| BG | 23,076 | 8,899 | 38.56 | 3,794 | 571 | 4,534 | 14,177 |
+| BH | 1,000 | 110 | 11.00 | 108 | 0 | 2 | 890 |
+| BI | 667 | 49 | 7.35 | 49 | 0 | 0 | 618 |
+| BJ | 704 | 56 | 7.95 | 55 | 0 | 1 | 648 |
+| BM | 670 | 110 | 16.42 | 81 | 2 | 27 | 560 |
+| BN | 1,043 | 133 | 12.75 | 130 | 2 | 1 | 910 |
+| BO | 2,492 | 202 | 8.11 | 191 | 0 | 11 | 2,290 |
+| BR | 152,420 | 71,956 | 47.21 | 42,248 | 2,037 | 27,671 | 80,464 |
+| BS | 777 | 85 | 10.94 | 84 | 0 | 1 | 692 |
+| BT | 444 | 52 | 11.71 | 49 | 2 | 1 | 392 |
+| BW | 814 | 64 | 7.86 | 44 | 0 | 20 | 750 |
+| BY | 1,518 | 416 | 27.40 | 201 | 16 | 199 | 1,102 |
+| BZ | 592 | 33 | 5.57 | 32 | 0 | 1 | 559 |
+| CA | 1,073 | 322 | 30.01 | 277 | 2 | 43 | 751 |
+| CD | 814 | 64 | 7.86 | 63 | 0 | 1 | 750 |
+| CF | 592 | 47 | 7.94 | 47 | 0 | 0 | 545 |
+| CG | 555 | 36 | 6.49 | 36 | 0 | 0 | 519 |
+| CH | 2,411 | 905 | 37.54 | 601 | 29 | 275 | 1,506 |
+| CI | 781 | 104 | 13.32 | 104 | 0 | 0 | 677 |
+| CL | 3,215 | 928 | 28.86 | 603 | 2 | 323 | 2,287 |
+| CM | 1,036 | 81 | 7.82 | 56 | 0 | 25 | 955 |
+| CN | 4,363,484 | 2,082,291 | 47.72 | 266,653 | 0 | 1,815,638 | 2,281,193 |
+| CO | 19,946 | 6,287 | 31.52 | 4,844 | 90 | 1,353 | 13,659 |
+| CR | 3,076 | 654 | 21.26 | 537 | 0 | 117 | 2,422 |
+| CU | 779 | 86 | 11.04 | 84 | 2 | 0 | 693 |
+| CV | 1,147 | 184 | 16.04 | 151 | 0 | 33 | 963 |
+| CW | 666 | 36 | 5.41 | 36 | 0 | 0 | 630 |
+| CY | 4,150 | 1,218 | 29.35 | 634 | 0 | 584 | 2,932 |
+| CZ | 10,176 | 3,893 | 38.26 | 2,155 | 105 | 1,633 | 6,283 |
+| DE | 2,368 | 837 | 35.35 | 429 | 60 | 348 | 1,531 |
+| DJ | 703 | 53 | 7.54 | 53 | 0 | 0 | 650 |
+| DK | 1,333 | 470 | 35.26 | 280 | 7 | 183 | 863 |
+| DM | 665 | 36 | 5.41 | 36 | 0 | 0 | 629 |
+| DO | 1,928 | 317 | 16.44 | 233 | 1 | 83 | 1,611 |
+| DZ | 15,765 | 3,478 | 22.06 | 2,875 | 4 | 599 | 12,287 |
+| EC | 1,490 | 329 | 22.08 | 174 | 2 | 153 | 1,161 |
+| EE | 1,813 | 664 | 36.62 | 339 | 31 | 294 | 1,149 |
+| EG | 888 | 100 | 11.26 | 100 | 0 | 0 | 788 |
+| ER | 592 | 46 | 7.77 | 32 | 0 | 14 | 546 |
+| ES | 5,294 | 2,109 | 39.84 | 1,078 | 109 | 922 | 3,185 |
+| ET | 1,073 | 123 | 11.46 | 123 | 0 | 0 | 950 |
+| FI | 4,304 | 1,536 | 35.69 | 1,076 | 80 | 380 | 2,768 |
+| FJ | 594 | 33 | 5.56 | 32 | 0 | 1 | 561 |
+| FM | 444 | 111 | 25.00 | 94 | 1 | 16 | 333 |
+| FO | 37 | 4 | 10.81 | 4 | 0 | 0 | 33 |
+| FR | 1,596 | 580 | 36.34 | 337 | 14 | 229 | 1,016 |
+| GA | 703 | 54 | 7.68 | 53 | 0 | 1 | 649 |
+| GB | 13,377 | 3,867 | 28.91 | 2,934 | 6 | 927 | 9,510 |
+| GD | 461 | 25 | 5.42 | 25 | 0 | 0 | 436 |
+| GE | 9,145 | 1,480 | 16.18 | 1,235 | 205 | 40 | 7,665 |
+| GG | 185 | 41 | 22.16 | 30 | 1 | 10 | 144 |
+| GH | 854 | 67 | 7.85 | 67 | 0 | 0 | 787 |
+| GI | 815 | 150 | 18.40 | 146 | 1 | 3 | 665 |
+| GL | 38 | 9 | 23.68 | 6 | 1 | 2 | 29 |
+| GM | 777 | 62 | 7.98 | 42 | 0 | 20 | 715 |
+| GN | 742 | 96 | 12.94 | 93 | 2 | 1 | 646 |
+| GQ | 703 | 57 | 8.11 | 39 | 0 | 18 | 646 |
+| GR | 8,025 | 1,635 | 20.37 | 1,456 | 4 | 175 | 6,390 |
+| GT | 709 | 117 | 16.50 | 88 | 1 | 28 | 592 |
+| GW | 592 | 80 | 13.51 | 80 | 0 | 0 | 512 |
+| GY | 703 | 58 | 8.25 | 54 | 0 | 4 | 645 |
+| HK | 2,045 | 439 | 21.47 | 360 | 0 | 79 | 1,606 |
+| HN | 407 | 90 | 22.11 | 80 | 1 | 9 | 317 |
+| HR | 1,998 | 652 | 32.63 | 283 | 46 | 323 | 1,346 |
+| HT | 741 | 113 | 15.25 | 94 | 2 | 17 | 628 |
+| HU | 5,665 | 2,124 | 37.49 | 1,246 | 52 | 826 | 3,541 |
+| ID | 1,036 | 323 | 31.18 | 236 | 9 | 78 | 713 |
+| IE | 2,924 | 624 | 21.34 | 386 | 7 | 231 | 2,300 |
+| IL | 9,138 | 1,290 | 14.12 | 1,042 | 196 | 52 | 7,848 |
+| IM | 630 | 166 | 26.35 | 114 | 11 | 41 | 464 |
+| IN | 91,861 | 30,064 | 32.73 | 22,495 | 795 | 6,774 | 61,797 |
+| IQ | 630 | 103 | 16.35 | 102 | 1 | 0 | 527 |
+| IR | 816 | 96 | 11.76 | 94 | 2 | 0 | 720 |
+| IS | 1,517 | 366 | 24.13 | 256 | 0 | 110 | 1,151 |
+| IT | 64,845 | 33,439 | 51.57 | 5,342 | 5,874 | 22,223 | 31,406 |
+| JE | 371 | 85 | 22.91 | 69 | 1 | 15 | 286 |
+| JM | 1,369 | 294 | 21.48 | 267 | 0 | 27 | 1,075 |
+| JO | 778 | 94 | 12.08 | 91 | 1 | 2 | 684 |
+| JP | 70,215 | 23,039 | 32.81 | 13,170 | 43 | 9,826 | 47,176 |
+| KE | 9,595 | 1,526 | 15.90 | 1,260 | 23 | 243 | 8,069 |
+| KG | 1,819 | 290 | 15.94 | 202 | 39 | 49 | 1,529 |
+| KH | 1,187 | 147 | 12.38 | 135 | 11 | 1 | 1,040 |
+| KI | 74 | 8 | 10.81 | 8 | 0 | 0 | 66 |
+| KM | 555 | 44 | 7.93 | 43 | 0 | 1 | 511 |
+| KN | 558 | 90 | 16.13 | 90 | 0 | 0 | 468 |
+| KP | 518 | 56 | 10.81 | 56 | 0 | 0 | 462 |
+| KR | 39,612 | 16,587 | 41.87 | 7,728 | 567 | 8,292 | 23,025 |
+| KW | 816 | 104 | 12.75 | 101 | 2 | 1 | 712 |
+| KY | 892 | 165 | 18.50 | 164 | 0 | 1 | 727 |
+| KZ | 7,994 | 1,100 | 13.76 | 932 | 20 | 148 | 6,894 |
+| LA | 1,946 | 227 | 11.66 | 210 | 2 | 15 | 1,719 |
+| LB | 1,221 | 134 | 10.97 | 132 | 0 | 2 | 1,087 |
+| LC | 684 | 37 | 5.41 | 37 | 0 | 0 | 647 |
+| LI | 930 | 261 | 28.06 | 258 | 0 | 3 | 669 |
+| LK | 925 | 179 | 19.35 | 113 | 13 | 53 | 746 |
+| LR | 778 | 90 | 11.57 | 89 | 0 | 1 | 688 |
+| LS | 1,184 | 188 | 15.88 | 165 | 23 | 0 | 996 |
+| LT | 1,443 | 546 | 37.84 | 269 | 15 | 262 | 897 |
+| LU | 893 | 231 | 25.87 | 185 | 15 | 31 | 662 |
+| LV | 3,193 | 1,076 | 33.70 | 570 | 85 | 421 | 2,117 |
+| LY | 666 | 50 | 7.51 | 37 | 0 | 13 | 616 |
+| MA | 9,759 | 2,139 | 21.92 | 1,110 | 1 | 1,028 | 7,620 |
+| MC | 1,036 | 221 | 21.33 | 186 | 11 | 24 | 815 |
+| MD | 2,479 | 804 | 32.43 | 398 | 37 | 369 | 1,675 |
+| ME | 1,557 | 210 | 13.49 | 205 | 5 | 0 | 1,347 |
+| MG | 854 | 117 | 13.70 | 92 | 1 | 24 | 737 |
+| MH | 778 | 221 | 28.41 | 152 | 18 | 51 | 557 |
+| MK | 1,480 | 362 | 24.46 | 264 | 11 | 87 | 1,118 |
+| ML | 666 | 54 | 8.11 | 54 | 0 | 0 | 612 |
+| MM | 1,335 | 150 | 11.24 | 147 | 1 | 2 | 1,185 |
+| MN | 779 | 86 | 11.04 | 84 | 1 | 1 | 693 |
+| MO | 595 | 115 | 19.33 | 96 | 0 | 19 | 480 |
+| MR | 741 | 57 | 7.69 | 55 | 0 | 2 | 684 |
+| MT | 964 | 221 | 22.93 | 169 | 1 | 51 | 743 |
+| MU | 999 | 133 | 13.31 | 128 | 0 | 5 | 866 |
+| MV | 592 | 74 | 12.50 | 72 | 2 | 0 | 518 |
+| MW | 630 | 131 | 20.79 | 70 | 0 | 61 | 499 |
+| MX | 13,091 | 5,140 | 39.26 | 2,942 | 318 | 1,880 | 7,951 |
+| MY | 1,344 | 400 | 29.76 | 306 | 9 | 85 | 944 |
+| MZ | 1,079 | 173 | 16.03 | 146 | 1 | 26 | 906 |
+| NE | 703 | 95 | 13.51 | 95 | 0 | 0 | 608 |
+| NG | 2,702 | 430 | 15.91 | 415 | 0 | 15 | 2,272 |
+| NI | 705 | 82 | 11.63 | 79 | 2 | 1 | 623 |
+| NL | 1,480 | 383 | 25.88 | 316 | 0 | 67 | 1,097 |
+| NO | 5,465 | 1,954 | 35.75 | 1,211 | 71 | 672 | 3,511 |
+| NP | 666 | 77 | 11.56 | 74 | 3 | 0 | 589 |
+| NR | 111 | 25 | 22.52 | 18 | 0 | 7 | 86 |
+| NU | 74 | 8 | 10.81 | 4 | 0 | 4 | 66 |
+| NZ | 2,651 | 722 | 27.24 | 653 | 0 | 69 | 1,929 |
+| OM | 814 | 107 | 13.14 | 94 | 13 | 0 | 707 |
+| PA | 781 | 118 | 15.11 | 84 | 0 | 34 | 663 |
+| PE | 28,929 | 7,078 | 24.47 | 6,141 | 24 | 913 | 21,851 |
+| PF | 74 | 28 | 37.84 | 12 | 4 | 12 | 46 |
+| PG | 1,449 | 260 | 17.94 | 243 | 13 | 4 | 1,189 |
+| PH | 1,444 | 410 | 28.39 | 204 | 1 | 205 | 1,034 |
+| PK | 1,336 | 414 | 30.99 | 216 | 0 | 198 | 922 |
+| PL | 4,180 | 1,603 | 38.35 | 991 | 5 | 607 | 2,577 |
+| PS | 740 | 40 | 5.41 | 40 | 0 | 0 | 700 |
+| PT | 2,003 | 660 | 32.95 | 508 | 1 | 151 | 1,343 |
+| PW | 112 | 27 | 24.11 | 20 | 1 | 6 | 85 |
+| PY | 1,226 | 164 | 13.38 | 140 | 0 | 24 | 1,062 |
+| QA | 814 | 44 | 5.41 | 44 | 0 | 0 | 770 |
+| RO | 179,848 | 76,297 | 42.42 | 37,449 | 3,691 | 35,157 | 103,551 |
+| RS | 3,406 | 802 | 23.55 | 467 | 57 | 278 | 2,604 |
+| RU | 252,146 | 125,699 | 49.85 | 23,184 | 20,274 | 82,241 | 126,447 |
+| RW | 740 | 62 | 8.38 | 40 | 0 | 22 | 678 |
+| SA | 1,110 | 137 | 12.34 | 135 | 2 | 0 | 973 |
+| SB | 259 | 14 | 5.41 | 14 | 0 | 0 | 245 |
+| SC | 854 | 93 | 10.89 | 92 | 0 | 1 | 761 |
+| SD | 777 | 108 | 13.90 | 104 | 3 | 1 | 669 |
+| SE | 15,149 | 5,681 | 37.50 | 4,056 | 0 | 1,625 | 9,468 |
+| SG | 1,796 | 488 | 27.17 | 348 | 17 | 123 | 1,308 |
+| SI | 1,406 | 333 | 23.68 | 177 | 37 | 119 | 1,073 |
+| SJ | 111 | 34 | 30.63 | 18 | 3 | 13 | 77 |
+| SK | 5,045 | 1,861 | 36.89 | 1,009 | 94 | 758 | 3,184 |
+| SL | 666 | 45 | 6.76 | 43 | 0 | 2 | 621 |
+| SM | 592 | 127 | 21.45 | 109 | 4 | 14 | 465 |
+| SN | 743 | 102 | 13.73 | 101 | 1 | 0 | 641 |
+| SO | 777 | 159 | 20.46 | 158 | 1 | 0 | 618 |
+| SR | 668 | 72 | 10.78 | 72 | 0 | 0 | 596 |
+| SS | 518 | 41 | 7.92 | 28 | 0 | 13 | 477 |
+| ST | 703 | 55 | 7.82 | 38 | 0 | 17 | 648 |
+| SV | 818 | 136 | 16.63 | 132 | 3 | 1 | 682 |
+| SX | 555 | 30 | 5.41 | 30 | 0 | 0 | 525 |
+| SY | 777 | 42 | 5.41 | 42 | 0 | 0 | 735 |
+| SZ | 518 | 69 | 13.32 | 67 | 2 | 0 | 449 |
+| TD | 630 | 50 | 7.94 | 50 | 0 | 0 | 580 |
+| TG | 629 | 51 | 8.11 | 34 | 0 | 17 | 578 |
+| TH | 6,180 | 1,411 | 22.83 | 969 | 1 | 441 | 4,769 |
+| TJ | 888 | 119 | 13.40 | 96 | 0 | 23 | 769 |
+| TL | 222 | 12 | 5.41 | 12 | 0 | 0 | 210 |
+| TM | 592 | 72 | 12.16 | 71 | 1 | 0 | 520 |
+| TN | 891 | 115 | 12.91 | 113 | 1 | 1 | 776 |
+| TO | 222 | 12 | 5.41 | 12 | 0 | 0 | 210 |
+| TR | 8,493 | 3,001 | 35.33 | 1,811 | 88 | 1,102 | 5,492 |
+| TT | 483 | 26 | 5.38 | 26 | 0 | 0 | 457 |
+| TV | 37 | 4 | 10.81 | 4 | 0 | 0 | 33 |
+| TW | 16,360 | 4,818 | 29.45 | 3,233 | 436 | 1,149 | 11,542 |
+| TZ | 705 | 97 | 13.76 | 97 | 0 | 0 | 608 |
+| UA | 169,153 | 77,762 | 45.97 | 10,137 | 14,096 | 53,529 | 91,391 |
+| UG | 556 | 30 | 5.40 | 30 | 0 | 0 | 526 |
+| UNRESOLVED | 588,096 | 28,793 | 4.90 | 337 | 0 | 28,456 | 559,303 |
+| US | 8,213 | 2,890 | 35.19 | 1,778 | 10 | 1,102 | 5,323 |
+| UY | 1,341 | 399 | 29.75 | 307 | 8 | 84 | 942 |
+| UZ | 11,931 | 1,662 | 13.93 | 1,530 | 26 | 106 | 10,269 |
+| VA | 296 | 55 | 18.58 | 37 | 3 | 15 | 241 |
+| VC | 596 | 74 | 12.42 | 73 | 1 | 0 | 522 |
+| VE | 1,414 | 300 | 21.22 | 275 | 0 | 25 | 1,114 |
+| VG | 889 | 158 | 17.77 | 157 | 0 | 1 | 731 |
+| VN | 47,183 | 7,886 | 16.71 | 4,729 | 1,259 | 1,898 | 39,297 |
+| VU | 595 | 32 | 5.38 | 32 | 0 | 0 | 563 |
+| WS | 780 | 82 | 10.51 | 54 | 0 | 28 | 698 |
+| YE | 629 | 34 | 5.41 | 34 | 0 | 0 | 595 |
+| ZA | 48,422 | 14,481 | 29.91 | 11,127 | 875 | 2,479 | 33,941 |
+| ZM | 741 | 105 | 14.17 | 104 | 1 | 0 | 636 |
+| ZW | 742 | 56 | 7.55 | 54 | 0 | 2 | 686 |
+
+</details>
+
+#### Scale, reproducibility and review disposition
+
+Sixteen deterministic task groups cover all 4,096 logical shard prefixes exactly
+once; their scheduled totals sum to 6,565,329. Full replay in reverse group order
+matched evidence/member logical identities before publication. No checkpoints
+were adopted from previous jobs. Group evaluation sizes range from 120,056 to
+1,382,461 (data skew is retained, not truncated). Across groups, 5,043,577
+questions produced the scheduled evaluations; small-reference cache hits total
+1,388,633. Postal work: 1,151,566 scheduled evaluable requests, 241,628 summed
+within-group distinct lookups (not globally distinct) and 5,240,846 matched
+reference-record incidences. The public index was built once and reused.
+No per-row network calls or pandas production path exists.
+
+Recorded candidate build time is 18,015 seconds (includes reverse replay);
+whole-job time includes public preparation and repeated full validations.
+Committed bytes total 914,459,006; total read/write traffic, spill volume and CPU
+utilization were not measured and are not inferred from committed bytes.
+The 9.657 GiB batch peak fits the requested 32 GiB; this DEVELOPMENT observation
+does not establish production throughput/memory at 141M source rows. Bounded
+joins/batches and per-run registration remain the scaling architecture;
+production scheduling/resource validation still needs separate authorization.
+
+The pre-run implementation defect ledger remains resolved. This continuation's
+bounded reconciliation ledger found no additional output-semantic defect requiring
+a fix or rerun. No executable or scientific asset was changed. Error-handling
+guidance kept scheduler completion, successful in-job reopening and current
+metadata/effect reconciliation distinct rather than treating exit zero as proof.
+
+Reconciliation local gate: **836 tests passed (17.76 seconds)**, including the
+accepted Stage 7/8 regressions and publication faults; source mypy passes for
+96 files; Ruff lint/format passes for 145 files. The pre-submission separate
+Stage 7/8/execution-policy gate remains 164 passing tests. Stage 7/8 source,
+contracts, fingerprints and accepted reports remain unchanged; frozen Stage 9
+design/lock bytes remain unchanged. Documentation/link/privacy validation runs
+before committing this sanitized report. No row-level payload, protected address,
+credential or new generated evidence is added to Git.
+
+BOUNDARY_HANDOFF_SUFFICIENT: future Stage 10 can resolve evidence through the
+unchanged Stage 8 → Stage 6/source-line map. No duplicate authoritative map or
+Stage 0–8 change is required. HOLDOUT remains sealed; production and Pelias are
+untouched. No second corrected run or new SLURM job was submitted.
+
+NEXT: INDEPENDENT STAGE 9 DEVELOPMENT CANDIDATE REVIEW
 
 ## Historical original validation and complete pre-submission defect ledger
 

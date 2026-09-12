@@ -362,12 +362,12 @@ accepted transition boundary is summarized in the authoritative
 - **Status:** **DESIGN OWNER-APPROVED — REFERENCES FROZEN**. Separately authorized
   implementation/local validation are complete; one controlled DEVELOPMENT
   job `1770156` failed in the synthetic atomic-rename preflight, before public-pack
-  construction or protected input access. No Stage 9 candidate/acceptance is claimed.
+  construction or protected input access. That historical job produced no candidate.
   The separately authorized synthetic-only diagnostic `1771054` completed:
   fresh-target no-replace rename returned EINVAL, while ordinary-rename baselines
   succeeded. Collision preservation and directory fsync checks passed. The
-  publication compatibility blocker remains unresolved; owner review is required
-  before a correction. No DEVELOPMENT retry or fallback is authorized by the probe.
+  publication compatibility blocker then required owner review before correction.
+  Neither diagnostic alone authorized a DEVELOPMENT retry or fallback.
   A separately authorized design/local-only
   [publication revision candidate](stages/STAGE09_PUBLICATION_PROTOCOL_REVISION.md)
   now proposes exclusive run reservation and a zero-byte commit seal; a tests-only
@@ -381,11 +381,15 @@ accepted transition boundary is summarized in the authoritative
   DEVELOPMENT retry after complete local/fault validation. Stage 9 now uses the
   permanent reservation / exclusive `_COMMITTED` seal protocol in both public-pack
   and candidate publication. No active publication path or corrected preflight
-  requires no-replace rename. No corrected candidate is claimed before execution
-  and full reconciliation; Stage 9 is not accepted.
+  requires no-replace rename. Stage 9 is not accepted.
   Corrected job `1771191`, executable `3e10ac7c1309c2636f35c0709fa283305d60d998`,
-  was submitted once and observed PENDING (Resources); no repeated polling or
-  further retry is authorized.
+  was submitted once, initially PENDING (Resources), then completed on 2026-09-12
+  with exit `0:0`. Full in-job validation/reopening and sanitized reconciliation
+  passed: 51,779 candidates, 6,565,329 evidence rows, zero GeoNames contradictions,
+  zero technical failures. **DEVELOPMENT CANDIDATE READY — NOT ACCEPTED**.
+  The report retains high conditional format-conflict rates and all unresolved
+  country assessments as review diagnostics, not address-validity claims.
+  No second corrected run was submitted; independent review is the next gate.
   The complete design contract is the
   [Stage 9 design](stages/STAGE09_OFFLINE_REFERENCE_EVIDENCE.md). No Stage 0–8
   change is required; the Stage 10 boundary handoff is sufficient through the

@@ -7,12 +7,20 @@ reservation / exclusive commit-seal protocol, complete local/fault validation,
 push an exact executable and submit **one corrected DEVELOPMENT retry**. The
 integration below replaces only Stage 9 publication; no scientific/reference
 change or Stage 0–8 modification. The prior failures and diagnostics below remain
-historical evidence. Stage 9 is NOT ACCEPTED; no corrected candidate is claimed
-before its scheduled execution and validation.
+historical evidence. Stage 9 is NOT ACCEPTED.
 The corrected executable is `3e10ac7c1309c2636f35c0709fa283305d60d998`.
-Job `1771191` was submitted once at `2026-09-10T15:56:41Z` and observed PENDING
-(Resources), without dependencies or requeue. The execution record carries the
-immutable targets and next accounting/reconciliation action; stop without polling.
+Job `1771191` was submitted once at `2026-09-10T15:56:41Z` and initially observed
+PENDING (Resources), without dependencies or requeue. It completed on 2026-09-12
+with exit `0:0` after 08:04:53. All 51,779 candidates are represented by 6,565,329
+evidence rows; publication PASS, full in-job validation/reopening and sanitized
+terminal reconciliation passed. Manifest `321c9d8352fac5b78612a7c8e52f6f810f92bddb1e91f7cfe348398a6d707240`,
+logical dataset `7ae84e149f4c9c2de7a791c9b326b88e387a70d155d8be55acf6b55e06bafae3`.
+The [execution record](../../reports/development/stage09.md) contains complete
+counts, reference bindings and the high conditional postcode-format conflict
+rate, which is a review diagnostic and not address invalidity. This is a
+DEVELOPMENT candidate awaiting independent review; no second retry or Stage 10.
+
+## Historical authorization and failed preflight
 
 The owner authorized implementation, synthetic/local validation, one controlled
 Goethe-NHR SLURM DEVELOPMENT execution, publication validation and a candidate

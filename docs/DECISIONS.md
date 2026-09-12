@@ -1553,6 +1553,46 @@ to change a decision or start a stage.
   jobs `1771054`/`1771149` remain immutable historical evidence. No Stage 0–8
   implementation/artifact/contract or Stage 9 scientific semantics are changed.
 
+### D059 — Freeze corrected Stage 9 DEVELOPMENT candidate for independent review
+
+- **Date/authority:** 2026-09-12; owner continuation of D058's one corrected run.
+  No new SLURM job or materialization was submitted. Exact reporting main
+  `86b9f264be967e7e5033d8f344b1993635b02b05` was clean/equal to origin before work.
+- **Executable/job:** `3e10ac7c1309c2636f35c0709fa283305d60d998` / `1771191`;
+  COMPLETED, `0:0`, 08:04:53, batch MaxRSS 10,125,844 KiB. Four requested CPUs,
+  32 GiB; scheduler allocated 80 CPUs, not measured utilization.
+- **Publication:** Approved permanent reservation/registration/exclusive seal
+  protocol returned PASS after full scientific/hash prepared and committed
+  reopening and last-operation ownership checks. Candidate manifest
+  `321c9d8352fac5b78612a7c8e52f6f810f92bddb1e91f7cfe348398a6d707240`, logical
+  `7ae84e149f4c9c2de7a791c9b326b88e387a70d155d8be55acf6b55e06bafae3`;
+  public-pack manifest
+  `dd7994b907250d515470b820bcbf42993a08e4f3116409b7c94168446e1c064a`.
+  Exact input/reference/schema and registration identities and all file topology
+  reconcile. Full protected payload checks ran in the job; this continuation
+  used metadata and the small sanitized aggregate relation, not login-node
+  protected processing or a second full validation job.
+- **Scientific evidence:** All 35,000 source rows / 51,779 candidates / 69,747
+  occurrences retained; 6,565,329 evidence rows; 51,066 candidates evaluable;
+  zero candidate loss or technical failures. Four-state totals: SUPPORTED
+  531,488; CONTRADICTED 54,025; NOT_FOUND 2,128,794; NOT_EVALUABLE 3,851,022.
+  All contradictions are authorized frozen libaddressinput pattern/prefix
+  conflicts. GeoNames contradictions zero; association-mismatch diagnostics
+  6,673 remain NOT_FOUND, not invalidity.
+- **Review limitations:** Q04 conflict rate among evaluable checks is 59.996%;
+  source/parser and country breakdowns, exact-rule/runtime checks and interpretation
+  limits are retained, not tuned away. All country assessments are unresolved
+  because no qualifying exact source subdivision-code witness was obtained. No address
+  accuracy, parser correctness or final geographic truth claim is made.
+- **Disposition:** [Full candidate report](../reports/development/stage09.md)
+  includes all six relation identities, 214 populated country contexts plus
+  unresolved, capability/family diagnostics, complete bounded reconciliation
+  ledger, resource limits and 836 passing local tests/static checks. Stage 7/8
+  and frozen Stage 9 science/reference bytes unchanged; HOLDOUT sealed;
+  production/Pelias untouched. Original failure and diagnostic evidence remain
+  immutable. **Stage 9 DEVELOPMENT candidate ready, NOT YET ACCEPTED**.
+  Stop for independent review; no Stage 10 authorization.
+
 ## Open decisions
 
 These questions require future stage designs and explicit approval:

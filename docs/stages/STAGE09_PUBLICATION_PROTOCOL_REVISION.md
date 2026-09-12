@@ -1,4 +1,12 @@
-# Stage 9 publication-protocol revision — owner-review candidate
+# Stage 9 publication-protocol revision — approved and integrated
+
+Completed integration evidence (2026-09-12, D059): corrected executable
+`3e10ac7c1309c2636f35c0709fa283305d60d998`, job `1771191`, completed with
+publication PASS and full in-job prepared/committed reopening. Both public-pack
+and candidate registrations/seals and current sanitized metadata reconcile.
+The [candidate report](../../reports/development/stage09.md) records the exact
+manifest/commit identities and scientific diagnostics. No second corrected run;
+Stage 9 is NOT ACCEPTED. Next gate: independent DEVELOPMENT candidate review.
 
 ## Status, authority and conclusion
 
@@ -405,10 +413,9 @@ required. HOLDOUT, production, Pelias and protected Stage 8 payloads were untouc
 
 ## Owner gate
 
-The owner has approved integration and one corrected DEVELOPMENT retry after the
-complete local gate. Submit once; stop if PENDING/RUNNING. A failure requires owner
-review, not another automatic retry. A completed validated candidate requires
-independent review; it is not Stage 9 acceptance. Original failed attempts and
-both filesystem diagnostics remain untouched.
+The owner-approved integration and single corrected DEVELOPMENT retry have
+completed. Job `1771191` published a validated candidate; independent review is
+now required, not another automatic execution or Stage 9 acceptance. Original
+failed attempts and both filesystem diagnostics remain untouched.
 
-NEXT: ONE CORRECTED DEVELOPMENT EXECUTION, THEN INDEPENDENT CANDIDATE REVIEW.
+NEXT: INDEPENDENT STAGE 9 DEVELOPMENT CANDIDATE REVIEW.

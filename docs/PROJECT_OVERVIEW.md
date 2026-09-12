@@ -115,7 +115,12 @@ truthful. The pre-Stage-9 baseline is frozen. A separately authorized
 with required revisions incorporated and public reference bytes frozen;
 its separately authorized implementation and synthetic validation are complete,
 but controlled DEVELOPMENT job `1770156` failed in the synthetic filesystem
-preflight before protected input access. No candidate was published. Stage 9 is not accepted;
+preflight before protected input access. That historical job published no candidate.
+After owner-approved publication repair and direct PanFS capability evidence,
+corrected job `1771191` completed on 2026-09-12 and passed full in-job publication/
+scientific reopening and sanitized reconciliation: 51,779 candidates and 6,565,329
+reference-evidence rows. The DEVELOPMENT candidate awaits independent review,
+including its high conditional postcode-format conflict rates; Stage 9 is not accepted;
 see the [execution record](../reports/development/stage09.md). Replacement
 Stages 10–14 remain proposed and not started.
 See
@@ -172,8 +177,8 @@ The owner-approved Stage 9 design freezes ISO country/subdivision JSON,
 offline libaddressinput metadata, and GeoNames postal evidence with bounded
 DuckDB and PyArrow/Parquet. It excludes fuzzy matching and street/house-number
 references from v1. The [public freeze](stages/STAGE09_REFERENCE_FREEZE.md)
-records concrete families and explicit negative-authority gates; the stack
-is not implemented.
+records concrete families and explicit negative-authority gates. The stack is
+implemented and DEVELOPMENT-candidate validated, not scientifically accepted.
 Self-hosted SAFE Pelias would retain top-N features for later scoring, never
 treat the first result as truth. A planned library or dataset is not an
 implemented dependency; every new stage requires design and review before use.
