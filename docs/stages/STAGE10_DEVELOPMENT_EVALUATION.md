@@ -31,8 +31,10 @@ cases cover the complete design, including:
 - Q6 pinned canonical ICU IDs (not unverified aliases), asset/data/version/filter
   mutations, Greek/Cyrillic/Latin mixtures, unsupported scripts, inherited marks,
   exact pre/post NFC, empty/unchanged/residual-script output and native retention;
-- the four-per-context/eight-per-row reachable synthetic construction, Q1/Q2 and
-  Q5/Q6 mutual exclusion, six decisions, complete eligible catalog, no arbitrary
+- the five-NATIVE/four-STANDARD reachable constructions with Q5/Q6 coeligible,
+  Q1/Q2 role exclusion, two-context UNION ALL proof including equal candidate IDs,
+  uniform 5/context and 10/row safety ceilings versus reachable 9/row; six
+  decisions, complete eligible catalog, no combined stripped/transliterated family, no arbitrary
   budget suppression and zero Q7 pseudo-rows/IDs under any simulated result history;
 - full-intent equality/difference including endpoint, fields, country and policy
   slot; injected collisions, cross-context FK attachment and orphan family rows;
@@ -62,8 +64,11 @@ Accepted input counts: 35,000 source rows, 69,747 representation occurrences
 (34,822 STANDARD, 34,925 NATIVE), 51,779 exact candidates, 6,106,088 parser
 components and 6,565,329 Stage 9 evidence rows. Therefore the initial artifact
 must represent **69,747 contexts and 418,482 family decisions** (6 × contexts).
-It can contain at most **278,988 hypotheses** (4 × contexts), with <=8 on any
-source row. Actual hypotheses/coverage remain unknown. These counts are not an
+The uniform engineering allowance is **348,735 hypotheses** (5 × contexts),
+with <=10 per source row. Role eligibility gives the tighter upper bound
+**313,913 = 4 × 34,822 + 5 × 34,925**, with <=9 per source row. These are bounds,
+not expected emitted counts; role/totality validation rejects impossible counts
+even below a uniform safety ceiling. Actual hypotheses/coverage remain unknown. These counts are not an
 authorized Pelias workload. The candidate total is retained for reconciliation,
 not used as the hypothesis-generation denominator.
 
@@ -79,7 +84,7 @@ not used as the hypothesis-generation denominator.
 | Output | Hypotheses/context, source row and candidate; eligible constructions; local distinct intents; global distinct intent opportunities and corresponding cross-context reduction |
 | Convergence | Family masks per context hypothesis; Q3/Q5/Q6 baseline convergence; equal STANDARD/NATIVE intent incidence across the same source row; exact byte equality checks |
 | Availability | Q3 line availability; Q4 locality/postcode/pair and field decisions; Q5 removals/vetoes; Q6 script/output availability and abstention |
-| Budgets | Contexts at engineering ceiling 4, rows at 8; bound violations; zero initial QUERY_BUDGET_SUPPRESSION; operating B UNSELECTED |
+| Budgets | Contexts at engineering ceiling 5, rows at safety ceiling 10 (must be zero under role bounds); role-aware bound violations; zero initial QUERY_BUDGET_SUPPRESSION; operating B UNSELECTED |
 | Publication/privacy | Protected relation rows, complete selector counts, one portable summary object, zero protected strings/row/query IDs in portable output |
 | Technical | Closed failure categories, validators/reopen, elapsed/MaxRSS/spill/peak buffered bytes, giant values, output sizes/checkpoint reuse; no geocoder calls |
 
@@ -107,7 +112,7 @@ coverage_counts, hypothesis_counts, engineering_counts, family_cells,
 convergence_cells, field_decision_cells, histograms, artifact_row_counts,
 validation_counts. Unknown keys/enum values fail validation. Version is
 stage10_query_generation_summary_v1; plan_mode ALL_ELIGIBLE_CATALOG; B null;
-ceilings = {per_context:4, per_source_row:8, per_candidate:'4*occurrence_count'};
+ceilings = {per_context:5, per_source_row:10, per_candidate:'5*occurrence_count'};
 deferred_families = {Q7:'DEFERRED_RESULT_DEPENDENT_DIAGNOSTIC'}.
 
 Fixed scalar count keys:
@@ -162,8 +167,8 @@ no context family membership is invented or merged. Mask histograms express
 all within-context family overlaps; source-row incidence never counts twice.
 
 Histograms have scope, lower_inclusive, upper_inclusive, count, denominator,
-denominator_kind. Fixed exact bins: HYPOTHESES_PER_CONTEXT 0..4,
-HYPOTHESES_PER_SOURCE_ROW 0..8, CONTEXTS_PER_SOURCE_ROW 0..2. For
+denominator_kind. Fixed exact bins: HYPOTHESES_PER_CONTEXT 0..5,
+HYPOTHESES_PER_SOURCE_ROW 0..10, CONTEXTS_PER_SOURCE_ROW 0..2. For
 HYPOTHESES_PER_CANDIDATE, CONTEXTS_PER_CANDIDATE,
 COUNTRY_CONTEXTS_PER_CANDIDATE and BOUNDARY_CONTEXTS_PER_CANDIDATE use bounded
 bins [0], [1], [2], [3,4], [5,8], ..., [2^63+1,2^64-1], clipping the final upper
@@ -185,7 +190,7 @@ change; protected debugging output cannot be relabeled a sanitized report.
 ## Calibration A — structural and cost evidence available at Stage 10
 
 From the one immutable all-eligible catalog, measure context/source coverage,
-convergence, uniqueness and projected cost. Simulate operating prefixes B=1..4
+convergence, uniqueness and projected cost. Simulate operating prefixes B=1..5
 per context with the frozen family order, retaining every underlying payload.
 No first-run suppression or rerun is needed. Report effects by context and source
 row and candidate reuse, not just totals. A later operating plan is a new

@@ -1,5 +1,6 @@
 {
   "acceptance_tag": "stage09-offline-reference-evidence-v1",
+  "all_other_owner_reviewed_decisions": "UNCHANGED",
   "authorization": {
     "design_only": true,
     "holdout": false,
@@ -14,9 +15,9 @@
   },
   "baseline_git_sha": "23cfb85f428b00301d68591ea5992763abf9ad88",
   "context_grain": "PRESENT_STAGE08_SOURCE_ROW_REPRESENTATION_OCCURRENCE",
-  "design_defect_ledger_items": 40,
-  "design_package_sha256": "a30b02e5817d8b30b4991c36d453e044664902dedaa4fd0423f5d9fd3a250cd0",
-  "design_revision": 2,
+  "design_defect_ledger_items": 41,
+  "design_package_sha256": "d76d2e3d865b3b2cf6c08b080fec34135b7b6fa4736ded1d50c48c1c92645fc2",
+  "design_revision": 3,
   "documents": [
     {
       "bytes": 6716,
@@ -24,47 +25,56 @@
       "sha256": "5d0a8f6906a8d93ac38d73a862d69e31e2e9e454e8d0518e0c13f9792256a916"
     },
     {
-      "bytes": 21336,
+      "bytes": 21780,
       "path": "docs/stages/STAGE10_DATA_CONTRACT.md",
-      "sha256": "031d38d35714f18019dd331a2cdadcbb9fc8606ca9755e18c53c890b828585fb"
+      "sha256": "ec24f41ec8c75b6511a55ff765476f90223f660ded7f914de285cd516a700225"
     },
     {
-      "bytes": 13608,
+      "bytes": 14334,
       "path": "docs/stages/STAGE10_DESIGN_REVIEW.md",
-      "sha256": "c8e944daa6715bd67db7f2a8edc512bed04cd8450dc238b785d950024319e036"
+      "sha256": "3141ba34b96db82885306101c932a705eca1b8e59b15158870b9ed6f9c4f10b6"
     },
     {
-      "bytes": 16649,
+      "bytes": 17143,
       "path": "docs/stages/STAGE10_DEVELOPMENT_EVALUATION.md",
-      "sha256": "b4583fb7db5a0b278d9149d0a11010cc6a877d9bce63d6a996fe39c01a87f661"
+      "sha256": "8ad4ec8e635e0bff42ceaf6cb5f242574c1035f1ba936ba75f4d35cdb6c8a788"
     },
     {
-      "bytes": 22420,
+      "bytes": 26205,
       "path": "docs/stages/STAGE10_MULTI_HYPOTHESIS_QUERY_GENERATION.md",
-      "sha256": "4a7f408837d484aaf07059e6a1821d76410ce58134c54b0ea9cc2d2ca874ae5f"
+      "sha256": "56e9ff36f6ade18d45764a2b0358be570b953dfd3406c6ca14052283cc467c3e"
     },
     {
-      "bytes": 25400,
+      "bytes": 25859,
       "path": "docs/stages/STAGE10_QUERY_FAMILIES.md",
-      "sha256": "2d3017495c8b86d0455df53d13f8fbf3a294bcdf20edb45e7ef0f522be455448"
+      "sha256": "f0eefd9e992c9be7a6f96e6aec2f4ee40b97d9cc8bf410158c154a43153f20d0"
     }
   ],
   "engineering_safety_ceiling": {
     "contexts_per_source_row": 2,
-    "distinct_hypotheses_per_query_context": 4,
-    "hypotheses_per_exact_candidate": "4 * present_occurrence_count",
-    "hypotheses_per_source_row": 8,
-    "proof": "Q1/Q2 mutually exclusive by representation role; Q5/Q6 mutually exclusive by script eligibility; each family single-valued; 1 baseline + Q3 + Q4 + max(Q5,Q6) = 4; at most 2 contexts per source row.",
+    "distinct_hypotheses_per_query_context": 5,
+    "exact_reachable_maximum": {
+      "native_context": 5,
+      "source_row": 9,
+      "standard_context": 4
+    },
+    "hypotheses_per_exact_candidate": "5 * present_occurrence_count",
+    "hypotheses_per_source_row": 10,
+    "proof": "Q1/Q2 mutually exclusive by representation role; Q5/Q6 can coexist independently; each family single-valued; NATIVE reaches 1 baseline + Q3 + Q4 + Q5 + Q6 = 5. Accepted Stage 8 unique source key, two nullable scalar candidate slots and two-arm UNION ALL prove at most 2 contexts per row including equal candidate IDs. Uniform row ceiling 5*2=10 is deliberately above the tighter reachable role bound 4+5=9.",
+    "tighter_candidate_validation": "4 * standard_occurrence_count + 5 * native_occurrence_count",
+    "tighter_role_and_totality_validation": "REQUIRED_EVEN_BELOW_UNIFORM_SAFETY_CEILING",
     "violation_behavior": "FAIL_PUBLICATION_NEVER_TRUNCATE"
   },
   "executable_contract_fingerprint": null,
   "executable_profile_fingerprint": null,
   "executable_schema_fingerprint": null,
   "family_decisions_per_context": 6,
+  "final_owner_correction": "OUTCOME_A_Q5_Q6_COELIGIBLE_NO_CANDIDATE_WIDE_Q5_SCRIPT_GATE",
   "first_development_budget_suppression_allowed": false,
   "first_development_mode": "ALL_ELIGIBLE_CATALOG",
   "freeze_version": "stage10_design_freeze_v1",
   "hash_definition": "SHA256(ASCII(SAFE:stage10-design-freeze:v1) + NUL + canonical_json_without_design_package_sha256); sorted keys, ASCII escapes, compact separators, no NaN, final LF",
+  "next_required_authorization": "OWNER_AUTHORIZATION_TO_IMPLEMENT_STAGE10",
   "output_logical_fingerprint": null,
   "owner_decisions_incorporated": 11,
   "proposed_contract": "stage10_multi_hypothesis_query_contract_v1",
@@ -90,13 +100,13 @@
     "reporting_grain": "GLOBAL_SUMMARY_AND_MANIFEST_ONLY",
     "status": "DEFERRED_RESULT_DEPENDENT_DIAGNOSTIC"
   },
-  "remaining_owner_decision": "FINAL_APPROVAL_OF_EXACT_REVISED_DESIGN_AND_AUTHORIZATION_TO_IMPLEMENT",
+  "remaining_owner_design_decisions": [],
   "runtime_asset_lock_status": "REQUIRED_BEFORE_MATERIALIZATION_NOT_CREATED",
   "sanitized_summary": "query_generation_summary",
   "scientific_operating_budget": null,
   "scientific_operating_budget_status": "UNSELECTED_DEVELOPMENT_CALIBRATION_REQUIRED",
   "scope": "DEVELOPMENT_DESIGN_ONLY",
-  "status": "DESIGN_OWNER_REVIEW_READY",
-  "supersedes_design_git_sha": "642fa170ac594f6fe425a9272b5dae6bdff584cc",
+  "status": "DESIGN_FINAL",
+  "supersedes_design_git_sha": "09d53a287b9d0c074aefb4af2e89382951ddde73",
   "transliteration_specification": "stage10_transliteration_spec_v1"
 }

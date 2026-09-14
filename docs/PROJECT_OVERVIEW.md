@@ -130,7 +130,7 @@ does not invalidate other reference evidence. See the
 [acceptance record](../reports/development/stage09.md#owner-acceptance-and-freeze--2026-09-14). Replacement
 Stage 10 now has a separately authorized
 [design candidate](stages/STAGE10_MULTI_HYPOTHESIS_QUERY_GENERATION.md) revised after owner review and
-frozen for final implementation approval; it is not implemented or executed. Stages 11–14 remain
+final after the ceiling correction, awaiting owner implementation authorization; it is not implemented or executed. Stages 11–14 remain
 proposed and not started.
 See
 [PIPELINE.md](PIPELINE.md).

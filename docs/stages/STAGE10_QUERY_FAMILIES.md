@@ -212,8 +212,12 @@ Do not use candidate-wide warning/applicability/country summaries as a gate:
 those may depend on unrelated occurrences. Current exact alignment, complete-line
 lexical corroboration and the local source-field vetoes below are the gates.
 Parser labels alone and absence of warnings provide no semantic trust.
-All candidate code points must have Unicode 16 Script in {Latin, Common, Inherited}.
-This enables only literal English marker forms, not inferred source language.
+The complete removable line must match the literal ASCII marker grammar below;
+the **rest of the candidate has no Q5 script restriction**. A safely corroborated
+`unit 5` line may accompany Greek/Cyrillic or other script in surviving lines.
+The former candidate-wide Latin/Common/Inherited gate was not independently
+justified by whole-line safety and is removed by the final owner ceiling review.
+No source language is inferred and no marker grammar is expanded.
 
 For a complete nonempty lower line, the entire string must full-match one
 grammar, with exact ASCII spaces, letters and digits:
@@ -279,6 +283,8 @@ claim, and audit false whole-line removals during later controlled DEVELOPMENT
 review. No extra lexical guessing or classification is authorized.
 
 Never strip Q4/Q6 output, never chain Q5 into Q6, and never overwrite Q1/Q2.
+Q5 and Q6 are independently eligible: both can emit separate alternates from
+the same full NATIVE context. This creates no stripped-and-transliterated family.
 
 ## Q6 — exact native transliteration alternate
 

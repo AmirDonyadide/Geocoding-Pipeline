@@ -2,8 +2,9 @@
 
 Review target: the [Stage 10 design package](STAGE10_MULTI_HYPOTHESIS_QUERY_GENERATION.md)
 on accepted baseline `23cfb85f428b00301d68591ea5992763abf9ad88`.
-**OWNER REVISIONS INCORPORATED — FROZEN FOR FINAL OWNER REVIEW.** Architecture
-was approved in principle; implementation still requires final owner approval.
+**FINAL DESIGN — OWNER CEILING CORRECTION INCORPORATED.** The owner approved
+all other revised decisions; only the Q5/Q6 ceiling issue remained. Its final
+resolution is Outcome A below. Implementation still requires owner authorization.
 
 The first draft `642fa170ac594f6fe425a9272b5dae6bdff584cc` remains immutable Git
 history. Its candidate-wide unanimity, fixed per-candidate ceiling, seven family
@@ -18,7 +19,7 @@ cluster probes or geocoder calls were used.
 |---|---|
 | 1 — context grain | One context per present Stage 8 source/representation occurrence; exact source/candidate FKs inline; no cross-row eligibility veto or duplicate mapping relation. |
 | 2 — Q7 | Global DEFERRED_RESULT_DEPENDENT_DIAGNOSTIC; no per-context pseudo-row/hypothesis, request ID or country-unbounded query. |
-| 3 — ceiling | Exact mutually exclusive family proof gives reachable maximum 4/context, 8/source row; no fixed candidate cap. No eligible family suppressed by engineering limit. |
+| 3 — ceiling | Q5/Q6 coexist; reachable context maximum 5. Accepted two-slot/view proof gives <=2 contexts/row; uniform safety ceiling 10/row, tighter role maximum 9; no fixed candidate cap. No eligible family suppressed by engineering limit. |
 | 4 — country | Row-local accepted clean country with exact source S9.Q01 code recognition; candidate-country unanimity and country-assessment resolution not required. |
 | 5 — families | Q1/Q2 primary in their own representation contexts; conditional Q3–Q6; complete full representations survive structured contradictions. |
 | 6 — contradictions | Only same-context source-postcode Q04/Q08 with exact locators/country/rule/witness and negative authority may gate structured postcode; GeoNames cannot supply negative suppression. |
@@ -31,7 +32,7 @@ cluster probes or geocoder calls were used.
 
 ## Complete resolved bounded design-defect ledger
 
-All 40 items below are resolved in this revised specification. They include the
+All 41 items below are resolved in this final specification. They include the
 original risk classes and every new issue found during owner-revision review.
 The existence of a former self-review did not establish that its context policy
 was acceptable; this ledger explicitly replaces that policy and its resolutions.
@@ -64,8 +65,8 @@ was acceptable; this ledger explicitly replaces that policy and its resolutions.
 | R10-24 | Named ICU IDs are aliases despite blanket alias prohibition | Source check proves Greek-Latin→Grek-Latn and Cyrillic-Latin→Cyrl-Latn; canonical IDs and exact registry pinned, arbitrary fallback banned. |
 | R10-25 | Mixed/unsupported scripts or inherited marks silently romanized | Explicit before/after-NFC Script16 and mark-context gate; original-filter intersection, nested filters preserved; ordered empty/unchanged/residual outcomes. |
 | R10-26 | Chunk/locale/ASCII transformations silently alter Q6 | Exact whole-string forward chain with internal pinned normalization/filter; no system ICU, language guessing or Latin-ASCII; native remains. |
-| R10-27 | Engineering ceiling hides eligible static families | Q1/Q2 and Q5/Q6 exclusion proof plus synthetic attainability witness gives 4/context and 8/row; excess fails rather than suppresses. |
-| R10-28 | Popular exact candidate exhausts arbitrary global budget | Candidate bound 4×occurrence_count; each context independent; no fixed global cap. |
+| R10-27 | Engineering ceiling hides eligible static families | Reopened after owner rejection: remove unjustified candidate-wide Q5 script gate; Greek/ASCII unit-line witness attains Q2/Q3/Q4/Q5/Q6 together. Exact context max 5, safety 10/row; no combined transform or truncation. |
+| R10-28 | Popular exact candidate exhausts arbitrary global budget | Candidate safety bound 5×occurrence_count; tighter 4×STANDARD + 5×NATIVE; each context independent; no fixed global cap. |
 | R10-29 | Operating budget chosen without evidence or during first run | B UNSELECTED, ALL_ELIGIBLE_CATALOG, zero budget suppressions; structural versus later recall calibration separated. |
 | R10-30 | Family duplication consumes requests or destroys lineage | Complete-intent convergence within context and shared family FK; across-context edges retained for later global request dedup. |
 | R10-31 | Text-only identity or Stage 11 ID prematurely frozen | Stage 10 requested intent/policy inputs only; Stage 11 resolves ALL request semantics and computes its own ID. |
@@ -73,19 +74,21 @@ was acceptable; this ledger explicitly replaces that policy and its resolutions.
 | R10-33 | Q7 creates IDs/pseudo-rows/hidden adaptivity | Global deferred status only; later exact trigger/workload/identity/map-back contract, no current activation evaluator. |
 | R10-34 | Orphan/cross-context joins corrupt result map-back | Composite same-context FKs; source/role bijection; six decisions/context; explicit full reverse request→hypothesis→context→occurrence chain. |
 | R10-35 | Source incidence/occurrence/candidate counts conflated | Separate counts/histograms and denominators, including no-candidate/zero-hypothesis rows and candidate multiplicity. |
-| R10-36 | Production lineage/reference expansion unbounded | <=2 contexts/row, <=4 payloads/context, <=12 decisions/row; bounded selectors, exact caches, external streaming, no candidate×global-reference scan. |
+| R10-36 | Production lineage/reference expansion unbounded | Accepted unique source row + two scalar slots + UNION ALL proves <=2 contexts/row (also equal IDs); <=5 payloads/context, <=12 decisions/row; bounded selectors, exact caches, external streaming, no candidate×global-reference scan. |
 | R10-37 | Byte/logical identity changes with worker/layout/order | Typed framed encoding, complete collision checks, canonical context sorting, summary without operational/self hashes, immutable checkpoints. |
 | R10-38 | Protected examples/row digests leak through diagnostics | Row relations entirely protected; allowlisted global/family aggregates, no prompts or portable row/query IDs. |
 | R10-39 | PanFS reuse assumes a new environment or reruns needless diagnostic | Same root/topology/mechanism/permissions preflight; stop on material difference; no new stage-number diagnostic; Stage 10 adapter only. |
 | R10-40 | Design push implies implementation/HOLDOUT/production or rewrites science | Normal branch push only; main unchanged; full accepted-surface/ancestry checks and final owner implementation gate. |
+| R10-41 | Uniform engineering ceiling confused with exact reachable row maximum | Q6 native-only gives exact 4 STANDARD + 5 NATIVE = 9/row; requested uniform safety bound 5×2=10 is deliberately loose. Counts/ranks/histograms/hash inventory updated; scientific B stays UNSELECTED. |
 
 ## Remaining owner decisions
 
-The mandatory revisions are fully specified; no unresolved bounded design defect
-or additional policy question is left open by this package. The owner must
-**approve this exact revised design and authorize implementation**. Approval in
-principle does not supply that final authorization. This includes confirmation
-of the derived occurrence grain/4–8 ceiling and tightened Q5/Q6 specification.
+**Remaining owner design decisions: NONE.** The owner approved all other
+decisions and authorized this bounded correction/freeze/push. Outcome A resolves
+the remaining issue without a new exclusion, combined family or operating
+budget. **Owner authorization to implement is still required.** This document
+does not supply it. The preceding 4/8 claim at `09d53a2…` remains reachable
+history and is explicitly superseded, not retrospectively accepted.
 
 Operating B intentionally remains unselected pending DEVELOPMENT evidence.
 Actual runtime binary/build hashes and synthetic expected-output vectors are
@@ -112,13 +115,14 @@ ICU source files were read for hashes/ID verification, not installed or executed
 Commit and push the revised design branch normally after fetch/divergence and
 privacy checks. Do not force-push, merge main, tag acceptance or launch a job.
 The original first draft and all Stage 0–9 accepted/rejected history remain
-reachable. Local checks passed: 109 document links/anchors, JSON parsing,
-Unicode script-asset hash, complete 40-item ledger, six public ICU source/data
-hashes, family-exclusion bound enumeration, expected DEVELOPMENT count arithmetic,
+reachable. Final checks cover local document links/anchors, JSON parsing,
+Unicode script-asset hash, complete 41-item ledger, unchanged pinned Q6 spec,
+Q5/Q6 coexistence and role-bound enumeration, accepted occurrence SQL presence/
+equality cases, expected DEVELOPMENT count arithmetic,
 accepted code/tests/launchers/assets/stage-record/report equality, Stage 3 and
 first-draft ancestry, and diff/privacy scope. Design inventory is rehashed after
 final edits and checked before commit. Final response records the pushed SHA.
 
-STAGE10_MULTI_HYPOTHESIS_QUERY_GENERATION_DESIGN_OWNER_REVIEW_READY
+STAGE10_MULTI_HYPOTHESIS_QUERY_GENERATION_DESIGN_FINAL
 
-NEXT: FINAL OWNER APPROVAL TO IMPLEMENT STAGE 10
+NEXT: OWNER AUTHORIZATION TO IMPLEMENT STAGE 10

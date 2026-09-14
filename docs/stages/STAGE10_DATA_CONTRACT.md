@@ -12,6 +12,8 @@ role is STANDARD or NATIVE, never BOTH. The Stage 8 occurrence view fixes its
 candidate. Zero/one/two contexts per source row are possible. Equal standard
 and native candidates remain separate contexts. No grouping/deduplication of
 contexts occurs before generation, even when complete context values are equal.
+The accepted two-scalar-slot UNION ALL architecture proves this cardinality; see
+the [source-row bound proof](STAGE10_MULTI_HYPOTHESIS_QUERY_GENERATION.md#proof-of-at-most-two-contexts-per-source-row).
 
 | Object | Grain / key | Authority / downstream consumer |
 |---|---|---|
@@ -61,7 +63,7 @@ query_context_id = H('stage10-context:v1', U,
 S = H('stage10-science:v1', contract_sha256, schema_bundle_sha256,
       family_eligibility_format_selector_versions, transformation_spec_lock)
 P = H('stage10-budget:v1', 'ALL_ELIGIBLE_CATALOG', null,
-      family_order_Q1_to_Q6, context_ceiling=4, source_row_ceiling=8)
+      family_order_Q1_to_Q6, context_ceiling=5, source_row_ceiling=10)
 representation_fingerprint = H('stage10-intent:v1', QueryIntent)
 hypothesis_id = H('stage10-hypothesis:v1', I, S, query_context_id,
                   representation_fingerprint)
@@ -152,7 +154,7 @@ families. It is a symbolic Stage 11 policy input, not executable defaults.
 
 Selection status is ALL_ELIGIBLE_CATALOG for the first Stage 10 artifact.
 Operating B is null; QUERY_BUDGET_SUPPRESSION is forbidden there. Rank is
-contiguous 1..4 after context-local convergence, ordered by first supporting
+contiguous 1..5 after context-local convergence, ordered by first supporting
 family Q1..Q6 then unsigned intent fingerprint. The role's full baseline is
 rank 1. A later accepted operating plan may introduce INITIAL_SELECTED and
 BUDGET_SUPPRESSED statuses under a new profile; it cannot mutate this catalog.
@@ -311,7 +313,7 @@ remain future owner reconciliations, not authority supplied by Stage 10.
 ```
 Stage 8 (source row, representation) occurrence
   -> exactly one query_context_id
-  -> zero to four hypotheses + six family decisions
+  -> zero to five hypotheses + six family decisions
   -> later complete Stage 11 semantic request
   -> Stage 12 execution/result
   -> the same context -> the original occurrence/source row
@@ -325,8 +327,11 @@ Stage 8 (source row, representation) occurrence
 3. Every hypothesis has exactly one context, one candidate and >=1 eligible
    family membership; every non-null membership FK resolves within that context.
    Zero orphan/duplicate/cross-context hypotheses, decisions or selectors.
-4. At most four distinct intents/hypotheses per context and eight per source row.
-   Candidate bound is 4 × its occurrence count, not a fixed global budget.
+4. Uniform safety ceilings: five distinct intents/hypotheses per context and ten
+   per source row. The exact reachable role bounds remain four STANDARD and five
+   NATIVE, at most nine per row; role/totality invariants enforce these too.
+   Candidate safety bound is 5 × its occurrence count, with tighter validation
+   4 × STANDARD occurrences + 5 × NATIVE occurrences; no fixed global budget.
    First-run output contains every eligible distinct Q1–Q6 intent, with zero
    operating-budget suppression. Exceeding engineering bounds fails, not truncates.
 5. Context-local convergence compares complete QueryIntent bytes including mode,

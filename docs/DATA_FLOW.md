@@ -279,6 +279,6 @@ query_semantic_id values. Contexts sharing candidate text cannot contaminate or
 suppress each other. Equal intents across contexts retain separate hypotheses
 until the future request layer shares their execution. Final left joins retain
 no-candidate and zero-hypothesis source rows. Q7 is globally deferred, with no
-pseudo-context hypotheses. Four/context and eight/source row are proven
-engineering bounds; scientific operating budget is unselected. The design is
-frozen for final owner approval to implement; no execution or Stage 11 work.
+pseudo-context hypotheses. Q5/Q6 may coexist. Five/context and ten/source row are uniform
+engineering safety bounds (tighter reachable role maximum nine/row); scientific operating budget is unselected. The design is
+final and awaits owner authorization to implement; no execution or Stage 11 work.

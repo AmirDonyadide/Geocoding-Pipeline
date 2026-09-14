@@ -1734,6 +1734,10 @@ retained as history, not current eligibility or implementation authority.
 
 ### D062 — Incorporate owner revisions and freeze Stage 10 for final implementation approval
 
+Historical revision at `09d53a287b9d0c074aefb4af2e89382951ddde73`: the owner
+subsequently rejected the Q5/Q6 exclusion and 4/8 ceiling. D063 supersedes only
+that predicate/proof and dependent bounds; the other reviewed decisions stand.
+
 - **Date/authority:** 2026-09-14, same Stage 10 design session. The owner approved
   architecture in principle, required eleven revisions/clarifications, and
   explicitly authorized design documentation, final bounded review, commit and
@@ -1788,3 +1792,48 @@ retained as history, not current eligibility or implementation authority.
   Remaining approval: the exact revised design and authority to implement.
   HOLDOUT sealed; production/Pelias untouched; no implementation or job occurred.
   **NEXT: FINAL OWNER APPROVAL TO IMPLEMENT STAGE 10.**
+
+
+### D063 — Final Stage 10 Q5/Q6 coexistence and engineering-ceiling correction
+
+- **Date/authority:** 2026-09-14. The owner approved the revised design except
+  for one remaining engineering-ceiling issue and authorized its bounded
+  correction, validation, commit and normal design-branch push. Implementation,
+  protected DEVELOPMENT/HOLDOUT/production, SLURM, Pelias and Stage 11 remain
+  unauthorized; main remains unchanged.
+- **Outcome A:** Q5/Q6 can coexist. The former candidate-wide
+  Latin/Common/Inherited predicate has no independently defensible role in
+  complete-line removal safety. Remove that unapproved restriction; retain the
+  exact ASCII whole-line grammar, boundary/alignment/corroboration, source-field
+  veto and survivor requirements. Q6's exact specification remains byte-unchanged.
+  Greek text with a separate corroborated `unit 5` line provides a synthetic
+  coexistence witness. Q5 and Q6 each transform the full representation separately;
+  no stripped-plus-transliterated family is introduced.
+- **Exact maximum:** Q1/Q2 remain exclusive by occurrence role; Q3–Q6 each
+  construct at most once. NATIVE can attain Q2+Q3+Q4+Q5+Q6 = **5** distinct intents.
+  STANDARD is at most **4** because Q6 is native-only.
+- **Source-row proof:** Accepted Stage 8 source map has a unique stable source
+  key and exactly two nullable scalar Stage 6 candidate slots. Its frozen
+  two-arm UNION ALL view emits one occurrence for each PRESENT slot, hence
+  zero/one/two contexts per source row. Equal STANDARD/NATIVE candidate IDs still
+  yield two role-specific occurrences, as Stage 6 explicitly requires.
+- **Engineering ceilings:** Uniform **5/context and 10/source row** (=5×2).
+  Ten is a harmless safety envelope, not an attainable claim: exact role-aware
+  row maximum is **9 = 4 STANDARD + 5 NATIVE**. Role and generation-totality
+  invariants also enforce the tighter bound. Candidate uniform bound is
+  **5×occurrence_count**, with tighter **4×STANDARD + 5×NATIVE** validation;
+  no fixed low candidate budget or eligible-family suppression.
+- **Preservation:** Scientific operating budget remains **UNSELECTED**; first
+  DEVELOPMENT catalogs all eligible Q1–Q6. Context identities, relation grains,
+  Q1–Q4 and Q6/Q7 policy, all other Q5 safety predicates, evidence rules,
+  convergence/map-back, Stage 11/12 boundaries and publication decisions are
+  unchanged. All accepted Stage 0–9 science/history remain unchanged.
+- **Final freeze:** Updated [proof and design](stages/STAGE10_MULTI_HYPOTHESIS_QUERY_GENERATION.md#architecture-and-engineering-ceiling-proof),
+  dependent rank/count/histogram bounds, complete 41-item review ledger and
+  design hash inventory. Synthetic cardinality/presence/equality checks and
+  local document/hash/anchor/diff checks only; no materializer or runtime ICU
+  execution. Prior design commits and D061/D062 remain reachable history.
+- **Remaining owner design decisions:** **NONE**. Separate implementation
+  authorization is still required. HOLDOUT remains sealed; production/Pelias
+  untouched; no implementation, protected access, SLURM or Stage 11 work.
+  **NEXT: OWNER AUTHORIZATION TO IMPLEMENT STAGE 10.**

@@ -2,14 +2,18 @@
 
 ## Status and authority
 
-**OWNER REVISIONS INCORPORATED — DESIGN FROZEN FOR FINAL OWNER REVIEW.**
-Architecture is approved in principle. The owner required occurrence-aware
-contexts, a proven engineering ceiling, exact transformations and a normal
-branch push. This revised design is not implementation authorization and is
+**FINAL DESIGN — OWNER CEILING CORRECTION INCORPORATED.**
+The owner approved the revised design except for the engineering-ceiling proof.
+This final correction permits independent Q5/Q6 eligibility and proves the
+generation bounds without a candidate-wide Q5 script restriction.
+This revised design is not implementation authorization and is
 not Stage 10 scientific acceptance. The first draft at
 `642fa170ac594f6fe425a9272b5dae6bdff584cc` remains reachable history;
 its cross-occurrence unanimity and candidate-level budgets are superseded.
-Stop after the frozen revision is pushed for final owner approval to implement.
+Revision `09d53a287b9d0c074aefb4af2e89382951ddde73` remains reachable; its
+Q5/Q6 exclusion and 4/8 ceiling are superseded by this correction and D063.
+All other owner-reviewed decisions remain unchanged. Stop after pushing for
+owner authorization to implement; no design decisions remain unresolved.
 
 Normative package:
 
@@ -203,42 +207,100 @@ Q7 is globally `DEFERRED_RESULT_DEPENDENT_DIAGNOSTIC`: zero per-context rows,
 zero pseudo-hypotheses, zero preallocated request/hypothesis IDs. Any later
 activation belongs to a separate frozen result-dependent contract and workload.
 
-The exact reachable maximum is derived from the frozen eligibility rules:
+### Q5/Q6 coexistence and exact context maximum
 
-| Context / candidate script | Full baseline | Q3 | Q4 | Q5 | Q6 | Maximum |
+**Outcome A: Q5 and Q6 can coexist.** Inspection found only the former
+candidate-wide Latin/Common/Inherited Q5 predicate made them exclusive. The
+approved whole-line grammar already restricts the removable boundary unit to
+literal ASCII UNIT/LEVEL forms. Restricting unrelated surviving lines does not
+prove safer removal, so that unapproved predicate is removed rather than used
+to preserve a lower ceiling. All complete-line corroboration, alignment, local
+source-field veto and retained-content requirements stay unchanged. Q6 already
+permits Latin plus one Greek/Cyrillic script. Its exact specification is unchanged.
+
+| Context | Full baseline | Q3 | Q4 | Q5 | Q6 | Reachable maximum |
 |---|---:|---:|---:|---:|---:|---:|
-| STANDARD, Latin/Common/Inherited | Q1 = 1; Q2 = 0 | 1 | 1 | 1 | 0 | 4 |
-| NATIVE, Latin/Common/Inherited | Q2 = 1; Q1 = 0 | 1 | 1 | 1 | 0 | 4 |
-| NATIVE, eligible Greek or Cyrillic | Q2 = 1; Q1 = 0 | 1 | 1 | 0 | 1 | 4 |
-| Other supported-country contexts | Exactly one role baseline | <=1 | <=1 | 0 | 0 | <=3 |
+| STANDARD | Q1 = 1; Q2 = 0 | 1 | 1 | 1 | 0 | 4 |
+| NATIVE with eligible Greek or Cyrillic and corroborated UNIT/LEVEL line | Q2 = 1; Q1 = 0 | 1 | 1 | 1 | 1 | 5 |
+| NATIVE without eligible Q6 | Q2 = 1; Q1 = 0 | <=1 | <=1 | <=1 | 0 | <=4 |
 
-Q1/Q2 are mutually exclusive **inside one occurrence context**. Q5 requires
-all candidate code points to be Latin/Common/Inherited. Q6 requires a Greek or
-Cyrillic letter; Q5 and Q6 therefore cannot both be eligible. Every family is
-single-valued; no subsets, permutations, recursive transformations or parser
-component repetitions create additional constructions. Thus
-`H(context) <= 1 + 1 + 1 + max(Q5,Q6) = 4`, before any duplicate collapse.
-The last table row also covers STANDARD non-Latin contexts (Q6 is native-only).
+Q1/Q2 alone are mutually exclusive by occurrence role. Every family is
+single-valued; no subsets, permutations, recursive transformations or repeated
+components add constructions. Therefore the exact maximum over all contexts is
+`H(context) <= 1 + Q3 + Q4 + Q5 + Q6 <= 5`. Q5 and Q6 each start from the full
+source-derived representation. No combined stripped/transliterated query exists.
 
-Four is reachable, not merely an upper estimate. An invented Latin context
-with lower lines `['12 example road', 'unit 5', '', '']`, valid row country,
-positive source-locality evidence and a uniquely aligned `unit` component
-produces four distinct intents: full text; LF boundary text; structured address
-plus locality; and the stripped first line. The structured endpoint distinguishes
-Q4, and the other three texts differ exactly. A source row can have two such
-valid contexts with different invented road/unit strings, so eight hypotheses
-are reachable per source row. These are symbolic synthetic witnesses, not
-claims that accepted DEVELOPMENT contains such rows.
+A fully invented NATIVE witness uses lower source slots
+`['12 α road', 'unit 5', '', '']`, mask `1100`, candidate
+`12 α road unit 5`, PARSED_NONEMPTY components in order
+`[('house_number','12'), ('road','α road'), ('unit','unit 5')]`, valid recognized
+row country and eligible source-locality support L. Let source geography have
+no exact/token-sequence overlap with `unit 5`; all Q4 witness/scope gates are
+satisfied by synthetic evidence. No claim is made about an actual source row.
+Both monotone alignments are unique; the entire second line has exact unit
+corroboration; the survivor has a Unicode letter and ASCII digits. Greek α plus
+Latin/Common passes Q6 with no combining marks. The pinned
+[ICU Greek rules](https://github.com/unicode-org/icu/blob/457157a92aa053e632cc7fcfd0e12f8a943b2d11/icu4c/source/data/translit/Grek_Latn.txt)
+map plain α to `a` in the frozen forward/filter/NFC chain. Thus five distinct
+complete intents exist with the same country/policy inputs:
 
-**ENGINEERING SAFETY CEILING = 4 distinct hypotheses/context and 8/source row.**
-It detects implementation/query-explosion bugs and suppresses no eligible
-family. Exceeding it fails publication with a defect; it is not a truncation
-rule. There is **no fixed global per-candidate cap**: if a candidate has `m`
-occurrences, its safe bound is `4m`. Report that context multiplicity instead
-of making one occurrence spend another's budget. Population bounds are
-`contexts <= 2 × source_rows`, `hypotheses <= 4 × contexts <= 8 × source_rows`,
-`family_decisions = 6 × contexts`. Equal STANDARD/NATIVE values still have two
-contexts; global request deduplication is later Stage 11 work.
+| Family | Distinguishing representation |
+|---|---|
+| Q2 | Full text `12 α road unit 5` |
+| Q3 | Full text `12 α road\nunit 5` (one inserted LF) |
+| Q4 | Structured `address='12 α road unit 5'`, locality L |
+| Q5 | Full text `12 α road` |
+| Q6 | Full text `12 a road unit 5` |
+
+Q4 differs by endpoint/mode/fields; the other four differ in exact text. This
+proves attainability and independence, not geocoding utility or correctness.
+The future runtime build must reproduce the synthetic vector before execution.
+
+### Proof of at most two contexts per source row
+
+This bound follows from accepted input architecture, not an empirical guess:
+
+1. The accepted [Stage 8 source map](STAGE08_ADDRESS_EVIDENCE_PROJECTION.md#source_candidate_map)
+   has one row per non-null unique stable source ID and exactly two scalar
+   nullable candidate slots: `stage06_standard_exact_candidate_id` and
+   `stage06_native_exact_candidate_id`. PRESENT is equivalent to non-null.
+2. Its accepted [occurrence view](STAGE08_ADDRESS_EVIDENCE_PROJECTION.md#deterministic-representation_occurrence_v1-view)
+   is exactly two `UNION ALL` arms: one per PRESENT STANDARD slot, ordinal 0;
+   one per PRESENT NATIVE slot, ordinal 1. Each arm emits at most once for a
+   source ID. BOTH is a candidate summary, never a third occurrence role.
+   Hence `contexts(row) = 1[STANDARD present] + 1[NATIVE present] <= 2`.
+3. Stage 10 is bijective with that view. The accepted
+   [Stage 6 contract](STAGE06_EARLY_EXACT_DEDUPLICATION.md) likewise defines one
+   candidate mapping per available representation, and equal STANDARD/NATIVE
+   values yield one exact candidate but **two occurrences and two mappings**.
+   Equal IDs never turn UNION ALL into UNION or reduce the context count.
+
+Both-present rows prove two is reachable. The accepted Stage 8 schema/view and
+Stage 6 mapping contract at the baseline were inspected; no protected artifact
+was opened. The four presence combinations yield 0, 1, 1, 2 contexts; equality
+of the two non-null IDs still yields 2. These are generation counts before
+Stage 11 global complete-request deduplication, not necessarily distinct requests.
+
+### Engineering ceiling versus tighter reachable bounds
+
+**ENGINEERING SAFETY CEILING = 5 distinct hypotheses/context and 10/source row.**
+Five is the exact reachable context maximum. Ten is the owner-requested uniform
+safety bound `5 × 2`, harmlessly above the tighter role-aware reachable row
+maximum **9 = 4 STANDARD + 5 NATIVE**. Ten is not claimed attainable: Q6 remains
+native-only. A row with the synthetic NATIVE witness and a corroborated two-line
+STANDARD witness can attain nine context-scoped hypotheses, even when the two
+candidate IDs happen to be equal. Cross-context equality does not collapse them.
+
+Engineering overflow fails publication; it never truncates eligible families.
+The existing role/generation-totality invariants also reject impossible counts
+within the looser uniform bound, such as five STANDARD or ten row hypotheses.
+There is **no fixed global per-candidate cap**. For `m` occurrences the uniform
+bound is `5m`, with tighter validation `4m_STANDARD + 5m_NATIVE`. Population
+bounds are `contexts <= 2 × source_rows`,
+`hypotheses <= 5 × contexts <= 10 × source_rows` and, more tightly,
+`hypotheses <= 4 × STANDARD_contexts + 5 × NATIVE_contexts <= 9 × source_rows`.
+`family_decisions = 6 × contexts` is unchanged. No occurrence spends another's
+budget, and global request deduplication remains Stage 11 work.
 
 ## Scientific operating budget
 
@@ -251,13 +313,13 @@ catalog authorizes requests or starts Stage 11.
 The family accounting order is Q1, Q2, Q3, Q4, Q5, Q6; the context's available
 full baseline is rank 1. Other intents rank by earliest contributing family,
 then unsigned intent fingerprint. Convergence precedes any future budget.
-A later reviewed per-context operating B may lie in [1,4], never a global
+A later reviewed per-context operating B may lie in [1,5], never a global
 candidate budget. A revised policy may select a prefix for a new immutable
 plan, retaining every suppressed payload/membership in its catalog. Such an
 INITIAL_PLAN requires explicit policy/version/authorization; v1's first run
 cannot select B or emit QUERY_BUDGET_SUPPRESSION. The engineering cap cannot
-stand in for scientific calibration. Any relaxation of the mutually exclusive
-family rules requires rederiving both ceilings before approval.
+stand in for scientific calibration. Any future change to family eligibility,
+family multiplicity or context architecture requires rederiving both bounds.
 
 Stage 10 can immediately measure structural coverage, context multiplicity,
 convergence, unique intent counts and cost proxies. True family value/recall
@@ -284,7 +346,7 @@ content-verified cache without coalescing context eligibility. Filter source
 reference evidence on `(candidate_id, stable_source_row_id_v1)` before gating.
 Process contexts incrementally; never collect all occurrences of a popular
 candidate or explode each occurrence against the full global reference pack.
-Source lines have four slots; at most four intent payloads per context may be
+Source lines have four slots; at most five intent payloads per context may be
 spooled. Selector certificates stream complete evidence and share repeated
 witness-set traversal. Private spill/checkpoint files are operational state,
 not extra scientific relations. No population Python dict/list or list_agg.
