@@ -1,0 +1,363 @@
+{
+  "candidate_evaluable": 51066,
+  "candidate_integrity_validator": {
+    "candidate_source_occurrence_totality": "PASS",
+    "complete_match_member_integrity": "PASS",
+    "evidence_identity_and_state": "PASS",
+    "geonames_no_contradictions": "PASS",
+    "reference_capability_authority": "PASS",
+    "witness_asset_field_bindings": "PASS"
+  },
+  "checks_passed": 100,
+  "executable": "3e10ac7c1309c2636f35c0709fa283305d60d998",
+  "failed_checks": [],
+  "family_states": [
+    {
+      "n": 1124100,
+      "reference_slot": "GEONAMES_POSTAL",
+      "result_state": "NOT_EVALUABLE"
+    },
+    {
+      "n": 1066914,
+      "reference_slot": "GEONAMES_POSTAL",
+      "result_state": "NOT_FOUND"
+    },
+    {
+      "n": 84652,
+      "reference_slot": "GEONAMES_POSTAL",
+      "result_state": "SUPPORTED"
+    },
+    {
+      "n": 223170,
+      "reference_slot": "ISO_CODES",
+      "result_state": "NOT_EVALUABLE"
+    },
+    {
+      "n": 270961,
+      "reference_slot": "ISO_CODES",
+      "result_state": "NOT_FOUND"
+    },
+    {
+      "n": 112940,
+      "reference_slot": "ISO_CODES",
+      "result_state": "SUPPORTED"
+    },
+    {
+      "n": 54025,
+      "reference_slot": "LIBADDRESSINPUT_METADATA",
+      "result_state": "CONTRADICTED"
+    },
+    {
+      "n": 1200439,
+      "reference_slot": "LIBADDRESSINPUT_METADATA",
+      "result_state": "NOT_EVALUABLE"
+    },
+    {
+      "n": 790919,
+      "reference_slot": "LIBADDRESSINPUT_METADATA",
+      "result_state": "NOT_FOUND"
+    },
+    {
+      "n": 333896,
+      "reference_slot": "LIBADDRESSINPUT_METADATA",
+      "result_state": "SUPPORTED"
+    },
+    {
+      "n": 1303313,
+      "reference_slot": "NONE",
+      "result_state": "NOT_EVALUABLE"
+    }
+  ],
+  "gn_association_mismatches": 6673,
+  "phases": [
+    {
+      "phase": "bindings",
+      "seconds": 10
+    },
+    {
+      "phase": "relational_sql",
+      "seconds": 17
+    },
+    {
+      "phase": "postcode_oracle",
+      "seconds": 106
+    },
+    {
+      "phase": "complete_integrity",
+      "seconds": 914
+    },
+    {
+      "phase": "logical_reference_registry",
+      "seconds": 921
+    },
+    {
+      "phase": "logical_reference_capability",
+      "seconds": 925
+    },
+    {
+      "phase": "logical_reference_object",
+      "seconds": 1448
+    },
+    {
+      "phase": "logical_candidate_reference_evidence",
+      "seconds": 2424
+    },
+    {
+      "phase": "logical_reference_match_member",
+      "seconds": 2461
+    },
+    {
+      "phase": "logical_coverage_summary",
+      "seconds": 2463
+    },
+    {
+      "phase": "public_reopen",
+      "seconds": 3617
+    },
+    {
+      "phase": "complete",
+      "seconds": 3618
+    }
+  ],
+  "q04": {
+    "by_normalization": {
+      "NOT_APPLIED_V1": {
+        "conflict_percent": null,
+        "contradicted": 0,
+        "evaluable": 0,
+        "not_evaluable": 49733,
+        "supported": 0
+      },
+      "POSTCODE_FORM_ASCII_UPPER_V1": {
+        "conflict_percent": 59.99578,
+        "contradicted": 54022,
+        "evaluable": 90043,
+        "not_evaluable": 558711,
+        "supported": 36021
+      }
+    },
+    "by_representation": {
+      "BOTH": {
+        "conflict_percent": 51.04712,
+        "contradicted": 6435,
+        "evaluable": 12606,
+        "not_evaluable": 23189,
+        "supported": 6171
+      },
+      "NATIVE_ONLY": {
+        "conflict_percent": 64.3324,
+        "contradicted": 2756,
+        "evaluable": 4284,
+        "not_evaluable": 29837,
+        "supported": 1528
+      },
+      "STANDARD_ONLY": {
+        "conflict_percent": 61.283884,
+        "contradicted": 44831,
+        "evaluable": 73153,
+        "not_evaluable": 555418,
+        "supported": 28322
+      }
+    },
+    "by_scope": {
+      "PARSER_CANDIDATE": {
+        "conflict_percent": 61.32173,
+        "contradicted": 42702,
+        "evaluable": 69636,
+        "not_evaluable": 577017,
+        "supported": 26934
+      },
+      "SOURCE_ROW": {
+        "conflict_percent": 55.471162,
+        "contradicted": 11320,
+        "evaluable": 20407,
+        "not_evaluable": 31427,
+        "supported": 9087
+      }
+    },
+    "capability": "POSTCODE_PATTERN",
+    "concentration_by_scope": {
+      "PARSER_CANDIDATE": {
+        "candidates": 800,
+        "conflict_candidates": 670,
+        "conflicts": 42702,
+        "evaluable_checks": 69636,
+        "max_checks_per_candidate": 16110,
+        "max_conflicts_per_candidate": 13208,
+        "unique_candidate_values": 41640
+      },
+      "SOURCE_ROW": {
+        "candidates": 20393,
+        "conflict_candidates": 11317,
+        "conflicts": 11320,
+        "evaluable_checks": 20407,
+        "max_checks_per_candidate": 3,
+        "max_conflicts_per_candidate": 3,
+        "unique_candidate_values": 20403
+      }
+    },
+    "conflict_shapes_global": {
+      "ASCII_DIGITS_1": 51,
+      "ASCII_DIGITS_2": 38,
+      "ASCII_DIGITS_3": 170,
+      "ASCII_DIGITS_4": 2484,
+      "ASCII_DIGITS_5": 8331,
+      "ASCII_DIGITS_6": 9123,
+      "ASCII_DIGITS_7": 2,
+      "ASCII_DIGITS_9": 3,
+      "NON_ASCII_DIGITS": 84,
+      "OTHER_TEXT_OR_SEPARATORS": 33736
+    },
+    "counterfactual_diagnostics_global": {
+      "already_has_leading_zero": 1382,
+      "prepend_one_zero": 7481,
+      "remove_ascii_spaces_hyphens": 627,
+      "trim_whitespace": 0
+    },
+    "family": "LIBADDRESSINPUT_METADATA",
+    "largest_country_rules": [
+      {
+        "conflict_percent": 77.002545,
+        "contradicted": 20274,
+        "country": "RU",
+        "evaluable": 26329,
+        "not_evaluable": 2241,
+        "rule_locator": "RU/zip",
+        "supported": 6055
+      },
+      {
+        "conflict_percent": 90.202854,
+        "contradicted": 14096,
+        "country": "UA",
+        "evaluable": 15627,
+        "not_evaluable": 1074,
+        "rule_locator": "UA/zip",
+        "supported": 1531
+      },
+      {
+        "conflict_percent": 75.172767,
+        "contradicted": 5874,
+        "country": "IT",
+        "evaluable": 7814,
+        "not_evaluable": 343,
+        "rule_locator": "IT/zip",
+        "supported": 1940
+      },
+      {
+        "conflict_percent": 20.728968,
+        "contradicted": 3691,
+        "country": "RO",
+        "evaluable": 17806,
+        "not_evaluable": 979,
+        "rule_locator": "RO/zip",
+        "supported": 14115
+      },
+      {
+        "conflict_percent": 49.274311,
+        "contradicted": 2037,
+        "country": "BR",
+        "evaluable": 4134,
+        "not_evaluable": 4030,
+        "rule_locator": "BR/zip",
+        "supported": 2097
+      },
+      {
+        "conflict_percent": 29.402149,
+        "contradicted": 1259,
+        "country": "VN",
+        "evaluable": 4282,
+        "not_evaluable": 843,
+        "rule_locator": "VN/zip",
+        "supported": 3023
+      },
+      {
+        "conflict_percent": 65.592204,
+        "contradicted": 875,
+        "country": "ZA",
+        "evaluable": 1334,
+        "not_evaluable": 1280,
+        "rule_locator": "ZA/zip",
+        "supported": 459
+      },
+      {
+        "conflict_percent": 91.814159,
+        "contradicted": 830,
+        "country": "AR",
+        "evaluable": 904,
+        "not_evaluable": 813,
+        "rule_locator": "AR/zip",
+        "supported": 74
+      },
+      {
+        "conflict_percent": 32.44898,
+        "contradicted": 795,
+        "country": "IN",
+        "evaluable": 2450,
+        "not_evaluable": 2507,
+        "rule_locator": "IN/zip",
+        "supported": 1655
+      },
+      {
+        "conflict_percent": 32.241671,
+        "contradicted": 571,
+        "country": "BG",
+        "evaluable": 1771,
+        "not_evaluable": 384,
+        "rule_locator": "BG/zip",
+        "supported": 1200
+      },
+      {
+        "conflict_percent": 73.856209,
+        "contradicted": 565,
+        "country": "KR",
+        "evaluable": 765,
+        "not_evaluable": 1354,
+        "rule_locator": "KR/zip",
+        "supported": 200
+      },
+      {
+        "conflict_percent": 92.765957,
+        "contradicted": 436,
+        "country": "TW",
+        "evaluable": 470,
+        "not_evaluable": 414,
+        "rule_locator": "TW/zip",
+        "supported": 34
+      }
+    ],
+    "totals": {
+      "conflict_percent": 59.99578,
+      "contradicted": 54022,
+      "evaluable": 90043,
+      "not_evaluable": 608444,
+      "supported": 36021
+    }
+  },
+  "q08_states": {
+    "CONTRADICTED": 3,
+    "NOT_EVALUABLE": 102709,
+    "SUPPORTED": 901
+  },
+  "review_job_id": "1772139",
+  "review_sha": "89cc9f9667cacac7ff26e70e14ee651af27b2e36",
+  "source_full_iso_witnesses": 0,
+  "source_receipt_sha256": "9ce865fbaf7c6b7acf769a9e9c5c7e76a112eb3dd8bf4b6630867fca0f736a4b",
+  "states": [
+    {
+      "n": 54025,
+      "result_state": "CONTRADICTED"
+    },
+    {
+      "n": 3851022,
+      "result_state": "NOT_EVALUABLE"
+    },
+    {
+      "n": 2128794,
+      "result_state": "NOT_FOUND"
+    },
+    {
+      "n": 531488,
+      "result_state": "SUPPORTED"
+    }
+  ]
+}

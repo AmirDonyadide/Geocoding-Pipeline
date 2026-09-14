@@ -1,8 +1,21 @@
-# Independent Stage 9 review — awaiting the single controlled review job
+# Independent Stage 9 review — completed 2026-09-14
 
-No PASS/FAIL verdict has been issued. This is a continuation record, not Stage 9
-acceptance, a completed defect ledger, or permission to implement/remediate.
-Candidate source, tests, schemas, frozen assets, main, and prior artifacts are unchanged.
+**STAGE09_OFFLINE_REFERENCE_EVIDENCE_INDEPENDENT_REVIEW_PASS**
+
+The terminal decision and complete findings ledger are in
+[FINAL_REVIEW.md](FINAL_REVIEW.md), supported by
+[REVIEW_EVIDENCE.json](REVIEW_EVIDENCE.json). Corrected job **1772139** completed
+0:0 in **01:00:30**, with all **100 checks passing**, no failed checks and empty
+stderr. The postcode investigation is classification **A**, at its stated frozen
+rule/evaluation grain. Candidate defects = **0**; all three review-harness issues
+are resolved. No candidate rerun or further review job is required.
+
+Owner confirmed country-level aggregate reporting authorization on 2026-09-14;
+that question is resolved. Candidate/main/Stage 8 remain unchanged, Stage 9 is
+not yet owner-accepted, and HOLDOUT/production remain untouched.
+
+The notes below preserve the earlier continuation history. Pending statements in
+the historical review-area table and initial ledger are superseded by FINAL_REVIEW.
 
 ## Exact scope
 
@@ -30,9 +43,10 @@ It imports the unchanged exact candidate executable. It has the same bounded
 resources as the original review attempt: general1 / footprint, one node, four
 CPUs, 32 GiB, two hours, no requeue. This is a harness retry, not a candidate rerun.
 
-At 2026-09-14 08:59 UTC it remains **PENDING / Priority**. The scheduler's current
-start estimate is **2026-09-15 15:24:36 UTC**; this is not a guaranteed start.
-Do not submit another review job while this one is pending/running.
+At 2026-09-14 08:59 UTC it was PENDING / Priority, with a later scheduler estimate.
+It actually ran **2026-09-14 11:11:05–12:11:35** (scheduler timestamps), COMPLETED 0:0, MaxRSS
+7,619,240 KiB. Its preserved outputs were reconciled in the final continuation.
+Do not submit another job.
 
 Expected output:
 `/work/footprint/donyadidegan/safe_geocoding_pipeline/derived/controlled/stage09/independent_review/review_89cc9f9667ca_1772139`.
@@ -40,8 +54,10 @@ Logs: `logs/slurm/safe-stage09-independent-review_1772139.out` and `.err` under
 the project root. The exact review checkout is
 `integration_stage09/review_89cc9f9667cacac7ff26e70e14ee651af27b2e36`.
 The full postcode investigation, complete evidence/member validation, coverage
-recomputation and logical relation hashes remain pending. No PASS/FAIL inference
-is justified by a queued job. Main remains clean and unchanged at `1c7182931fd4`.
+recomputation, all six logical relation hashes and final public/candidate reopening
+have now passed. Complete receipt SHA-256:
+`9ce865fbaf7c6b7acf769a9e9c5c7e76a112eb3dd8bf4b6630867fca0f736a4b`.
+Main remains clean and unchanged at `1c7182931fd4`.
 
 ## Preserved first review attempt
 
