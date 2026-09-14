@@ -13,6 +13,7 @@ from typing import Any
 
 from ..script_reference import ScriptReference, unicode_script_reference_paths
 from . import s10_query_contract as c
+from . import s10_runtime_lock as runtime_lock
 
 SPEC_NAME = "stage10_transliteration_spec_v1.json"
 SPEC_SHA256 = "5d0a8f6906a8d93ac38d73a862d69e31e2e9e454e8d0518e0c13f9792256a916"
@@ -121,6 +122,20 @@ class ICUTransliterator:
         self, root: Path, lock_path: Path, spec_path: Path, bridge_source: Path
     ) -> None:
         self.handles: dict[str, int] = {}
+        try:
+            self._initialize(root, lock_path, spec_path, bridge_source)
+        except c.Stage10Error:
+            self.close()
+            raise
+        except (KeyError, TypeError, ValueError, OSError, AttributeError):
+            self.close()
+            raise c.Stage10Error("STAGE10_RUNTIME_LOCK_OR_ASSET_INVALID") from None
+
+    def _initialize(
+        self, root: Path, lock_path: Path, spec_path: Path, bridge_source: Path
+    ) -> None:
+        if platform.system() == "Linux":
+            c.require_runtime()
         c.require(
             c.sha256_file(spec_path) == SPEC_SHA256,
             "STAGE10_FROZEN_TRANSLITERATION_SPEC_MISMATCH",
@@ -149,8 +164,22 @@ class ICUTransliterator:
             not os.environ.get("ICU_DATA"), "STAGE10_ICU_DATA_OVERRIDE_PROHIBITED"
         )
         c.require(
+            not any(
+                os.environ.get(name)
+                for name in (
+                    "LD_PRELOAD",
+                    "LD_LIBRARY_PATH",
+                    "DYLD_INSERT_LIBRARIES",
+                    "DYLD_LIBRARY_PATH",
+                )
+            ),
+            "STAGE10_RUNTIME_LIBRARY_OVERRIDE_PROHIBITED",
+        )
+        c.require(
             not root.is_symlink()
+            and root.absolute() == root.resolve(strict=True)
             and root.is_dir()
+            and root.stat().st_uid == os.geteuid()
             and stat.S_IMODE(root.stat().st_mode) == 0o700,
             "STAGE10_RUNTIME_ROOT_NOT_PRIVATE",
         )
@@ -168,6 +197,37 @@ class ICUTransliterator:
             set(paths)
             == {"BRIDGE", "ICU_I18N_STATIC", "ICU_COMMON_STATIC", "ICU_DATA_STATIC"},
             "STAGE10_RUNTIME_ASSET_SET_MISMATCH",
+        )
+        c.require(
+            self.lock["transliterator_ids"] == list(runtime_lock.TRANSFORMS)
+            and self.lock["direction"] == "UTRANS_FORWARD",
+            "STAGE10_TRANSLITERATOR_IDENTITY_MISMATCH",
+        )
+        c.require(
+            self.lock["source_data_assets"]
+            == [
+                {
+                    "asset_role": Path(asset["path"]).name,
+                    "bytes": asset["bytes"],
+                    "sha256": asset["sha256"],
+                }
+                for asset in spec["source_data_assets"]
+            ]
+            and self.lock["runtime_source_sha256"]
+            == runtime_lock.source_dependencies(bridge_source.parents[3])
+            and self.lock["runtime_source_sha256"]["SCRIPT_DATA"]
+            == spec["script_property"]["sha256"]
+            and self.lock["python_runtime"] == runtime_lock.python_identity()
+            and self.lock["linked_library_sha256"]
+            == runtime_lock.linked_libraries(paths["BRIDGE"]),
+            "STAGE10_RUNTIME_DEPENDENCY_MISMATCH",
+        )
+        self.semantic_fingerprint = runtime_lock.semantic_fingerprint(self.lock)
+        c.require(
+            self.lock["runtime_semantic_fingerprint"] == self.semantic_fingerprint
+            and self.lock["runtime_root_logical_identity"]
+            == "stage10-icu77:" + self.semantic_fingerprint,
+            "STAGE10_RUNTIME_SEMANTIC_IDENTITY_MISMATCH",
         )
         self.library: Any = ctypes.CDLL(str(paths["BRIDGE"]), mode=ctypes.RTLD_LOCAL)
         byte_pointer = ctypes.POINTER(ctypes.c_uint8)
@@ -191,6 +251,12 @@ class ICUTransliterator:
         self.library.safe_stage10_transform.restype = ctypes.c_int32
         self.library.safe_stage10_close.argtypes = [ctypes.c_void_p]
         self.library.safe_stage10_close.restype = None
+        self.library.safe_stage10_filter_table.argtypes = [
+            ctypes.c_int32,
+            byte_pointer,
+            ctypes.c_int32,
+        ]
+        self.library.safe_stage10_filter_table.restype = ctypes.c_int32
         versions = [(ctypes.c_uint8 * 4)() for _ in range(3)]
         status = self.library.safe_stage10_versions(*versions)
         c.require(
@@ -265,6 +331,29 @@ class ICUTransliterator:
         for handle in self.handles.values():
             self.library.safe_stage10_close(handle)
         self.handles.clear()
+
+    def verify_filter_equivalence(self) -> dict[str, str]:
+        """Exhaustive public-only equivalence over the Unicode code-point space."""
+        import hashlib
+
+        result = {}
+        for ordinal, target in enumerate(("Greek", "Cyrillic"), 1):
+            table = (ctypes.c_uint8 * 0x110000)()
+            c.require(
+                self.library.safe_stage10_filter_table(ordinal, table, len(table)) == 0,
+                "STAGE10_ICU_FILTER_ENUMERATION_FAILED",
+            )
+            for cp in range(len(table)):
+                char = chr(cp)
+                expected = (
+                    scripts().script_for(char) in (target, "Inherited")
+                    and unicodedata.category(char)[0] in "LM"
+                )
+                c.require(
+                    table[cp] == int(expected), "STAGE10_ICU_FILTER_EQUIVALENCE_FAILED"
+                )
+            result[target] = hashlib.sha256(bytes(table)).hexdigest()
+        return result
 
 
 def sys_byteorder() -> str:

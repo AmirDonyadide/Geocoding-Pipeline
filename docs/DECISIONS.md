@@ -1857,3 +1857,23 @@ that predicate/proof and dependent bounds; the other reviewed decisions stand.
   records preparation, later executable/job identities and review disposition.
   PENDING/RUNNING means report once and stop; failed execution is preserved and
   never automatically resubmitted.
+
+### D065 — Owner authorizes one replacement public Stage 10 ICU preparation
+
+- **Authority:** The owner accepted `1772282` as CANCELLED BEFORE START, zero
+  runtime evidence, and authorized minimum public-only preparation plus exactly
+  one replacement job. This does not consume or broaden the separate single
+  protected DEVELOPMENT authorization.
+- **Reconciliation:** One accounting inspection reconfirmed zero start/elapsed
+  and no prior runtime target. The original `srun --immediate=30` request timed
+  out before allocation; accounting gives no finer resource reason. No observed
+  ICU/version mismatch, protected input access or candidate.
+- **Preparation:** A clean pushed detached executable, ordinary batch submission,
+  no-requeue/restart rejection, private new runtime, exact public source/data,
+  dependency locks, deterministic runtime semantic identity, exhaustive Unicode
+  filter equivalence and public/synthetic positive/failure gates. The exact
+  frozen Q6 spec and full build-lock asset-binding formula remain unchanged.
+- **Boundary:** PENDING/RUNNING means report once and stop; failure means preserve
+  evidence and stop. Only after exact Linux verification may the already
+  authorized unfinished implementation resume. No Stage 11, Pelias, HOLDOUT or
+  production. See the [bounded preparation record](stages/STAGE10_IMPLEMENTATION.md#owner-authorized-replacement-preparation).

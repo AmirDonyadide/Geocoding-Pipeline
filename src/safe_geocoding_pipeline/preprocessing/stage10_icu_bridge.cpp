@@ -16,7 +16,27 @@ using icu::Transliterator;
 using icu::UnicodeString;
 using icu::UnicodeSet;
 
+static const char *additional_pattern(int32_t script) noexcept {
+    return script == 1 ? "[[[:Greek:][:Inherited:]]&[[:L:][:M:]]]"
+                       : "[[[:Cyrillic:][:Inherited:]]&[[:L:][:M:]]]";
+}
+
 extern "C" {
+// Public build verification: enumerate the very same additional input filter
+// used below, so pinned Script/U16 category tables can independently check it.
+int32_t safe_stage10_filter_table(int32_t script, uint8_t *output,
+                                 int32_t capacity) noexcept {
+    if ((script != 1 && script != 2) || !output || capacity != 0x110000)
+        return U_ILLEGAL_ARGUMENT_ERROR;
+    try {
+        UErrorCode status = U_ZERO_ERROR;
+        UnicodeSet filter(UnicodeString::fromUTF8(additional_pattern(script)), status);
+        if (U_FAILURE(status)) return status;
+        for (int32_t cp = 0; cp < capacity; ++cp) output[cp] = filter.contains(cp);
+        return U_ZERO_ERROR;
+    } catch (...) { return U_MEMORY_ALLOCATION_ERROR; }
+}
+
 int32_t safe_stage10_versions(uint8_t *icu, uint8_t *unicode, uint8_t *cldr) noexcept {
     if (!icu || !unicode || !cldr) return U_ILLEGAL_ARGUMENT_ERROR;
     u_getVersion(icu);
@@ -36,9 +56,6 @@ void *safe_stage10_open(int32_t script, int32_t *error) noexcept {
     if (script != 1 && script != 2) return nullptr;
     try {
         const char *id = script == 1 ? "Grek-Latn" : "Cyrl-Latn";
-        const char *pattern = script == 1
-            ? "[[[:Greek:][:Inherited:]]&[[:L:][:M:]]]"
-            : "[[[:Cyrillic:][:Inherited:]]&[[:L:][:M:]]]";
         UErrorCode status = U_ZERO_ERROR;
         std::unique_ptr<Transliterator> transform(Transliterator::createInstance(
             UnicodeString::fromUTF8(id), UTRANS_FORWARD, status));
@@ -47,7 +64,7 @@ void *safe_stage10_open(int32_t script, int32_t *error) noexcept {
             return nullptr;
         }
         if (transform->getID() != UnicodeString::fromUTF8(id)) return nullptr;
-        auto additional = std::make_unique<UnicodeSet>(UnicodeString::fromUTF8(pattern), status);
+        auto additional = std::make_unique<UnicodeSet>(UnicodeString::fromUTF8(additional_pattern(script)), status);
         if (U_FAILURE(status)) { *error = status; return nullptr; }
         if (const auto *original = transform->getFilter()) {
             UnicodeString original_pattern;
