@@ -14,6 +14,7 @@ import re
 import sys
 import time
 from collections import Counter
+from decimal import Decimal
 from itertools import zip_longest
 
 from safe_geocoding_pipeline.execution_policy import require_goethe_nhr_slurm
@@ -42,8 +43,42 @@ def check(name, value):
 
 def phase(name):
     REPORT['phases'].append({'phase': name, 'seconds': int(time.monotonic()-START)})
-    io.write_json(OUT / (name + '.json'), REPORT)
+    io.write_json(OUT / (name + '.json'), portable(REPORT))
     print('REVIEW_PHASE_COMPLETE ' + name, flush=True)
+
+
+def portable(value):
+    """Convert exact SQL integer sums without stringifying arbitrary objects."""
+    if isinstance(value, Decimal):
+        if not value.is_finite() or value != value.to_integral_value():
+            raise ValueError('REVIEW_NONINTEGRAL_AGGREGATE')
+        return int(value)
+    if value is None or type(value) in (str, int, bool):
+        return value
+    if isinstance(value, list):
+        return [portable(item) for item in value]
+    if isinstance(value, dict) and all(type(key) is str for key in value):
+        return {key: portable(item) for key, item in value.items()}
+    raise TypeError('REVIEW_REPORT_TYPE_NOT_ALLOWLISTED')
+
+
+def failure_report(error):
+    # This receipt deliberately does not include the possibly unserializable
+    # cumulative report, exception message, SQL, locals, or queried strings.
+    receipt = {'harness_exception_type': type(error).__name__, 'locations': []}
+    tb = error.__traceback__
+    while tb is not None:
+        receipt['locations'].append({'file': Path(tb.tb_frame.f_code.co_filename).name, 'line': tb.tb_lineno})
+        tb = tb.tb_next
+    try:
+        if 'OUT' in globals() and OUT.exists():
+            io.write_json(OUT/'harness_failure.json', receipt)
+    except BaseException:
+        pass
+    try:
+        print('REVIEW_HARNESS_INCOMPLETE ' + type(error).__name__, flush=True)
+    except BaseException:
+        pass
 
 
 def count(db, sql):
@@ -234,14 +269,5 @@ if __name__ == '__main__':
     try:
         main()
     except BaseException as error:
-        # No traceback/str(error): SQL, values and row IDs must never reach logs.
-        if 'OUT' in globals() and OUT.exists():
-            REPORT['harness_exception_type'] = type(error).__name__
-            REPORT['harness_traceback_locations'] = []
-            tb = error.__traceback__
-            while tb is not None:
-                REPORT['harness_traceback_locations'].append({'file':Path(tb.tb_frame.f_code.co_filename).name,'line':tb.tb_lineno})
-                tb = tb.tb_next
-            io.write_json(OUT/'harness_failure.json',REPORT)
-        print('REVIEW_HARNESS_INCOMPLETE '+type(error).__name__,flush=True)
+        failure_report(error)
         sys.exit(1)

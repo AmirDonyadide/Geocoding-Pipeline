@@ -134,3 +134,30 @@ reproduced; pending checks must not be represented as passes.
 
 Final review must contain the complete candidate defect ledger and exact PASS/FAIL
 wording requested by the owner, only after all meaningful checks are reconciled.
+
+## 2026-09-14 continuation — corrected reporting harness
+
+Job 1771693 actually ran 2026-09-12 22:54:36–22:56:31 UTC and failed 1:0
+at the first postcode-oracle snapshot, after 00:01:55, with MaxRSS 910,164 KiB.
+Its two immutable snapshots survive: bindings SHA-256
+`b5c85efdccc8f4eeeb00898f4f6541bf8bfa282584cfbc9266e267ef6e2ddc30` and
+relational SQL SHA-256
+`c044a11a2db62c0dcf88b4adc03c77c3e48e666e5f8b0038b57b67ca39412556`.
+All 58 binding checks and all 87 cumulative relational checks passed.
+Counts/four states/families/evaluable candidates/mismatches match the supplied
+expectations. Independent source-to-ISO join finds **zero full recognized source
+subdivision-code witnesses**, confirming why all Q02 country assessments abstain.
+No false Q04 conclusion is inferred from its failed report serialization.
+
+**RH-003 — REVIEW_HARNESS:** DuckDB `SUM(BIGINT)` returned Arrow `Decimal`, which
+JSON cannot serialize. The handler then attempted to serialize the same report,
+so its own reporting failed. Only static traceback/type text reached private
+stderr; review inspection filtered exception messages before reading, then verified
+the fixed Decimal type error. No queried values were emitted. Local reproduction
+uses only `sum(range(3))`. The corrected harness converts finite integral Decimal
+values to exact integers and rejects every other unknown type without stringifying.
+Failure reporting now writes a separate minimal type/location receipt and catches
+its own I/O failures. Seven regression tests and all 33 synthetic SQL checks pass.
+This is a review-harness-only correction: no candidate output or code changes,
+no scientific rerun, and the original review attempt is retained. One corrected
+review execution may complete the missing checks against the same artifact.
