@@ -1,0 +1,139 @@
+{
+  "additional_input_filter": {
+    "authority": "Explicit property predicate; independently verify UnicodeSet membership against pinned Unicode 16 tables.",
+    "cyrillic_pattern": "[[[:Cyrillic:][:Inherited:]]&[[:L:][:M:]]]",
+    "definition": "{cp | Script16(cp) in {target, Inherited} AND General_Category16(cp) in {Lu,Ll,Lt,Lm,Lo,Mn,Mc,Me}}",
+    "existing_latin_common_punctuation_digits": "Outside mutable input filter; retained as context. Outer NFC may change canonical composition, never source values. Mapping-introduced Latin marks/punctuation are allowed.",
+    "greek_pattern": "[[[:Greek:][:Inherited:]]&[[:L:][:M:]]]",
+    "operation": "Resolve the pinned canonical transliterator first. Let F0 be its original top-level filter (universal if absent). Replace that top-level filter with F0 intersect the exact additional UnicodeSet. Preserve all nested filters and internal NFD/NFC directives. Never replace F0 with the additional filter alone."
+  },
+  "eligibility": {
+    "before_and_after_pre_nfc": "Every code point Script must be Latin, Common, Inherited or one target script; target is exactly one of Greek or Cyrillic and must have a General_Category L* code point.",
+    "inherited_mark_after_pre_nfc": "For every code point with Script=Inherited and General_Category=M*, scan left across contiguous M* code points; the first nonmark must have Script=target and General_Category=L*. Otherwise abstain.",
+    "mixed_greek_cyrillic": "ABSTAIN_UNSUPPORTED_SCRIPT_TRANSLITERATION",
+    "mixed_latin_plus_one_target": "ALLOW",
+    "source_language_inference": false,
+    "unknown_unassigned_other_scripts": "ABSTAIN_UNSUPPORTED_SCRIPT_TRANSLITERATION"
+  },
+  "forbidden": [
+    "NFKC",
+    "NFKD",
+    "Latin-ASCII",
+    "casefold",
+    "diacritic stripping",
+    "language guessing",
+    "translation",
+    "Q5 chaining",
+    "arbitrary independent chunk transforms",
+    "source or native overwrite"
+  ],
+  "icu": {
+    "api_direction": "UTRANS_FORWARD",
+    "canonical_ids": [
+      "Grek-Latn",
+      "Cyrl-Latn"
+    ],
+    "cldr_source_version": "47",
+    "fallback_resolution": "FORBIDDEN",
+    "host_icu_substitution": "FORBIDDEN",
+    "implementation": "ICU4C",
+    "internal_rule_filters_and_normalization": "RETAIN_EXACT_PINNED_RESOURCE_OPERATIONS",
+    "locale": "NONE",
+    "pinned_readable_aliases": {
+      "Cyrillic-Latin": "Cyrl-Latn",
+      "Greek-Latin": "Grek-Latn"
+    },
+    "release_tag": "release-77-1",
+    "source_commit": "457157a92aa053e632cc7fcfd0e12f8a943b2d11",
+    "unicode_version": "16.0.0",
+    "version": "77.1"
+  },
+  "normalization": {
+    "implementation": "Python 3.14.3 unicodedata.normalize with unidata_version exactly 16.0.0",
+    "order": [
+      "EXACT_STAGE06_NATIVE_CANDIDATE",
+      "SCRIPT_ELIGIBILITY_PRECHECK",
+      "NFC_U16",
+      "SCRIPT_ELIGIBILITY_RECHECK",
+      "SELECT_SINGLE_CANONICAL_TRANSFORM",
+      "SET_ADDITIONAL_INPUT_FILTER",
+      "WHOLE_STRING_FORWARD_TRANSFORM",
+      "NFC_U16",
+      "OUTPUT_GATE",
+      "EXACT_INTENT_CONVERGENCE"
+    ],
+    "post": "NFC",
+    "pre": "NFC",
+    "unicode_version": "16.0.0"
+  },
+  "output_gate": {
+    "empty": "EMPTY_RESULT_AFTER_TRANSFORMATION; no payload/hypothesis",
+    "operational_error": "FAIL_PUBLICATION; never scientific abstention",
+    "order": [
+      "EMPTY",
+      "EXACT_COMPLETE_INTENT_EQUAL_TO_Q2",
+      "UNSUPPORTED_RESIDUAL_SCRIPT",
+      "EMIT_OR_CONVERGE_WITH_OTHER_FAMILY"
+    ],
+    "unchanged": "Compare exact complete QueryIntent against Q2 in this context; retain Q6 CONVERGENT_MEMBER, no duplicate hypothesis.",
+    "unsupported": "If any output code point Script is outside Latin/Common/Inherited, TRANSLITERATION_UNSUPPORTED_OUTPUT; no hypothesis."
+  },
+  "runtime_build_gate": {
+    "binary_hashes": "NOT_YET_BUILT; no fabricated build identity",
+    "missing_or_changed": "FAIL_CLOSED; semantic source/data changes require owner review",
+    "required_before_execution": [
+      "compiler and flags",
+      "ICU linked libraries and compiled data artifact SHA-256",
+      "wrapper source/version/SHA-256",
+      "runtime version checks",
+      "exact public synthetic output vectors",
+      "source/data/UnicodeSet equivalence to this specification"
+    ]
+  },
+  "scope": "Q6_CURRENT_NATIVE_OCCURRENCE_ONLY",
+  "script_property": {
+    "path": "src/safe_geocoding_pipeline/preprocessing/resources/references/unicode_ucd_16_0_0/Scripts.txt",
+    "property": "Script; not Script_Extensions",
+    "reference": "unicode_ucd_16_0_0_scripts_20240430",
+    "sha256": "9e88f0a677df47311106340be8ede2ecdacd9c1c931831218d2be6d5508e0039"
+  },
+  "source_data_assets": [
+    {
+      "bytes": 111841,
+      "path": "icu4c/source/data/translit/root.txt",
+      "sha256": "842b70623b23b227dc91206229cee2420f6d949bd6c64e2c804eb6f384ab8951",
+      "source_url": "https://raw.githubusercontent.com/unicode-org/icu/457157a92aa053e632cc7fcfd0e12f8a943b2d11/icu4c/source/data/translit/root.txt"
+    },
+    {
+      "bytes": 8513,
+      "path": "icu4c/source/data/translit/Grek_Latn.txt",
+      "sha256": "a6fa200e8ca3951c037d905a52d6277ef9afbf5d1e52180f47a90df1d10287fd",
+      "source_url": "https://raw.githubusercontent.com/unicode-org/icu/457157a92aa053e632cc7fcfd0e12f8a943b2d11/icu4c/source/data/translit/Grek_Latn.txt"
+    },
+    {
+      "bytes": 13718,
+      "path": "icu4c/source/data/translit/Cyrl_Latn.txt",
+      "sha256": "01e5888bb9be4635a922660cc37b1a3f2f1c832d1bd1b69299be86e057f6daf4",
+      "source_url": "https://raw.githubusercontent.com/unicode-org/icu/457157a92aa053e632cc7fcfd0e12f8a943b2d11/icu4c/source/data/translit/Cyrl_Latn.txt"
+    },
+    {
+      "bytes": 2175362,
+      "path": "icu4c/source/data/unidata/UnicodeData.txt",
+      "sha256": "ff58e5823bd095166564a006e47d111130813dcf8bf234ef79fa51a870edb48f",
+      "source_url": "https://raw.githubusercontent.com/unicode-org/icu/457157a92aa053e632cc7fcfd0e12f8a943b2d11/icu4c/source/data/unidata/UnicodeData.txt"
+    },
+    {
+      "bytes": 522890,
+      "path": "icu4c/source/data/unidata/DerivedNormalizationProps.txt",
+      "sha256": "897ad361c69ba804646097f678cb0e71374a019f5323cbb7ac8be7161fb45318",
+      "source_url": "https://raw.githubusercontent.com/unicode-org/icu/457157a92aa053e632cc7fcfd0e12f8a943b2d11/icu4c/source/data/unidata/DerivedNormalizationProps.txt"
+    },
+    {
+      "bytes": 2214,
+      "path": "icu4c/source/data/unidata/NormalizationCorrections.txt",
+      "sha256": "ca91bb16261a97432b42bd6082a95d8f2bd6a084f5d4e4f7f1c76d7e084a621a",
+      "source_url": "https://raw.githubusercontent.com/unicode-org/icu/457157a92aa053e632cc7fcfd0e12f8a943b2d11/icu4c/source/data/unidata/NormalizationCorrections.txt"
+    }
+  ],
+  "specification": "stage10_transliteration_spec_v1"
+}

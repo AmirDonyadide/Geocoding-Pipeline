@@ -53,7 +53,8 @@ reference evidence only, not address validity or geocoding accuracy; see the
 | 7 | libpostal parsing/evidence | **`STAGE_7_ACCEPTED`** | Preserves exact raw ordered parser evidence, applicability/technical provenance, warnings, and complete map-back; components remain hypotheses only |
 | 8 | Lossless address-evidence projection | **`STAGE_8_ACCEPTED`** | Candidate `231cdbf9…`, executable `c04cb972…`, job `1764273`, and corrected independent rereview job `1764376`; zero candidate defects and unchanged science |
 | 9 | Conservative offline reference evidence | **`STAGE_9_ACCEPTED`** | 51,779 candidates; four-state capability-scoped evidence; no source correction or final geographic truth |
-| 10–14 proposed | Hypotheses, retrieval, scoring, and final granularity | **PROPOSED — NOT STARTED** | No design approval or execution authorization |
+| 10 | Bounded multi-hypothesis query generation | **DESIGN FINAL** | [Documentation-only candidate](docs/stages/STAGE10_MULTI_HYPOTHESIS_QUERY_GENERATION.md); owner revisions incorporated; not implemented or executed |
+| 11–14 proposed | Query QA, retrieval, scoring, and final granularity | **PROPOSED — NOT STARTED** | No design approval or execution authorization |
 
 Production Stage 0 and Stage 1 are accepted for
 `production_population_1411_v1` (1,411 files; 141,048,582 rows). Production
@@ -184,8 +185,12 @@ Jobs `1763747`, `1763984`, and `1764219` and all failed reviews remain truthful
 historical evidence for their exact executable lineages. Stage 9 is now
 **`STAGE_9_ACCEPTED`**, frozen by `stage09-offline-reference-evidence-v1` after
 independent review PASS with zero candidate defects. No rerun was required.
-The next separately authorized session is Stage 10 bounded multi-hypothesis
-query-generation design; Stage 10 is **NOT STARTED**. HOLDOUT remains sealed;
+The separately authorized Stage 10 bounded multi-hypothesis
+[design candidate](docs/stages/STAGE10_MULTI_HYPOTHESIS_QUERY_GENERATION.md) is
+**FINAL** after the owner-requested Q5/Q6 coexistence and engineering-ceiling
+correction. Implementation and execution remain **NOT STARTED**.
+Next: owner authorization to implement the exact final design.
+HOLDOUT remains sealed;
 production Stage 2 and later, Senzing, and geocoding remain unauthorized. See the
 [Stage 8 design](docs/stages/STAGE08_ADDRESS_EVIDENCE_PROJECTION.md) and
 [current progress](docs/DEVELOPMENT_PROGRESS.md).

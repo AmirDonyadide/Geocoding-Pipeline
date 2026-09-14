@@ -257,15 +257,28 @@ outcomes are:
 
 ## Query identity and map-back
 
-Under the proposed compact design, Stage 10 would create versioned query
-hypotheses and Stage 11 would assign query identities and deduplicate identical
-SAFE Pelias calls. A single unique query may serve multiple candidates, and a
-candidate may serve multiple source rows. The mapping chain must remain
-explicit:
+The [Stage 10 revised contract](stages/STAGE10_DATA_CONTRACT.md) generates one
+query context per present Stage 8 `(source row, representation)` occurrence.
+Each context retains its own candidate, source country, geography, boundaries
+and applicable evidence. No cross-occurrence unanimity or candidate-wide
+eligibility gate is used. Two protected relations contain context/FKs inline:
+`query_hypothesis` at context × distinct complete intent, and
+`query_family_decision` at context × Q1–Q6 family. No source map is duplicated.
 
 ```text
-stable_source_row_id_v1 -> candidate_id -> query_id -> geocoder attempt/result
+Stage 8 source/representation occurrence -> Stage 10 query context
+  -> hypothesis + all contributing family decisions
+  -> Stage 11 complete semantic request -> Stage 12 execution/attempt/result
+  -> the same hypothesis/context -> original occurrence/source row
 ```
 
-Final reconciliation must prove that every input source identity has the
-expected mapping outcome, without row loss or join explosion.
+Stage 11 later resolves every result-affecting parameter and globally deduplicates
+complete requests, preserving all context edges. Stage 12 additionally binds
+deployment/index/data identity. Stage 10 intent fingerprints are not final
+query_semantic_id values. Contexts sharing candidate text cannot contaminate or
+suppress each other. Equal intents across contexts retain separate hypotheses
+until the future request layer shares their execution. Final left joins retain
+no-candidate and zero-hypothesis source rows. Q7 is globally deferred, with no
+pseudo-context hypotheses. Q5/Q6 may coexist. Five/context and ten/source row are uniform
+engineering safety bounds (tighter reachable role maximum nine/row); scientific operating budget is unselected. The design is
+final and awaits owner authorization to implement; no execution or Stage 11 work.

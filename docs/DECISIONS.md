@@ -1655,7 +1655,8 @@ to change a decision or start a stage.
 These questions require future stage designs and explicit approval:
 
 - future reference vintages/country-specific extensions beyond frozen Stage 9 v1;
-- the bounded Stage 10 hypothesis/query ladder;
+- the [Stage 10 design candidate](stages/STAGE10_MULTI_HYPOTHESIS_QUERY_GENERATION.md)
+  and [final owner implementation approval](stages/STAGE10_DESIGN_REVIEW.md#remaining-owner-decisions);
 - Stage 13 scoring/calibration and contradiction policy; and
 - Stage 14 granularity-specific usability thresholds, including treatment of
   interpolated Pelias address results.
@@ -1683,3 +1684,156 @@ Stage 8 DEVELOPMENT acceptance and preserves all prior Stage 8 failures as
 historical evidence. D048 records the architecture-only removal of superseded
 Phase implementation surfaces while preserving frozen source-foundation
 identifiers and accepted Stage 0–8 science.
+
+## Proposed decisions awaiting owner review
+
+### D061 — Freeze the Stage 10 bounded-query design candidate for review
+
+Historical first draft at `642fa170ac594f6fe425a9272b5dae6bdff584cc`; the owner
+approved the architecture in principle with mandatory revisions. D062 below
+supersedes its context, budget and family-row policies. The original entry is
+retained as history, not current eligibility or implementation authority.
+
+- **Date/authority:** 2026-09-14; owner explicitly authorized a fresh Stage 10
+  DEVELOPMENT design/contract/freeze-only session. Baseline was clean
+  `main == origin/main == 23cfb85f428b00301d68591ea5992763abf9ad88` after fetch;
+  the Stage 9 acceptance tag peels to that exact commit. This entry records a
+  proposal, not an owner-approved scientific decision.
+- **Proposed contract:** `stage10_multi_hypothesis_query_contract_v1`, profile
+  `stage10_multi_hypothesis_query_profile_v1`, schema
+  `stage10_multi_hypothesis_query_schema_v1`. The
+  [design package](stages/STAGE10_MULTI_HYPOTHESIS_QUERY_GENERATION.md) contains
+  family/gate/normalization rules, two protected relation drafts, exact
+  identity/lineage and Stage 11 handoff, evaluation and the complete review ledger.
+- **Input authority:** Accepted Stage 8 evidence/sole source map, accepted Stage 9
+  evidence and bound witness/capability/lineage pack, and the exact Stage 6 row-map
+  projection for accepted source boundaries. No new source/occurrence map.
+- **Proposed science:** Exact full STANDARD/NATIVE, boundary-preserving,
+  source-anchored structured, narrowly stripped unit/floor and native
+  transliteration families. Q7 is disabled/deferred to a separately contracted
+  later conditional phase. Unanimous source context avoids attaching one
+  occurrence's country/geography/layout to all identical-text candidates.
+- **Proposed budget/model:** At most five distinct generated hypotheses per
+  candidate and ten per source row, derived from the one-slot family architecture.
+  Scientific operating B is unselected pending DEVELOPMENT calibration.
+  `query_hypothesis` contains candidate-scoped converged intents;
+  `query_family_decision` contains seven auditable decisions/memberships per
+  candidate; a bounded aggregate summary supplies diagnostics. Stage 11 owns
+  complete-request identity; Stage 12 additionally binds deployment/index.
+- **Evidence/publication:** Reference support is scope-limited; source Q04/Q08
+  can suppress structured postcode only. No parser-trust promotion, reference
+  absence-as-invalidity, fuzzy correction or source rewriting. Propose Stage 9
+  publication-state-machine reuse with Stage 10 binding adapter, conditional on
+  later path/filesystem verification; no probe was performed.
+- **Status:** **DESIGN READY FOR OWNER REVIEW — NOT APPROVED, NOT IMPLEMENTED,
+  NOT EXECUTED.** Eleven explicit O10 decisions remain for the owner. Stage 0–9
+  accepted science/history unchanged; HOLDOUT sealed; production/Pelias
+  untouched. No protected reads, SLURM jobs, Stage 11 implementation or geocoding.
+  **NEXT: OWNER REVIEW OF STAGE 10 DESIGN.**
+
+
+### D062 — Incorporate owner revisions and freeze Stage 10 for final implementation approval
+
+Historical revision at `09d53a287b9d0c074aefb4af2e89382951ddde73`: the owner
+subsequently rejected the Q5/Q6 exclusion and 4/8 ceiling. D063 supersedes only
+that predicate/proof and dependent bounds; the other reviewed decisions stand.
+
+- **Date/authority:** 2026-09-14, same Stage 10 design session. The owner approved
+  architecture in principle, required eleven revisions/clarifications, and
+  explicitly authorized design documentation, final bounded review, commit and
+  normal branch push. No implementation, protected DEVELOPMENT, SLURM, Pelias,
+  HOLDOUT, production, Stage 11 or main merge is authorized.
+- **Context correction:** One context per present accepted Stage 8
+  `(stable_source_row_id_v1, representation)` occurrence, exact Stage 6 candidate
+  and row-specific source context/evidence through immutable FKs. No cross-row
+  unanimity or candidate-wide country/warning eligibility; no duplicate source
+  map or physical context relation. Candidate/parser evidence stays at its
+  accepted grain; source reference gates use the exact candidate/source pair.
+- **Model:** `query_hypothesis` is context × distinct complete Stage 10 intent;
+  `query_family_decision` is context × Q1–Q6, six rows per context, with inline
+  source/role/candidate FKs and same-context membership. One aggregate summary.
+  Context ID binds the immutable input snapshots and minimal occurrence key.
+- **Ceiling proof:** Q1/Q2 are mutually exclusive by context role. Q5 requires
+  Latin/Common/Inherited-only candidate text; Q6 requires Greek/Cyrillic letters,
+  so they cannot coexist. Baseline + Q3 + Q4 + either Q5 or Q6 gives reachable
+  maximum **4/context**, with <=2 contexts giving **8/source row**. A candidate
+  with m occurrences has bound 4m, not a fixed global cap. The synthetic
+  attainability proof is in the scientific contract; no eligible family is
+  engineering-budget suppressed.
+- **First DEVELOPMENT/calibration:** All eligible Q1–Q6 materialized under
+  ALL_ELIGIBLE_CATALOG; scientific operating B UNSELECTED, no first-run budget
+  suppression/tuning. Context/row/candidate multiplicity, coverage, convergence
+  and structural cost measured first; true family recall/value needs Stage 12/13
+  evidence later. Q7 is globally DEFERRED_RESULT_DEPENDENT_DIAGNOSTIC, with no
+  per-context decision/hypothesis or preallocated future query IDs.
+- **Country/evidence:** Reuse same-row source S9.Q01 exact ISO code recognition
+  independently of Stage 9 country assessment. Preserve unevaluable accepted
+  reference checks without rerunning them. Only same-context/source-postcode
+  Q04/Q08 contradiction with exact authorized negative capability, arguments,
+  country and witness can gate structured postcode. Q1/Q2 stay intact; GeoNames
+  absence/NOT_FOUND/NOT_EVALUABLE never supply negative evidence.
+- **Transformations:** Q3 uses this occurrence's exact four source slots/mask and
+  LF joining. Q5 filters only grammar/corroboration-qualified complete source
+  lines, preserving every surviving line's bytes and abstaining without exact
+  local evidence. Q6 freezes ICU4C 77.1/source/Unicode/data hashes, canonical
+  Grek-Latn/Cyrl-Latn IDs, exact NFC/filter/forward/NFC chain and script/output
+  gates in `stage10_transliteration_spec_v1.json`; native values remain exact.
+- **Publication/handoff:** Approved Stage 9 state machine reused only under same
+  controlled PanFS topology and primitive assumptions verified by implementation
+  preflight, with Stage 10 registration adapter. No new diagnostic merely for
+  stage number; material environment change stops for owner review. Stage 11
+  separately freezes complete request semantics/ID/global dedup; Stage 12 adds
+  concrete deployment/index identity. Neither stage begins here.
+- **Review/freeze:** [Revised design package](stages/STAGE10_MULTI_HYPOTHESIS_QUERY_GENERATION.md),
+  complete 40-item [resolved ledger](stages/STAGE10_DESIGN_REVIEW.md), exact
+  transformation specification and updated hash inventory. Original D061 draft
+  and all Stage 0–9 history remain reachable; accepted science/artifacts unchanged.
+- **Status:** OWNER REVISIONS INCORPORATED — DESIGN FROZEN FOR FINAL OWNER REVIEW.
+  Remaining approval: the exact revised design and authority to implement.
+  HOLDOUT sealed; production/Pelias untouched; no implementation or job occurred.
+  **NEXT: FINAL OWNER APPROVAL TO IMPLEMENT STAGE 10.**
+
+
+### D063 — Final Stage 10 Q5/Q6 coexistence and engineering-ceiling correction
+
+- **Date/authority:** 2026-09-14. The owner approved the revised design except
+  for one remaining engineering-ceiling issue and authorized its bounded
+  correction, validation, commit and normal design-branch push. Implementation,
+  protected DEVELOPMENT/HOLDOUT/production, SLURM, Pelias and Stage 11 remain
+  unauthorized; main remains unchanged.
+- **Outcome A:** Q5/Q6 can coexist. The former candidate-wide
+  Latin/Common/Inherited predicate has no independently defensible role in
+  complete-line removal safety. Remove that unapproved restriction; retain the
+  exact ASCII whole-line grammar, boundary/alignment/corroboration, source-field
+  veto and survivor requirements. Q6's exact specification remains byte-unchanged.
+  Greek text with a separate corroborated `unit 5` line provides a synthetic
+  coexistence witness. Q5 and Q6 each transform the full representation separately;
+  no stripped-plus-transliterated family is introduced.
+- **Exact maximum:** Q1/Q2 remain exclusive by occurrence role; Q3–Q6 each
+  construct at most once. NATIVE can attain Q2+Q3+Q4+Q5+Q6 = **5** distinct intents.
+  STANDARD is at most **4** because Q6 is native-only.
+- **Source-row proof:** Accepted Stage 8 source map has a unique stable source
+  key and exactly two nullable scalar Stage 6 candidate slots. Its frozen
+  two-arm UNION ALL view emits one occurrence for each PRESENT slot, hence
+  zero/one/two contexts per source row. Equal STANDARD/NATIVE candidate IDs still
+  yield two role-specific occurrences, as Stage 6 explicitly requires.
+- **Engineering ceilings:** Uniform **5/context and 10/source row** (=5×2).
+  Ten is a harmless safety envelope, not an attainable claim: exact role-aware
+  row maximum is **9 = 4 STANDARD + 5 NATIVE**. Role and generation-totality
+  invariants also enforce the tighter bound. Candidate uniform bound is
+  **5×occurrence_count**, with tighter **4×STANDARD + 5×NATIVE** validation;
+  no fixed low candidate budget or eligible-family suppression.
+- **Preservation:** Scientific operating budget remains **UNSELECTED**; first
+  DEVELOPMENT catalogs all eligible Q1–Q6. Context identities, relation grains,
+  Q1–Q4 and Q6/Q7 policy, all other Q5 safety predicates, evidence rules,
+  convergence/map-back, Stage 11/12 boundaries and publication decisions are
+  unchanged. All accepted Stage 0–9 science/history remain unchanged.
+- **Final freeze:** Updated [proof and design](stages/STAGE10_MULTI_HYPOTHESIS_QUERY_GENERATION.md#architecture-and-engineering-ceiling-proof),
+  dependent rank/count/histogram bounds, complete 41-item review ledger and
+  design hash inventory. Synthetic cardinality/presence/equality checks and
+  local document/hash/anchor/diff checks only; no materializer or runtime ICU
+  execution. Prior design commits and D061/D062 remain reachable history.
+- **Remaining owner design decisions:** **NONE**. Separate implementation
+  authorization is still required. HOLDOUT remains sealed; production/Pelias
+  untouched; no implementation, protected access, SLURM or Stage 11 work.
+  **NEXT: OWNER AUTHORIZATION TO IMPLEMENT STAGE 10.**

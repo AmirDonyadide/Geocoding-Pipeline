@@ -18,10 +18,12 @@ independent review passes and the owner explicitly accepts it.
 | 7 | [libpostal parsing/evidence](STAGE07_LIBPOSTAL_PARSING.md) | `STAGE_7_ACCEPTED` | NOT STARTED |
 | 8 | [Lossless address-evidence projection](STAGE08_ADDRESS_EVIDENCE_PROJECTION.md) | `STAGE_8_ACCEPTED`; candidate `231cdbf9…`, executable `c04cb972…`, job `1764273`, independent job `1764376` | NOT STARTED |
 | 9 | [Conservative offline geographic reference evidence](STAGE09_OFFLINE_REFERENCE_EVIDENCE.md) | `STAGE_9_ACCEPTED`; executable `3e10ac7c…`, job `1771191`, independent job `1772139`; [owner acceptance](../../reports/development/stage09.md#owner-acceptance-and-freeze--2026-09-14) | NOT STARTED |
+| 10 | [Bounded multi-hypothesis query generation](STAGE10_MULTI_HYPOTHESIS_QUERY_GENERATION.md) | DESIGN FINAL; ceiling correction incorporated; awaiting implementation authorization | NOT STARTED |
 
 Stage 9 is accepted with its design/reference bytes unchanged; historical
 design-time status wording remains frozen, not a current status gate.
-Replacement Stages 10–14 remain proposed and not started in
+Stage 10 has a separately authorized documentation-only design candidate;
+replacement Stages 11–14 remain proposed and not started in
 [the pipeline specification](../PIPELINE.md). The authoritative
 [Stage 8 report](../../reports/development/stage08.md) consolidates jobs
 `1763747`, `1763984`, `1764219`, and accepted job `1764273`; all publication
@@ -38,4 +40,5 @@ before protected input access. The approved PanFS repair then completed job
 `1771191`; independent review job `1772139` passed with zero candidate defects,
 and D060 records owner acceptance without scientific change or rerun. The linked
 execution record preserves all failure/diagnostic history and the accepted
-identity. Stages 10–14 remain proposed and not started.
+identity. Stage 10 stops for owner authorization to implement; implementation/execution are
+not started. Stages 11–14 remain proposed and not started.
