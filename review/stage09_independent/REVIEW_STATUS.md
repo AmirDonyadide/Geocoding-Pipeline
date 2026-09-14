@@ -1,0 +1,202 @@
+# Independent Stage 9 review — completed 2026-09-14
+
+**STAGE09_OFFLINE_REFERENCE_EVIDENCE_INDEPENDENT_REVIEW_PASS**
+
+The terminal decision and complete findings ledger are in
+[FINAL_REVIEW.md](FINAL_REVIEW.md), supported by
+[REVIEW_EVIDENCE.json](REVIEW_EVIDENCE.json). Corrected job **1772139** completed
+0:0 in **01:00:30**, with all **100 checks passing**, no failed checks and empty
+stderr. The postcode investigation is classification **A**, at its stated frozen
+rule/evaluation grain. Candidate defects = **0**; all three review-harness issues
+are resolved. No candidate rerun or further review job is required.
+
+Owner confirmed country-level aggregate reporting authorization on 2026-09-14;
+that question is resolved. Candidate/main/Stage 8 remain unchanged, Stage 9 is
+not yet owner-accepted, and HOLDOUT/production remain untouched.
+
+The notes below preserve the earlier continuation history. Pending statements in
+the historical review-area table and initial ledger are superseded by FINAL_REVIEW.
+
+## Exact scope
+
+- Reporting candidate: `1c7182931fd4be2a7d5dee00d3105a1e54377bae`.
+- Executable: `3e10ac7c1309c2636f35c0709fa283305d60d998`.
+- Approved protocol candidate: `96d17e763addc21b0a1c321c3a03666e928c25c7`.
+- Candidate key: `stage09_development_20260910T155542Z_3e10ac7c1309`.
+- Exact artifact: `/work/footprint/donyadidegan/safe_geocoding_pipeline/derived/controlled/stage09/development/stage09_development_20260910T155542Z_3e10ac7c1309`.
+- Expected manifest: `321c9d8352fac5b78612a7c8e52f6f810f92bddb1e91f7cfe348398a6d707240`.
+- Expected logical dataset: `7ae84e149f4c9c2de7a791c9b326b88e387a70d155d8be55acf6b55e06bafae3`.
+- Review branch: `review/stage09-independent-20260912`.
+- Local worktree: `/Users/amir/Documents/GitHub/safe_geocoding_pipeline-stage09-review`.
+
+After `git fetch --prune origin`, main and origin/main were clean and exactly at
+the reporting candidate. All three supplied commits are ancestors. Candidate
+source/tests/cluster assets equal the executable. Stage 8 remains accepted;
+Stage 9 is not accepted. HOLDOUT was not opened or profiled. No production data,
+protected address strings, row identities, or credentials were inspected or emitted.
+
+## Current controlled review job — do not duplicate
+
+Corrected review job **1772139** was submitted once from the clean detached,
+pushed review executable `89cc9f9667cacac7ff26e70e14ee651af27b2e36`.
+It imports the unchanged exact candidate executable. It has the same bounded
+resources as the original review attempt: general1 / footprint, one node, four
+CPUs, 32 GiB, two hours, no requeue. This is a harness retry, not a candidate rerun.
+
+At 2026-09-14 08:59 UTC it was PENDING / Priority, with a later scheduler estimate.
+It actually ran **2026-09-14 11:11:05–12:11:35** (scheduler timestamps), COMPLETED 0:0, MaxRSS
+7,619,240 KiB. Its preserved outputs were reconciled in the final continuation.
+Do not submit another job.
+
+Expected output:
+`/work/footprint/donyadidegan/safe_geocoding_pipeline/derived/controlled/stage09/independent_review/review_89cc9f9667ca_1772139`.
+Logs: `logs/slurm/safe-stage09-independent-review_1772139.out` and `.err` under
+the project root. The exact review checkout is
+`integration_stage09/review_89cc9f9667cacac7ff26e70e14ee651af27b2e36`.
+The full postcode investigation, complete evidence/member validation, coverage
+recomputation, all six logical relation hashes and final public/candidate reopening
+have now passed. Complete receipt SHA-256:
+`9ce865fbaf7c6b7acf769a9e9c5c7e76a112eb3dd8bf4b6630867fca0f736a4b`.
+Main remains clean and unchanged at `1c7182931fd4`.
+
+## Preserved first review attempt
+
+Job **1771693** was submitted once, from clean detached pushed review executable
+`89bcdc570bb5a4a8a4bf01a73a373c9dedbadc4e`.
+It imports candidate code exclusively from the existing exact executable checkout.
+The review script is [review.py](review.py), launcher [review.sbatch](review.sbatch).
+It never calls a candidate materializer. It reads the accepted DEVELOPMENT artifact
+and frozen public pack, writes a new private review directory, and emits only fixed
+aggregate/public dimensions and checks. Candidate helpers are reused for the frozen
+hash formats and validators; separate SQL/Python oracles check scheduling and Q04.
+
+At 2026-09-12 19:52 UTC: **PENDING / Priority**, no dependencies, Requeue=0,
+Restarts=0. Scheduler estimate: 2026-09-13 08:40:13 UTC; estimates can change.
+Resources: general1 / footprint, one node, four requested CPUs, 32 GiB, two hours.
+No cancellation, duplicate job, or candidate DEVELOPMENT rerun.
+
+Expected controlled review output (canonical mount spelling is `/panfs/vdura1`):
+`/work/footprint/donyadidegan/safe_geocoding_pipeline/derived/controlled/stage09/independent_review/review_89bcdc570bb5_1771693`.
+Logs: `logs/slurm/safe-stage09-independent-review_1771693.out` and `.err` under
+the institutional project root. Only fixed phase names or exception types/file-line
+locations can reach logs; never arbitrary exception text or SQL payloads.
+
+The 2026-09-14 continuation below records this attempt's terminal failure and
+the harness-only fix. Both successful phase reports and the failed attempt remain
+preserved. Further continuation must inspect **1772139**, not resubmit 1771693
+or rematerialize the candidate.
+
+## Completed local/public evidence
+
+- Exact local Python 3.14.3 / Unicode 16 / PyArrow 25.0.0 / DuckDB 1.5.5.
+- `PYTHONPATH=src <exact-python> -m pytest -q -m 'not requires_production_transfer_payload' --tb=short`:
+  **836 passed in 19.08 seconds**. No protected transfer payload accessed.
+- mypy: 96 source files pass; Ruff lint passes; format: 144 source/test files pass.
+- Contract, schema-bundle, catalog and frozen-lock hashes reproduce expected values.
+- All 25 public bodies and associated headers / 263 archive members are verified
+  by the candidate public-lock tests, using retained exact copies, without refresh.
+- Candidate public tests reproduce 1,255 permitted patterns and 1,092 eligible
+  examples in the exact runtime. These tests do not resolve protected anomaly causes.
+- [public_synthetic_review.py](public_synthetic_review.py): **23 additional cases
+  pass**, using public frozen metadata and invented inputs. Cases cover full format,
+  leading zeros, short codes, exact whitespace/hyphens, BR optional hyphen, SE ASCII
+  space versus NBSP, Unicode digits, CN/BH exclusions, absent country/rule/subkeys,
+  positive versus missing enumeration, prefix alternation and prerequisites, and
+  full ISO code ownership versus unrecognized codes.
+- Independently derive Q04 country eligibility from roots and nonempty alternate
+  fields: **176 countries**, exactly matching candidate capability expansion.
+- [check_sql.py](check_sql.py): **33 fixed review SQL statements** bind/execute on
+  empty synthetic accepted schemas.
+- Scheduler independently confirms candidate job 1771191 completed 0:0 in
+  08:04:53 with batch MaxRSS 10,125,844 KiB, and diagnostic 1771149 completed 0:0.
+- Diagnostic JSON was independently rehashed to
+  `e8d8333201a8c0b061d12288fadf404d833a875ffe0a4d160d535b88e6844f35`.
+  All ten case records were inspected: exact flags 131265, fresh successful
+  open/mkdir, collision EEXIST preservation, three four-process one-winner races,
+  empty seal, private single-link repeated reopening, fsync and symlink rejection.
+  This supports the active exclusive-create/reservation primitive for the bounded
+  single-node process; it is not a power-loss or cross-node experiment.
+
+Exact local review interpreter:
+`/tmp/stage09-independent-runtime.vI9413/exact/bin/python`.
+Public-only local diagnostic receipts are in
+`/tmp/stage09-independent-local-evidence/` (0700 directory / 0600 files).
+Ignored public assets were copied to the isolated worktree's `external_data/`.
+No protected artifact was transferred to the Mac.
+
+## Review-area disposition before artifact results
+
+| Area | Code/public evidence | Remaining immutable-artifact evidence |
+|---|---|---|
+| Publication | Permanent exclusive mkdir, prepared registration, exclusive empty seal; no active rename, takeover, historical inode rule or destructive reconciliation. Fault tests pass. | Exact terminal topology, full inventories/hashes, final reopening |
+| Input/reference bindings | Fixed Stage 8/Stage 6 transitive constants, exact raw lock, profile/schema formulas, offline paths reviewed | Full byte binding/reopening |
+| Relations | Six grains, source pairs deduplicated only across same-row equal representation, parser ordinals retained, complete match members | All PK/FK/count/hash checks, independent scheduling and coverage recomputation |
+| Four states / ISO | Negative-authority gates; ISO only code recognition, owner relationship and country-blocked subdivision support; synthetic negative cases pass | Actual counts/authorities/witnesses |
+| Metadata | Exact roots, array/path selection, full-match and grouped prefix semantics, exclusions and 176-country oracle pass | Actual Q04 argument digests/outcomes/representations, rule/country concentration |
+| GeoNames | Country capability gates, partial-code exclusions, BR major limitation, US extended-code abstention, same-record joins; absence is open-world | Zero contradictions and 6,673 diagnostic mismatches, integrity/members |
+| Country assessment | Q02-only source full-ISO-identifier reduction matches design; Q01/parser evidence cannot supply support | Independently count full-code source witnesses; distinguish absence from broken join |
+| Normalization | ASCII-only upper, NFC/lower names, scoped separator membership equivalence, no numeric conversion/fuzzy/transliteration | Q04 original-pointer/digest comparison, aggregate separator/length counterfactuals |
+| Scale | Fixed small reference RAM, bounded DuckDB, streamed component counters/members, linear scheduling; population-sized work cannot inherit DEVELOPMENT resources | Actual relation skew/concentration; no production throughput claim |
+| Privacy/execution | Guarded DEVELOPMENT CLI, no external services/Pelias, no raw values in Stage 9 schema/log paths, candidate Git change surface reviewed | Runtime artifact/topology reconciliation; no HOLDOUT/production reads |
+| Tests | 836 exact-runtime tests and 23 independent synthetic/public cases pass | Artifact checks are still required |
+| Reporting | Denominators and reference-diagnostic wording inspected; no validity/accuracy claim | Reconcile all counts; retain limits of each aggregate and historical authorization record |
+| Stage 10 handoff | Candidate/version/capability/state/witness pointers and unchanged Stage 8 lineage provide the designed boundary | Verify actual IDs/FKs/totality before confirming final handoff |
+
+The 59.996% Q04 rate is **not classified A/B/C yet**. Existing tests and frozen
+rules are insufficient to classify it. The queued harness computes independent
+Python ASCII-regex outcomes, DuckDB agreement, exact normalized digests, country /
+rule / scope / representation totals, distinct candidate/value grain, conflict
+shape bins, and non-mutating separator/leading-zero counterfactual counts. It also
+independently counts Q02 full-source-ISO witnesses. No queried strings are emitted.
+
+Two reporting/acceptance boundaries need explicit treatment in the final review:
+(1) the frozen design's country-cell release policy versus the later reporting
+record; this review request explicitly asks for aggregate country diagnostics,
+which stay controlled until their disclosure scope is assessed; (2) the design's
+separately authorized human review protocol is not silently claimed completed by
+machine tests. This review's explicit aggregate/synthetic instructions govern its
+scope. Neither observation is yet a proved output-semantic defect or a confirmed
+privacy breach.
+
+## Findings ledger in progress
+
+Candidate defects: **not finalized**. No candidate code defect has yet been
+reproduced; pending checks must not be represented as passes.
+
+| ID | Classification | Evidence / disposition | Candidate rerun |
+|---|---|---|---|
+| RH-001 | REVIEW_HARNESS | DuckDB reserved SQL aliases `role`, `value`, `rule` rejected during local empty-schema validation. Changed only review aliases; all 33 fixed statements pass. Corrected before the one submitted job, in 89bcdc5. | No |
+| RH-002 | REVIEW_HARNESS | Initial local Python 3.14.7 caused three exact-runtime failures and isolated worktree lacked optional public assets; first exact-runtime collection then lacked installed distribution metadata. Created isolated exact runtime, installed candidate package/dev dependencies and copied retained public assets. Final 836/836 pass; no guard patched. | No |
+| RH-003 | REVIEW_HARNESS | Integral DuckDB SUM produced Decimal and broke both the postcode snapshot and its failure receipt in 1771693. Corrected only the review serializer/receipt in 89cc9f9; seven regression tests pass. Corrected review execution 1772139 is pending; original attempt preserved. | No |
+| I-001 | INFORMATIONAL | DEVELOPMENT runtime/RSS alone do not establish production capacity. Billion-row/component implications require later authorized planning. | No conclusion pending |
+| I-002 | INFORMATIONAL | Country assessment intentionally demands full recognized source subdivision IDs. Independent source-to-ISO join in 1771693 found zero such witnesses, explaining the unresolved outcomes under the frozen rule. This limits this population's country assessment, while leaving other evidence available. | No |
+
+Final review must contain the complete candidate defect ledger and exact PASS/FAIL
+wording requested by the owner, only after all meaningful checks are reconciled.
+
+## 2026-09-14 continuation — corrected reporting harness
+
+Job 1771693 actually ran 2026-09-12 22:54:36–22:56:31 UTC and failed 1:0
+at the first postcode-oracle snapshot, after 00:01:55, with MaxRSS 910,164 KiB.
+Its two immutable snapshots survive: bindings SHA-256
+`b5c85efdccc8f4eeeb00898f4f6541bf8bfa282584cfbc9266e267ef6e2ddc30` and
+relational SQL SHA-256
+`c044a11a2db62c0dcf88b4adc03c77c3e48e666e5f8b0038b57b67ca39412556`.
+All 58 binding checks and all 87 cumulative relational checks passed.
+Counts/four states/families/evaluable candidates/mismatches match the supplied
+expectations. Independent source-to-ISO join finds **zero full recognized source
+subdivision-code witnesses**, confirming why all Q02 country assessments abstain.
+No false Q04 conclusion is inferred from its failed report serialization.
+
+**RH-003 — REVIEW_HARNESS:** DuckDB `SUM(BIGINT)` returned Arrow `Decimal`, which
+JSON cannot serialize. The handler then attempted to serialize the same report,
+so its own reporting failed. Only static traceback/type text reached private
+stderr; review inspection filtered exception messages before reading, then verified
+the fixed Decimal type error. No queried values were emitted. Local reproduction
+uses only `sum(range(3))`. The corrected harness converts finite integral Decimal
+values to exact integers and rejects every other unknown type without stringifying.
+Failure reporting now writes a separate minimal type/location receipt and catches
+its own I/O failures. Seven regression tests and all 33 synthetic SQL checks pass.
+This is a review-harness-only correction: no candidate output or code changes,
+no scientific rerun, and the original review attempt is retained. One corrected
+review execution may complete the missing checks against the same artifact.
