@@ -15,7 +15,8 @@ are in the linked stage records and sanitized reports.
 | 7 | libpostal parsing/evidence | **`STAGE_7_ACCEPTED`** | Evidence-only job `1763516`; rereview job `1763656`; no semantic-trust claim; [report](../reports/development/stage07.md) | **NOT STARTED** |
 | 8 | Lossless address-evidence projection | **`STAGE_8_ACCEPTED`** | Candidate `231cdbf9…`; executable `c04cb972…`; jobs `1764273`/`1764376`; zero candidate defects; [report](../reports/development/stage08.md) | **NOT STARTED** |
 | 9 | Conservative offline reference evidence | **`STAGE_9_ACCEPTED`** | Executable `3e10ac7c…`; job `1771191`; independent review `a9ae443c…` / job `1772139`; zero candidate defects; [acceptance](../reports/development/stage09.md#owner-acceptance-and-freeze--2026-09-14) | **NOT STARTED** |
-| 10–14 proposed | Hypotheses → Pelias top-N → scoring → granularity/abstain | **PROPOSED — NOT STARTED** | Remaining compact replacement architecture; [pipeline specification](PIPELINE.md) | **NOT STARTED** |
+| 10 | Bounded multi-hypothesis query generation | **DESIGN READY FOR OWNER REVIEW** | [Design package](stages/STAGE10_MULTI_HYPOTHESIS_QUERY_GENERATION.md), D061 proposal; not approved, implemented or executed | **NOT STARTED** |
+| 11–14 proposed | Query QA → Pelias top-N → scoring → granularity/abstain | **PROPOSED — NOT STARTED** | Remaining compact replacement architecture; [pipeline specification](PIPELINE.md) | **NOT STARTED** |
 
 Benchmark V1 contains 35,000 DEVELOPMENT and 15,000 sealed HOLDOUT rows from
 the permanent 1,405-file population. The fixed 500-row qualitative subset has
@@ -65,8 +66,12 @@ D060, tagged `stage09-offline-reference-evidence-v1`. Independent review passed
 checks, with zero candidate defects and no required scientific change or rerun.
 Stage 9 remains reference evidence only. Its high Q04 conditional conflict rate
 is not an invalid-address rate; all country assessments remain unresolved under
-the frozen witness rule. Replacement Stages 10–14 remain proposed and not
-started. Production Stage 0 and Stage 1 are accepted; production Stage 2 and
+the frozen witness rule. The separately authorized Stage 10 documentation-only
+design is ready for owner review; implementation/execution are not started.
+Replacement Stages 11–14 remain proposed and not started.
+Production Stage 0 and Stage 1 are accepted; production Stage 2 and
 later are not started. HOLDOUT is untouched and sealed; production/Pelias
 untouched. The pre-Stage-9 baseline and all historical failures remain frozen.
-No job or Stage 10 design/implementation is authorized by this acceptance.
+Stage 9 acceptance itself authorized no later work. D061 separately records the
+owner-authorized Stage 10 design-only session and pending policy decisions.
+NEXT: OWNER REVIEW OF STAGE 10 DESIGN. No implementation or job is authorized.

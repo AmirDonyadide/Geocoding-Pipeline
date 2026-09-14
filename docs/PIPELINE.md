@@ -75,8 +75,10 @@ controlled DEVELOPMENT job `1770156` failed in the synthetic filesystem prefligh
 before protected input access. After the approved PanFS publication repair,
 corrected job `1771191` passed; independent review `a9ae443c…` / job `1772139`
 passed with zero candidate defects. D060 records `STAGE_9_ACCEPTED`, with no
-scientific change or rerun. Replacement Stages 10–14 remain
-proposed and not started. Production Stage 7 and Stage 8 have not started.
+scientific change or rerun. Stage 10's separately authorized documentation-only
+design is ready for owner review; implementation/execution remain not started.
+Replacement Stages 11–14 remain proposed and not started. Production Stage 7
+and Stage 8 have not started.
 
 ## Cross-stage scientific rules
 
@@ -110,8 +112,8 @@ proposed and not started. Production Stage 7 and Stage 8 have not started.
 ```
 
 Stages 8 and 9 are accepted on DEVELOPMENT. Stage 9's scientific design and
-public references remain frozen; Stages 10–14 remain proposed, not an accepted execution
-order. Every stage still requires its
+public references remain frozen. Stage 10 is design-ready for owner review;
+Stages 11–14 remain proposed, not an accepted execution order. Every stage still requires its
 own design, owner
 authorization, DEVELOPMENT evidence, independent review, acceptance, and stop
 gate. The current prohibition on geocoding before the governing pre-geocoding
@@ -301,7 +303,8 @@ Stage 9 is **`STAGE_9_ACCEPTED`**, exact executable `3e10ac7c…`, DEVELOPMENT
 job `1771191`, independent review `a9ae443c…` / job `1772139`, zero candidate
 defects. Historical job `1770156` failed before materializer invocation and
 remains preserved. D060 grants acceptance, not another execution.
-Stages 10–14 remain **PROPOSED — NOT STARTED**.
+Stage 10 is **DESIGN READY FOR OWNER REVIEW — NOT IMPLEMENTED**;
+Stages 11–14 remain **PROPOSED — NOT STARTED**.
 Their responsibilities, tool
 choices, and legacy mapping are maintained in this pipeline specification; the
 accepted transition boundary is summarized in the authoritative
@@ -421,10 +424,22 @@ accepted transition boundary is summarized in the authoritative
 
 - **Purpose:** Generate bounded deterministic whole-string and evidence-backed
   structured hypotheses while keeping source truth immutable.
-- **Primary tools:** SAFE rules plus accepted Stages 8–9 evidence.
+- **Input authority:** Accepted Stage 8 evidence and sole source/occurrence map,
+  accepted Stage 9 reference evidence/pack, and the exact Stage 6 row-map line
+  projection bound by Stage 8. No duplicated source map.
+- **Proposed contract:** Exact full STANDARD/NATIVE, source-boundary LF alternate,
+  source-anchored structured, narrow unit/floor stripping and native Greek/Cyrillic
+  transliteration. Q7 country diagnostics remain disabled/deferred. Five distinct
+  hypotheses/candidate and ten/source row are the proposed engineering ceilings;
+  scientific operating budget remains for DEVELOPMENT calibration.
+- **Primary tools:** SAFE rules, PyArrow/DuckDB and pinned ICU4C 77.1 for Q6.
+  These are design proposals, not implemented dependencies.
 - **Acceptance:** Explicit hypothesis identity/type/reason, complete map-back,
   no overwrite, multilingual review, and bounded query ladders.
-- **Status:** **PROPOSED — NOT STARTED**.
+- **Status:** **DESIGN READY FOR OWNER REVIEW — NOT APPROVED, NOT IMPLEMENTED,
+  NOT EXECUTED**. See the [design package](stages/STAGE10_MULTI_HYPOTHESIS_QUERY_GENERATION.md)
+  and D061's proposed decisions. Stop for owner review; no Stage 11 work or
+  geocoding is authorized.
 
 ### Stage 11 — Global query identity, deduplication, and workload QA
 

@@ -257,15 +257,23 @@ outcomes are:
 
 ## Query identity and map-back
 
-Under the proposed compact design, Stage 10 would create versioned query
-hypotheses and Stage 11 would assign query identities and deduplicate identical
-SAFE Pelias calls. A single unique query may serve multiple candidates, and a
-candidate may serve multiple source rows. The mapping chain must remain
-explicit:
+The [Stage 10 review-candidate contract](stages/STAGE10_DATA_CONTRACT.md) proposes
+one hypothesis per candidate and exact converged request intent, with a separate
+seven-slot family-decision relation preserving convergence and abstention.
+It reuses the Stage 8 source/occurrence map. Stage 11 would assign complete
+semantic request IDs after resolving every result-affecting parameter, and
+Stage 12 would additionally bind deployment/index/execution identity.
+These identities are distinct; no text-only request deduplication is permitted.
+The proposed mapping chain is:
 
 ```text
-stable_source_row_id_v1 -> candidate_id -> query_id -> geocoder attempt/result
+Stage 8 source/representation occurrence -> Stage 6 exact candidate
+  -> Stage 10 converged hypothesis + all contributing family decisions
+  -> Stage 11 complete semantic request -> Stage 12 execution/attempt/result
 ```
 
-Final reconciliation must prove that every input source identity has the
-expected mapping outcome, without row loss or join explosion.
+Candidate-wide source-context unanimity prevents borrowing one occurrence's
+country/geography/boundaries for all identical-text rows. Final reconciliation
+must preserve every source identity, including no-candidate, zero-hypothesis,
+suppressed and unschedulable states, with source-row and occurrence counts
+reported separately. Stage 10 is design-only, awaiting owner review.

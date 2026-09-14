@@ -1655,7 +1655,8 @@ to change a decision or start a stage.
 These questions require future stage designs and explicit approval:
 
 - future reference vintages/country-specific extensions beyond frozen Stage 9 v1;
-- the bounded Stage 10 hypothesis/query ladder;
+- the [Stage 10 design candidate](stages/STAGE10_MULTI_HYPOTHESIS_QUERY_GENERATION.md)
+  and its [explicit owner decisions](stages/STAGE10_DESIGN_REVIEW.md#explicit-owner-review-decisions-still-needed);
 - Stage 13 scoring/calibration and contradiction policy; and
 - Stage 14 granularity-specific usability thresholds, including treatment of
   interpolated Pelias address results.
@@ -1683,3 +1684,44 @@ Stage 8 DEVELOPMENT acceptance and preserves all prior Stage 8 failures as
 historical evidence. D048 records the architecture-only removal of superseded
 Phase implementation surfaces while preserving frozen source-foundation
 identifiers and accepted Stage 0–8 science.
+
+## Proposed decisions awaiting owner review
+
+### D061 — Freeze the Stage 10 bounded-query design candidate for review
+
+- **Date/authority:** 2026-09-14; owner explicitly authorized a fresh Stage 10
+  DEVELOPMENT design/contract/freeze-only session. Baseline was clean
+  `main == origin/main == 23cfb85f428b00301d68591ea5992763abf9ad88` after fetch;
+  the Stage 9 acceptance tag peels to that exact commit. This entry records a
+  proposal, not an owner-approved scientific decision.
+- **Proposed contract:** `stage10_multi_hypothesis_query_contract_v1`, profile
+  `stage10_multi_hypothesis_query_profile_v1`, schema
+  `stage10_multi_hypothesis_query_schema_v1`. The
+  [design package](stages/STAGE10_MULTI_HYPOTHESIS_QUERY_GENERATION.md) contains
+  family/gate/normalization rules, two protected relation drafts, exact
+  identity/lineage and Stage 11 handoff, evaluation and the complete review ledger.
+- **Input authority:** Accepted Stage 8 evidence/sole source map, accepted Stage 9
+  evidence and bound witness/capability/lineage pack, and the exact Stage 6 row-map
+  projection for accepted source boundaries. No new source/occurrence map.
+- **Proposed science:** Exact full STANDARD/NATIVE, boundary-preserving,
+  source-anchored structured, narrowly stripped unit/floor and native
+  transliteration families. Q7 is disabled/deferred to a separately contracted
+  later conditional phase. Unanimous source context avoids attaching one
+  occurrence's country/geography/layout to all identical-text candidates.
+- **Proposed budget/model:** At most five distinct generated hypotheses per
+  candidate and ten per source row, derived from the one-slot family architecture.
+  Scientific operating B is unselected pending DEVELOPMENT calibration.
+  `query_hypothesis` contains candidate-scoped converged intents;
+  `query_family_decision` contains seven auditable decisions/memberships per
+  candidate; a bounded aggregate summary supplies diagnostics. Stage 11 owns
+  complete-request identity; Stage 12 additionally binds deployment/index.
+- **Evidence/publication:** Reference support is scope-limited; source Q04/Q08
+  can suppress structured postcode only. No parser-trust promotion, reference
+  absence-as-invalidity, fuzzy correction or source rewriting. Propose Stage 9
+  publication-state-machine reuse with Stage 10 binding adapter, conditional on
+  later path/filesystem verification; no probe was performed.
+- **Status:** **DESIGN READY FOR OWNER REVIEW — NOT APPROVED, NOT IMPLEMENTED,
+  NOT EXECUTED.** Eleven explicit O10 decisions remain for the owner. Stage 0–9
+  accepted science/history unchanged; HOLDOUT sealed; production/Pelias
+  untouched. No protected reads, SLURM jobs, Stage 11 implementation or geocoding.
+  **NEXT: OWNER REVIEW OF STAGE 10 DESIGN.**
