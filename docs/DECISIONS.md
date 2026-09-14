@@ -1837,3 +1837,23 @@ that predicate/proof and dependent bounds; the other reviewed decisions stand.
   authorization is still required. HOLDOUT remains sealed; production/Pelias
   untouched; no implementation, protected access, SLURM or Stage 11 work.
   **NEXT: OWNER AUTHORIZATION TO IMPLEMENT STAGE 10.**
+
+
+### D064 — Owner authorizes Stage 10 implementation and one DEVELOPMENT execution
+
+- **Authority:** Final owner approval of design `ca0bac7acd8bae709e171c481ddea52df3e5304d`.
+  Implementation, comprehensive synthetic/fault tests, one bounded self-review,
+  exact executable push and exactly one protected DEVELOPMENT run are authorized.
+  Stop for independent review; Stage 10 is not accepted.
+- **Freeze:** Non-squash merge/main `1443bb3b3c1bb50220bf38231e01552c66c4eaee`,
+  pushed normally from accepted Stage 9 baseline `23cfb85…`. Implementation
+  descends from this state; approved scientific design bytes remain unchanged.
+- **Runtime:** Exact ICU4C 77.1/Unicode 16/CLDR 47 source/data/build identity must
+  be established using public/synthetic inputs. No substitute runtime. Public
+  preparation code may be pushed before the complete protected executable so
+  Goethe receives code through Git. No protected submission before all gates.
+- **Boundaries:** No Stage 11, Pelias, HOLDOUT or production. Scientific operating
+  budget UNSELECTED. The [implementation record](stages/STAGE10_IMPLEMENTATION.md)
+  records preparation, later executable/job identities and review disposition.
+  PENDING/RUNNING means report once and stop; failed execution is preserved and
+  never automatically resubmitted.
