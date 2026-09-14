@@ -22,7 +22,28 @@ source/tests/cluster assets equal the executable. Stage 8 remains accepted;
 Stage 9 is not accepted. HOLDOUT was not opened or profiled. No production data,
 protected address strings, row identities, or credentials were inspected or emitted.
 
-## Controlled review job — do not duplicate
+## Current controlled review job — do not duplicate
+
+Corrected review job **1772139** was submitted once from the clean detached,
+pushed review executable `89cc9f9667cacac7ff26e70e14ee651af27b2e36`.
+It imports the unchanged exact candidate executable. It has the same bounded
+resources as the original review attempt: general1 / footprint, one node, four
+CPUs, 32 GiB, two hours, no requeue. This is a harness retry, not a candidate rerun.
+
+At 2026-09-14 08:59 UTC it remains **PENDING / Priority**. The scheduler's current
+start estimate is **2026-09-15 15:24:36 UTC**; this is not a guaranteed start.
+Do not submit another review job while this one is pending/running.
+
+Expected output:
+`/work/footprint/donyadidegan/safe_geocoding_pipeline/derived/controlled/stage09/independent_review/review_89cc9f9667ca_1772139`.
+Logs: `logs/slurm/safe-stage09-independent-review_1772139.out` and `.err` under
+the project root. The exact review checkout is
+`integration_stage09/review_89cc9f9667cacac7ff26e70e14ee651af27b2e36`.
+The full postcode investigation, complete evidence/member validation, coverage
+recomputation and logical relation hashes remain pending. No PASS/FAIL inference
+is justified by a queued job. Main remains clean and unchanged at `1c7182931fd4`.
+
+## Preserved first review attempt
 
 Job **1771693** was submitted once, from clean detached pushed review executable
 `89bcdc570bb5a4a8a4bf01a73a373c9dedbadc4e`.
@@ -44,9 +65,10 @@ Logs: `logs/slurm/safe-stage09-independent-review_1771693.out` and `.err` under
 the institutional project root. Only fixed phase names or exception types/file-line
 locations can reach logs; never arbitrary exception text or SQL payloads.
 
-On continuation, inspect this job once. If terminal, reconcile its preserved
-phase reports. If the harness failed, classify the exact harness fault and fix
-only the review harness. Do not resubmit unchanged or rematerialize the candidate.
+The 2026-09-14 continuation below records this attempt's terminal failure and
+the harness-only fix. Both successful phase reports and the failed attempt remain
+preserved. Further continuation must inspect **1772139**, not resubmit 1771693
+or rematerialize the candidate.
 
 ## Completed local/public evidence
 
@@ -129,8 +151,9 @@ reproduced; pending checks must not be represented as passes.
 |---|---|---|---|
 | RH-001 | REVIEW_HARNESS | DuckDB reserved SQL aliases `role`, `value`, `rule` rejected during local empty-schema validation. Changed only review aliases; all 33 fixed statements pass. Corrected before the one submitted job, in 89bcdc5. | No |
 | RH-002 | REVIEW_HARNESS | Initial local Python 3.14.7 caused three exact-runtime failures and isolated worktree lacked optional public assets; first exact-runtime collection then lacked installed distribution metadata. Created isolated exact runtime, installed candidate package/dev dependencies and copied retained public assets. Final 836/836 pass; no guard patched. | No |
+| RH-003 | REVIEW_HARNESS | Integral DuckDB SUM produced Decimal and broke both the postcode snapshot and its failure receipt in 1771693. Corrected only the review serializer/receipt in 89cc9f9; seven regression tests pass. Corrected review execution 1772139 is pending; original attempt preserved. | No |
 | I-001 | INFORMATIONAL | DEVELOPMENT runtime/RSS alone do not establish production capacity. Billion-row/component implications require later authorized planning. | No conclusion pending |
-| I-002 | INFORMATIONAL | Country assessment intentionally demands full recognized source subdivision IDs. Whether this explains all observed unresolved outcomes awaits the independent join. | No conclusion pending |
+| I-002 | INFORMATIONAL | Country assessment intentionally demands full recognized source subdivision IDs. Independent source-to-ISO join in 1771693 found zero such witnesses, explaining the unresolved outcomes under the frozen rule. This limits this population's country assessment, while leaving other evidence available. | No |
 
 Final review must contain the complete candidate defect ledger and exact PASS/FAIL
 wording requested by the owner, only after all meaningful checks are reconciled.
