@@ -50,7 +50,12 @@ def build(
     if platform.system() == "Linux":
         require_goethe_nhr_slurm("stage10-public-icu-runtime-build")
         c.require_runtime()
-        controlled = Path("/work/footprint/donyadidegan/safe_geocoding_pipeline")
+        # Resolve only the configured mount anchor, as accepted Stage 9 does.
+        # The launcher supplies canonical descendants; the equality check below
+        # still rejects any additional artifact/checkout ancestor symlink.
+        controlled = Path(
+            "/work/footprint/donyadidegan/safe_geocoding_pipeline"
+        ).resolve(strict=True)
         c.require(
             root.parent == controlled / "runtimes/stage10"
             and archive.parent == controlled / "runtimes/stage10/public_sources_457157a"

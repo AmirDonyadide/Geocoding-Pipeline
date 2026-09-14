@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import importlib.util
 import os
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -186,3 +187,50 @@ def test_exclusive_json_never_replaces(builder, tmp_path):
     with pytest.raises(FileExistsError):
         builder.exclusive_json(path, {"public": "replacement"})
     assert c.read_json(path) == {"public": "original"}
+
+
+def test_launcher_resolves_only_configured_mount_anchor(tmp_path):
+    repository = Path(__file__).resolve().parents[1]
+    script = (
+        repository / "cluster/goethe_nhr/stage10_build_transliteration_runtime.sbatch"
+    ).read_text()
+    function = (
+        "stage10_public_path() {"
+        + script.split("stage10_public_path() {", 1)[1].split("\n}", 1)[0]
+        + "\n}"
+    )
+    canonical = tmp_path / "canonical"
+    canonical.mkdir()
+    alias = tmp_path / "mount-alias"
+    alias.symlink_to(canonical, target_is_directory=True)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (canonical / "artifact-link").symlink_to(outside, target_is_directory=True)
+    environment = {
+        **os.environ,
+        "stage10_alias": str(alias),
+        "stage10_project": str(canonical),
+    }
+    for source in (alias, canonical):
+        completed = subprocess.run(
+            [
+                "bash",
+                "-c",
+                function + '\nstage10_public_path "$1"',
+                "test",
+                str(source / "artifact-link"),
+            ],
+            env=environment,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        selected = Path(completed.stdout.strip())
+        assert selected == canonical / "artifact-link"
+        assert selected != selected.resolve()  # Remaining symlink gate rejects it.
+    rejected = subprocess.run(
+        ["bash", "-c", function + '\nstage10_public_path "$1"', "test", str(outside)],
+        env=environment,
+        capture_output=True,
+    )
+    assert rejected.returncode != 0

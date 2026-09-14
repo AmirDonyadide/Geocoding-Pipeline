@@ -112,6 +112,7 @@ runtime evidence. There is still no protected DEVELOPMENT submission.
 | RP-06 | Build smoke vectors did not cover the required runtime failure cases | Public validation now includes 25 positive and 12 injected-fault checks. |
 | RP-07 | Malformed/missing lock/assets could expose arbitrary loader errors | Static fail-closed diagnostics and mismatch tests. |
 | RP-08 | Failure receipt could have altered a pre-existing collision target | Receipt requires this invocation's captured directory identity; collision/ownership tests pass. |
+| RP-09 | Pre-submission check rejected the already accepted `/work` to `/panfs/vdura1` mount alias | Canonicalize only the configured project anchor, following accepted Stage 9; still reject symlinks below it. Detected before any replacement submission or build directory creation. |
 
 All bounded preparation code defects are resolved. RP-02 is the explicitly
 pending Linux execution gate, not an implementation success claim. The full
