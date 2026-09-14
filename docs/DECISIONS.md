@@ -1656,7 +1656,7 @@ These questions require future stage designs and explicit approval:
 
 - future reference vintages/country-specific extensions beyond frozen Stage 9 v1;
 - the [Stage 10 design candidate](stages/STAGE10_MULTI_HYPOTHESIS_QUERY_GENERATION.md)
-  and its [explicit owner decisions](stages/STAGE10_DESIGN_REVIEW.md#explicit-owner-review-decisions-still-needed);
+  and [final owner implementation approval](stages/STAGE10_DESIGN_REVIEW.md#remaining-owner-decisions);
 - Stage 13 scoring/calibration and contradiction policy; and
 - Stage 14 granularity-specific usability thresholds, including treatment of
   interpolated Pelias address results.
@@ -1688,6 +1688,11 @@ identifiers and accepted Stage 0–8 science.
 ## Proposed decisions awaiting owner review
 
 ### D061 — Freeze the Stage 10 bounded-query design candidate for review
+
+Historical first draft at `642fa170ac594f6fe425a9272b5dae6bdff584cc`; the owner
+approved the architecture in principle with mandatory revisions. D062 below
+supersedes its context, budget and family-row policies. The original entry is
+retained as history, not current eligibility or implementation authority.
 
 - **Date/authority:** 2026-09-14; owner explicitly authorized a fresh Stage 10
   DEVELOPMENT design/contract/freeze-only session. Baseline was clean
@@ -1725,3 +1730,61 @@ identifiers and accepted Stage 0–8 science.
   accepted science/history unchanged; HOLDOUT sealed; production/Pelias
   untouched. No protected reads, SLURM jobs, Stage 11 implementation or geocoding.
   **NEXT: OWNER REVIEW OF STAGE 10 DESIGN.**
+
+
+### D062 — Incorporate owner revisions and freeze Stage 10 for final implementation approval
+
+- **Date/authority:** 2026-09-14, same Stage 10 design session. The owner approved
+  architecture in principle, required eleven revisions/clarifications, and
+  explicitly authorized design documentation, final bounded review, commit and
+  normal branch push. No implementation, protected DEVELOPMENT, SLURM, Pelias,
+  HOLDOUT, production, Stage 11 or main merge is authorized.
+- **Context correction:** One context per present accepted Stage 8
+  `(stable_source_row_id_v1, representation)` occurrence, exact Stage 6 candidate
+  and row-specific source context/evidence through immutable FKs. No cross-row
+  unanimity or candidate-wide country/warning eligibility; no duplicate source
+  map or physical context relation. Candidate/parser evidence stays at its
+  accepted grain; source reference gates use the exact candidate/source pair.
+- **Model:** `query_hypothesis` is context × distinct complete Stage 10 intent;
+  `query_family_decision` is context × Q1–Q6, six rows per context, with inline
+  source/role/candidate FKs and same-context membership. One aggregate summary.
+  Context ID binds the immutable input snapshots and minimal occurrence key.
+- **Ceiling proof:** Q1/Q2 are mutually exclusive by context role. Q5 requires
+  Latin/Common/Inherited-only candidate text; Q6 requires Greek/Cyrillic letters,
+  so they cannot coexist. Baseline + Q3 + Q4 + either Q5 or Q6 gives reachable
+  maximum **4/context**, with <=2 contexts giving **8/source row**. A candidate
+  with m occurrences has bound 4m, not a fixed global cap. The synthetic
+  attainability proof is in the scientific contract; no eligible family is
+  engineering-budget suppressed.
+- **First DEVELOPMENT/calibration:** All eligible Q1–Q6 materialized under
+  ALL_ELIGIBLE_CATALOG; scientific operating B UNSELECTED, no first-run budget
+  suppression/tuning. Context/row/candidate multiplicity, coverage, convergence
+  and structural cost measured first; true family recall/value needs Stage 12/13
+  evidence later. Q7 is globally DEFERRED_RESULT_DEPENDENT_DIAGNOSTIC, with no
+  per-context decision/hypothesis or preallocated future query IDs.
+- **Country/evidence:** Reuse same-row source S9.Q01 exact ISO code recognition
+  independently of Stage 9 country assessment. Preserve unevaluable accepted
+  reference checks without rerunning them. Only same-context/source-postcode
+  Q04/Q08 contradiction with exact authorized negative capability, arguments,
+  country and witness can gate structured postcode. Q1/Q2 stay intact; GeoNames
+  absence/NOT_FOUND/NOT_EVALUABLE never supply negative evidence.
+- **Transformations:** Q3 uses this occurrence's exact four source slots/mask and
+  LF joining. Q5 filters only grammar/corroboration-qualified complete source
+  lines, preserving every surviving line's bytes and abstaining without exact
+  local evidence. Q6 freezes ICU4C 77.1/source/Unicode/data hashes, canonical
+  Grek-Latn/Cyrl-Latn IDs, exact NFC/filter/forward/NFC chain and script/output
+  gates in `stage10_transliteration_spec_v1.json`; native values remain exact.
+- **Publication/handoff:** Approved Stage 9 state machine reused only under same
+  controlled PanFS topology and primitive assumptions verified by implementation
+  preflight, with Stage 10 registration adapter. No new diagnostic merely for
+  stage number; material environment change stops for owner review. Stage 11
+  separately freezes complete request semantics/ID/global dedup; Stage 12 adds
+  concrete deployment/index identity. Neither stage begins here.
+- **Review/freeze:** [Revised design package](stages/STAGE10_MULTI_HYPOTHESIS_QUERY_GENERATION.md),
+  complete 40-item [resolved ledger](stages/STAGE10_DESIGN_REVIEW.md), exact
+  transformation specification and updated hash inventory. Original D061 draft
+  and all Stage 0–9 history remain reachable; accepted science/artifacts unchanged.
+- **Status:** OWNER REVISIONS INCORPORATED — DESIGN FROZEN FOR FINAL OWNER REVIEW.
+  Remaining approval: the exact revised design and authority to implement.
+  HOLDOUT sealed; production/Pelias untouched; no implementation or job occurred.
+  **NEXT: FINAL OWNER APPROVAL TO IMPLEMENT STAGE 10.**

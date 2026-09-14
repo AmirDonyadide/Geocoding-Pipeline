@@ -1,69 +1,121 @@
-# Stage 10 — data, identity, lineage and Stage 11 handoff
+# Stage 10 — context, data, identity and Stage 11 handoff
 
-Normative draft within the [Stage 10 design package](STAGE10_MULTI_HYPOTHESIS_QUERY_GENERATION.md).
-No executable schemas or materialization are introduced by this document.
+Normative frozen revision of the [Stage 10 design](STAGE10_MULTI_HYPOTHESIS_QUERY_GENERATION.md),
+awaiting final owner approval to implement. No executable schema or materializer
+is introduced here. The owner superseded the candidate-wide first draft.
 
-## Minimal relation set
+## Minimal relation set and exact context grain
 
-Propose **two protected logical relations and one sanitized aggregate object**.
-An explicit family-decision relation supplies both convergence membership and
-abstention evidence; no separate family-member, candidate-summary, semantic-text
-registry, context registry or source map is needed.
+One query context is exactly one **present Stage 8 representation occurrence**.
+Its upstream key is `(stable_source_row_id_v1, stage08_representation)`; the
+role is STANDARD or NATIVE, never BOTH. The Stage 8 occurrence view fixes its
+candidate. Zero/one/two contexts per source row are possible. Equal standard
+and native candidates remain separate contexts. No grouping/deduplication of
+contexts occurs before generation, even when complete context values are equal.
 
-| Object | Grain / PK | Foreign keys | Consumer |
-|---|---|---|---|
-| `query_hypothesis` | One exact candidate × distinct generated request intent; PK `hypothesis_id` | Exactly one Stage 8 `candidate_evidence.stage06_exact_candidate_id` | Stage 11 selects/deduplicates; later evaluation uses suppressed catalog too |
-| `query_family_decision` | Exactly one candidate × family Q1–Q7; PK `family_decision_id`; unique `(candidate_id, family)` | Candidate mandatory; hypothesis nullable, same-candidate composite FK; lineage selectors bind accepted inputs | Stage 11 map-back, family credit, suppression and evaluation |
-| `query_generation_summary` | One manifest-bound run aggregate object; identity is its canonical-content hash, no row PK/FK | Manifest/input/science/budget fingerprint references | Portable diagnostics; never map or eligibility authority |
+| Object | Grain / key | Authority / downstream consumer |
+|---|---|---|
+| `query_hypothesis` | Query context × distinct complete Stage 10 intent; PK hypothesis_id, unique (query_context_id, representation_fingerprint) | Stage 11 handoff; context/source/candidate FKs inline |
+| `query_family_decision` | Query context × family Q1–Q6; PK family_decision_id, unique (query_context_id, family) | Eligibility, membership/convergence, lineage and abstention; same-context hypothesis FK |
+| `query_generation_summary` | One manifest-bound canonical aggregate object; content hash, no row PK | Portable diagnostics only; no source/context mapping authority |
 
-`query_hypothesis` is the **converged scientific hypothesis**, not a future
-Pelias request. Several family derivations can support it. Different candidates
-can have hypotheses with identical intent fingerprints and still retain
-different hypothesis IDs. Stage 11 handles that global convergence.
+No third physical query-context/source mapping relation is necessary. Contexts
+are a deterministic view of Stage 8 occurrences, and each of the two protected
+relations contains the same compact upstream FK tuple. The six decision rows
+provide totality even for a context with no emitted hypothesis. Their context
+fields must agree exactly. Stage 8 remains the sole authority for original ID,
+file, logical record, candidate slots and source-row/representation membership.
+Q7 exists once as a global deferred status in summary/manifest, with no row or ID.
 
-Every candidate has seven family decisions, even when no hypothesis exists.
-Source rows without candidates remain solely in Stage 8 and summary denominators.
-The summary is deliberately a bounded object of integer counts/grouped cells,
-not a third row-level authority. There are no optional logical relations.
+## Input object and context identity
+
+Let H(name, values...) be SHA256 of ASCII `SAFE:` + name + NUL + framed E(values).
+E uses schema order and the typed encoding below. Bind exact accepted Stage 8,
+Stage 9/public-pack and transitive Stage 6 row-map identities from the scientific
+contract; paths/files come only from those manifests, never directory discovery.
+
+The `stage10_input_binding_v1` object has required keys: binding_version, split,
+benchmark_sha256, stage08, stage09, stage06_row_map, read_projection. Split is
+DEVELOPMENT. Each stage entry carries manifest SHA, logical SHA, contract name/
+fingerprint (null only if no separate upstream fingerprint exists), profile SHA
+where supplied, schema bundle/combined schema SHA, exact transitive_bindings,
+approved anchor and files (relative path, bytes, SHA-256 sorted by UTF-8 path).
+Stage 9 also binds the public-pack manifest/lock and referenced relation/index
+schemas, hashes and inventory. Stage 6 files are its row-map payload only. The read_projection lists relation
+names in UTF-8 order, then selected fields in upstream schema order: all fields
+of Stage 8 candidate/component/source-map and Stage 9 evidence/members plus
+reached pack witness objects/capabilities/registry; Stage 6 stable ID, both
+candidate slots and both representations' four lower lines and Stage 5
+lower-candidate/availability/count/mask. Stage 9 coverage_summary is validation
+only. Explicit relation filters/selectors are this document's closed definitions,
+not implementation-dependent column discovery.
+Unknown keys, changed expected identities, escaping paths and missing expected
+files fail closed. No Stage 7 payload or raw CSV is added to the input set.
+
+```
+I = H('stage10-input:v1', canonical_JSON_bytes(input_binding))
+U = H('stage10-context-input:v1', stage08_manifest_sha256,
+      stage06_row_map_manifest_sha256, stage09_manifest_sha256)
+query_context_id = H('stage10-context:v1', U,
+                     stable_source_row_id_v1, stage08_representation)
+S = H('stage10-science:v1', contract_sha256, schema_bundle_sha256,
+      family_eligibility_format_selector_versions, transformation_spec_lock)
+P = H('stage10-budget:v1', 'ALL_ELIGIBLE_CATALOG', null,
+      family_order_Q1_to_Q6, context_ceiling=4, source_row_ceiling=8)
+representation_fingerprint = H('stage10-intent:v1', QueryIntent)
+hypothesis_id = H('stage10-hypothesis:v1', I, S, query_context_id,
+                  representation_fingerprint)
+family_decision_id = H('stage10-family-decision:v1', I, S,
+                      query_context_id, family)
+```
+
+The context hash uses an immutable snapshot binding plus the minimal occurrence
+key. Candidate ID is already determined by that key in the bound Stage 8 view;
+country/source-line/geographic values and evidence are determined through its
+bound Stage 8/6/9 FKs. They are not redundantly hashed as copied fields. A change
+to any frozen context input changes U or fails input validation. Provider ID,
+source filename, display text, counts, job, ordering and unrelated fields are
+not extra context-ID arguments. Upstream manifest identifiers are immutable
+snapshot references, not a claim that every manifest field affects generation.
+
+Context identity is lineage identity, not complete-request equivalence. Two
+contexts may generate identical intents and different hypothesis IDs; this is
+required for exact occurrence map-back. Global intent counts are a read-only
+cost diagnostic. Stage 11 later resolves global request equivalence; it cannot
+replace or coalesce these context/source links.
 
 ## Exact schema draft
 
-`D` = fixed_size_binary[32], `T` = large_string, `U` = uint64,
-`U8` = uint8, `B` = bool. `?` means nullable; all other fields and list
-members are non-null. Field order below is normative. Enums are closed strings;
-raw strings are never coerced to enum ordinals. All columns are required to be
-present; only the marked values may be null. Schema metadata binds semantic
-classes, enum sets, list bounds, PK/FK rules, order and null semantics.
+D = fixed_size_binary[32], T = large_string UTF-8, U = uint64, U8 = uint8.
+Question mark means nullable; every column is required to be present. Other
+fields/list members are non-null. Enums are strings, with meanings/order/bounds
+in the schema metadata. All row-level data, including hashes and reason codes
+attached to context IDs, is protected.
 
-```text
+```
 query_hypothesis(
   hypothesis_id D,
+  query_context_id D,
+  stable_source_row_id_v1 D,
+  stage08_representation T,
   stage06_exact_candidate_id D,
   representation_fingerprint D,
   intent QueryIntent,
   generation_rank U8,
   selection_status T
 )
-
 QueryIntent(
-  intent_version T,
-  endpoint T,
-  search_mode T,
-  text T?,
-  address T?,
-  postalcode T?,
-  locality T?,
-  region T?,
-  country T?,
-  boundary_country T,
-  retrieval_policy_slot T
+  intent_version T, endpoint T, search_mode T,
+  text T?, address T?, postalcode T?, locality T?, region T?, country T?,
+  boundary_country T, retrieval_policy_slot T
 )
-
 query_family_decision(
   family_decision_id D,
+  query_context_id D,
+  stable_source_row_id_v1 D,
+  stage08_representation T,
   stage06_exact_candidate_id D,
   family T,
-  source_representation_scope T,
   eligibility_state T,
   membership_state T,
   hypothesis_id D?,
@@ -75,320 +127,224 @@ query_family_decision(
   field_decisions list<FieldDecision>,
   removed_lines list<RemovedLine>
 )
-
-SelectorCertificate(
-  selector_id T,
-  selected_count U,
-  selected_stream_sha256 D
-)
-TransformStep(
-  ordinal U8,
-  transform_id T,
-  transform_asset_binding D?,
-  input_value_sha256 D,
-  output_value_sha256 D
-)
-FieldDecision(
-  field T,
-  disposition T,
-  reason_codes list<T>
-)
-RemovedLine(
-  source_slot U8,
-  start_codepoint U,
-  end_codepoint_exclusive U,
-  category T,
-  grammar_id T,
-  stage08_component_ordinal U
-)
+SelectorCertificate(selector_id T, selected_count U, selected_stream_sha256 D)
+TransformStep(ordinal U8, transform_id T, transform_asset_binding D?,
+              input_value_sha256 D, output_value_sha256 D)
+FieldDecision(field T, disposition T, reason_codes list<T>)
+RemovedLine(source_slot U8, start_codepoint U, end_codepoint_exclusive U,
+            category T, grammar_id T, stage08_component_ordinal U)
 ```
 
-`QueryIntent` rules:
+The source-ID/role pair FK resolves to exactly one Stage 8 occurrence; its
+candidate ID must equal the inline candidate FK in both relations. Each
+hypothesis is owned by exactly one context. Family→hypothesis is the composite
+FK `(query_context_id, hypothesis_id)`, prohibiting cross-context attachment.
+Do not infer a context or source map by joining candidate ID alone.
 
-- `intent_version = stage10_query_intent_v1`.
-- FULL_TEXT: endpoint `/v1/search`, nonempty `text`, all structured fields null.
-- STRUCTURED: endpoint `/v1/search/structured`, null `text`, nonempty `address`,
-  at least one non-null/nonempty `postalcode` or `locality`; `region` and
-  `country` are null in v1. Empty strings never stand for omitted fields.
-- `boundary_country` is the exact trusted uppercase ISO alpha-2 code; no array,
-  empty value, alternate code, country-unbounded flag or inferred alias.
-- `retrieval_policy_slot = SAFE_PELIAS_COMMON_RETRIEVAL_V1`. It is a **symbolic
-  common policy reference**, not a URL, credentials or claim that Stage 11
-  request defaults have already been frozen. It applies identically to every
-  family. No family-specific hidden parameters are allowed.
+Intent version is stage10_query_intent_v1. FULL_TEXT requires `/v1/search`,
+nonempty text and null structured fields. STRUCTURED requires
+`/v1/search/structured`, null text, nonempty address and at least one nonempty
+postalcode/locality. Region and country are null in v1. Null means omitted;
+empty text/structured fields are not legal emitted values. Boundary is the
+current-row recognized uppercase alpha-2 source code; no country-unbounded flag.
+Retrieval policy slot is exactly SAFE_PELIAS_COMMON_RETRIEVAL_V1, identical across
+families. It is a symbolic Stage 11 policy input, not executable defaults.
 
-`selection_status` is CATALOG_ONLY, INITIAL_SELECTED or BUDGET_SUPPRESSED.
-Generation rank is 1..5 and contiguous per candidate after local convergence.
-CATALOG_ONLY requires null operating budget in the run metadata and selects no
-workload. INITIAL_PLAN requires an approved B in 1..5; its two dispositions
-follow rank exactly. The baseline must be rank 1 whenever a hypothesis exists.
+Selection status is ALL_ELIGIBLE_CATALOG for the first Stage 10 artifact.
+Operating B is null; QUERY_BUDGET_SUPPRESSION is forbidden there. Rank is
+contiguous 1..4 after context-local convergence, ordered by first supporting
+family Q1..Q6 then unsigned intent fingerprint. The role's full baseline is
+rank 1. A later accepted operating plan may introduce INITIAL_SELECTED and
+BUDGET_SUPPRESSED statuses under a new profile; it cannot mutate this catalog.
+Budget-only selection preserves generated identities; family/gate/transform
+changes alter S. The profile binds S, P, intent-policy slot and encoding version.
 
-Family enums Q1..Q7 are as defined in the family document.
-`source_representation_scope`: STANDARD for Q1, NATIVE for Q2/Q6, actual
-Stage 8 STANDARD/NATIVE/BOTH scope for Q3/Q4/Q5/Q7. This records family origin;
-it is not a row-membership filter or inferred language.
-`eligibility_state` is ELIGIBLE, INELIGIBLE or DEFERRED.
-`membership_state` is FIRST_MEMBER, CONVERGENT_MEMBER or NONE.
-Only ELIGIBLE has a non-null hypothesis FK and FIRST/CONVERGENT membership.
-The earliest family contributing that exact intent is FIRST_MEMBER; all others
-are CONVERGENT_MEMBER with `EXACT_SEMANTIC_DUPLICATE` recorded. Both contribute
-to later family metrics. Q7 is always DEFERRED/NONE/null.
+Family is Q1..Q6 only. Eligibility is ELIGIBLE or INELIGIBLE. Membership is
+FIRST_MEMBER, CONVERGENT_MEMBER or NONE. ELIGIBLE requires non-null hypothesis FK;
+earliest eligible family with that complete intent is FIRST_MEMBER. Later
+families share that FK and use CONVERGENT_MEMBER/EXACT_SEMANTIC_DUPLICATE. An
+ineligible family has NONE and null FK. No hypothesis rows are emitted solely for family labels.
+Rule ID is stage10_q<n>_eligibility_v1. Reasons follow the ordered family-document
+vocabulary; primary_reason is first evaluated family reason or null. Field-only
+exclusions remain on field_decisions, not falsely on the whole family outcome.
 
-`eligibility_rule_id = stage10_q<n>_eligibility_v1` with n matching family.
-Reasons use the closed ordered vocabulary in the family document. Family-level
-reasons concern the family outcome; field-only reasons stay in `field_decisions`
-and cannot imply the whole family abstained. For an eligible selected first
-member, `primary_reason` is null unless a family-level diagnostic applies.
-Budget-suppressed memberships all record QUERY_BUDGET_SUPPRESSION; convergence
-can coexist and has earlier reason precedence. Ineligible decisions have their
-failed evaluated gates and null FK. No committed row contains a fatal error.
+List bounds: <=18 unique ordered reasons, <=7 ordered selector certificates,
+<=4 contiguous transform steps, <=6 field decisions in QueryIntent field order,
+<=4 removed source slots in ascending order. Q4 has field decisions for address,
+postalcode, locality, region, country, boundary_country (INCLUDE/OMIT/
+NOT_APPLICABLE); a common gate failure marks all NOT_APPLICABLE. Other families
+use []. Removed lines exist only for eligible Q5, source_slot 1..4, UNIT/LEVEL,
+exact nonempty intervals and same-candidate component ordinals. Transform traces
+record only actually completed steps, including attempts that produced an empty
+or unsupported-output abstention; deferred/unattempted steps do not appear.
+No trace of a fatal operational failure enters a committed artifact.
 
-Lists are bounded: reasons <=18 distinct in declared order, lineage <=8
-certificates in selector order, transformations <=4 in contiguous ordinal
-order, field decisions <=6 in intent field order, removed lines <=4 in source
-slot order. Field decisions use INCLUDE/OMIT/NOT_APPLICABLE and address,
-postalcode, locality, region, country, boundary_country. They are emitted for
-Q4 only; all others use `[]`. Removed lines occur for eligible Q5 only, with
-source_slot 1..4, UNIT/LEVEL category and exact interval bounds.
-Transform steps for ineligible/deferred families are `[]`; hypothetical
-unperformed transformations are not logged as performed.
+Semantic classes remain QUERY_HYPOTHESIS for intents, SOURCE_LINEAGE for
+upstream FKs/removal slots, EVIDENCE_LINEAGE for selectors and parser ordinals,
+QUERY_HYPOTHESIS_PROVENANCE for rule/transform decisions, MECHANICAL_INDEX for
+IDs/ranks. No confidence, verified-component, validity, correction, coordinates,
+geocoder-result or final-acceptance fields are introduced.
 
-All row-level fields are **protected**, including hashes, source scope,
-selectors and reasons attached to a candidate. Intent text is QUERY_HYPOTHESIS;
-IDs/ranks are MECHANICAL_INDEX; selectors/removed slots SOURCE_LINEAGE or
-EVIDENCE_LINEAGE; rule/transform fields QUERY_HYPOTHESIS_PROVENANCE.
-No row field is SOURCE_TRUTH, VERIFIED_COMPONENT, confidence, validity,
-GEOCODER_RESULT or FINAL_ACCEPTED_RESULT. Original upstream semantic classes
-are retained at their referenced locations.
+## Exact lineage selectors, scoped to the context
 
-## Lineage without duplicating authoritative maps
+Each selector is a closed definition using the inline context FK tuple and the
+bound snapshot. Its complete selected stream is independently replayable with
+count and hash; no arbitrary SQL, omitted conflicting evidence or giant ID lists.
 
-The immutable run metadata binds full input manifests and the read projection.
-Each family stores selector certificates rather than a giant list of source
-IDs, components or witness IDs. A selector is a **closed executable relational
-definition**, not arbitrary SQL or an opaque digest. It uses this candidate key
-and the bound input snapshot, and yields the complete selected evidence stream.
-That stream can be independently reconstructed, with exact count and hash.
-
-The v1 selector registry is ordered as follows:
-
-| Selector | Exact selected stream / canonical order |
+| Selector | Exact stream / order |
 |---|---|
-| CANDIDATE_V1 | Entire Stage 8 candidate row for this candidate, exact upstream field encoding; count 1 |
-| OCCURRENCES_V1 | All Stage 8 occurrence-view rows with this candidate, by source-row ordinal then representation ordinal |
-| SOURCE_CONTEXT_V1 | All distinct mapped Stage 8 source-map rows, by source-row ordinal; no STANDARD/NATIVE double-counting |
-| SOURCE_LINES_V1 | Occurrences joined one-to-one to Stage 6 stable ID, representation-selected four lower lines and Stage 5 candidate/availability/count/mask, in occurrence order |
-| PARSER_COMPONENTS_V1 | All exact Stage 8 long component rows for this candidate by ordinal, including duplicates/unknown labels |
-| SOURCE_REFERENCE_V1 | All Stage 9 SOURCE_ROW evidence for this candidate by unsigned evidence_id, including every question/slot, not just favorable evidence |
-| PARSER_REFERENCE_V1 | All Stage 9 PARSER_CANDIDATE evidence for this candidate by unsigned evidence_id |
-| REFERENCE_WITNESSES_V1 | Distinct reached singleton witnesses, multi-match sets, objects, capabilities and registries in the tagged order below; complete members retained once per reached set |
+| CANDIDATE_V1 | This candidate's Stage 8 row, exact upstream schema order; count 1 |
+| OCCURRENCE_V1 | This exact Stage 8 source/role occurrence; count 1 |
+| SOURCE_CONTEXT_V1 | This source ID's exact Stage 8 source-map row; count 1 |
+| SOURCE_LINES_V1 | This source/role joined to Stage 6: candidate slot, four lower lines in slot order, Stage 5 lower candidate/availability/count/mask; count 1 |
+| PARSER_COMPONENTS_V1 | All Stage 8 raw long components for this candidate, by ordinal; duplicates/unknown labels preserved |
+| SOURCE_REFERENCE_V1 | All Stage 9 SOURCE_ROW evidence with this exact source ID AND candidate ID, by unsigned evidence_id |
+| REFERENCE_WITNESSES_V1 | Complete distinct referenced witnesses/objects/capabilities/registry of SOURCE_REFERENCE_V1, tagged ordering below |
 
-SOURCE_LINES_V1 hashes each occurrence once with slot order 1..4, even for gaps
-or identical STANDARD/NATIVE content. SOURCE_CONTEXT_V1 refers to source field
-roles, never to a representative row. REFERENCE_WITNESSES_V1 has five tagged
-sections in order: (0) distinct singleton Witness structs sorted by canonical
-bytes; (1) every row of each distinct reached reference_match_member set, sorted
-by set ID then member ordinal; (2) distinct referenced reference_object rows
-sorted by object ID; (3) distinct capability/rule-capability rows sorted by
-capability ID; (4) distinct registry rows sorted by reference-version ID.
-Hash the tag plus exact upstream framed row; selected_count is the sum of
-records across these sections. Follow all field/object locators transitively;
-no member is truncated. Each source/parser evidence row retains its original
-singleton/set link in the bound input, so sharing a repeated witness set loses
-no lineage. Compute the selector with streaming/external joins and distinct
-keys, never by expanding each repeated evidence row against every shared member.
-Field predicates in Q4 specify which source reference arguments they consume;
-the complete evidence selectors also retain conflicting/non-supporting evidence.
-All reference locators remain resolvable through the bound pack without rerunning
-lookups or copying it into Stage 10.
+Every family decision includes CANDIDATE, OCCURRENCE, SOURCE_CONTEXT,
+SOURCE_REFERENCE and REFERENCE_WITNESSES, since country recognition needs exact
+source S9.Q01 provenance. SOURCE_CONTEXT includes Stage 4 lower geography
+needed by Q5 local source-field vetoes; no extra Stage 6 fields are required.
+Q3/Q5 add SOURCE_LINES; Q5 also adds PARSER_COMPONENTS,
+giving the maximum seven certificates. No parser-reference selector or parser
+concordance metric changes Q4 eligibility in v1; parser fields remain addressable
+through the accepted candidate/component inputs for later evaluation.
 
-Every decision has CANDIDATE_V1 and OCCURRENCES_V1. Q3/Q5 also have
-SOURCE_LINES_V1; Q4 has SOURCE_CONTEXT_V1, SOURCE_REFERENCE_V1 and
-REFERENCE_WITNESSES_V1; Q5 has PARSER_COMPONENTS_V1; Q6 binds its script asset
-and transform trace. When parser concordance is reported for Q4, include
-PARSER_COMPONENTS_V1 and PARSER_REFERENCE_V1. Q7 has only the common two
-selectors because no eligibility/activation computation occurs in v1.
-REFERENCE_WITNESSES_V1 always uses both source and parser reference sets by its
-definition, whether or not they have separate certificates on that row.
+REFERENCE_WITNESSES has sections: (0) distinct singleton Witness structs sorted
+by canonical bytes; (1) complete distinct reached reference_match_member sets
+by set ID/member ordinal; (2) distinct reached reference objects by ID;
+(3) matrix/rule-capability rows by ID; (4) registry rows by version ID. Hash tag
+plus exact upstream framed row; count sums records in all sections. Preserve
+all referenced fields and ancestors. Evidence retains its original set links,
+so repeated witnesses are traversed once per context without losing lineage.
+No all-reference lookup, cross-row evidence union, top-k or membership truncation.
+Caches may share exact immutable selector results but cannot alter their scope.
 
-Trace IDs: EXACT_CANDIDATE_V1 (Q1/Q2 and Q4 address), SOURCE_LF_JOIN_V1 (Q3),
-SOURCE_STRUCTURED_FIELDS_V1 (Q4), WHOLE_LINE_UNIT_LEVEL_REMOVE_V1 followed by
-SOURCE_SPACE_JOIN_V1 (Q5), NFC_U16_V1 → ICU_GREEK_LATIN_77_1 or
-ICU_CYRILLIC_LATIN_77_1 → NFC_U16_V1 (Q6). For structured transformation
-digests use the canonical QueryIntent encoding instead of ambiguous joined text;
-the transform definition declares that type. Transform assets for ICU/NFC are
-mandatory D values; null is permitted only for rules whose full definition is
-already bound by the scientific contract. No digest replaces the protected
-string's availability in upstream inputs or the generated intent.
-For Q5, the complete ordered alignment is reproducible from PARSER_COMPONENTS_V1
-and the candidate selector; only the <=4 removed-line ordinals/intervals need
-storage. Alignment's temporary external spool is not a published relation.
-Transform value digests are `H('stage10-transform-value:v1', value)` using E
-below. EXACT_CANDIDATE and NFC/ICU steps take/return a string. SOURCE_LF_JOIN
-takes the four-slot string list and returns text. Q5 removal takes/returns that
-four-slot list, representing removed slots by empty strings in its **derived**
-intermediate; SOURCE_SPACE_JOIN returns text. SOURCE_STRUCTURED_FIELDS takes
-the ordered tuple (candidate text, unanimous clean postcode-or-null, unanimous
-clean locality-or-null, trusted country) and returns the complete QueryIntent.
-Null input fields mean that unanimity/nonemptiness failed; field decisions
-still bind the exact reason and source/evidence selectors.
+SOURCE_LINES preserves empty positions, gaps and repeats independently of LF
+serialization. Q5 alignment is reproduced from this vector, candidate text and
+PARSER_COMPONENTS; only removed intervals/ordinals need inline storage. Raw/
+clean siblings, provider/file/logical-record lineage are recoverable from the
+same accepted row-map references. No second map or copied public pack is created.
 
-## Deterministic identity formulas
+Transforms: EXACT_CANDIDATE_V1 (Q1/Q2); SOURCE_LF_JOIN_V1 (Q3);
+SOURCE_STRUCTURED_FIELDS_V1 (Q4); WHOLE_LINE_UNIT_LEVEL_REMOVE_V1 then
+SOURCE_SPACE_JOIN_V1 (Q5); NFC_U16_V1 → ICU_GREK_LATN_77_1 or
+ICU_CYRL_LATN_77_1 → NFC_U16_V1 (Q6). Q6 asset binding is
+H('stage10-transform-assets:v1', transliteration_spec_sha256, runtime_build_lock_sha256).
+The same binding is included in transformation_spec_lock within S; build hashes
+are populated only after a real reviewed build, before any protected execution.
+Input/output value hashes
+use H('stage10-transform-value:v1', value). Exact/NFC/ICU values are strings;
+line joins/removal take the four-slot string vector (derived removed slots become
+empty without changing upstream); Q4 takes (exact candidate, source clean
+postcode, source clean locality, context country) and yields QueryIntent. Its
+field decisions explain omitted values. Step definitions and the science binding
+supply all other rule identities; no digest replaces accessible protected values.
 
-Use SHA-256 with explicit domain separation. `H(name, values...)` means
-`SHA256(ASCII('SAFE:') || ASCII(name) || NUL || E(values...))`.
-`E` is a typed, framed sequence with explicit schema order: outer sequence count
-uint64 big-endian; each value has a one-byte type tag, then its payload.
-Tags: null 0x00 (no payload), UTF-8 string 0x01 (uint64 byte length + bytes),
-bytes 0x02 (uint64 length + bytes), unsigned integer 0x03 (8 bytes big-endian),
-bool 0x04 (0x00 or 0x01), list/struct 0x05 (uint64 element/field count + E values
-without an extra outer count). No floats, implicit normalization, JSON object
-ordering, delimiter concatenation or locale collation enters logical identity.
-Signed integers and invalid UTF-8 are prohibited in these logical schemas.
+## Encoding, ordering and reproducibility
 
-```text
-I = H('stage10-input:v1', canonical JSON bytes of the input-binding object)
-S = H('stage10-science:v1', contract fingerprint, schema bundle fingerprint,
-      family/eligibility/format/selector/identity versions, transformation asset lock)
-P = H('stage10-budget:v1', plan mode, B-or-null, family order, ceiling=5,
-      source-row ceiling=10, selection/suppression version)
-representation_fingerprint = H('stage10-intent:v1', QueryIntent)
-hypothesis_id = H('stage10-hypothesis:v1', I, S, stage06_exact_candidate_id,
-                  representation_fingerprint)
-family_decision_id = H('stage10-family-decision:v1', I, S,
-                      stage06_exact_candidate_id, family)
-```
+E begins with uint64 big-endian sequence count. Each value has one-byte tag:
+null=00/no payload; string=01/uint64 UTF-8 byte length + exact bytes;
+bytes=02/uint64 length + bytes; unsigned integer=03/eight big-endian bytes;
+bool=04/00 or 01; list or ordered struct=05/uint64 count + tagged child values.
+No locale normalization, floats, signed integers, ambiguous delimiter joins or
+JSON key iteration enter these logical tuples. Enum strings remain exact UTF-8.
+Lists retain specified order. Reject invalid UTF-8 or overflows.
 
-The input-binding object has required keys `binding_version`, `split`,
-`benchmark_sha256`, `stage08`, `stage09`, `stage06_row_map`, `read_projection`.
-Version is `stage10_input_binding_v1`, split is DEVELOPMENT. Each stage entry
-has exact `manifest_sha256`, `logical_sha256`, `contract_id`, `contract_sha256`,
-`schema_bundle_sha256` (Stage 6 uses its combined schema fingerprint),
-`profile_sha256`, `transitive_bindings`, `anchor` and `files`. Contract/profile
-fingerprints are null only if that accepted upstream manifest has no such
-separate identity; its exact manifest/contract definition remains bound. Never
-invent absent upstream fingerprints. Stage 8/9 contract anchors listed in the
-scientific contract are mandatory, non-null and exact.
-Transitive bindings preserve every accepted input identity under its exact
-upstream key. Stage 9 additionally binds the accepted public-pack manifest,
-lock, inventory, registry/capability/object/index schemas and logical hashes.
-`files` contains exact manifest-relative path, bytes and SHA-256, sorted by
-UTF-8 path bytes, with separate explicit approved anchor for each manifest.
-The Stage 6 list covers its bound row-map files, not an extra registry read.
-`read_projection` is the exact relation/field and selector registry from this
-package, lists ordered by relation name then upstream schema field position.
-All hexadecimal values use lowercase; duplicate keys/paths and unknown keys
-fail closed. JSON uses the manifest canonicalization below and enters E as
-a bytes value. Paths are identity-bound access locators, not discovery hints.
+Canonical JSON is sorted keys, ensure_ascii=true, compact separators, no NaN,
+one final LF. I hashes these bytes through E's bytes tag. Schema fingerprints
+bind ordered fields/types/nullability/semantic classes/metadata/enums/bounds and
+PK/FK rules; schema bundle order is query_hypothesis, query_family_decision,
+query_generation_summary. Specification JSON bytes and referenced public asset
+hashes enter S; no future binary checksum is invented.
 
-`S` includes scientific/runtime transformation assets but excludes P, timestamps,
-host, job, Git presentation metadata and physical layout. The proposed profile
-fingerprint binds S, P, the shared retrieval-policy-slot name and logical-encoding
-version. Budget-only recalibration preserves generated IDs while changing the
-profile, dispositions, logical dataset and physical manifest. Any family/gate/
-transformation/schema change creates a different S. Raw input-manifest changes
-change I even if logical text is equal: exact input acceptance is intentional.
+Hypothesis rows sort by unsigned (query_context_id, representation_fingerprint);
+decisions by (query_context_id, numeric family). Selector row encodings reuse
+exact upstream types, order and null semantics. Each relation hash streams
+schema fingerprint, count and ordered E rows. Dataset hash binds I, S, P,
+profile/schema fingerprints, relation hashes/counts and aggregate-summary hash.
+Summary excludes its own/dataset/manifest hash, runtime/job/timing and physical
+layout to avoid circularity and operational nondeterminism.
 
-Complete canonical bytes must compare equal inside a digest group before
-collapsing intents. A different payload for the same observed fingerprint or
-ID is fatal. Across candidates, Stage 10 may count equal intents for diagnostics
-but never merges candidate rows/hypotheses. `representation_fingerprint` is
-neither `query_semantic_id` nor a protected-address anonymization mechanism.
-
-Rows sort by unsigned `(candidate_id, representation_fingerprint)` for hypotheses
-and `(candidate_id, numeric family ordinal)` for decisions. Generation rank is
-an explicit field, not storage order. Each relation hash streams its schema
-fingerprint, row count and exact ordered framed rows. Dataset hash binds I, S, P,
-profile/schema fingerprints, both relation hashes/counts and the canonical
-aggregate-summary hash. The summary does not include its own hash, output
-manifest hash or dataset hash, preventing circularity.
-
-Schema bundle hashes definitions in the order query_hypothesis,
-query_family_decision, query_generation_summary, including metadata, bounds,
-keys and enum values. Physical file SHA-256 and sizes are separate. Manifests
-use the project's canonical JSON form (sorted keys, ASCII escapes, compact
-separators, no NaN, one final LF); manifests bind logical hashes and Git/runtime/
-job/paths/physical inventory. Reproducibility requires identical logical content
-under different batch/shard/row-group layouts; byte-identical Parquet/manifests
-are not promised across operational layouts or jobs.
+Collisions are checked using complete canonical bytes, not digest equality alone.
+Different intents/context tuples under one observed ID fail publication. Logical
+identity must be invariant to batch size, shard layout, order of workers and
+Parquet compression. Exact physical file bytes/sizes and runtime/Git/SLURM
+provenance are separately manifest-bound; byte-identical Parquet across layouts
+is not promised. Restart must preserve exact context intervals and identities.
 
 ## Stage 11 complete-request boundary
 
-Stage 10 exports INITIAL_SELECTED hypotheses plus **all** their family decisions,
-full immutable-input bindings and the authoritative Stage 8 map/view reference.
-Catalog-only and budget-suppressed payloads are retained for controlled analysis
-and are forbidden from the executable handoff. A Stage 11 plan cannot silently
-activate them. Stage 11 starts with a separately reviewed contract and workload.
+Stage 10 supplies context/hypothesis identity, exact protected intent, structured
+fields, requested country, transform/family lineage, complete input bindings and
+the common request-policy slot. Its endpoint/mode fields are requested search
+semantics, not an accepted executable request contract. The catalog permits
+read-only future cost planning, not implicit execution or operating-B selection.
 
-The common retrieval-policy slot leaves endpoint-specific operational defaults
-to Stage 11 while making that unresolved boundary explicit. Stage 11 must bind
-one accepted policy to the slot and resolve every result-affecting choice:
+Stage 11 must separately freeze complete request semantics and resolve:
 
-| Dimension | Stage 10 handoff | Stage 11 freeze obligation |
-|---|---|---|
-| Endpoint/mode | Exact path and FULL_TEXT/STRUCTURED | Preserve exact endpoint and mode in identity |
-| Query body | Exact text or ordered structured fields | Lossless encoding; explicit omitted/null vs present; no text-only key |
-| Country | Explicit trusted ISO alpha-2 boundary | Freeze exact parameter name/code serialization; do not broaden |
-| Language | Common policy slot; no source-language inference | Bind query language and any result-affecting Accept-Language/header behavior, including intentional omission |
-| Layers/sources | Common policy slot | Exact sets/lists and omitted vs explicit semantics; normalize order only when contract proves it immaterial |
-| Size/top-N | Common policy slot | Explicit numeric value and result retention; no default chosen by this design |
-| Other parameters | No per-family override | Enumerate focus, boundary rect/circle, viewbox, parser/legacy flags and every supported result-affecting option or explicit omission |
-| Defaults/contract | `stage10_query_intent_v1` + slot | Request-contract version, resolved defaults, allowable headers/options; reject unknown/unresolved fields |
+- endpoint/search mode and exact text or structured fields;
+- boundary.country serialization/code namespace, preserving the requested context;
+- layers, sources, language and result-affecting headers or explicit omission;
+- size/top-N and retention, every other parameter (focus, spatial boundaries,
+  viewbox, parser flags, etc.) or explicit omission;
+- all client/server defaults and nonsecret result-affecting routing; and
+- request-contract version, allowed parameters, canonicalization and collision rules.
 
-No coordinates/focus location are created in Stage 10. Stage 11 must reject
-silent client/server/environment defaults that could alter results without
-changing the declared request identity. Explicit omission remains bound to the
-deployment's resolved behavior at Stage 12. Credentials are runtime-only, never
-ID input or logged; any non-secret tenant/dataset routing that changes results
-must be represented explicitly in the request/execution contract.
+Stage 11 then computes query_semantic_id from ALL complete result-affecting
+semantics and globally deduplicates requests. No text-only ID and no silent
+change to Stage 10 country, fields or LF. Unresolved policy inputs/unknown
+parameters block workload publication. Intent fingerprint is a local convergence
+and cost identity only; the final Stage 11 schema/hash formula does not yet exist.
+Identical Stage 10 intents can serve many contexts after this resolution. Any
+family-specific runtime override requires explicit new semantics and identity.
 
-The future `query_semantic_id` hashes **all** canonical complete request
-semantics plus request-contract version. Stage 10 deliberately does not define
-that Stage 11 hash/domain/schema prematurely. Stage 12 execution identity then
-additionally binds `query_semantic_id`, exact Pelias deployment/configuration,
-index/data/import versions and execution-contract version. Retry/attempt IDs
-are a further operational dimension, not new scientific hypotheses.
+Stage 12 additionally binds concrete Pelias deployment/configuration, index/data/
+import versions and execution-contract version for execution identity; retries
+have separate attempt identity. Credentials remain runtime-only, never hashed
+or logged. Changed index with the same request is a different execution identity.
+Top-N versus the current size=1 rule and the Stage 19 geocoding acceptance gate
+remain future owner reconciliations, not authority supplied by Stage 10.
 
-Changing a result-affecting parameter changes the Stage 11 semantic identity;
-changing the deployment/index changes execution identity even with an identical
-semantic request. Same text across free-text and structured endpoints never
-converges just because it displays similarly. Missing deployment/index identity
-blocks reproducible retrieval. The unresolved top-N versus size=1 policy and
-Stage 19 acceptance gate must be explicitly reconciled before retrieval; this
-Stage 10 design changes neither rule.
+## Map-back and cardinality invariants
 
-## Cardinality and map-back invariants
+```
+Stage 8 (source row, representation) occurrence
+  -> exactly one query_context_id
+  -> zero to four hypotheses + six family decisions
+  -> later complete Stage 11 semantic request
+  -> Stage 12 execution/result
+  -> the same context -> the original occurrence/source row
+```
 
-The exact chain is Stage 8 source/representation occurrence → Stage 6 candidate
-→ Stage 10 hypothesis plus family decisions → Stage 11 complete request →
-Stage 12 execution/result. Stage 8 remains the only source map authority.
-
-1. Candidate-ID set in family decisions equals the complete Stage 8 candidate
-   set; seven unique decisions per candidate. Zero orphan/duplicate decisions.
-2. Every generated hypothesis has exactly one candidate and at least one
-   eligible family membership; all referencing families share its candidate.
-   Zero orphan hypotheses, memberships, evidence selectors or source links.
-3. Hypothesis count is <=5 per candidate, selected count <=B, distinct source-row
-   union <=10 (<=2B selected). One-candidate rows use that candidate once.
-4. Each selected hypothesis maps to exactly one Stage 11 semantic request;
-   many hypotheses may map to the same request. No selected hypothesis disappears.
-5. All contributing family memberships survive global dedup. Their set/count
-   and hash are reconciled independently of request count and execution attempts.
-6. Rejoining results to Stage 8 uses explicit stable-ID and representation
-   slots. Equal STANDARD/NATIVE slots stay two occurrences; source incidence
-   counts use distinct stable IDs. Provider `id` is never a join key.
-7. Expected selected occurrence/hypothesis edges equal the sum, over all Stage 8
-   occurrences, of selected hypotheses on their candidate. Source-row union
-   edges separately remove equal-candidate slot repetition; report both grains.
-8. Family provenance edges use STANDARD only for Q1, NATIVE only for Q2/Q6 and
-   all occurrences for Q3/Q4/Q5. They do not assert that a different-origin family
-   independently supported every row to which the same request result maps.
-9. Left joins preserve every original source row, candidate and absent/unresolved
-   state, including zero-hypothesis/unschedulable/failed-execution outcomes.
-   Final later-stage source output must reconcile 35,000 rows for DEVELOPMENT;
-   intermediate evidence is one-to-many and must not be forced into that grain.
-
-All invariants are independently recomputed, including complete payload
-equality, selectors, decision counts, convergence and hypothetical stage-handoff
-joins using synthetic inputs. Materialization cannot publish a partial candidate
-set and call it scientific abstention.
+1. Distinct context/FK tuples in decisions are a bijection with all present
+   Stage 8 occurrences. Exactly six unique family rows per context, no Q7 rows.
+   Candidate set represented by contexts equals the full accepted candidate set.
+2. Each context resolves exactly one source/role/candidate tuple; all rows with
+   its ID have that tuple. No cross-source contamination or candidate-only join.
+3. Every hypothesis has exactly one context, one candidate and >=1 eligible
+   family membership; every non-null membership FK resolves within that context.
+   Zero orphan/duplicate/cross-context hypotheses, decisions or selectors.
+4. At most four distinct intents/hypotheses per context and eight per source row.
+   Candidate bound is 4 × its occurrence count, not a fixed global budget.
+   First-run output contains every eligible distinct Q1–Q6 intent, with zero
+   operating-budget suppression. Exceeding engineering bounds fails, not truncates.
+5. Context-local convergence compares complete QueryIntent bytes including mode,
+   endpoint, fields, country and policy slot. It retains all family decisions.
+   Across-context equal intents keep separate hypotheses and map-back.
+6. Later every selected hypothesis maps to exactly one complete semantic request;
+   many contexts/hypotheses can share one request. Preserve every membership,
+   context and source/role edge after global dedup and execution-result reuse.
+7. Expected context→hypothesis edge count equals hypothesis count. Expected
+   source-row→hypothesis edges are the sum over its zero/one/two contexts, even
+   when candidate IDs coincide. Distinct semantic requests/source row are a
+   separate later metric. Source incidence deduplicates source IDs, not evidence.
+8. Q1 provenance applies only to STANDARD contexts; Q2/Q6 only NATIVE. A request
+   shared across contexts does not invent family support for another context.
+9. Source rows without candidates, contexts without hypotheses, unschedulable
+   requests and failed executions retain explicit left-join outcomes. Final
+   source-grain output must retain 35,000 DEVELOPMENT rows, while intermediate
+   hypothesis/evidence relations legitimately have greater cardinality.
+10. Global dedup never broadens applicability by candidate ID; map results back
+    through request→hypothesis→context→exact occurrence. All counts, complete
+    FK sets and ordered fingerprints must reconcile independently.

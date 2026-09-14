@@ -257,23 +257,28 @@ outcomes are:
 
 ## Query identity and map-back
 
-The [Stage 10 review-candidate contract](stages/STAGE10_DATA_CONTRACT.md) proposes
-one hypothesis per candidate and exact converged request intent, with a separate
-seven-slot family-decision relation preserving convergence and abstention.
-It reuses the Stage 8 source/occurrence map. Stage 11 would assign complete
-semantic request IDs after resolving every result-affecting parameter, and
-Stage 12 would additionally bind deployment/index/execution identity.
-These identities are distinct; no text-only request deduplication is permitted.
-The proposed mapping chain is:
+The [Stage 10 revised contract](stages/STAGE10_DATA_CONTRACT.md) generates one
+query context per present Stage 8 `(source row, representation)` occurrence.
+Each context retains its own candidate, source country, geography, boundaries
+and applicable evidence. No cross-occurrence unanimity or candidate-wide
+eligibility gate is used. Two protected relations contain context/FKs inline:
+`query_hypothesis` at context × distinct complete intent, and
+`query_family_decision` at context × Q1–Q6 family. No source map is duplicated.
 
 ```text
-Stage 8 source/representation occurrence -> Stage 6 exact candidate
-  -> Stage 10 converged hypothesis + all contributing family decisions
+Stage 8 source/representation occurrence -> Stage 10 query context
+  -> hypothesis + all contributing family decisions
   -> Stage 11 complete semantic request -> Stage 12 execution/attempt/result
+  -> the same hypothesis/context -> original occurrence/source row
 ```
 
-Candidate-wide source-context unanimity prevents borrowing one occurrence's
-country/geography/boundaries for all identical-text rows. Final reconciliation
-must preserve every source identity, including no-candidate, zero-hypothesis,
-suppressed and unschedulable states, with source-row and occurrence counts
-reported separately. Stage 10 is design-only, awaiting owner review.
+Stage 11 later resolves every result-affecting parameter and globally deduplicates
+complete requests, preserving all context edges. Stage 12 additionally binds
+deployment/index/data identity. Stage 10 intent fingerprints are not final
+query_semantic_id values. Contexts sharing candidate text cannot contaminate or
+suppress each other. Equal intents across contexts retain separate hypotheses
+until the future request layer shares their execution. Final left joins retain
+no-candidate and zero-hypothesis source rows. Q7 is globally deferred, with no
+pseudo-context hypotheses. Four/context and eight/source row are proven
+engineering bounds; scientific operating budget is unselected. The design is
+frozen for final owner approval to implement; no execution or Stage 11 work.

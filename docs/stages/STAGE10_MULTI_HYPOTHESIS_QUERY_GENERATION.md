@@ -2,11 +2,14 @@
 
 ## Status and authority
 
-**DESIGN READY FOR OWNER REVIEW — NOT APPROVED, NOT IMPLEMENTED, NOT EXECUTED.**
-This is the 2026-09-14 fresh DEVELOPMENT design session authorized by the owner.
-The package freezes a review candidate, not accepted science or permission to
-implement. All proposed policies below require the decisions in the
-[review ledger](STAGE10_DESIGN_REVIEW.md). Stop after owner review preparation.
+**OWNER REVISIONS INCORPORATED — DESIGN FROZEN FOR FINAL OWNER REVIEW.**
+Architecture is approved in principle. The owner required occurrence-aware
+contexts, a proven engineering ceiling, exact transformations and a normal
+branch push. This revised design is not implementation authorization and is
+not Stage 10 scientific acceptance. The first draft at
+`642fa170ac594f6fe425a9272b5dae6bdff584cc` remains reachable history;
+its cross-occurrence unanimity and candidate-level budgets are superseded.
+Stop after the frozen revision is pushed for final owner approval to implement.
 
 Normative package:
 
@@ -16,13 +19,14 @@ Normative package:
 - [evaluation plan](STAGE10_DEVELOPMENT_EVALUATION.md); and
 - [complete design review and owner decisions](STAGE10_DESIGN_REVIEW.md).
 
-Proposed identifiers are `stage10_multi_hypothesis_query_contract_v1`,
+Design identifiers remain `stage10_multi_hypothesis_query_contract_v1`,
 `stage10_multi_hypothesis_query_profile_v1`,
 `stage10_multi_hypothesis_query_schema_v1`,
 `stage10_query_intent_v1`, `stage10_query_logical_encoding_v1`,
 `stage10_query_validation_v1`, and `stage10_query_manifest_v1`.
 The [design freeze inventory](../scientific_assets/stage10_design_freeze_v1.json)
-hashes the review documents. These are design-byte hashes; executable contract,
+hashes the review documents and exact transliteration specification. These are
+design-byte hashes; executable contract,
 Arrow schema, runtime-asset and output fingerprints do not yet exist. No future
 fingerprint is invented or described as verified.
 
@@ -34,6 +38,8 @@ Annotated tag `stage09-offline-reference-evidence-v1` exists and peels to that
 same owner-acceptance commit. D047/D060 and accepted reports record
 `STAGE_8_ACCEPTED`, `STAGE_9_ACCEPTED`, Stage 10 NOT STARTED, HOLDOUT SEALED,
 and production/Pelias untouched. No unexpected baseline divergence was found.
+Before owner revision, fetch again verified clean design HEAD `642fa170…`, with
+main/origin-main still at the accepted baseline. No accepted artifact was opened.
 
 Verification used Git, committed contracts, code and sanitized records only.
 It did not reopen controlled artifacts, inspect the HOLDOUT seal on storage,
@@ -138,87 +144,131 @@ totality, slots, field schema and Stage 5 reconstruction before using a line.
 This implements the accepted **BOUNDARY_HANDOFF_SUFFICIENT** conclusion without
 changing Stage 0–9 or duplicating the Stage 8 map.
 
-## Candidate context and map-back safety
+## Source-occurrence query context
 
-Stage 6 identity contains text only. Equal text can occur in different rows,
-countries, representations or line layouts. A candidate-wide hypothesis must
-not borrow one occurrence's context and attach it to all others.
+Define exactly one query context for each **present Stage 8 representation
+occurrence**, keyed upstream by `(stable_source_row_id_v1, representation)`.
+STANDARD and NATIVE are distinct roles, even when their Stage 6 candidate IDs
+are equal. A source row therefore has zero, one or two contexts. Candidate
+reuse across rows creates more contexts, never an eligibility vote or veto.
 
-Proposed v1 uses **unanimity and abstention**, without occurrence-specific
-hypotheses or context expansion:
+The context joins that occurrence to its exact Stage 6 candidate, its own
+Stage 8 source geography, its own representation-specific Stage 6 lower lines
+and masks, shared candidate parser evidence, and Stage 9 evidence applicable
+to **that source row and candidate**. Accepted Stage 8 parsing is candidate-grain;
+no occurrence-specific parse is invented. Its structural/country applicability
+summaries cannot establish the new context's semantic trust or country validity.
 
-- ordinary Q1–Q6 require accepted `COUNTRY_UNANIMOUS_VALID` and its non-null
-  trusted ISO alpha-2 code; that code is the explicit country boundary;
-- incomplete/invalid/conflicting source-country provenance yields no ordinary
-  hypothesis for that candidate; never select majority/first/parser country;
-- source geography used by Q4 must be exactly equal and nonempty at the Stage 3
-  clean level across all distinct source rows mapped to the candidate;
-- Q3/Q5 require one exact four-slot lowercase line vector, including empty
-  positions, across **all** its STANDARD and NATIVE occurrences; and
-- source-role Stage 9 prerequisites must pass for every relevant distinct
-  source row. Two equal representation slots on one row are one source witness.
+`query_context_id` binds the immutable upstream snapshot identities and that
+minimal occurrence key; candidate ID and all context values are functionally
+determined by those references. The two output relations carry the existing
+source ID/representation/candidate FKs inline. There is no third context table,
+new authoritative source map, or pre-generation grouping across occurrences.
+The [data contract](STAGE10_DATA_CONTRACT.md) gives the exact identity formula,
+read projection and bijection invariants. Changing the bound source snapshot
+changes the context identity; unrelated provider/display fields are not
+additional hash arguments. Country and boundaries cannot change under a frozen
+occurrence without failing the input hash/FK checks.
 
-These restrictions are scientifically consequential proposals, not claims
-that divergent candidates are invalid. Measure their lost coverage explicitly.
-Any later occurrence-scoped extension requires a reviewed version, bounded
-selection and explicit applicability map; it cannot be a hidden implementation
-optimization. Query hypotheses may serve all candidate occurrences after these
-gates. Family credit remains limited to its recorded representation provenance.
+**Ordinary country context is row-local.** Read that row's exact
+`stage03_clean_country_iso_code` through Stage 8. It must contain exactly two
+ASCII letters; ASCII-uppercase them for the boundary, without trimming,
+territory mapping or aliases. Reuse its SOURCE_ROW S9.Q01 ISO SUPPORTED witness
+for the same candidate/source field/code and frozen positive code-namespace
+capability. This is recognized source-code context, not country-resolution or
+geographic truth. Missing/malformed/unrecognized country constrains only this
+context. A missing expected evidence row/hash mismatch is fatal, not abstention.
 
-Stage 9 `COUNTRY_UNRESOLVED` is not this source-provenance gate: all 51,779
-accepted country assessments were unresolved because there were zero qualifying
-full subdivision-code witnesses. **No Q1–Q6 gate requires Stage 9 country
-support.** Strong source context is retained even when a scoped contradiction
-exists; Q4 may omit a contradicted field, and Q7 remains deferred.
+Do not require candidate-wide COUNTRY_UNANIMOUS_VALID or Stage 9 country
+assessment success. All 51,779 accepted country assessments are unresolved
+under the frozen subdivision-witness rule; ordinary generation still proceeds
+with valid source-row codes. S9.Q01 code recognition is country-independent.
+Stage 9's other country-dependent checks may remain NOT_EVALUABLE because its
+accepted evaluator used candidate-wide prerequisites. Preserve that limitation;
+do not recompute Stage 9 or borrow another row's support. It can leave optional
+Q4 fields unsupported, but cannot block Q1/Q2/Q3/Q5/Q6 with valid local inputs.
+NOT_FOUND/NOT_EVALUABLE provide no negative geographic evidence.
 
-## Architecture and budgets
+No cross-row country, geography, boundary or representation unanimity is used.
+One context's malformed country, unavailable structure or field contradiction
+never changes another context's eligibility. Q1/Q2 retain their complete
+source-derived line bodies regardless of individual structured-field conflicts.
 
-Choose **B: deterministic initial plan plus an explicitly disabled/deferred
-diagnostic phase**. Materialize all eligible Q1–Q6 representations for offline
-accounting, collapse exact intents, and mark only the operating-budget prefix
-as selected. Materialization does not authorize their execution. Q7 emits no
-query payload and no activation program in v1.
+## Architecture and engineering-ceiling proof
 
-Seven fixed family decisions per candidate, at most one construction per family,
-no permutations, optional-field subsets, parser-duplicate expansion,
-transliteration chains, source-context products or recursive transformations.
-Order is Q1, Q2, Q3, Q4, Q5, Q6; Q7 has no initial priority. Q1/Q2 use identical
-candidate bytes and country when both apply, so they necessarily converge.
+Generate the complete eligible Q1–Q6 static catalog per context, converge exact
+complete intents **within that context**, and retain every family membership.
+There are six auditable family decisions per context, not six guaranteed queries.
+Q7 is globally `DEFERRED_RESULT_DEPENDENT_DIAGNOSTIC`: zero per-context rows,
+zero pseudo-hypotheses, zero preallocated request/hypothesis IDs. Any later
+activation belongs to a separate frozen result-dependent contract and workload.
 
-**Proposed engineering ceiling: five distinct generated hypotheses per exact
-candidate; ten per source row with two different candidates.** Seven family
-decisions are bookkeeping, not seven requests. The ceiling follows from one
-full baseline plus Q3/Q4/Q5/Q6, each single-valued. At most six eligible family
-members may converge into those five. Row ceilings count the union of distinct
-candidate hypotheses; equal STANDARD/NATIVE slots do not double it. No source
-row is dropped, including rows with no candidate or no hypothesis.
+The exact reachable maximum is derived from the frozen eligibility rules:
 
-Let `B` be the scientific operating budget, an integer in `[1,5]`. It is
-**UNSELECTED**, with no implicit default. A future separately approved offline
-calibration run may use `CATALOG_ONLY`: retain the complete bounded catalog but
-export no Stage 11 selected workload. `INITIAL_PLAN` requires a reviewed numeric
-B and budget-policy fingerprint. The first full baseline always occupies rank 1.
-Eligible alternate intents rank by their earliest contributing family; ties
-use unsigned representation-fingerprint bytes. Collapse precedes selection.
-Select ranks `<= B`; preserve all other payloads and family lineage with
-`QUERY_BUDGET_SUPPRESSION`. Duplicates consume no additional budget. Families
-converging to a selected baseline keep credit even if their nominal family
-order is beyond B. Candidate and row ceilings are hard validation invariants;
-an algorithm producing more than five fails publication, rather than silently
-truncating. Scientific B suppression is distinct from this defect.
+| Context / candidate script | Full baseline | Q3 | Q4 | Q5 | Q6 | Maximum |
+|---|---:|---:|---:|---:|---:|---:|
+| STANDARD, Latin/Common/Inherited | Q1 = 1; Q2 = 0 | 1 | 1 | 1 | 0 | 4 |
+| NATIVE, Latin/Common/Inherited | Q2 = 1; Q1 = 0 | 1 | 1 | 1 | 0 | 4 |
+| NATIVE, eligible Greek or Cyrillic | Q2 = 1; Q1 = 0 | 1 | 1 | 0 | 1 | 4 |
+| Other supported-country contexts | Exactly one role baseline | <=1 | <=1 | 0 | 0 | <=3 |
 
-There is no Stage 10 byte-based truncation or giant-address skip. Stage 11 must
-later validate actual encoded request byte limits; oversize requests are
-explicitly unschedulable with all source/hypothesis lineage retained. A numeric
-service byte cap is not invented before its request/deployment contract exists.
+Q1/Q2 are mutually exclusive **inside one occurrence context**. Q5 requires
+all candidate code points to be Latin/Common/Inherited. Q6 requires a Greek or
+Cyrillic letter; Q5 and Q6 therefore cannot both be eligible. Every family is
+single-valued; no subsets, permutations, recursive transformations or parser
+component repetitions create additional constructions. Thus
+`H(context) <= 1 + 1 + 1 + max(Q5,Q6) = 4`, before any duplicate collapse.
+The last table row also covers STANDARD non-Latin contexts (Q6 is native-only).
 
-Select B and any revised family order on DEVELOPMENT using the
-[marginal-utility and ablation procedure](STAGE10_DEVELOPMENT_EVALUATION.md).
-Offline coverage/cost can select a provisional trial workload, not an optimal
-accuracy budget. Later Stage 12/13 evidence is necessary for recall utility.
-Calibration creates a new immutable policy/plan; it never mutates accepted
-artifacts or tunes an execution in flight. Q7 would need a separate ceiling and
-activation contract before any enabled profile, including a combined row cap.
+Four is reachable, not merely an upper estimate. An invented Latin context
+with lower lines `['12 example road', 'unit 5', '', '']`, valid row country,
+positive source-locality evidence and a uniquely aligned `unit` component
+produces four distinct intents: full text; LF boundary text; structured address
+plus locality; and the stripped first line. The structured endpoint distinguishes
+Q4, and the other three texts differ exactly. A source row can have two such
+valid contexts with different invented road/unit strings, so eight hypotheses
+are reachable per source row. These are symbolic synthetic witnesses, not
+claims that accepted DEVELOPMENT contains such rows.
+
+**ENGINEERING SAFETY CEILING = 4 distinct hypotheses/context and 8/source row.**
+It detects implementation/query-explosion bugs and suppresses no eligible
+family. Exceeding it fails publication with a defect; it is not a truncation
+rule. There is **no fixed global per-candidate cap**: if a candidate has `m`
+occurrences, its safe bound is `4m`. Report that context multiplicity instead
+of making one occurrence spend another's budget. Population bounds are
+`contexts <= 2 × source_rows`, `hypotheses <= 4 × contexts <= 8 × source_rows`,
+`family_decisions = 6 × contexts`. Equal STANDARD/NATIVE values still have two
+contexts; global request deduplication is later Stage 11 work.
+
+## Scientific operating budget
+
+The operating budget is **UNSELECTED**. The first authorized DEVELOPMENT run
+must use `ALL_ELIGIBLE_CATALOG`: materialize every eligible Q1–Q6 hypothesis up
+to the proven engineering bound, with no budget suppression and no policy
+tuning based on protected individual examples during the run. Nothing in this
+catalog authorizes requests or starts Stage 11.
+
+The family accounting order is Q1, Q2, Q3, Q4, Q5, Q6; the context's available
+full baseline is rank 1. Other intents rank by earliest contributing family,
+then unsigned intent fingerprint. Convergence precedes any future budget.
+A later reviewed per-context operating B may lie in [1,4], never a global
+candidate budget. A revised policy may select a prefix for a new immutable
+plan, retaining every suppressed payload/membership in its catalog. Such an
+INITIAL_PLAN requires explicit policy/version/authorization; v1's first run
+cannot select B or emit QUERY_BUDGET_SUPPRESSION. The engineering cap cannot
+stand in for scientific calibration. Any relaxation of the mutually exclusive
+family rules requires rederiving both ceilings before approval.
+
+Stage 10 can immediately measure structural coverage, context multiplicity,
+convergence, unique intent counts and cost proxies. True family value/recall
+requires later Stage 12/13 outcomes and independent DEVELOPMENT adjudication.
+Use the [calibration procedure](STAGE10_DEVELOPMENT_EVALUATION.md); never call
+structural coverage geocoding correctness. Q7 would require a separately
+reviewed combined workload bound, not a reserved Stage 10 slot.
+
+There is no Stage 10 byte truncation or giant-address skip. Stage 11 later
+freezes actual encoded-request limits and retains explicit unschedulable
+outcomes/map-back; a service byte cap is not guessed in this design.
 
 ## Scale, reproducibility and privacy
 
@@ -228,27 +278,30 @@ Benchmark V1 DEVELOPMENT can run next. Use pinned PyArrow for schemas,
 grouping, external ordering, integrity and aggregates. No pandas production
 path. Polars/Spark add no demonstrated v1 requirement.
 
-Read candidate/component/evidence streams once in external candidate order.
-Reduce source unanimity with streaming equality/min/max and counts, never
-population dictionaries or `list_agg` of occurrences/components/witnesses.
-Consume Stage 9 witness sets as ordered joins, not candidate × global reference
-searches. Selected lineage sets use reproducible selectors and stream digests,
-not unbounded lists in a hypothesis row. At most five payloads per candidate
-may be spooled; giant payloads use controlled temporary files/Arrow slices.
-The accepted maximum is 25,920,495 code points and 881,338 parser components;
-resource limits must accommodate these or fail the run without scientific
-abstention. Bound bytes, not just row counts. ICU transforms must operate as
-whole logical strings with a reviewed size/resource strategy; independently
-transliterating arbitrary chunks is prohibited.
+Externally join contexts to candidate/component/evidence streams using exact
+keys. Reuse candidate-only text/script/parser-alignment work as a bounded,
+content-verified cache without coalescing context eligibility. Filter source
+reference evidence on `(candidate_id, stable_source_row_id_v1)` before gating.
+Process contexts incrementally; never collect all occurrences of a popular
+candidate or explode each occurrence against the full global reference pack.
+Source lines have four slots; at most four intent payloads per context may be
+spooled. Selector certificates stream complete evidence and share repeated
+witness-set traversal. Private spill/checkpoint files are operational state,
+not extra scientific relations. No population Python dict/list or list_agg.
 
-Shards use candidate-ID prefixes with configured prefix width; external merge
-restores canonical global order. Shard width, batches, compression and worker
-count cannot change logical content. Worker parallelism is offline only.
-Checkpoints bind exact input/science/runtime assets, candidate interval,
-schema/count/logical and physical hashes. Completed immutable chunks may be
-reused after full validation; resume never overwrites an incomplete attempt.
-Only one reviewed job is submitted; pending is not grounds for duplication.
-New-key restart or recovery requires the applicable execution authorization.
+The accepted maximum is 25,920,495 code points and 881,338 parser components;
+resource limits must accommodate these or fail without semantic abstention.
+Bound bytes, not only rows. ICU processes a whole logical string or a proven
+context-preserving streaming equivalent; arbitrary chunk transforms are banned.
+Production capacity is not claimed from DEVELOPMENT extrapolation.
+
+Shard by `query_context_id` prefix with configured prefix width and canonical
+external merge; candidate-only caches may use their own prefix partitions.
+Batches, shards, workers and Parquet layout cannot change scientific content.
+Checkpoints bind exact inputs/science/transformation assets and context interval,
+schema/count/logical/physical hashes. Resume may reuse only complete immutable
+validated chunks into a new authorized attempt; no overwrite or stale takeover.
+Submit the reviewed job once and wait; pending is not grounds for duplication.
 
 Runtime proposal retains Python 3.14.3 / Unicode 16.0.0, PyArrow 25.0.0,
 DuckDB 1.5.5 and adds the tightly scoped ICU asset in Q6. Exact runtime/source/
@@ -274,12 +327,16 @@ anchor as Stage 9. The intended filesystem is the same PanFS deployment;
 **actual Stage 10 path/filesystem compatibility was not probed or verified in
 this design session**. Stage 9's direct capability evidence is job `1771149`.
 
-Propose reuse of the accepted Stage 9 publication **state machine and primitive
-requirements unchanged**, conditional on future pre-input verification of the
+The owner approves reuse of the accepted Stage 9 publication **state machine
+and primitive requirements unchanged**, conditional on future pre-input verification of the
 configured anchor, approved `/work` alias resolution, private no-follow
 topology, same filesystem assumptions, exclusive-create collision behavior,
 zero-byte seal semantics, file/directory fsync and full prepared/committed reopen.
-No probe is authorized now. Failed prerequisites stop; no rename fallback.
+No new filesystem diagnostic is required merely because the stage number changed.
+Implementation preflight verifies the controlled root, expected PanFS mount/
+topology, the same exclusive-create mechanism and private permissions. A different
+filesystem, mount or materially different topology must STOP for owner review;
+do not assume earlier evidence applies or add a fallback. No probe occurs now.
 
 Exclusive permanent reservation → immutable validated artifact → registration
 → exclusive `_COMMITTED` → durability/full reopen. Existing incomplete keys
@@ -295,6 +352,6 @@ profile/schema/executable/inventory and complete `stage10_input_binding_sha256`.
 It must not mislabel Stage 10 inputs as Stage 9's `stage08_input_sha256` or
 weaken accepted Stage 9 validators to generalize them. This is a record adapter,
 not a publication-protocol redesign; Stage 8 publication remains unchanged.
-Owner approval and later environment confirmation remain separate gates.
+Final implementation approval and later preflight confirmation remain separate gates.
 
-NEXT: OWNER REVIEW OF STAGE 10 DESIGN
+NEXT: FINAL OWNER APPROVAL TO IMPLEMENT STAGE 10

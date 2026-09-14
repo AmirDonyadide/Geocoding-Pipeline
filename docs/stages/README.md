@@ -18,7 +18,7 @@ independent review passes and the owner explicitly accepts it.
 | 7 | [libpostal parsing/evidence](STAGE07_LIBPOSTAL_PARSING.md) | `STAGE_7_ACCEPTED` | NOT STARTED |
 | 8 | [Lossless address-evidence projection](STAGE08_ADDRESS_EVIDENCE_PROJECTION.md) | `STAGE_8_ACCEPTED`; candidate `231cdbf9…`, executable `c04cb972…`, job `1764273`, independent job `1764376` | NOT STARTED |
 | 9 | [Conservative offline geographic reference evidence](STAGE09_OFFLINE_REFERENCE_EVIDENCE.md) | `STAGE_9_ACCEPTED`; executable `3e10ac7c…`, job `1771191`, independent job `1772139`; [owner acceptance](../../reports/development/stage09.md#owner-acceptance-and-freeze--2026-09-14) | NOT STARTED |
-| 10 | [Bounded multi-hypothesis query generation](STAGE10_MULTI_HYPOTHESIS_QUERY_GENERATION.md) | DESIGN READY FOR OWNER REVIEW; not approved, implemented or executed | NOT STARTED |
+| 10 | [Bounded multi-hypothesis query generation](STAGE10_MULTI_HYPOTHESIS_QUERY_GENERATION.md) | OWNER REVISIONS INCORPORATED; frozen for final implementation approval | NOT STARTED |
 
 Stage 9 is accepted with its design/reference bytes unchanged; historical
 design-time status wording remains frozen, not a current status gate.
@@ -40,5 +40,5 @@ before protected input access. The approved PanFS repair then completed job
 `1771191`; independent review job `1772139` passed with zero candidate defects,
 and D060 records owner acceptance without scientific change or rerun. The linked
 execution record preserves all failure/diagnostic history and the accepted
-identity. Stage 10 stops for owner design review; implementation/execution are
+identity. Stage 10 stops for final owner approval to implement; implementation/execution are
 not started. Stages 11–14 remain proposed and not started.

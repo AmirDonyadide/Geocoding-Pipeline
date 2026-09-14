@@ -1,241 +1,246 @@
-# Stage 10 — future DEVELOPMENT evaluation and freeze gates
+# Stage 10 — context-aware DEVELOPMENT evaluation and freeze gates
 
-Part of the [design candidate](STAGE10_MULTI_HYPOTHESIS_QUERY_GENERATION.md).
-This plan authorizes no implementation, protected reading, human review,
-SLURM job or retrieval. HOLDOUT remains sealed.
+Normative revision of the [design package](STAGE10_MULTI_HYPOTHESIS_QUERY_GENERATION.md).
+Implementation, protected access, jobs, human review and retrieval are not
+currently authorized. This document describes the next reviewable procedure.
 
 ## Implementation and synthetic validation gate
 
-After explicit design approval, a separately authorized implementation must
-publish exact schema/contract/profile/runtime-asset fingerprints and a complete
-synthetic-validation record before any protected job can be reviewed.
-Fixtures are invented or public and contain no protected values or row IDs.
-Required falsification cases include:
+After final owner approval to implement, freeze exact executable contract/profile/
+schema/runtime build fingerprints matching this design before proposing any
+protected run. Synthetic fixtures must be invented/public. Required challenge
+cases cover the complete design, including:
 
-- equal STANDARD/NATIVE slots, two different candidates on a source row,
-  repeated provider IDs, no-candidate rows and zero-hypothesis candidates;
-- identical candidate text shared across conflicting/partial source countries,
-  different clean geography, different masks and different line layouts;
-- every Stage 9 state, applicable/inapplicable scoped contradictions,
-  source/parser argument confusion, missing expected evidence, wrong authority,
-  GeoNames negative-authority violation and full-code country witnesses;
-- identical repeated parser ordinals, different values, unknown labels, empty
-  parse, warning-present and warning-absent semantic errors;
-- unchanged Q1/Q2 bytes, LF-vs-space, gaps/repeated lines, combining marks,
-  native scripts, Unicode lowercasing history and strings with leading zeros;
-- Q4 locality-only, postcode-only, supported pair, failed relationship support,
-  postcode-pattern/prefix veto, admin-level exclusion and no eligible fields;
-- Q5 embedded “unit” street/building text, whole-line false positives, digit-only
-  street lines, repeated values, ambiguous/intersecting components, floors,
-  unsupported markers/scripts, empty remainder and unchanged full baseline;
-- Q6 exact registered transforms, asset mismatch, supported/unsupported/mixed
-  scripts, Common/Inherited marks, existing Latin, preservation of digits and
-  punctuation, residual script, empty/equal output and whole-string equivalence;
-- complete-intent differences in endpoint, country, structured fields and shared
-  policy reference; injected hash collision must fail, not collapse;
-- convergence before budget selection, budgets 1..5, catalog-only mode,
-  baseline rank, family credit beyond rank B, hard-ceiling violations and Q7's
-  constant-false activation under every synthetic result/error history;
-- full map-back/lineage-selector replay, orphan and cross-candidate membership,
-  missing candidate decisions, source-row versus occurrence denominators;
-- byte/component giants with tiny streaming batches, external spilling,
-  deterministic shard order, restarts and logical-hash invariance; and
-- shared execution guard before input access, split/path/runtime rejection,
-  0700/0600 modes, publication fault/adoption/collision/reopen and strict
-  aggregate-report allowlisting.
+- same exact candidate on two rows with different country, geography, line masks,
+  boundaries and representations; eligible context A unchanged by context B;
+- same-row equal STANDARD/NATIVE candidate IDs producing two contexts; Q1/Q2
+  role exclusivity, Q6 native-only, and exact later many-context request map-back;
+- missing/malformed source country for one context, SOURCE_ROW Q01 recognition,
+  all-unresolved Stage 9 country assessment, and candidate-wide Stage 9 NE checks
+  without blocking full-text/line/transform families with valid local country;
+- same-context versus other-row/candidate/parser postcode contradictions,
+  exact argument/country/authority/witness gates, GeoNames negative prohibition,
+  NOT_FOUND/NOT_EVALUABLE and internal conflicts without false negative claims;
+- Q4 locality/postcode/pair support, unchanged full address, source-only field
+  use, unsupported region/admin level and missing expected evidence as fatal;
+- four-slot Q3 gaps, repeated lines, equal texts with different layouts, embedded
+  LF versus inserted LF, unchanged one-line convergence and invalid source FKs;
+- Q5 complete-line versus mixed-content marker, uniquely aligned components,
+  source-geography veto, duplicate/unknown labels, empty evidence, multiple
+  possible alignments, retained byte equality and no reliance on warning absence;
+- Q6 pinned canonical ICU IDs (not unverified aliases), asset/data/version/filter
+  mutations, Greek/Cyrillic/Latin mixtures, unsupported scripts, inherited marks,
+  exact pre/post NFC, empty/unchanged/residual-script output and native retention;
+- the four-per-context/eight-per-row reachable synthetic construction, Q1/Q2 and
+  Q5/Q6 mutual exclusion, six decisions, complete eligible catalog, no arbitrary
+  budget suppression and zero Q7 pseudo-rows/IDs under any simulated result history;
+- full-intent equality/difference including endpoint, fields, country and policy
+  slot; injected collisions, cross-context FK attachment and orphan family rows;
+- context/source/candidate cardinality and exact reconstruction of every selector,
+  query and transformation from immutable input identity; repeated witnesses
+  shared without candidate×occurrence×component/reference explosions;
+- giant candidate/component inputs, tiny byte batches, spills, context sharding,
+  cache order independence, restart and logical-hash invariance; and
+- pre-input guard, private topology, expected PanFS same-mechanism preflight,
+  publication fault/adoption/uncertain outcomes and strict portable reporting.
 
-These tests should challenge scientific failure modes and cardinality, rather
-than merely mirror implementation. No source or executable test is added in
-this design session.
+Tests must falsify scientific invariants, not merely mirror implementation.
+No materializer/test implementation is part of this documentation revision.
 
-## One future offline DEVELOPMENT artifact
+## First future DEVELOPMENT run: all eligible static hypotheses
 
-After separately reviewed implementation and exact-workload authorization,
-submit the reviewed offline job once from an exact pushed SHA and reuse its
-immutable artifact while pending/completed. Proposed first mode is CATALOG_ONLY:
-complete bounded Q1–Q6 generation, no executable Stage 11 selection. A numeric
-B must be approved separately for any INITIAL_PLAN. Candidate totality derives
-from the exact accepted inputs, not a filtered development extract.
+After separate execution authorization, submit exactly one reviewed offline job
+from a clean exact pushed SHA. Use `ALL_ELIGIBLE_CATALOG`, operating budget null.
+Materialize every eligible Q1–Q6 construction, converge complete intents within
+each context and retain all memberships. No operating budget suppresses an
+eligible family. Exceeding a mathematically derived engineering bound is a
+fatal implementation defect, never truncation. No Q7 query/decision ID exists.
+Do not tune policy or inspect protected individual examples to change it during
+this first run; reuse the immutable artifact once completed.
 
-Expected input counts are 35,000 source rows, 69,747 representation occurrences
-(34,822 STANDARD and 34,925 NATIVE), 51,779 exact candidates, 6,106,088 parser
-components, and 6,565,329 Stage 9 evidence rows. Expected **family decisions**
-are `7 × 51,779 = 362,453`; generated hypothesis counts remain unknown.
-The engineering upper bound is `5 × 51,779 = 258,895` generated hypotheses,
-not an expected count or an authorized Pelias workload.
+Accepted input counts: 35,000 source rows, 69,747 representation occurrences
+(34,822 STANDARD, 34,925 NATIVE), 51,779 exact candidates, 6,106,088 parser
+components and 6,565,329 Stage 9 evidence rows. Therefore the initial artifact
+must represent **69,747 contexts and 418,482 family decisions** (6 × contexts).
+It can contain at most **278,988 hypotheses** (4 × contexts), with <=8 on any
+source row. Actual hypotheses/coverage remain unknown. These counts are not an
+authorized Pelias workload. The candidate total is retained for reconciliation,
+not used as the hypothesis-generation denominator.
 
-Report the following exact integer metrics with named denominators:
+## Required context-aware diagnostics
 
-| Group | Required outputs / denominator |
+| Group | Required metrics and grain |
 |---|---|
-| Input preservation | Source/candidate/component/evidence/occurrence counts; input bindings; zero missing, added, cross-wired and orphan rows |
-| Coverage | Candidates with >=1 and zero generated hypotheses / all candidates; selected coverage separately; source-row union and occurrence coverage separately; no-candidate source rows |
-| Family eligibility | All seven evaluated slot counts; ELIGIBLE/INELIGIBLE/DEFERRED counts and family-level primary/all reasons / candidate × family slots |
-| Output and cost | Generated/selected/suppressed hypotheses, candidate-local distinct intents, global distinct exact intent fingerprints with byte verification, UTF-8 bytes, future request estimate |
-| Convergence | STANDARD/NATIVE equal-candidate cases; Q3/Q5/Q6 convergence to baseline/other families; family bitmask intersection counts; family constructions minus distinct intents |
-| Alternatives | Q3 boundary unanimity and divergent-layout counts; Q4 locality/postcode/pair availability and field exclusions; Q5/Q6 availability and reasons |
-| Budgets | Complete histogram 0..5 per candidate; selected histogram; number at B and number exceeding B before suppression; number at engineering ceiling; hard-ceiling failures |
-| Suppression | Family/field reason counts, exact duplicate convergence, budget suppression, source-country and source-boundary abstention; multiple reasons labeled overlapping |
-| Protected/portable | Row counts of both protected relations and complete selector counts; portable summary objects/cells; zero portable protected strings/row IDs/query digests |
-| Technical | Failure count and closed error categories; validation/reopen outcomes, elapsed time, MaxRSS, spill, peak buffered bytes, largest candidate, output bytes and verified checkpoint reuse |
+| Input/lineage | Complete source/candidate/occurrence/component/evidence counts; exact hashes; no missing/added/cross-wired/orphan contexts or source links |
+| Context totality | Context count; STANDARD/NATIVE contexts; candidates with >1 context; source rows with >1 context; contexts/candidate and contexts/source-row distributions |
+| Context diversity | Per-candidate distinct requested-country/status count and exact four-slot boundary-vector count; numbers with >1 each; no eligibility change from these diagnostic groupings |
+| Coverage | Contexts with >=1/zero hypotheses; source rows and exact candidates with >=1/zero hypotheses; absent-representation/no-candidate source rows separately |
+| Families | Six slot evaluations/context; eligible, ineligible, first-member, convergent-member and suppressed counts/reasons; Q7 one global deferred status |
+| Output | Hypotheses/context, source row and candidate; eligible constructions; local distinct intents; global distinct intent opportunities and corresponding cross-context reduction |
+| Convergence | Family masks per context hypothesis; Q3/Q5/Q6 baseline convergence; equal STANDARD/NATIVE intent incidence across the same source row; exact byte equality checks |
+| Availability | Q3 line availability; Q4 locality/postcode/pair and field decisions; Q5 removals/vetoes; Q6 script/output availability and abstention |
+| Budgets | Contexts at engineering ceiling 4, rows at 8; bound violations; zero initial QUERY_BUDGET_SUPPRESSION; operating B UNSELECTED |
+| Publication/privacy | Protected relation rows, complete selector counts, one portable summary object, zero protected strings/row/query IDs in portable output |
+| Technical | Closed failure categories, validators/reopen, elapsed/MaxRSS/spill/peak buffered bytes, giant values, output sizes/checkpoint reuse; no geocoder calls |
 
-Keep logical candidate-local intent counts separate from global distinct intents.
-Global intent counts are a **prospective workload proxy**, not yet Stage 11
-unique semantic requests: the common retrieval policy has not been resolved.
-Once Stage 11 exists, reconcile complete semantic requests explicitly, including
-request-contract QA failures such as byte limits and unresolved defaults.
-No Stage 10 report may claim recall, geocoding accuracy, valid-address rate,
-correct-candidate contribution or optimal family selection.
+Country diversity counts distinct `(local_country_state, boundary_or_null)` per
+candidate; states are SOURCE_CODE_RECOGNIZED, SOURCE_CODE_MISSING,
+SOURCE_CODE_MALFORMED, SOURCE_CODE_UNRECOGNIZED. For boundary diversity compare
+complete four-slot lower vectors including empties, not just hashes/LF text.
+Role counts and context multiplicity remain separate. These aggregate questions
+never select a representative context or require agreement across contexts.
 
-## Exact summary shape and disclosure
+Global distinct Stage 10 intents are a prospective **Stage 11 dedup opportunity**,
+not finalized semantic requests. Stage 11 must first resolve the common request
+policy and every result-affecting parameter. Later reconcile actual unique
+semantic requests, unschedulable sizes and complete context/family map-back.
+Stage 10 has no geocoder results and cannot measure accuracy, address validity,
+correctness contribution or recall. Repeated parser evidence is not a denominator
+for context/address prevalence; preserve the Stage 9 Q04 grain limitation.
 
-`query_generation_summary` is one canonical JSON object with these required
-keys: `summary_version`, `input_binding_sha256`, `science_sha256`,
-`budget_policy_sha256`, `plan_mode`, `operating_budget`, `engineering_ceiling`,
-`source_row_ceiling`, `input_counts`, `coverage_counts`, `hypothesis_counts`,
-`family_cells`, `convergence_cells`, `candidate_histogram`, `budget_counts`,
-`field_decision_cells`, `artifact_row_counts`, `validation_counts`.
-Version is `stage10_query_generation_summary_v1`. Integers are unsigned, B is
-null only in CATALOG_ONLY, and no metric stores a floating-point rate.
+## Exact sanitized summary contract
 
-Cell dimensions are closed family/reason/eligibility/membership/field enums and
-the seven-bit family mask, never arbitrary strings. Histograms have fixed
-bins 0..5 and counts. Each metric value/cell carries `count`, `denominator`,
-`denominator_kind`; denominator kinds are ABSOLUTE, CANDIDATE, SOURCE_ROW,
-OCCURRENCE, FAMILY_SLOT, GENERATED_HYPOTHESIS, SELECTED_HYPOTHESIS or FIELD_SLOT, with the
-population named by its metric definition. Overlapping reason and family
-incidence cells must not be summed as partitions. Canonical array order is
-numeric family/mask/bin then declared enum order. Emit explicit zero cells for
-closed histograms and family eligibility outcomes; reason cells are observed
-only. There are no free-text error payloads or row-derived examples.
+One canonical JSON object with required keys: summary_version,
+input_binding_sha256, science_sha256, budget_policy_sha256, plan_mode,
+operating_budget, ceilings, deferred_families, input_counts, context_counts,
+coverage_counts, hypothesis_counts, engineering_counts, family_cells,
+convergence_cells, field_decision_cells, histograms, artifact_row_counts,
+validation_counts. Unknown keys/enum values fail validation. Version is
+stage10_query_generation_summary_v1; plan_mode ALL_ELIGIBLE_CATALOG; B null;
+ceilings = {per_context:4, per_source_row:8, per_candidate:'4*occurrence_count'};
+deferred_families = {Q7:'DEFERRED_RESULT_DEPENDENT_DIAGNOSTIC'}.
 
-The fixed count-key allowlist is:
+Fixed scalar count keys:
 
-```text
+```
 input_counts: source_rows, candidates, occurrences, standard_occurrences,
   native_occurrences, parser_components, reference_evidence_rows,
   source_rows_without_candidate
-coverage_counts: candidates_generated, candidates_zero_generated,
-  candidates_selected, candidates_zero_selected, source_rows_generated,
-  source_rows_selected, occurrences_generated, occurrences_selected,
-  country_context_abstained_candidates, boundary_nonunanimous_candidates
-hypothesis_counts: eligible_family_constructions, generated, selected,
-  budget_suppressed, catalog_only, global_distinct_intents,
-  candidate_local_duplicate_reduction, global_intent_duplicate_reduction,
-  generated_text_utf8_bytes, selected_text_utf8_bytes
-budget_counts: candidates_at_operating_budget,
-  candidates_above_operating_budget_before_suppression,
-  candidates_at_engineering_ceiling, source_rows_at_engineering_ceiling
+context_counts: contexts, standard_contexts, native_contexts,
+  candidates_with_multiple_contexts, source_rows_with_multiple_contexts,
+  candidates_with_multiple_country_contexts,
+  candidates_with_multiple_boundary_contexts
+coverage_counts: contexts_with_hypothesis, contexts_without_hypothesis,
+  source_rows_with_hypothesis, source_rows_without_hypothesis,
+  candidates_with_hypothesis, candidates_without_hypothesis
+hypothesis_counts: eligible_family_constructions, hypotheses,
+  global_distinct_intents, within_context_duplicate_reduction,
+  across_context_intent_reduction, generated_query_utf8_bytes
+engineering_counts: contexts_at_ceiling, source_rows_at_ceiling,
+  bound_violations, operating_budget_suppressions
 artifact_row_counts: query_hypothesis, query_family_decision,
   portable_summary_objects
-validation_counts: missing_candidates, added_candidates, missing_sources,
-  added_sources, orphan_hypotheses, orphan_family_memberships,
-  cross_candidate_memberships, selector_mismatches, byte_collisions,
-  map_back_mismatches, ceiling_violations, technical_failures,
-  portable_protected_values, pelias_calls, external_address_calls
+validation_counts: missing_contexts, added_contexts, missing_candidates,
+  added_candidates, missing_sources, added_sources, orphan_hypotheses,
+  orphan_family_memberships, cross_context_memberships, context_fk_mismatches,
+  selector_mismatches, byte_collisions, map_back_mismatches,
+  technical_failures, portable_protected_values, pelias_calls,
+  external_address_calls
 ```
 
-Counts are unsigned integers, with null count permitted only for unselected
-operating-budget metrics in CATALOG_ONLY. Absolute totals/byte sums use
-denominator_kind ABSOLUTE and null denominator; other denominators are unsigned
-integers. No rate is calculated for a zero denominator. Denominators
-for candidate/source/occurrence incidence are the corresponding complete input
-population; relation counts and byte sums are absolute totals. `family_cells`
-have unique key `(family, eligibility_state, membership_state, reason)`;
-include an ALL-reasons cell for disjoint state counts and separate overlapping
-reason cells. NONE denotes no reason and ALL denotes the disjoint state total;
-both are summary-only sentinels. Denominator is all candidates for that family.
-`convergence_cells` is an object with keys `by_family_mask` (cells keyed by
-family_mask/selection_status, denominator all generated hypotheses),
-`standard_native_equal_source_rows` and `standard_native_equal_candidates`
-(incidence metrics over their respective full input populations).
-`candidate_histogram` has `(scope=GENERATED|SELECTED, bin, count)` with denominator
-all candidates. `field_decision_cells` have `(field, disposition, reason_or_NONE,
-count)` over all candidate Q4 slots. A field that was not evaluated because a
-common gate failed is NOT_APPLICABLE, not an evaluated failure. Mask/state and
-family cells allow exact Q3/Q5/Q6 convergence and availability without extra
-row relations. Unknown keys or dimensions fail validation.
+Counts use unsigned integer arithmetic. Every scalar metric/cell has count,
+denominator and denominator_kind; ABSOLUTE totals have null denominator. Other
+kinds are SOURCE_ROW, CANDIDATE, CONTEXT, FAMILY_SLOT, HYPOTHESIS or FIELD_SLOT,
+with the named complete input/slot population as denominator. Zero denominator
+has no rate; no floating-point rates are stored. No output/manifest/summary
+self-hashes occur in the object.
 
-Adding a new metric is a reviewed schema/profile change.
-Timing, host/job/Git/resource and physical-byte measurements belong in the
-operational manifest/receipt, not this logically reproducible summary. The
-portable report can reproduce those non-sensitive operational metrics alongside
-the exact summary hash. Country/script/length cross-tabs and review material
-remain controlled unless separately approved for disclosure; this version's
-portable summary contains only global/family aggregates and no geographic
-small-cell joins. A portable CSV/Parquet of hypotheses is never a sanitized
-summary, even when query strings have been removed.
+Family cells have unique (family Q1..Q6, eligibility, membership, reason); ALL
+is the disjoint state-total reason and NONE means no reason. Individual reason
+cells overlap and must not be summed as a partition. Denominator is all contexts
+for that family. Q1 on NATIVE/Q2 on STANDARD record role unavailability, not
+missing source representation on the whole row. Q7 is not counted as six-slot
+eligibility or suppression. Field cells have (field, disposition, reason), with
+one slot per context for each of Q4's six fields; NOT_APPLICABLE distinguishes
+an unevaluated common-gate failure.
 
-## Budget calibration and marginal utility
+Convergence cells comprise by_family_mask (six-bit Q1..Q6 mask and hypothesis
+count, denominator all hypotheses), same_row_full_standard_native_equal (row
+incidence), and same_row_full_standard_native_evaluable (both full baselines
+available). Equal cross-context full intents are counted as cost opportunity;
+no context family membership is invented or merged. Mask histograms express
+all within-context family overlaps; source-row incidence never counts twice.
 
-1. Using one immutable catalog, compute every B in 1..5 under the same frozen
-   order. Simulate each prefix by rank and convergence; no new generation or
-   repeated protected run is needed. Compare candidate/source coverage, local
-   and global intent counts, marginal new intents by family, redundancy,
-   convergence and projected cost. Partition context-abstained candidates so
-   a lower cost caused by lost country coverage remains visible.
-2. Predeclare the DEVELOPMENT trial selection, complete Stage 11 request
-   contract, retrieval policy, trial budgets and owner tolerances for marginal
-   cost/recall before retrieval. A trial at the engineering ceiling is an option
-   for unbiased family comparison, not an automatically authorized workload.
-   A smaller partial trial cannot support utility claims for unexecuted families.
-3. After later separately accepted/authorized Stage 12/13 data exists, compare
-   the same source/candidate populations against independently adjudicated
-   DEVELOPMENT targets. A returned feature is not a correct candidate. Freeze
-   correctness/granularity/adjudication rules and deployment/index identity;
-   use a held-apart DEVELOPMENT validation partition, not sealed HOLDOUT.
-4. For each family report recall and unique correct-candidate contribution,
-   marginal benefit after preceding families, added complete semantic requests,
-   response volume/runtime cost, false-candidate contribution, redundancy and
-   convergence support. Shared requests cost once; credit can belong to multiple
-   families. Leave-one-family-out ablation must keep a request when another
-   family still contributes it. Also report cumulative prefix ablation.
-5. Select the smallest B meeting the predeclared owner recall-loss and cost
-   tolerances on DEVELOPMENT, with uncertainty and country/script coverage
-   reported. If no B qualifies, report that outcome for design review; do not
-   silently exceed five. Family reordering/eligibility/transform changes require
-   a new immutable scientific version and renewed validation. The thresholds
-   are later owner choices, not arbitrary numeric claims in this design.
+Histograms have scope, lower_inclusive, upper_inclusive, count, denominator,
+denominator_kind. Fixed exact bins: HYPOTHESES_PER_CONTEXT 0..4,
+HYPOTHESES_PER_SOURCE_ROW 0..8, CONTEXTS_PER_SOURCE_ROW 0..2. For
+HYPOTHESES_PER_CANDIDATE, CONTEXTS_PER_CANDIDATE,
+COUNTRY_CONTEXTS_PER_CANDIDATE and BOUNDARY_CONTEXTS_PER_CANDIDATE use bounded
+bins [0], [1], [2], [3,4], [5,8], ..., [2^63+1,2^64-1], clipping the final upper
+bound to uint64 max. Also store exact min/max/sum for each histogram scope.
+This retains bounded memory and portable size while measuring candidate reuse.
+All candidate histograms include the complete accepted candidate set; source-row
+histograms include no-candidate rows. Emit zero bins and sort by scope enum
+in the order listed above, then lower bound. Family/field cells sort by declared
+schema enum order; masks by unsigned integer. No arbitrary string dimension.
 
-Do not equate identical text/requests, shared references or STANDARD/NATIVE
-convergence with independent votes. When request budgets or populations differ,
-report missing family observations explicitly; do not impute zero benefit.
-Q7's later activation utility needs its own predeclared conditional denominator
-and paired ordinary-versus-diagnostic analysis if it is ever enabled.
+Peak memory, time, host/job/runtime/Git, physical bytes and exact build hashes
+belong in the operational manifest/receipt, not the logically reproducible
+summary. Both row-level relations and selectors stay protected, including
+hashed IDs. Portable output contains global/family aggregates only: no examples,
+country/script labels cross-tabulated with small cells, source filenames or
+arbitrary exception text. Future additional metrics require a reviewed schema
+change; protected debugging output cannot be relabeled a sanitized report.
 
-## Controlled qualitative review and independent review
+## Calibration A — structural and cost evidence available at Stage 10
 
-Future Stage 10 transformation review uses the accepted fixed-500 DEVELOPMENT
-identities and preserves their established order/lineage. Owner-authorized human
-reviewers inspect full versus alternate forms on controlled infrastructure,
-especially Q3 boundaries, Q4 role over-constraint, Q5 legitimate information loss
-and Q6 script/language distortion. No protected text is sent to an LLM or
-external service. Additional coverage-targeted DEVELOPMENT cases require a
-predeclared selection and scope. Previously reviewed parser cases must not be
-described as fresh blinded validation. Stage 10's fixed-500 review concerns
-hypothesis defensibility, not current geocoding correctness.
+From the one immutable all-eligible catalog, measure context/source coverage,
+convergence, uniqueness and projected cost. Simulate operating prefixes B=1..4
+per context with the frozen family order, retaining every underlying payload.
+No first-run suppression or rerun is needed. Report effects by context and source
+row and candidate reuse, not just totals. A later operating plan is a new
+immutable policy/profile; it cannot modify the catalog or become an execution
+workload without separate review/authorization. No fixed candidate cap is used.
 
-Independent review later reopens the single immutable artifact and recomputes
-all input bindings, hypotheses, exact intents, selectors, transformations,
-gates, convergence, budgets, logical hashes, map-back and publication state.
-Accepted-source preservation and family-related losses must be checked beyond
-aggregate counts. Rejection preserves the artifact and requires owner review
-before any bounded repair/reexecution. Scientific acceptance requires explicit
-owner acceptance after independent review and then a stop.
+Cost evidence can justify a provisional trial size, not an accuracy-optimal
+budget. Any future family/rule/order change requires owner review and a new
+scientific version; do not tune the initial run from individual protected cases.
 
-## HOLDOUT and downstream freeze
+## Calibration B — later recall and family value
 
-Before one-shot HOLDOUT, freeze at minimum family definitions/order, exact
-transform rules/assets/versions, all eligibility/abstention rules, engineering
-and operating budgets, suppression/convergence policy, identity/selector/schema
-formulas, Stage 11 complete semantic request contract and parameters, Stage 12
-deployment/execution identity, and every enabled conditional activation rule.
-If Q7 stays disabled, freeze constant FALSE and zero diagnostic slots explicitly.
-If it is enabled, its sufficient result predicate, witness/completeness gates,
-combined budget and immutable wave/dedup contract must be accepted first.
+Only after separately frozen/authorized Stage 11–13 behavior and outcomes exist:
 
-No HOLDOUT access/tuning is authorized here. Benchmark V1 stays 35,000
-DEVELOPMENT / 15,000 HOLDOUT from 1,405 files; the later six production files do
-not change it. Production Stage 2 remains not started. The current Stage 19
-acceptance and separate exact-workload Pelias authorization gate remains in
-force; a Stage 10 design freeze cannot reconcile or waive it.
+1. Predeclare a paired DEVELOPMENT trial, complete request policy and exact
+   deployment/index. Full-ceiling retrieval is one option for observing every
+   family, not automatic workload authorization. Unexecuted families have missing
+   evidence, never zero benefit. Freeze adjudication/granularity rules and a
+   held-apart DEVELOPMENT validation frame before calibration.
+2. Use independently adjudicated correct-candidate targets; returned feature,
+   confidence and rank are not correctness. Report context and source-row recall,
+   unique correct-candidate contribution, marginal benefit after earlier families,
+   complete-request costs/response volume, false-candidate contribution,
+   redundancy and convergence with explicit denominators and uncertainty.
+3. Charge a shared complete request once across all contexts. Retain every
+   contributing family but do not count shared parser/reference ancestry or
+   STANDARD/NATIVE convergence as independent votes. Leave-one-family-out
+   ablation removes a request only when no surviving family/context requires it;
+   context/source-level availability and globally saved request cost differ.
+4. Select the smallest B meeting predeclared owner cost/recall-loss tolerances,
+   using DEVELOPMENT only. No qualifying B is a review outcome, not permission
+   to exceed the ceiling. Enabled later Q7 would need a distinct conditional
+   denominator, deterministic triggering evidence and paired diagnostic analysis.
+
+## Controlled review, acceptance and HOLDOUT freeze
+
+After the first immutable run, any separately authorized human qualitative
+review uses the fixed-500 DEVELOPMENT identities and established order on
+controlled infrastructure, never protected prompts or external services.
+Examine Q3 boundary usefulness, Q4 over-constraint, Q5 whole-line false removals,
+Q6 distortion, and contexts sharing a candidate with divergent source evidence.
+Source rows with two contexts stay two linked review surfaces. Additional cases
+require predeclared selection; historical parser examples are not fresh blinded
+validation. No protected individual review is authorized in this design session.
+
+Independent review later recomputes complete contexts, generation/gates, all
+memberships, selectors, exact bytes/hashes, counts/map-back and publication from
+the one immutable artifact. Rejection preserves history; acceptance requires
+explicit owner approval and a stop. No approval of this design launches a job.
+
+Before one-shot HOLDOUT freeze families, context identity/grain, transforms and
+assets, eligibility, engineering/operating budgets, suppression/convergence,
+lineage/identity/schema formulas, Stage 11 complete request semantics, Stage 12
+deployment/execution identity and all enabled conditional rules. Q7 stays
+explicitly deferred unless a separately approved sufficient contract exists.
+No HOLDOUT tuning. Benchmark remains 35,000 DEVELOPMENT / 15,000 sealed HOLDOUT
+from 1,405 files; later six production files do not alter it. Production Stage 2
+is not started; the Stage 19 acceptance/explicit-workload geocoding gate remains.

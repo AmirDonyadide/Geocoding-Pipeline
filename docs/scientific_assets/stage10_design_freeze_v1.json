@@ -4,6 +4,8 @@
     "design_only": true,
     "holdout": false,
     "implementation": false,
+    "main_merge": false,
+    "normal_design_branch_push": true,
     "pelias": false,
     "production": false,
     "protected_development": false,
@@ -11,50 +13,90 @@
     "stage11": false
   },
   "baseline_git_sha": "23cfb85f428b00301d68591ea5992763abf9ad88",
-  "design_defect_ledger_items": 36,
-  "design_package_sha256": "7ce2306188cc9c96ba17ddbeeb77eff72071b15ce60de120c3faa6b47abbec2d",
+  "context_grain": "PRESENT_STAGE08_SOURCE_ROW_REPRESENTATION_OCCURRENCE",
+  "design_defect_ledger_items": 40,
+  "design_package_sha256": "a30b02e5817d8b30b4991c36d453e044664902dedaa4fd0423f5d9fd3a250cd0",
+  "design_revision": 2,
   "documents": [
     {
-      "bytes": 23548,
+      "bytes": 6716,
+      "path": "docs/scientific_assets/stage10_transliteration_spec_v1.json",
+      "sha256": "5d0a8f6906a8d93ac38d73a862d69e31e2e9e454e8d0518e0c13f9792256a916"
+    },
+    {
+      "bytes": 21336,
       "path": "docs/stages/STAGE10_DATA_CONTRACT.md",
-      "sha256": "9553a644f4bddfca82cda8a0e8fdb52307ee28bd7f2b0152f00290651d676150"
+      "sha256": "031d38d35714f18019dd331a2cdadcbb9fc8606ca9755e18c53c890b828585fb"
     },
     {
-      "bytes": 13114,
+      "bytes": 13608,
       "path": "docs/stages/STAGE10_DESIGN_REVIEW.md",
-      "sha256": "5b3b1c4609efef58334d46004b1819c9893ac3a732eb1902b85664814fe88d20"
+      "sha256": "c8e944daa6715bd67db7f2a8edc512bed04cd8450dc238b785d950024319e036"
     },
     {
-      "bytes": 16297,
+      "bytes": 16649,
       "path": "docs/stages/STAGE10_DEVELOPMENT_EVALUATION.md",
-      "sha256": "3376747929073e7eb4c49941bebbcf2d2ba184e0f29676f274a6bfdbeb093f0b"
+      "sha256": "b4583fb7db5a0b278d9149d0a11010cc6a877d9bce63d6a996fe39c01a87f661"
     },
     {
-      "bytes": 18623,
+      "bytes": 22420,
       "path": "docs/stages/STAGE10_MULTI_HYPOTHESIS_QUERY_GENERATION.md",
-      "sha256": "195458a1b849793db535d2fee55a655a71918f6dd4a637b085ded9687809a93e"
+      "sha256": "4a7f408837d484aaf07059e6a1821d76410ce58134c54b0ea9cc2d2ca874ae5f"
     },
     {
-      "bytes": 23740,
+      "bytes": 25400,
       "path": "docs/stages/STAGE10_QUERY_FAMILIES.md",
-      "sha256": "7c337ca26fe46c5dd98a55ec39e57997d1882f0203f2724c794a0a44fe010df0"
+      "sha256": "2d3017495c8b86d0455df53d13f8fbf3a294bcdf20edb45e7ef0f522be455448"
     }
   ],
+  "engineering_safety_ceiling": {
+    "contexts_per_source_row": 2,
+    "distinct_hypotheses_per_query_context": 4,
+    "hypotheses_per_exact_candidate": "4 * present_occurrence_count",
+    "hypotheses_per_source_row": 8,
+    "proof": "Q1/Q2 mutually exclusive by representation role; Q5/Q6 mutually exclusive by script eligibility; each family single-valued; 1 baseline + Q3 + Q4 + max(Q5,Q6) = 4; at most 2 contexts per source row.",
+    "violation_behavior": "FAIL_PUBLICATION_NEVER_TRUNCATE"
+  },
   "executable_contract_fingerprint": null,
   "executable_profile_fingerprint": null,
   "executable_schema_fingerprint": null,
+  "family_decisions_per_context": 6,
+  "first_development_budget_suppression_allowed": false,
+  "first_development_mode": "ALL_ELIGIBLE_CATALOG",
   "freeze_version": "stage10_design_freeze_v1",
   "hash_definition": "SHA256(ASCII(SAFE:stage10-design-freeze:v1) + NUL + canonical_json_without_design_package_sha256); sorted keys, ASCII escapes, compact separators, no NaN, final LF",
   "output_logical_fingerprint": null,
-  "owner_review_decisions": 11,
+  "owner_decisions_incorporated": 11,
   "proposed_contract": "stage10_multi_hypothesis_query_contract_v1",
-  "proposed_engineering_ceiling_per_candidate": 5,
-  "proposed_engineering_ceiling_per_source_row": 10,
   "proposed_profile": "stage10_multi_hypothesis_query_profile_v1",
   "proposed_schema_bundle": "stage10_multi_hypothesis_query_schema_v1",
-  "q7_activation": "CONSTANT_FALSE",
+  "protected_relations": [
+    {
+      "grain": "query_context_id x distinct_complete_stage10_intent",
+      "name": "query_hypothesis"
+    },
+    {
+      "grain": "query_context_id x family_Q1_to_Q6",
+      "name": "query_family_decision"
+    }
+  ],
+  "publication": "STAGE09_STATE_MACHINE_UNCHANGED_WITH_STAGE10_REGISTRATION_ADAPTER_CONDITIONAL_ON_SAME_CONTROLLED_PANFS_ROOT_TOPOLOGY_AND_PRIMITIVES",
+  "publication_environment_verified_in_design": false,
+  "q7_policy": {
+    "activation_evaluator_in_stage10": false,
+    "future_activation": "SEPARATELY_FROZEN_DETERMINISTIC_RESULT_DEPENDENT_CONTRACT_REQUIRED",
+    "hypotheses_or_reserved_ids": false,
+    "per_context_decisions": false,
+    "reporting_grain": "GLOBAL_SUMMARY_AND_MANIFEST_ONLY",
+    "status": "DEFERRED_RESULT_DEPENDENT_DIAGNOSTIC"
+  },
+  "remaining_owner_decision": "FINAL_APPROVAL_OF_EXACT_REVISED_DESIGN_AND_AUTHORIZATION_TO_IMPLEMENT",
   "runtime_asset_lock_status": "REQUIRED_BEFORE_MATERIALIZATION_NOT_CREATED",
+  "sanitized_summary": "query_generation_summary",
   "scientific_operating_budget": null,
+  "scientific_operating_budget_status": "UNSELECTED_DEVELOPMENT_CALIBRATION_REQUIRED",
   "scope": "DEVELOPMENT_DESIGN_ONLY",
-  "status": "DESIGN_READY_FOR_OWNER_REVIEW"
+  "status": "DESIGN_OWNER_REVIEW_READY",
+  "supersedes_design_git_sha": "642fa170ac594f6fe425a9272b5dae6bdff584cc",
+  "transliteration_specification": "stage10_transliteration_spec_v1"
 }

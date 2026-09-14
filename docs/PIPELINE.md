@@ -429,16 +429,19 @@ accepted transition boundary is summarized in the authoritative
   projection bound by Stage 8. No duplicated source map.
 - **Proposed contract:** Exact full STANDARD/NATIVE, source-boundary LF alternate,
   source-anchored structured, narrow unit/floor stripping and native Greek/Cyrillic
-  transliteration. Q7 country diagnostics remain disabled/deferred. Five distinct
-  hypotheses/candidate and ten/source row are the proposed engineering ceilings;
-  scientific operating budget remains for DEVELOPMENT calibration.
+  transliteration. Generation uses one context per Stage 8 source/representation
+  occurrence, with local source-country and boundaries. Q7 is globally deferred.
+  Q1/Q2 and Q5/Q6 are mutually exclusive per context, proving the reachable
+  engineering maximum of four/context and eight/source row. No fixed global
+  candidate cap; first DEVELOPMENT materializes all eligible hypotheses. The
+  scientific operating budget remains unselected for DEVELOPMENT calibration.
 - **Primary tools:** SAFE rules, PyArrow/DuckDB and pinned ICU4C 77.1 for Q6.
   These are design proposals, not implemented dependencies.
 - **Acceptance:** Explicit hypothesis identity/type/reason, complete map-back,
   no overwrite, multilingual review, and bounded query ladders.
-- **Status:** **DESIGN READY FOR OWNER REVIEW — NOT APPROVED, NOT IMPLEMENTED,
-  NOT EXECUTED**. See the [design package](stages/STAGE10_MULTI_HYPOTHESIS_QUERY_GENERATION.md)
-  and D061's proposed decisions. Stop for owner review; no Stage 11 work or
+- **Status:** **OWNER REVISIONS INCORPORATED — FROZEN FOR FINAL OWNER REVIEW,
+  NOT IMPLEMENTED, NOT EXECUTED**. See the [design package](stages/STAGE10_MULTI_HYPOTHESIS_QUERY_GENERATION.md)
+  and D062's owner-revision record. Stop for final owner approval to implement; no Stage 11 work or
   geocoding is authorized.
 
 ### Stage 11 — Global query identity, deduplication, and workload QA
