@@ -21,7 +21,7 @@ query can be inspected and reproduced.
 
 ## Current status
 
-The DEVELOPMENT pipeline is accepted through Stage 8. Stage 7 is accepted as
+The DEVELOPMENT pipeline is accepted through Stage 9. Stage 7 is accepted as
 reproducible parser evidence, not semantic component or geographic truth.
 The first Stage 8 candidate failed independent review. Its first publication
 repair preserved Stage 8 science, and DEVELOPMENT job `1763984` passed exact
@@ -35,7 +35,11 @@ commit CLI status and final-ownership binding. Third bounded repair
 passed. Exact candidate `231cdbf9…` then passed corrected independent rereview
 job `1764376` with zero candidate defects and is accepted as
 `STAGE_8_ACCEPTED`. Jobs `1763747`, `1763984`, and `1764219` remain historical
-evidence for their exact executables only. Stage 9 has not started.
+evidence for their exact executables only. Stage 9 is `STAGE_9_ACCEPTED` under
+owner decision D060: executable `3e10ac7c…`, DEVELOPMENT job `1771191`, independent
+review `a9ae443c…` / job `1772139`, zero candidate defects. Acceptance is offline
+reference evidence only, not address validity or geocoding accuracy; see the
+[accepted Stage 9 report](reports/development/stage09.md#owner-acceptance-and-freeze--2026-09-14).
 
 | Stage | Name | Status | Data effect |
 |---:|---|---|---|
@@ -48,11 +52,12 @@ evidence for their exact executables only. Stage 9 has not started.
 | 6 | Early exact deduplication | **`STAGE_6_ACCEPTED`** | Preserves 35,000 rows and maps 69,747 occurrences to 51,779 exact candidates |
 | 7 | libpostal parsing/evidence | **`STAGE_7_ACCEPTED`** | Preserves exact raw ordered parser evidence, applicability/technical provenance, warnings, and complete map-back; components remain hypotheses only |
 | 8 | Lossless address-evidence projection | **`STAGE_8_ACCEPTED`** | Candidate `231cdbf9…`, executable `c04cb972…`, job `1764273`, and corrected independent rereview job `1764376`; zero candidate defects and unchanged science |
-| 9–14 proposed | Reference evidence, hypotheses, retrieval, scoring, and final granularity | **PROPOSED — NOT STARTED** | No design approval or execution authorization |
+| 9 | Conservative offline reference evidence | **`STAGE_9_ACCEPTED`** | 51,779 candidates; four-state capability-scoped evidence; no source correction or final geographic truth |
+| 10–14 proposed | Hypotheses, retrieval, scoring, and final granularity | **PROPOSED — NOT STARTED** | No design approval or execution authorization |
 
 Production Stage 0 and Stage 1 are accepted for
 `production_population_1411_v1` (1,411 files; 141,048,582 rows). Production
-Stage 2 through Stage 8 have not started.
+Stage 2 and later stages have not started.
 
 ## Architecture
 
@@ -67,7 +72,8 @@ immutable source CSV
   -> Stage 6: exact lowercase candidate registry + complete row map
   -> Stage 7: accepted evidence-only libpostal projection
   -> Stage 8: accepted lossless evidence projection/index
-  -> proposed Stages 9–14: references, hypotheses, query QA, retrieval, scoring
+  -> Stage 9: accepted conservative offline reference evidence
+  -> proposed Stages 10–14: hypotheses, query QA, retrieval, scoring
   -> self-hosted SAFE Pelias
 ```
 
@@ -79,17 +85,18 @@ to every `stable_source_row_id_v1`.
 
 | Path | Contents |
 |---|---|
-| `src/safe_geocoding_pipeline/` | Pipeline package, contracts, execution guards, accepted Stage 0–8 implementations, and reporting |
+| `src/safe_geocoding_pipeline/` | Pipeline package, contracts, execution guards, accepted Stage 0–9 implementations, and reporting |
 | `tests/` | Synthetic/unit tests and guarded integration tests; no protected records |
 | `cluster/goethe_nhr/` | Reviewed SLURM and environment assets for Goethe-NHR |
 | `scripts/` | Current controlled transfer helpers |
 | `docs/` | Current project, pipeline, workflow, privacy, execution, and reproducibility documentation |
-| `docs/stages/` | Stage 0–8 accepted records and their frozen contracts/history |
+| `docs/stages/` | Stage 0–9 records and their frozen contracts/history |
 | `docs/history/` | Accepted source-foundation records that predate the Stage terminology |
-| `reports/development/` | One human-readable authoritative DEVELOPMENT report per accepted Stage 0–8 |
+| `reports/development/` | One human-readable authoritative DEVELOPMENT report per accepted Stage 0–9 |
 | `reports/generated/` | One machine-readable sanitized evidence summary per accepted Stage 0–8 |
+| `review/stage09_independent/` | Preserved independent Stage 9 review harness, final verdict, and sanitized aggregate evidence |
 
-The single authoritative implementation pipeline is Stage 0–8 under
+The single authoritative implementation pipeline is Stage 0–9 under
 `src/safe_geocoding_pipeline/preprocessing/stages/`. Frozen phase-prefixed
 artifact identifiers may appear only where Stage 0 or Stage 1 validates
 immutable source-foundation provenance created before Stage terminology.
@@ -104,7 +111,7 @@ immutable source-foundation provenance created before Stage terminology.
   sealed until one
   explicitly authorized final evaluation after Stages 2–19 are frozen.
 - **Production population:** 1,411 files and 141,048,582 rows. Production
-  Stage 0 and Stage 1 are accepted; production Stages 2–8 have not started.
+  Stage 0 and Stage 1 are accepted; production Stage 2 and later have not started.
 
 Benchmark V1 remains permanently bound to its accepted 1,405-file population;
 the later six production files do not change or rebuild it.
@@ -122,7 +129,7 @@ documentation. See [Privacy and security](docs/PRIVACY_AND_SECURITY.md).
 ## Quick start
 
 The package supports Python 3.11 or newer for local development. Reproducing
-the accepted Stage 3–8 Goethe execution requires the exact pinned Python 3.14.3
+the accepted Stage 3–9 Goethe execution requires the exact pinned Python 3.14.3
 runtime and Unicode 16.0.0 contract plus each stage's frozen dependencies and
 artifacts.
 
@@ -164,7 +171,7 @@ explained in [Inspecting results](docs/INSPECTING_RESULTS.md).
 - [Benchmark V1](docs/BENCHMARK_SAMPLE.md)
 - [Accepted stage records](docs/stages/README.md)
 - [Historical records](docs/history/README.md)
-- [Accepted Stage 0–8 reports](reports/README.md)
+- [Accepted Stage 0–9 reports](reports/README.md)
 
 ## Current next action
 
@@ -174,9 +181,11 @@ Stage 8 is **`STAGE_8_ACCEPTED`** on DEVELOPMENT at exact candidate
 `2a50bd8c…`, and unchanged logical dataset `9c9d431c…`. Corrected independent
 rereview commit `f8a456f…` and job `1764376` passed with zero candidate defects.
 Jobs `1763747`, `1763984`, and `1764219` and all failed reviews remain truthful
-historical evidence for their exact executable lineages. The next action is
-the frozen pre-Stage-9 baseline; a separately designed and authorized Stage 9
-remains not started. HOLDOUT, production Stages 2–8, Senzing, and geocoding
-have not started and are not authorized. See the
+historical evidence for their exact executable lineages. Stage 9 is now
+**`STAGE_9_ACCEPTED`**, frozen by `stage09-offline-reference-evidence-v1` after
+independent review PASS with zero candidate defects. No rerun was required.
+The next separately authorized session is Stage 10 bounded multi-hypothesis
+query-generation design; Stage 10 is **NOT STARTED**. HOLDOUT remains sealed;
+production Stage 2 and later, Senzing, and geocoding remain unauthorized. See the
 [Stage 8 design](docs/stages/STAGE08_ADDRESS_EVIDENCE_PROJECTION.md) and
 [current progress](docs/DEVELOPMENT_PROGRESS.md).

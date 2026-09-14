@@ -1,4 +1,18 @@
-# Stage 9 publication-protocol revision — approved and integrated
+# Stage 9 publication-protocol revision — accepted for Stage 9
+
+Owner acceptance (2026-09-14, D060): **STAGE_9_ACCEPTED**. The protocol is
+accepted for the exact Stage 9 executable/artifact after independent review
+`a9ae443c…` / job `1772139`, zero candidate defects. Acceptance is exclusive
+reservation → immutable validated artifact → registration → atomic exclusive
+`_COMMITTED` seal → reopen/full validation, not directory existence alone.
+`O_CREAT|O_EXCL` is the demonstrated atomic collision primitive; PanFS job
+`1771149`, diagnostic SHA-256
+`e8d8333201a8c0b061d12288fadf404d833a875ffe0a4d160d535b88e6844f35`.
+`RENAME_NOREPLACE` is incompatible with the tested PanFS path; historical
+failed jobs/diagnostics remain preserved. Accepted Stage 8 publication semantics
+and artifacts are unchanged. Reuse in Stages 10+ requires checking that the same
+publication assumptions, controlled path and filesystem remain applicable;
+no later-stage design, implementation or execution is authorized here.
 
 Completed integration evidence (2026-09-12, D059): corrected executable
 `3e10ac7c1309c2636f35c0709fa283305d60d998`, job `1771191`, completed with
@@ -6,19 +20,20 @@ publication PASS and full in-job prepared/committed reopening. Both public-pack
 and candidate registrations/seals and current sanitized metadata reconcile.
 The [candidate report](../../reports/development/stage09.md) records the exact
 manifest/commit identities and scientific diagnostics. No second corrected run;
-Stage 9 is NOT ACCEPTED. Next gate: independent DEVELOPMENT candidate review.
+independent review and explicit owner acceptance subsequently passed under D060.
 
 ## Status, authority and conclusion
 
-Current disposition (D058): **OWNER APPROVED — INTEGRATED FOR ONE CORRECTED
+Historical disposition (D058): **OWNER APPROVED — INTEGRATED FOR ONE CORRECTED
 DEVELOPMENT RETRY**. The owner accepted direct PanFS evidence from `1771149`
 and authorized integration/local validation followed by one corrected scheduled
 run. The [implementation record](STAGE09_IMPLEMENTATION.md) describes the narrow
 delta and the [execution report](../../reports/development/stage09.md) records its
 tests, bounded defect ledger and submission state. The reviewed protocol/record
-identifier below is retained exactly; Stage 9 science remains frozen and NOT
-ACCEPTED. Earlier conditional-review language below records the pre-approval
-history, not the current authorization.
+identifier below is retained exactly; Stage 9 science remains frozen. D058 did
+not grant scientific acceptance; D060 above now records it. Conditional-review
+and proposed-integration language below remains pre-approval history, not current
+authorization or a request to repeat completed work.
 
 Owner review after candidate `96d17e763addc21b0a1c321c3a03666e928c25c7`:
 **CONDITIONALLY APPROVED IN PRINCIPLE — INTEGRATION NOT AUTHORIZED**. D056
@@ -413,9 +428,9 @@ required. HOLDOUT, production, Pelias and protected Stage 8 payloads were untouc
 
 ## Owner gate
 
-The owner-approved integration and single corrected DEVELOPMENT retry have
-completed. Job `1771191` published a validated candidate; independent review is
-now required, not another automatic execution or Stage 9 acceptance. Original
-failed attempts and both filesystem diagnostics remain untouched.
+The owner-approved integration and single corrected DEVELOPMENT retry completed.
+Job `1771191` published the exact candidate that passed independent review and
+owner acceptance under D060. Original failed attempts and both filesystem
+diagnostics remain untouched. No rerun is required or authorized by acceptance.
 
-NEXT: INDEPENDENT STAGE 9 DEVELOPMENT CANDIDATE REVIEW.
+STOP: STAGE_9_ACCEPTED. Stage 10 remains NOT STARTED.

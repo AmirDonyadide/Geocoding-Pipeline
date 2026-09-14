@@ -7,7 +7,7 @@
   relevant documentation before acting.
 - Design and obtain explicit review/approval before implementing a stage. Stop
   after every stage; evidence is not permission to continue.
-- Stages 0–8 are accepted on DEVELOPMENT. Stage 9 and production Stage 2 are
+- Stages 0–9 are accepted on DEVELOPMENT. Stage 10 and production Stage 2 are
   not started and require separate explicit authorization.
 - Preserve accepted/rejected scientific history. Do not rebase, squash, or
   rewrite the Stage 3 v1/v2 ancestry.
@@ -59,6 +59,10 @@
   `SLURM_JOB_ID`. Do not add a local bypass.
 - Controlled directories are `0700`; controlled files are `0600`. Publication
   is atomic into new immutable run directories; failed attempts are preserved.
+  Accepted Stage 9 uses permanent reservation, immutable validated artifact,
+  registration, atomic exclusive `_COMMITTED` seal, and full reopen validation.
+  Reuse in later stages requires verifying the same path/filesystem assumptions;
+  accepted Stage 8 publication semantics remain unchanged.
 - The Mac is for code, documentation, Git, unit/synthetic tests, small
   diagnostics, lightweight validation, and small authorized DEVELOPMENT review.
 - Goethe login nodes are orchestration-only. Run Python/data processing inside

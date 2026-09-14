@@ -17,7 +17,7 @@ stage.
 - **PLANNED — NOT STARTED:** conceptual placement and likely technology only.
   No accepted design or implementation exists.
 
-Stages 0–8 are accepted on DEVELOPMENT. Stage 7's frozen v1 contract completed
+Stages 0–9 are accepted on DEVELOPMENT. Stage 7's frozen v1 contract completed
 authoritative DEVELOPMENT parsing and machine validation, but the candidate
 was not ready for semantic handoff: qualitative and targeted root-cause
 evidence found material libpostal label/boundary errors. A frozen evidence-only
@@ -72,7 +72,10 @@ candidates remain rejected and immutable; the third-remediation candidate is
 accepted on DEVELOPMENT. Stage 9 has an owner-approved, reference-frozen design;
 its separately authorized implementation/local tests are complete and one
 controlled DEVELOPMENT job `1770156` failed in the synthetic filesystem preflight,
-before protected input access. Stage 9 is not accepted. Replacement Stages 10–14 remain
+before protected input access. After the approved PanFS publication repair,
+corrected job `1771191` passed; independent review `a9ae443c…` / job `1772139`
+passed with zero candidate defects. D060 records `STAGE_9_ACCEPTED`, with no
+scientific change or rerun. Replacement Stages 10–14 remain
 proposed and not started. Production Stage 7 and Stage 8 have not started.
 
 ## Cross-stage scientific rules
@@ -88,7 +91,7 @@ proposed and not started. Production Stage 7 and Stage 8 have not started.
 - Absence from an open reference is not invalidity. `MISMATCH` requires strong
   positive contradictory evidence.
 - Legacy/later-stage validation statuses are `CONFIRMED`, `MISMATCH`,
-  `NOT_FOUND`, `AMBIGUOUS`, `UNSUPPORTED`, and `INVALID_FORMAT`. The proposed
+  `NOT_FOUND`, `AMBIGUOUS`, `UNSUPPORTED`, and `INVALID_FORMAT`. The accepted
   Stage 9 evidence contract uses its own four-state model below.
 - Protected address values never leave controlled infrastructure.
 - Pandas is not used for production transformations; it is permitted for small
@@ -106,8 +109,8 @@ proposed and not started. Production Stage 7 and Stage 8 have not started.
 11 query identity/QA -> 12 Pelias top-N -> 13 scoring -> 14 granularity/abstain
 ```
 
-Stage 8 is accepted on DEVELOPMENT. Stage 9's design and public references are
-owner-approved/frozen; Stages 10–14 remain proposed, not an accepted execution
+Stages 8 and 9 are accepted on DEVELOPMENT. Stage 9's scientific design and
+public references remain frozen; Stages 10–14 remain proposed, not an accepted execution
 order. Every stage still requires its
 own design, owner
 authorization, DEVELOPMENT evidence, independent review, acceptance, and stop
@@ -294,9 +297,10 @@ parser/reference evidence, hypotheses, geocoder results, and the final accepted
 match. The first three Stage 8 candidates are rejected. The third-remediation
 candidate from job `1764273` passed corrected independent rereview job
 `1764376` with zero candidate defects and is accepted as `STAGE_8_ACCEPTED`.
-Stage 9 is **DESIGN OWNER-APPROVED — REFERENCES FROZEN**, with separately
-authorized implementation/local tests complete and controlled DEVELOPMENT
-job `1770156` failed before materializer invocation. It is not accepted.
+Stage 9 is **`STAGE_9_ACCEPTED`**, exact executable `3e10ac7c…`, DEVELOPMENT
+job `1771191`, independent review `a9ae443c…` / job `1772139`, zero candidate
+defects. Historical job `1770156` failed before materializer invocation and
+remains preserved. D060 grants acceptance, not another execution.
 Stages 10–14 remain **PROPOSED — NOT STARTED**.
 Their responsibilities, tool
 choices, and legacy mapping are maintained in this pipeline specification; the
@@ -359,8 +363,10 @@ accepted transition boundary is summarized in the authoritative
 - **Acceptance:** Reviewed design/implementation, frozen reference pack,
   authority-scoped contradictions, exact source/representation map-back,
   DEVELOPMENT diagnostics, independent review and explicit owner acceptance.
-- **Status:** **DESIGN OWNER-APPROVED — REFERENCES FROZEN**. Separately authorized
-  implementation/local validation are complete; one controlled DEVELOPMENT
+- **Status:** **`STAGE_9_ACCEPTED`** (2026-09-14, D060), tag
+  `stage09-offline-reference-evidence-v1`. The following chronology preserves
+  the design, implementation and publication-compatibility history.
+  Separately authorized implementation/local validation completed; one controlled DEVELOPMENT
   job `1770156` failed in the synthetic atomic-rename preflight, before public-pack
   construction or protected input access. That historical job produced no candidate.
   The separately authorized synthetic-only diagnostic `1771054` completed:
@@ -370,34 +376,46 @@ accepted transition boundary is summarized in the authoritative
   Neither diagnostic alone authorized a DEVELOPMENT retry or fallback.
   A separately authorized design/local-only
   [publication revision candidate](stages/STAGE09_PUBLICATION_PROTOCOL_REVISION.md)
-  now proposes exclusive run reservation and a zero-byte commit seal; a tests-only
-  model exercises its fault/recovery rules. The owner's conditional review now
-  requires one separately authorized synthetic PanFS exclusive-create diagnostic
+  proposed exclusive run reservation and a zero-byte commit seal; a tests-only
+  model exercised its fault/recovery rules. The owner's conditional review
+  required one separately authorized synthetic PanFS exclusive-create diagnostic
   before integration. No active materializer/DEVELOPMENT launcher change or
-  DEVELOPMENT retry is authorized by that diagnostic.
+  DEVELOPMENT retry was authorized by that diagnostic alone.
   Diagnostic `1771149` completed with all ten required PanFS cases passing,
   including three four-process single-winner races. The capability gate is met;
   subsequent owner decision D058 authorizes integration and exactly one corrected
   DEVELOPMENT retry after complete local/fault validation. Stage 9 now uses the
   permanent reservation / exclusive `_COMMITTED` seal protocol in both public-pack
   and candidate publication. No active publication path or corrected preflight
-  requires no-replace rename. Stage 9 is not accepted.
+  requires no-replace rename. This integration alone did not grant acceptance.
   Corrected job `1771191`, executable `3e10ac7c1309c2636f35c0709fa283305d60d998`,
   was submitted once, initially PENDING (Resources), then completed on 2026-09-12
   with exit `0:0`. Full in-job validation/reopening and sanitized reconciliation
   passed: 51,779 candidates, 6,565,329 evidence rows, zero GeoNames contradictions,
-  zero technical failures. **DEVELOPMENT CANDIDATE READY — NOT ACCEPTED**.
+  zero technical failures. D059 recorded **DEVELOPMENT CANDIDATE READY — NOT ACCEPTED**.
   The report retains high conditional format-conflict rates and all unresolved
   country assessments as review diagnostics, not address-validity claims.
-  No second corrected run was submitted; independent review is the next gate.
+  No second corrected run was submitted. Independent review
+  `a9ae443ca140627acf1712886670f39f227c1dc6` / job `1772139` subsequently passed
+  100 artifact checks, 836 candidate tests and 23 additional public/synthetic
+  checks with zero candidate defects. D060 records final owner acceptance;
+  no scientific output change or DEVELOPMENT rerun was required. Q04
+  54,022 / 90,043 = 59.995780% is a conditional reference-rule conflict rate,
+  not address invalidity. Parser repetition can materially weight evidence-row
+  denominators. Country assessment gives no resolving signal under the frozen
+  full-subdivision-witness rule; other Stage 9 evidence remains usable.
   The complete design contract is the
   [Stage 9 design](stages/STAGE09_OFFLINE_REFERENCE_EVIDENCE.md). No Stage 0–8
   change is required; the Stage 10 boundary handoff is sufficient through the
   accepted Stage 8 → Stage 6 map-back. Stage 8 remains the sole source/occurrence
   mapping authority. The new [implementation record](stages/STAGE09_IMPLEMENTATION.md)
   and [execution report](../reports/development/stage09.md) describe the bounded
-  owner authorization and current job state. Stop at the DEVELOPMENT candidate
-  for independent review; no Stage 10 or geocoding execution is authorized.
+  owner authorization and accepted identity. Stop at `STAGE_9_ACCEPTED`; no
+  Stage 10 design/implementation, rerun or geocoding is authorized by acceptance.
+  The accepted Stage 9 reservation → immutable validated artifact → registration
+  → exclusive `_COMMITTED` seal → full reopen protocol uses the demonstrated
+  `O_CREAT|O_EXCL` primitive (PanFS job `1771149`). Reuse in Stages 10+ requires
+  checking the same assumptions/path/filesystem; Stage 8 semantics are unchanged.
 
 ### Stage 10 — Multi-hypothesis query-plan generation
 

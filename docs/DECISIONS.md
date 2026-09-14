@@ -1593,6 +1593,63 @@ to change a decision or start a stage.
   immutable. **Stage 9 DEVELOPMENT candidate ready, NOT YET ACCEPTED**.
   Stop for independent review; no Stage 10 authorization.
 
+### D060 — Owner acceptance and freeze of Stage 9 offline reference evidence
+
+- **Date/authority:** 2026-09-14; explicit owner acceptance after
+  `STAGE09_OFFLINE_REFERENCE_EVIDENCE_INDEPENDENT_REVIEW_PASS`. Final status:
+  **STAGE_9_ACCEPTED**, DEVELOPMENT only. Candidate defects = **0**; no scientific
+  output change or DEVELOPMENT rerun is required. Acceptance is documentation/
+  provenance only, not another execution or permission to begin Stage 10.
+- **Provenance:** Starting main/origin-main
+  `1c7182931fd4be2a7d5dee00d3105a1e54377bae`, clean. Remote review branch
+  `review/stage09-independent-20260912` verified at
+  `a9ae443ca140627acf1712886670f39f227c1dc6`, then merged normally without squash
+  in `8a43e6a8baba5fe8e1cb366c6b811b01f1ad2d8e`. Both parents and all six review
+  commits/harness history remain explicit; no merge conflicts or scientific
+  edits. Annotated tag `stage09-offline-reference-evidence-v1` identifies the
+  final owner-acceptance commit, not just the executable.
+- **Accepted artifact:** Executable `3e10ac7c1309c2636f35c0709fa283305d60d998`,
+  job `1771191`, COMPLETED `0:0`, 08:04:53, peak RSS 9.657 GiB. Publication key
+  `stage09_development_20260910T155542Z_3e10ac7c1309`; manifest
+  `321c9d8352fac5b78612a7c8e52f6f810f92bddb1e91f7cfe348398a6d707240`, logical
+  `7ae84e149f4c9c2de7a791c9b326b88e387a70d155d8be55acf6b55e06bafae3`.
+  The [authoritative acceptance record](../reports/development/stage09.md#owner-acceptance-and-freeze--2026-09-14)
+  pins the full artifact path, contract/profile/schema fingerprints, accepted
+  Stage 8 binding, reference-pack manifest and frozen lock. All remain unchanged.
+- **Independent review:** Final evidence commit `a9ae443c…`, corrected job
+  `1772139`, COMPLETED `0:0`, 01:00:30. 100 artifact checks, 836 candidate tests
+  and 23 additional public/synthetic checks PASS. Full publication, inventory,
+  reopen, PK/FK/integrity, bindings, four-state/ISO/libaddressinput/GeoNames,
+  normalization, privacy/execution and handoff checks PASS; candidate defects 0.
+  Review-harness history/fixes remain preserved and distinct from the candidate.
+- **Scientific interpretation:** OFFLINE REFERENCE EVIDENCE only. SUPPORTED /
+  CONTRADICTED / NOT_FOUND / NOT_EVALUABLE; NOT_FOUND != CONTRADICTED; GeoNames
+  negative authority FALSE. Neither address validity nor final geocoding accuracy
+  is established. Q04 54,022 / 90,043 = 59.995780% is a conditional evaluable
+  postcode-pattern reference-rule conflict rate, independently classified A —
+  scientifically plausible and correctly implemented, not invalid addresses.
+  Parser-component repetition materially weights evidence-row denominators;
+  all future reports must keep denominators explicit. Country assessments give
+  no resolving signal in this population because there are zero qualifying full
+  subdivision-code witnesses under the frozen rule. This expected limitation
+  does not invalidate other Stage 9 evidence. BOUNDARY_HANDOFF_SUFFICIENT;
+  accepted Stage 8 remains the sole map-back layer. Production capacity is unproven.
+- **Publication acceptance:** For Stage 9, exclusive permanent reservation →
+  immutable validated artifact → registration → atomic exclusive `_COMMITTED`
+  seal → reopen/full validation. `O_CREAT|O_EXCL` is demonstrated by PanFS job
+  `1771149`, diagnostic SHA-256
+  `e8d8333201a8c0b061d12288fadf404d833a875ffe0a4d160d535b88e6844f35`.
+  `RENAME_NOREPLACE` is incompatible with the tested path; failed job `1770156`
+  and diagnostic `1771054` remain historical evidence. No Stage 8 publication
+  semantics/artifact is changed. Reuse for Stages 10+ requires checking the same
+  assumptions/path/filesystem; directory existence alone is not success.
+- **Freeze boundary:** No source/tests/launcher or frozen scientific asset edits;
+  candidate output/manifest/registration/seal and candidate-era acceptance flags
+  remain immutable. This owner decision and tag add acceptance without rewriting
+  history. Safe acceptance checks are recorded in the report. Stage 0–8 science
+  unchanged; STAGE_8_ACCEPTED; HOLDOUT SEALED; production/Pelias untouched;
+  Stage 10 NOT STARTED. Stop after acceptance; no cluster job or rerun.
+
 ## Open decisions
 
 These questions require future stage designs and explicit approval:
@@ -1607,6 +1664,8 @@ Nothing in this register authorizes HOLDOUT, another Stage 8 protected
 execution, geocoding, or production Stage 2 through Stage 8. D050 records the
 approved Stage 9 design/public-reference scope; D051 records the separate bounded
 Stage 9 implementation/DEVELOPMENT authorization, not acceptance or later stages.
+D060 alone records final Stage 9 DEVELOPMENT owner acceptance; it authorizes
+neither a rerun nor later-stage design/implementation.
 Stage 7 decisions
 D023–D036 retain their stated historical DEVELOPMENT scopes; D037 alone
 records final Stage 7 DEVELOPMENT acceptance. D038 records the prospective

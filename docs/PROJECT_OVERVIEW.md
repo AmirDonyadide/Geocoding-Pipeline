@@ -49,7 +49,7 @@ The pipeline therefore establishes a controlled evidence chain:
 10. accept a result only at an explicit evidence-supported granularity, or
     remain unresolved.
 
-Stages 0–8 are implemented, independently reviewed, and accepted on
+Stages 0–9 are implemented, independently reviewed, and accepted on
 DEVELOPMENT. Stage 7 acceptance is strictly evidence-only. Its first controlled
 design diagnostic correctly returned not ready. Its revised supervisor
 diagnostic then proved the prior four giant crashes were resource-cap
@@ -119,9 +119,15 @@ preflight before protected input access. That historical job published no candid
 After owner-approved publication repair and direct PanFS capability evidence,
 corrected job `1771191` completed on 2026-09-12 and passed full in-job publication/
 scientific reopening and sanitized reconciliation: 51,779 candidates and 6,565,329
-reference-evidence rows. The DEVELOPMENT candidate awaits independent review,
-including its high conditional postcode-format conflict rates; Stage 9 is not accepted;
-see the [execution record](../reports/development/stage09.md). Replacement
+reference-evidence rows. Independent review `a9ae443c…` / job `1772139` passed
+100 artifact checks with zero candidate defects. Owner decision D060 records
+`STAGE_9_ACCEPTED`, with no scientific output change or DEVELOPMENT rerun.
+The Q04 54,022 / 90,043 = 59.995780% conflict rate is a conditional reference-rule
+diagnostic, not an invalid-address rate; parser repetition materially weights
+evidence-row denominators. Country assessment remains unresolved because no
+qualifying full subdivision-code witnesses exist under the frozen rule; this
+does not invalidate other reference evidence. See the
+[acceptance record](../reports/development/stage09.md#owner-acceptance-and-freeze--2026-09-14). Replacement
 Stages 10–14 remain proposed and not started.
 See
 [PIPELINE.md](PIPELINE.md).
@@ -155,7 +161,7 @@ The project favors high-precision evidence over aggressive correction:
 - protected addresses never leave controlled infrastructure.
 
 The legacy/later-stage validation vocabulary is `CONFIRMED`, `MISMATCH`,
-`NOT_FOUND`, `AMBIGUOUS`, `UNSUPPORTED`, and `INVALID_FORMAT`. The proposed
+`NOT_FOUND`, `AMBIGUOUS`, `UNSUPPORTED`, and `INVALID_FORMAT`. The accepted
 Stage 9 reference-only contract separately uses `SUPPORTED`, `CONTRADICTED`,
 `NOT_FOUND`, and `NOT_EVALUABLE`, without mapping these to address validity.
 
@@ -178,7 +184,7 @@ offline libaddressinput metadata, and GeoNames postal evidence with bounded
 DuckDB and PyArrow/Parquet. It excludes fuzzy matching and street/house-number
 references from v1. The [public freeze](stages/STAGE09_REFERENCE_FREEZE.md)
 records concrete families and explicit negative-authority gates. The stack is
-implemented and DEVELOPMENT-candidate validated, not scientifically accepted.
+accepted on DEVELOPMENT as offline reference evidence only, not geographic truth.
 Self-hosted SAFE Pelias would retain top-N features for later scoring, never
 treat the first result as truth. A planned library or dataset is not an
 implemented dependency; every new stage requires design and review before use.

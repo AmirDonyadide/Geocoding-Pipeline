@@ -19,7 +19,9 @@ design
   -> stop
 ```
 
-Stages 0–8 have completed this lifecycle on DEVELOPMENT and are accepted.
+Stages 0–9 are accepted on DEVELOPMENT under their stage-specific review gates.
+Stage 9's frozen aggregate/public/synthetic review required no protected human
+address inspection; its acceptance does not authorize such inspection or a rerun.
 Stage 7 retains its full failed-design history: the first giant-candidate stop,
 resource-sufficient v1 execution, material semantic-quality findings, DeepParse
 closure, failed readiness validation, and first independent-review

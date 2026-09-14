@@ -2,10 +2,142 @@
 
 ## Status
 
-Current: **STAGE09_OFFLINE_REFERENCE_EVIDENCE_DEVELOPMENT_CANDIDATE_READY**.
+Current: **STAGE_9_ACCEPTED** (owner acceptance, 2026-09-14, D060).
+Independent review PASS; candidate defects = **0**. No scientific output change
+or DEVELOPMENT rerun is required. Stage 10 is **NOT STARTED**.
+
+## Owner acceptance and freeze — 2026-09-14
+
+The owner explicitly accepts the exact DEVELOPMENT artifact below after
+[independent review PASS](../../review/stage09_independent/FINAL_REVIEW.md).
+The final [portable review evidence](../../review/stage09_independent/REVIEW_EVIDENCE.json)
+records 100 artifact checks PASS and no failed checks. Independent review also
+confirmed 836 candidate tests and 23 additional public/synthetic checks PASS,
+publication/inventory/reopening, relation integrity, frozen input/reference
+bindings, all scientific checks, normalization and privacy/execution policy.
+The review's informational limitations are retained; candidate defects = 0.
+Review-harness fixes and its failed job `1771693` remain distinct preserved
+history, not candidate defects or grounds for a DEVELOPMENT rerun.
+
+### Exact accepted identity
+
+| Binding | Accepted value |
+|---|---|
+| Scientific status / scope | STAGE_9_ACCEPTED / Benchmark V1 DEVELOPMENT only |
+| Executable | `3e10ac7c1309c2636f35c0709fa283305d60d998` |
+| Candidate reporting commit | `1c7182931fd4be2a7d5dee00d3105a1e54377bae` |
+| DEVELOPMENT job / state / exit | `1771191` / COMPLETED / `0:0` |
+| Elapsed / peak RSS | 08:04:53 / 9.657 GiB |
+| Publication key | `stage09_development_20260910T155542Z_3e10ac7c1309` |
+| Manifest SHA-256 | `321c9d8352fac5b78612a7c8e52f6f810f92bddb1e91f7cfe348398a6d707240` |
+| Logical dataset fingerprint | `7ae84e149f4c9c2de7a791c9b326b88e387a70d155d8be55acf6b55e06bafae3` |
+| Contract fingerprint | `6dc0410556bad44a6a6d1b3695beb6219c54a61dab39747a5ffa92ac9fcda3f9` |
+| Profile fingerprint | `b12be7ba06de2360ba7cd9b971c4b562b1c8df5d25c30024975869fd2b34efd1` |
+| Schema bundle fingerprint | `7374b70fae76149b825f523e8317577bd6d868bee3fde648ea915301d4bcb716` |
+| Accepted Stage 8 input binding | `64f7678a76e3f29f57859f050329be925b216d2b1290eff5d36b9cb4482cea90` |
+| Frozen reference-pack manifest | `dd7994b907250d515470b820bcbf42993a08e4f3116409b7c94168446e1c064a` |
+| Frozen reference lock SHA-256 | `61cc5850372886eb4ba6477a178ebd74f6ca878815036874ad47069ca32a1c63` |
+| Independent review branch | `review/stage09-independent-20260912` |
+| Final independent review evidence commit | `a9ae443ca140627acf1712886670f39f227c1dc6` |
+| Independent review job / state / exit / elapsed | `1772139` / COMPLETED / `0:0` / 01:00:30 |
+| Non-squash review merge | `8a43e6a8baba5fe8e1cb366c6b811b01f1ad2d8e` |
+| Acceptance tag | `stage09-offline-reference-evidence-v1` (annotated, final owner-acceptance state) |
+| Candidate defects / scientific output change / rerun required | 0 / No / No |
+
+Accepted artifact (unchanged):
+`/work/footprint/donyadidegan/safe_geocoding_pipeline/derived/controlled/stage09/development/stage09_development_20260910T155542Z_3e10ac7c1309`.
+
+The merge preserves both candidate and independent-review ancestry, including
+all six review commits and review-harness history. Acceptance is this owner
+decision plus its annotated Git tag: it does **not** rewrite the artifact,
+manifest, registration, seal, frozen design/reference bytes, or historical
+candidate-era `stage09_accepted: false` fields. Those fields truthfully describe
+publication before owner review. The tag resolves the final acceptance commit;
+the executable remains the distinct exact SHA above.
+
+### Accepted scientific interpretation and limitations
+
+- Stage 9 is OFFLINE REFERENCE EVIDENCE only, never source correction, address
+  validity, parser correctness, final geographic truth or geocoding accuracy.
+- The four states remain SUPPORTED, CONTRADICTED, NOT_FOUND, NOT_EVALUABLE.
+  NOT_FOUND != CONTRADICTED. GeoNames negative authority remains FALSE;
+  GeoNames CONTRADICTED = 0. Association mismatch is diagnostic, not invalidity.
+- Q04 = 54,022 / 90,043 = **59.995780%** contradicted, denominator explicitly
+  the evaluable postcode-pattern reference-rule checks (SUPPORTED + CONTRADICTED),
+  not addresses or distinct candidates. Independent classification **A —
+  scientifically plausible and correctly implemented** is accepted. This is
+  not an invalid-address percentage. Repeated parser-component ordinals can
+  materially weight evidence-row denominators; all future reports must keep
+  denominators explicit and must not substitute candidate/source-row incidence.
+- All 51,779 country assessments are unresolved under the frozen full-subdivision-
+  witness rule: independent review found zero qualifying full subdivision-code
+  witnesses. Country assessment supplies no resolving signal for this DEVELOPMENT
+  population. This expected limitation does not invalidate other Stage 9 evidence.
+- BOUNDARY_HANDOFF_SUFFICIENT through unchanged Stage 8 → Stage 6/source-line
+  lineage. Stage 8 remains the sole authoritative source/occurrence map.
+  Stage 0–8 science is unchanged. Production-scale capacity remains unproven.
+
+### Accepted Stage 9 publication protocol
+
+Exclusive permanent reservation → immutable validated artifact → registration
+→ atomic exclusive `_COMMITTED` seal → reopen/full validation is accepted for
+Stage 9. Directory, reservation or registration existence alone is never success.
+Exact content/provenance identity, not historical cross-job inode equality,
+governs adoption. No overwrite, stale takeover or racy rename fallback is allowed.
+
+Approved protocol candidate: `96d17e763addc21b0a1c321c3a03666e928c25c7`.
+PanFS environment evidence: job `1771149`, diagnostic SHA-256
+`e8d8333201a8c0b061d12288fadf404d833a875ffe0a4d160d535b88e6844f35`.
+`O_CREAT|O_EXCL` is the demonstrated Stage 9 atomic collision primitive.
+`RENAME_NOREPLACE` is incompatible with the tested PanFS path (`EINVAL`, job
+`1771054`); that evidence and failed DEVELOPMENT attempt `1770156` are preserved.
+Accepted Stage 8 publication semantics/artifacts are not changed retroactively.
+Reuse in Stages 10+ requires checking the same publication assumptions, controlled
+path and filesystem remain applicable; acceptance grants no later-stage work.
+
+### Safe owner-acceptance gate
+
+Acceptance checks passed on the exact Python 3.14.3 runtime; no runtime guard
+was weakened:
+
+- **60 tests PASS**: `tests/test_stage09_reference_contract.py`, accepted Stage 8
+  runtime-fingerprint guard, Stage 8 frozen-schema/taxonomy test, Stage 7
+  evidence-contract test, and preserved review-reporting regressions.
+- **STAGE_REPORTS_VALIDATION_PASS**: `scripts/validate_stage_reports.py`, including
+  unchanged accepted Stage 7/8 report fingerprints and historical status fields.
+- **Frozen identity assertions PASS**: Stage 7/8 executable contract/schema
+  fingerprints; Stage 9 frozen design/lock bytes, contract, six relation schemas,
+  schema bundle, accepted-input binding, profile and logical dataset. Profile
+  and dataset identities were recomputed from sanitized frozen relation metadata,
+  not from payloads. The first ad-hoc acceptance check incorrectly sorted the
+  profile's ordered reference list and supplied all six relations to the dataset
+  formula instead of its three candidate relations plus the bound public pack.
+  Correcting only that check to use the existing executable formulas reproduced
+  the exact accepted identities. No candidate defect or scientific change.
+- **Documentation/status/links PASS**: 137 local links; D060 and current indexes
+  consistently record STAGE_9_ACCEPTED and Stage 10 NOT STARTED. Stage 10's
+  existing specification section is byte-unchanged, not newly designed here.
+- **Ancestry/content preservation PASS**: both non-squash merge parents verified;
+  all nine independent-review files unchanged from `a9ae443c…`; source, tests,
+  launchers, scripts, scientific assets, frozen Stage 9 design/reference freeze,
+  and accepted Stage 0–8 records/summaries unchanged from the reporting candidate.
+- **Privacy/tracked-data and diff hygiene PASS**: 23 changed paths consist of
+  nine preserved review files and fourteen owner-acceptance/status Markdown files;
+  no new untracked files, payload files, credentials or credential signatures;
+  `git diff --check` passes. Only sanitized evidence/provenance was inspected.
+
+No artifact reprocessing, protected access, SLURM job or DEVELOPMENT rerun is
+part of this freeze. HOLDOUT remains SEALED; production/Pelias untouched.
+
+STOP: STAGE_9_ACCEPTED. Stage 10 remains NOT STARTED; its bounded query-generation
+design belongs to a separately authorized session.
+
+## Historical candidate status and execution chronology
+
+Historical D059 result: **STAGE09_OFFLINE_REFERENCE_EVIDENCE_DEVELOPMENT_CANDIDATE_READY**.
 Corrected job `1771191` completed with exit `0:0`; publication, full in-job
 scientific/hash reopening and subsequent sanitized reconciliation passed.
-All 51,779 candidates have evidence. Stage 9 is **NOT YET ACCEPTED**; stop for
+All 51,779 candidates have evidence. At D059, Stage 9 was **NOT YET ACCEPTED**; stop for
 independent review. The high conditional postcode-format conflict rate is
 explicitly retained in the terminal reconciliation below, not called address
 invalidity. No second corrected run was submitted.
@@ -1379,5 +1511,7 @@ BOUNDARY_HANDOFF_SUFFICIENT through unchanged Stage 8 → Stage 6/source-line
 lineage. No Stage 0–8 source, scientific contract or fingerprint is modified.
 Reference lineage remains explicit for later dependence handling. Stage 10,
 HOLDOUT, production, Pelias and geocoding remain outside this authorization.
-The stage ends at a DEVELOPMENT candidate awaiting independent review, not
-STAGE_9_ACCEPTED.
+The original implementation authorization ended at a DEVELOPMENT candidate
+awaiting independent review, not acceptance. Independent review and owner
+acceptance are now complete under D060 at the top of this record. Stage 10 is
+NOT STARTED; no further work is authorized by this freeze.

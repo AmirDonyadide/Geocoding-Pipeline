@@ -151,7 +151,7 @@ Accepted/currently proposed technology choices are:
 | 6 | DuckDB/Polars/hashing |
 | 7 | Pinned libpostal/pypostal plus SAFE evidence-only projection |
 | 8 | PyArrow/Parquet and bounded DuckDB for lossless typed evidence projection/index; no reference validation |
-| 9 proposed | Potential pinned offline pycountry/libaddressinput metadata where scientifically justified; pinned GeoNames/Overture, optional approved OSM, and RapidFuzz inside strong blocks |
+| 9 | Frozen iso-codes 4.20.1-1, offline libaddressinput metadata and GeoNames postal snapshot; bounded DuckDB/PyArrow; no fuzzy matching or street/house-number references in v1 |
 | 10 proposed | SAFE deterministic multi-hypothesis planning |
 | 11 proposed | DuckDB, PyArrow/Parquet, hashing for query identity/QA |
 | 12 proposed | Self-hosted SAFE Pelias top-N retrieval |
@@ -163,7 +163,7 @@ transformations. Planned technology does not imply implementation approval.
 
 ## 7. Stage sequence and current state
 
-The accepted sequence through Stage 8 and proposed replacement sequence are:
+The accepted sequence through Stage 9 and proposed replacement sequence are:
 
 0. source inventory;
 1. lossless ingestion;
@@ -174,14 +174,14 @@ The accepted sequence through Stage 8 and proposed replacement sequence are:
 6. early exact deduplication;
 7. evidence-only libpostal parsing/projection;
 8. accepted lossless address-evidence projection;
-9. proposed offline geographic reference evidence;
+9. accepted offline geographic reference evidence;
 10. proposed multi-hypothesis query-plan generation;
 11. proposed global query identity/deduplication/workload QA;
 12. proposed self-hosted SAFE Pelias top-N retrieval;
 13. proposed result evidence scoring/cross-query convergence; and
 14. proposed final match granularity/abstention.
 
-Stages 0–8 are implemented and accepted on DEVELOPMENT. Stage 7 acceptance is
+Stages 0–9 are implemented and accepted on DEVELOPMENT. Stage 7 acceptance is
 evidence-only: its authoritative v1 run passed machine integrity but exposed
 systematic libpostal label/boundary failures, and the later readiness rule
 failed its frozen validation. The accepted v2 therefore preserves exact raw
@@ -212,8 +212,9 @@ and exact scientific and v3 publication-terminal reconciliation. Exact
 candidate `231cdbf9…` then passed corrected independent rereview commit
 `f8a456f…` and job `1764376` with zero candidate defects. Its frozen science
 remained unchanged through the remediations, and it is accepted as
-`STAGE_8_ACCEPTED`. Replacement Stages 9–14 remain proposed and not started.
-Production Stage 0 and Stage 1 are accepted; production Stages 2–8 are not
+`STAGE_8_ACCEPTED`. Stage 9 is `STAGE_9_ACCEPTED` under D060; replacement
+Stages 10–14 remain proposed and not started.
+Production Stage 0 and Stage 1 are accepted; production Stage 2 and later are not
 started. The detailed stage contracts and acceptance requirements are in
 [PIPELINE.md](PIPELINE.md). HOLDOUT remains untouched and sealed.
 
@@ -272,7 +273,12 @@ executable `c04cb97214a9f1e5d2b80512c756400321eefa80`, job `1764273`, and
 manifest `2a50bd8c…`. Corrected independent rereview commit `f8a456f…` and job
 `1764376` passed with zero candidate defects. Jobs `1763747`, `1763984`, and
 `1764219` and every failed review remain historical evidence for their exact
-lineages. The pre-Stage-9 baseline is frozen. No further Stage 8 job,
-production Stage 2 through Stage 8, HOLDOUT, Stage 9, Senzing, or geocoding is
-authorized by this acceptance; Stage 9 requires a separate design and
-authorization.
+lineages. The pre-Stage-9 baseline remains frozen. Stage 9 is now
+`STAGE_9_ACCEPTED` (D060), executable `3e10ac7c…`, job `1771191`, independent
+review `a9ae443c…` / job `1772139`, zero candidate defects and no rerun required.
+Acceptance is reference evidence only, not address validity; exact identities
+and limitations are in the [acceptance report](../reports/development/stage09.md#owner-acceptance-and-freeze--2026-09-14).
+Stage 10 bounded multi-hypothesis query-generation design is the next separately
+authorized session, not work begun here. No further job, production Stage 2 or
+later, HOLDOUT, Senzing or geocoding is authorized. HOLDOUT remains sealed;
+production/Pelias untouched; Stage 10 NOT STARTED.

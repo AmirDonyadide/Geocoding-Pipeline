@@ -2,12 +2,20 @@
 
 ## Status and authority
 
-Current owner authorization (2026-09-10, D058): integrate the approved permanent
+Current status (2026-09-14, D060): **STAGE_9_ACCEPTED**. Independent review
+`a9ae443ca140627acf1712886670f39f227c1dc6`, job `1772139`, passed with zero
+candidate defects. The owner accepts the exact job `1771191` artifact below;
+no scientific output change or DEVELOPMENT rerun is required. Exact accepted
+identities, interpretation limits and tag are in the
+[owner acceptance record](../../reports/development/stage09.md#owner-acceptance-and-freeze--2026-09-14).
+Stage 10 is NOT STARTED; this acceptance authorizes no further execution.
+
+Historical owner authorization (2026-09-10, D058): integrate the approved permanent
 reservation / exclusive commit-seal protocol, complete local/fault validation,
 push an exact executable and submit **one corrected DEVELOPMENT retry**. The
 integration below replaces only Stage 9 publication; no scientific/reference
 change or Stage 0–8 modification. The prior failures and diagnostics below remain
-historical evidence. Stage 9 is NOT ACCEPTED.
+historical evidence. D058 did not grant Stage 9 acceptance.
 The corrected executable is `3e10ac7c1309c2636f35c0709fa283305d60d998`.
 Job `1771191` was submitted once at `2026-09-10T15:56:41Z` and initially observed
 PENDING (Resources), without dependencies or requeue. It completed on 2026-09-12
@@ -17,8 +25,9 @@ terminal reconciliation passed. Manifest `321c9d8352fac5b78612a7c8e52f6f810f92bd
 logical dataset `7ae84e149f4c9c2de7a791c9b326b88e387a70d155d8be55acf6b55e06bafae3`.
 The [execution record](../../reports/development/stage09.md) contains complete
 counts, reference bindings and the high conditional postcode-format conflict
-rate, which is a review diagnostic and not address invalidity. This is a
-DEVELOPMENT candidate awaiting independent review; no second retry or Stage 10.
+rate, which is a conditional reference-rule diagnostic and not address invalidity.
+The candidate passed independent review and owner acceptance under D060;
+no second retry or Stage 10 work occurred.
 
 ## Historical authorization and failed preflight
 
@@ -259,6 +268,8 @@ No Stage 5 or Stage 8 alteration or duplicate map is needed. Reference families
 and transitive provenance remain available to prevent assumed independence from
 later Pelias evidence. Stage 9 does not implement Stage 10 or geocoding.
 
-After successful DEVELOPMENT validation, publish sanitized evidence/coverage
-diagnostics only and stop for independent review. Stage 9 is not accepted by
-implementation, test success, a SLURM completion or this record.
+Implementation, test success and SLURM completion alone never grant acceptance.
+Independent review and explicit owner acceptance are now complete (D060).
+Stop at STAGE_9_ACCEPTED; Stage 10 design/implementation requires a separately
+authorized session. Accepted Stage 0–8 and frozen Stage 9 scientific bytes remain
+unchanged; HOLDOUT SEALED, production/Pelias untouched.
