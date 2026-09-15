@@ -15,7 +15,7 @@ parent. All implementation descends from that freeze. No Stage 10 acceptance tag
 Historical status wording in the normative design remains frozen; this separate
 record carries the new implementation authorization.
 
-**IMPLEMENTATION IN PROGRESS — NO DEVELOPMENT JOB SUBMITTED — NOT ACCEPTED.**
+**IMPLEMENTATION PUSHED — GOETHE CONNECTION PREFLIGHT BLOCKED — NO DEVELOPMENT JOB SUBMITTED — NOT ACCEPTED.**
 
 ## Transliteration runtime blocker, 2026-09-14
 
@@ -330,3 +330,32 @@ DEVELOPMENT submission remains subject to exact input/runtime hashes, unchanged
 PanFS topology, absent destination/reservation and all reconciliation gates.
 PENDING/RUNNING means one state report and STOP; failure means preserve and STOP.
 Stage 10 remains NOT ACCEPTED until independent review and owner acceptance.
+
+
+### Executable pushed; connection preflight blocked — 2026-09-15
+
+The exact executable is **f83480d60449bcc904c0c622e394e12df3c3f2d9**, pushed to
+main normally. It descends from the approved design merge and retains all
+runtime-locked source hashes. Final checks: 989 safe tests in Python 3.14.3,
+215 Stage 10 focused tests in the matching Mac ICU environment, 120 strict
+mypy modules, maintained-tree Ruff lint/format, report/document/hash/schema/
+inventory checks, CLI help/contract output, shell syntax and staged privacy/diff
+checks. An isolated export of accepted Stage 9 main independently reproduced
+the exact 341 historical mypy diagnostics and the existing review-archive Ruff
+findings. No accepted file was edited to remove them.
+
+The SSH orchestration attempt failed before contacting Goethe: configured
+`goethe.hhlr-gu.de` did not resolve. Local connection metadata reported eduVPN
+disconnected. No protected artifact was opened and no remote checkout,
+publication directory/reservation, scheduler submission or protected execution
+was created by this implementation attempt. Public runtime job 1772341 remains
+the completed preparation evidence; it is not a DEVELOPMENT job.
+
+The owner was asked to restore the VPN connection. On resumption, retain
+executable f83480d60449bcc904c0c622e394e12df3c3f2d9; complete the exact detached
+Goethe checkout, accepted Stage 6/8/9 metadata/runtime/PanFS/destination
+reconciliation, then submit the one already authorized DEVELOPMENT job.
+No additional scientific approval is needed. Do not count the failed SSH
+connection as a job attempt, and do not silently skip any pre-submission gate.
+HOLDOUT remains sealed; Stage 0–9 unchanged; production/Pelias untouched;
+Stage 11 NOT STARTED; Stage 10 NOT ACCEPTED.
