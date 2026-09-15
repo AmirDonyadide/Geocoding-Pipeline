@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import copy
 import importlib.util
 import os
@@ -19,7 +21,7 @@ from safe_geocoding_pipeline.preprocessing.stages import (
 
 
 @pytest.fixture(scope="module")
-def public_runtime():
+def public_runtime() -> Any:
     configured = os.environ.get("STAGE10_TEST_RUNTIME_ROOT")
     if not configured:
         pytest.skip("Explicit exact public build required")
@@ -36,11 +38,11 @@ def public_runtime():
 
 
 @pytest.mark.parametrize("text,target", checks.SCRIPT_CASES)
-def test_pinned_script_gate(text, target):
+def test_pinned_script_gate(text: Any, target: Any) -> None:
     assert t.eligible_script(text, check_marks=True) == target
 
 
-def test_preparation_public_gate_replay(public_runtime):
+def test_preparation_public_gate_replay(public_runtime: Any) -> None:
     instance, root, repository = public_runtime
     actual = checks.validate(root, repository)
     assert actual == c.read_json(root / "runtime_validation.json")
@@ -51,7 +53,9 @@ def test_preparation_public_gate_replay(public_runtime):
     assert actual["runtime_semantic_fingerprint"] == instance.semantic_fingerprint
 
 
-def test_runtime_semantics_excludes_build_provenance_and_locations(public_runtime):
+def test_runtime_semantics_excludes_build_provenance_and_locations(
+    public_runtime: Any,
+) -> None:
     instance, _, _ = public_runtime
     changed = copy.deepcopy(instance.lock)
     changed["build_execution"] = {
@@ -71,21 +75,23 @@ def test_runtime_semantics_excludes_build_provenance_and_locations(public_runtim
 @pytest.mark.parametrize(
     "field", ["icu_version", "unicode_version", "cldr_version", "direction"]
 )
-def test_semantic_dependencies_change_fingerprint(public_runtime, field):
+def test_semantic_dependencies_change_fingerprint(
+    public_runtime: Any, field: Any
+) -> None:
     instance, _, _ = public_runtime
     changed = copy.deepcopy(instance.lock)
     changed[field] = "INVENTED_MISMATCH"
     assert lock.semantic_fingerprint(changed) != instance.semantic_fingerprint
 
 
-def test_data_binary_changes_fingerprint(public_runtime):
+def test_data_binary_changes_fingerprint(public_runtime: Any) -> None:
     instance, _, _ = public_runtime
     changed = copy.deepcopy(instance.lock)
     changed["artifacts"][-1]["sha256"] = "0" * 64
     assert lock.semantic_fingerprint(changed) != instance.semantic_fingerprint
 
 
-def test_batch_launcher_has_bounded_public_scope():
+def test_batch_launcher_has_bounded_public_scope() -> None:
     repository = Path(__file__).resolve().parents[1]
     script = (
         repository / "cluster/goethe_nhr/stage10_build_transliteration_runtime.sbatch"
@@ -104,15 +110,18 @@ def test_batch_launcher_has_bounded_public_scope():
 
 
 @pytest.fixture
-def builder():
+def builder() -> Any:
     path = Path(__file__).resolve().parents[1] / "scripts/stage10_build_runtime.py"
     spec = importlib.util.spec_from_file_location("stage10_public_builder", path)
+    assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
 
 
-def test_linux_guard_precedes_any_asset_read(builder, monkeypatch, tmp_path):
+def test_linux_guard_precedes_any_asset_read(
+    builder: Any, monkeypatch: Any, tmp_path: Any
+) -> None:
     from safe_geocoding_pipeline.execution_policy import ExecutionPolicyError
 
     monkeypatch.setattr(builder.platform, "system", lambda: "Linux")
@@ -126,12 +135,12 @@ def test_linux_guard_precedes_any_asset_read(builder, monkeypatch, tmp_path):
 
 
 def test_collision_does_not_write_failure_into_existing_runtime(
-    builder, monkeypatch, tmp_path
-):
+    builder: Any, monkeypatch: Any, tmp_path: Any
+) -> None:
     marker = tmp_path / "original"
     marker.write_text("public synthetic runtime marker")
 
-    def collision(*args, **kwargs):
+    def collision(*args: Any, **kwargs: Any) -> Any:
         raise c.Stage10Error("STAGE10_RUNTIME_BUILD_COLLISION")
 
     monkeypatch.setattr(builder, "build", collision)
@@ -151,10 +160,14 @@ def test_collision_does_not_write_failure_into_existing_runtime(
     assert sorted(p.name for p in tmp_path.iterdir()) == ["original"]
 
 
-def test_owned_failure_receipt_preserved(builder, monkeypatch, tmp_path):
+def test_owned_failure_receipt_preserved(
+    builder: Any, monkeypatch: Any, tmp_path: Any
+) -> None:
     target = tmp_path / "new-public-build"
 
-    def owned_failure(archive, root, repository, jobs, *, ownership):
+    def owned_failure(
+        archive: Any, root: Any, repository: Any, jobs: Any, *, ownership: Any
+    ) -> Any:
         root.mkdir(mode=0o700)
         info = root.stat()
         ownership.append((info.st_dev, info.st_ino))
@@ -181,7 +194,7 @@ def test_owned_failure_receipt_preserved(builder, monkeypatch, tmp_path):
     }
 
 
-def test_exclusive_json_never_replaces(builder, tmp_path):
+def test_exclusive_json_never_replaces(builder: Any, tmp_path: Any) -> None:
     path = tmp_path / "runtime_build_lock.json"
     builder.exclusive_json(path, {"public": "original"})
     with pytest.raises(FileExistsError):
@@ -189,7 +202,7 @@ def test_exclusive_json_never_replaces(builder, tmp_path):
     assert c.read_json(path) == {"public": "original"}
 
 
-def test_launcher_resolves_only_configured_mount_anchor(tmp_path):
+def test_launcher_resolves_only_configured_mount_anchor(tmp_path: Any) -> None:
     repository = Path(__file__).resolve().parents[1]
     script = (
         repository / "cluster/goethe_nhr/stage10_build_transliteration_runtime.sbatch"

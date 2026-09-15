@@ -1877,3 +1877,18 @@ that predicate/proof and dependent bounds; the other reviewed decisions stand.
   evidence and stop. Only after exact Linux verification may the already
   authorized unfinished implementation resume. No Stage 11, Pelias, HOLDOUT or
   production. See the [bounded preparation record](stages/STAGE10_IMPLEMENTATION.md#owner-authorized-replacement-preparation).
+
+### D066 — Stage 10 implementation bound to the approved occurrence contract
+
+- D064/D065 remain the authorization: one DEVELOPMENT catalog, followed by
+  independent review; no Stage 11, Pelias, HOLDOUT or production.
+- Implement the unchanged five/context and ten/row safety envelope, with tighter
+  four STANDARD/five NATIVE/nine-row validation. All eligible families are kept;
+  operating budget remains UNSELECTED. Source maps remain authoritative in Stage 8.
+- Reuse the exact verified Goethe ICU runtime and Stage 9 publication primitives
+  through a Stage 10 registration adapter. Runtime-locked code and accepted
+  Stage 0–9 files remain unchanged.
+- The [complete implementation review](stages/STAGE10_IMPLEMENTATION.md#complete-implementation-defect-ledger)
+  records all bounded findings, fixes, synthetic validation, historical static
+  check limitations and the single-execution stop boundary. This is executable
+  preparation, not scientific acceptance or authorization for another stage.

@@ -210,3 +210,123 @@ Operating budget remains UNSELECTED. The initial artifact must retain every
 eligible Q1–Q6 intent; Q7 remains globally deferred with no machinery or rows.
 Stage 0–9 science/history is unchanged. HOLDOUT remains sealed; production/Pelias
 untouched; Stage 11 NOT STARTED. Stage 10 is not yet accepted.
+
+## Executable implementation — final bounded self-review
+
+The Stage 10 executable implements two protected relations at the approved
+occurrence grain. Every PRESENT Stage 8 STANDARD/NATIVE slot retains its own
+context and six family decisions. Complete intents converge only inside that
+context. Q1/Q2 preserve the full candidate; Q3 uses that occurrence's four slots;
+Q4 uses source fields with scoped accepted positive evidence and authorized
+postcode-only negative gates; Q5 requires complete-line grammar, unique parser
+alignment and source vetoes; Q6 uses the verified immutable Goethe runtime.
+Q7 has no evaluator, workload, decision rows or reserved IDs. Operating budget
+is UNSELECTED; bounds fail closed without suppressing eligible families.
+
+The [execution profile](../scientific_assets/stage10_execution_profile_v1.json),
+[schema descriptor](../scientific_assets/stage10_schema_descriptor_v1.json), and
+[implementation inventory](../scientific_assets/stage10_implementation_inventory_v1.json)
+bind the executable contract, schemas, transformations and runtime. These are
+implementation assets of the unchanged scientific design. The inventory excludes
+itself and this rolling operational record to avoid circular hashes.
+
+Generation uses disk-backed DuckDB joins/indexes, Arrow batches limited by bytes
+and rows, a streaming hash of giant nested parser arrays, fixed-size on-disk
+alignment offsets, bounded immutable evidence caches and sixteen context-ID
+prefix shards. Each complete shard has an exclusive input/science/executable
+checkpoint. Explicit resume validates interval, schema, bytes, counts and logical
+hashes; incomplete checkpoints are never adopted. Reverse shard generation and
+complete checkpoint reuse preserve logical identity. Production sizing still
+requires separate evidence; this DEVELOPMENT run cannot establish production
+readiness.
+
+Publication imports the exact accepted Stage 9 exclusive-create, ownership,
+private-read and seal primitives and retains its reservation/registration/
+commit/reopen transitions in a Stage 10 registration adapter. No Stage 9 file is
+changed. Preflight checks canonical private paths, actual PanFS mount identity,
+same accepted topology, O_CREAT|O_EXCL primitive reuse and free-space headroom.
+A changed filesystem/topology returns STAGE10_PUBLICATION_ENVIRONMENT_REVIEW_REQUIRED.
+No fresh filesystem capability diagnostic is launched. Every publication phase
+validates byte inventories, both full relations, independent context reconstruction,
+all transformation/selector bytes, summary, identities and map-back. Uncertain
+commit outcomes require reconciliation; no automatic retry or cleanup.
+
+The frozen logical summary remains closed. Additional aggregate diagnostics
+explicitly requested in the implementation authorization live in operational
+manifest metadata: family totals, Q5/Q6 coexistence, role maxima, exact postcode
+capability effects, non-negative absence evidence, Q5 abstentions and Q6 script
+eligibility/failure counts. They do not influence generation or logical IDs and
+are recomputed on reopen. Protected text, IDs, source filenames and arbitrary
+exception strings never enter portable reporting. Complete query representations
+remain in the two controlled relations only. No Stage 11 semantic ID is claimed.
+
+### Complete implementation defect ledger
+
+This is one bounded review covering the whole implementation and integration
+findings, including checks where no scientific defect was found. All entries
+below are resolved before submission; no candidate output has been generated.
+
+| ID | Finding / review scope | Resolution and evidence |
+| --- | --- | --- |
+| I01 | Globally shared candidate could contaminate occurrence eligibility | Exact source/role context FKs; row-local country and boundaries; multi-row/multi-country/equal-role tests. |
+| I02 | Nested Stage 8 parser list could create candidate-sized Python objects | Arrow recursive streaming certificate; narrow candidate table and streamed long components; large-list test. |
+| I03 | Python DuckDB UDF introduced an undeclared NumPy runtime dependency | Scalar identity generation through bounded Arrow writer; no additional dependency. |
+| I04 | Evidence-object fields differed from inferred names | Use accepted asset_id and explicit_parent_id; full synthetic schema integration. |
+| I05 | SQL conflict expression evaluated an error during ordinary selector insertion | Exact stored-payload comparison using RETURNING; collision tests and independent certificate reconstruction. |
+| I06 | Witness certificate reader could miss transaction-local rows | Hash through the transaction-owning connection; independently reconstructed nonempty five-section certificate test. |
+| I07 | Repeated public-object/parser work and repeated input-binding serialization | Fixed byte/entry caches and immutable cached input identity; no cross-context eligibility cache. |
+| I08 | Country-conflict synthetic fixture incorrectly expected positive historical Q4 evidence | Faithful Stage 7 country provenance; unresolved existing assessments remain unresolved while row-local full queries survive. |
+| I09 | Postcode negative witness initially lacked complete scope checks | Exact COUNTRY_MATRIX, country zip locator or full prefix-bundle/admin/country witness, source arguments and authorized negative capability; six injected certificate faults. |
+| I10 | GeoNames positive witness needed an explicit object-kind check | POSTAL_ASSOCIATION and exact same-record field lineage; negative authority remains prohibited. |
+| I11 | Historical JSON helper used pretty UTF-8 rather than Stage 10 compact ASCII | Dedicated canonical writer; byte-exact checkpoint/summary tests. |
+| I12 | Temporary output views were invisible to independent replay cursors | Persistent private workspace views; full integrated publication/replay test. |
+| I13 | Summary construction rescanned payloads per cell | Fixed-dimension grouped counts and bounded histogram bins; complete source/candidate populations include zero-output cases. |
+| I14 | Checkpoint reuse needed explicit interval/count enforcement | Exact prefix and six-decisions/context validation, immutable hashes and complete replay before commit. |
+| I15 | Runtime failure-receipt filename and external ready pins needed reconciliation | Exact committed lock/report/ready hashes and real runtime_failure_receipt.json checked before protected inputs. |
+| I16 | Preparation failures and teardown could obscure the publication outcome | Preserved static failure receipts; post-success receipt/presentation/teardown cannot demote validated publication. |
+| I17 | Q5 deletion safety / Q5–Q6 independence | Complete boundary units only, unique alignment, mixed-content/source vetoes; 20,000-component bounded-memory test; independent transformations attain five NATIVE/nine per row. |
+| I18 | Identity, convergence and family membership corruption | Full-intent byte comparison, deterministic replay, PK/FK/rank/role checks, zero orphan/cross-context membership; injected corruption fails. |
+| I19 | Arbitrary operating-budget or Q7 leakage | All eligible catalog only, UNSELECTED operating budget, no Q7 machinery, role/context/row/candidate fail-closed caps. |
+| I20 | Publication uncertainty, races and hostile paths | Accepted state transitions with Stage 10 binding; fault/adoption/race/symlink/hardlink/permissions tests. |
+| I21 | Raw engine errors or network calls could leak data | Shared pre-input execution guard, static CLI/receipt errors, disabled network and DuckDB remote filesystem; privacy/error-path tests. |
+| I22 | Exact runtime and frozen science could drift during integration | Seven locked source/data dependencies, six design files and runtime semantic/build identities mechanically rechecked; none changed. |
+| I23 | Default Mac Python did not satisfy historical exact-runtime tests | Use existing Python 3.14.3 environment for the safe regression suite; separately run locked ICU tests in their matching Mac environment. No guard patched. |
+| I24 | Broad historical style/type checks have existing failures | Record baseline diagnostics without editing accepted Stage 0–9; all implementation source and Stage 10 tests pass strict typing and maintained-tree Ruff. |
+
+### Validation evidence and execution boundary
+
+Focused Stage 10 tests: **215 PASS**, including real locked ICU, deliberate
+version/data/hash faults, context/cardinality proofs, boundary/stripping tests,
+closed evidence gates, full artifact replay, all publication faults, shard order,
+resume, privacy and large-value behavior. The complete safe repository collection
+is covered by **989 PASS** in the existing exact Python 3.14.3 environment plus
+its remaining **62 Stage 10 runtime/transliteration tests** in the matching
+Mac runtime environment. All 62 are also included in the 215 focused total;
+they are not counted twice as distinct tests. No protected payload fixtures.
+
+An attempted auxiliary Mac ICU build under the standalone Python 3.14.3 failed
+while constructing its Python dependency lock because that distribution embeds
+unicodedata without an extension-file path. The private
+`verified-macos-v5-py3143/runtime_failure_receipt.json` and build are preserved.
+This is local test-tool packaging, not a Goethe ICU/version mismatch. The
+already verified Goethe build and the existing Mac v4 runtime remain unchanged.
+No replacement Goethe preparation job was submitted.
+
+Strict mypy passes all source, Stage 10 tests and inventory validation (120 modules). The broad
+historical `mypy src tests` command reports 341 existing diagnostics in 16
+Stage 6/7/9 test modules; none is in Stage 10 or implementation source. Broad
+Ruff reports two existing unused imports and four formatting issues in the
+accepted Stage 9 independent-review archive. Maintained `src tests scripts`
+lint/format checks pass. No exclusion or weakened guard was added to project
+configuration, and historical review files remain byte-identical.
+
+The launcher requests one node/task, 4 CPUs, 32 GiB and 24 hours on general1 /
+footprint, no dependencies and no requeue. DuckDB uses four threads and an
+8-GiB memory limit; the remaining headroom accommodates Arrow, giant accepted
+scalar values and ICU. The walltime allows complete input hashing plus three
+full publication-validation passes; it is a ceiling, not a runtime prediction.
+Code is pushed before a clean detached Goethe checkout is created. The one
+DEVELOPMENT submission remains subject to exact input/runtime hashes, unchanged
+PanFS topology, absent destination/reservation and all reconciliation gates.
+PENDING/RUNNING means one state report and STOP; failure means preserve and STOP.
+Stage 10 remains NOT ACCEPTED until independent review and owner acceptance.
