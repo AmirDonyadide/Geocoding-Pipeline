@@ -21,6 +21,9 @@ record carries the new implementation authorization.
 
 **STAGE10_IMPLEMENTATION_BLOCKED_TRANSLITERATION_RUNTIME**
 
+Historical blocker, resolved by the verified replacement runtime below on
+2026-09-15. The cancelled attempt remains part of the record.
+
 Public-only preparation used the clean detached preparation executable
 `79a994e8a000b0de79dd9edbf52d4aa8e4bc1f14`. Scheduler accounting for allocation
 `1772282` (`safe-stage10-public-icu`) records `CANCELLED by 60099`, no start,
@@ -105,7 +108,7 @@ runtime evidence. There is still no protected DEVELOPMENT submission.
 | Item | Finding | Disposition |
 | --- | --- | --- |
 | RP-01 | `--immediate=30` prevented the earlier allocation from starting | Ordinary single batch submission; no requeue or retry. |
-| RP-02 | Linux runtime/lock evidence absent | Remains an execution gate until the replacement job validates; no substitution. |
+| RP-02 | Linux runtime/lock evidence absent | Resolved on 2026-09-15 by job 1772341 and exact retained lock/report/binary verification; no substitution. |
 | RP-03 | Initial lock omitted Python wrapper/normalization and shared dependency hashes | Exact dependency locks and fail-closed initialization added. |
 | RP-04 | Operational lock identity alone did not supply a path/time-independent runtime identity | Added a separate deterministic semantic projection; frozen full-lock binding retained. |
 | RP-05 | UnicodeSet/property equivalence lacked independent exhaustive evidence | Same additional filter exposed by bridge and exhaustively compared; canonical original-filter intersection unchanged. |
@@ -114,11 +117,50 @@ runtime evidence. There is still no protected DEVELOPMENT submission.
 | RP-08 | Failure receipt could have altered a pre-existing collision target | Receipt requires this invocation's captured directory identity; collision/ownership tests pass. |
 | RP-09 | Pre-submission check rejected the already accepted `/work` to `/panfs/vdura1` mount alias | Canonicalize only the configured project anchor, following accepted Stage 9; still reject symlinks below it. Detected before any replacement submission or build directory creation. |
 
-All bounded preparation code defects are resolved. RP-02 is the explicitly
-pending Linux execution gate, not an implementation success claim. The full
+All bounded preparation defects, including RP-02's Linux execution gate, are
+resolved. This is a runtime checkpoint, not an implementation success claim. The full
 Stage 10 implementation/self-review remains unfinished and preserved locally;
 this preparation review does not replace it. Frozen design hashes and Stage 0–9
 science remain unchanged. No additional owner scientific decision is needed.
+
+### Exact Goethe runtime established — 2026-09-15
+
+**STAGE10_TRANSLITERATION_RUNTIME_READY**
+
+Replacement job **1772341**, executable
+`f7765d463e0053a0f062e333d77a75f5ce1bc6a8`, completed with exit `0:0`, elapsed
+`00:04:17`, batch MaxRSS `471988K`. Requested 4 CPUs / 8 GiB / 30 minutes;
+accounting reports 80 allocated CPUs, while compilation explicitly uses 4.
+No second replacement was submitted. The source archive and all compiled
+asset hashes match. The immutable runtime is
+`/panfs/vdura1/footprint/donyadidegan/safe_geocoding_pipeline/runtimes/stage10/icu77_linux_f7765d463e00`,
+under the accepted `/work/footprint` mount alias.
+
+Verified ICU4C **77.1**, Unicode **16.0.0**, CLDR **47**, CPython **3.14.3**;
+canonical `Grek-Latn` / `Cyrl-Latn`, `UTRANS_FORWARD`, unchanged frozen filtering
+and normalization. The in-job report passes **25 positive and 12 fail-closed
+checks**, plus **2,228,224** independent UnicodeSet comparisons. No protected
+payload was accessed. Shell-only reopening reconciled lock/report/ready hashes,
+all four compiled artifacts, private permissions and no failure receipt. No
+Python/data processing was run on the login node.
+
+- Build lock SHA: `20bfe735dca8b35b0ea10f1e3d729f2007e4cf3333dd5d5b5cdd527ef638d2cd`.
+- Runtime semantic fingerprint: `8b0a2232c28898f1dfd581e88fcbdbe8b7e7bebd458abcc852fab4cbfe225a8b`.
+- Validation SHA: `36fbc8c546f322e8a3e0b64e31411b900984cd9871ce7cf8c2941d90c479c0b9`.
+- Ready-record SHA: `7a1125109463d8e6ed10d905ed379f90c4b19025bfbcc4c1cc75f1b0b51700dc`.
+
+The [public runtime inventory](../scientific_assets/stage10_runtime_goethe_v1/inventory.json)
+binds byte-exact sanitized copies of the lock, validation and ready record.
+Its mechanical local validation recomputes the semantic fingerprint and
+reconciles the executable/source hashes without loading Linux binaries on Mac.
+Binary/public build assets remain on Goethe, outside Git. The wrapper and its
+locked dependencies must remain byte-identical when used by the Stage 10
+executable; remaining implementation belongs in separate modules.
+
+The existing owner authorization now permits resuming the unfinished Stage 10
+implementation without another permission step. There is still no complete
+executable or protected DEVELOPMENT run. Stage 0–9 science is unchanged;
+HOLDOUT sealed; production/Pelias untouched; Stage 11 NOT STARTED.
 
 The existing Mac ICU 78.3 is ineligible. A new isolated build uses the exact
 ICU source commit `457157a92aa053e632cc7fcfd0e12f8a943b2d11`, with source archive
