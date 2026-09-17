@@ -2,249 +2,120 @@
 
 ## Research context
 
-The SAFE Geocoding Pipeline supports research that links company and facility
-locations to fine-grained environmental, remote-sensing, neighborhood, and
-other spatial measures. Those uses require a defensible physical point for a
-building, plant, branch, store, facility, or comparable establishment. A city,
-region, or country centroid is too coarse for point-level exposure analysis.
+The SAFE Geocoding Pipeline prepares protected Orbis company and facility
+addresses for SAFE's self-hosted Pelias service. The research needs defensible
+physical locations for buildings, plants, branches, stores and comparable
+establishments, linked to environmental, remote-sensing and neighborhood
+measures. City, region and country centroids are too coarse for point-level
+exposure analysis.
 
-The pipeline prepares protected Orbis address records for SAFE's self-hosted
-Pelias service. It is a research-data construction system, not a general public
-geocoding client.
-
-## Goal
-
-The final workflow must produce:
-
-- controlled, versioned SAFE Pelias queries;
-- candidate and query identities that map back to every source row;
-- selected coordinates with match and geographic-agreement evidence;
-- an explicit scientific usability decision; and
-- enough contracts, manifests, fingerprints, and execution provenance to
-  reproduce the result.
-
-A successful HTTP request or returned feature is not sufficient. Match layer,
-match type, component agreement, contradictions, ambiguity, and query lineage
-must remain available for scientific review.
+The eventual output must retain each source row, its derived candidates and
+queries, geocoder evidence, selected coordinates, and an explicit scientific
+usability decision. Contracts, manifests, fingerprints and execution provenance
+must make those decisions reproducible. HTTP success, rank and confidence
+alone cannot establish a usable location.
 
 ## Why preprocessing is separate from geocoding
 
-Source addresses vary strongly across countries, scripts, and completeness
-patterns. Quoted multiline fields and very large values exist. Address-line
-positions do not have fixed meanings worldwide, `id` is not assumed globally
-unique, and postal codes must remain strings. Directly concatenating raw fields
-would hide assumptions and make geocoder behavior difficult to interpret.
+Source files contain quoted multiline fields, very large values, varied scripts
+and incomplete geography. Address lines 1–4 have no universal component
+meanings; provider `id` is not globally unique; postal codes are strings.
+Preprocessing makes each transformation and assumption independently reviewable.
 
-The pipeline therefore establishes a controlled evidence chain:
-
-1. verify and fingerprint the source population;
-2. ingest every logical CSV record without loss;
-3. preserve stable source identity and provenance;
-4. create only explicit derived values;
-5. build standard and native candidates separately;
-6. preserve parser output as evidence and abstain from unsafe structural use;
-7. generate multiple versioned address/query hypotheses;
-8. validate hypotheses and geocoder results with independent evidence;
-9. deduplicate candidates and queries without deleting source rows; and
-10. accept a result only at an explicit evidence-supported granularity, or
-    remain unresolved.
-
-Stages 0–9 are implemented, independently reviewed, and accepted on
-DEVELOPMENT. Stage 7 acceptance is strictly evidence-only. Its first controlled
-design diagnostic correctly returned not ready. Its revised supervisor
-diagnostic then proved the prior four giant crashes were resource-cap
-dependent, and its later authoritative DEVELOPMENT v1 run passed machine
-integrity but failed as a semantic-truth handoff because qualitative and
-targeted root-cause evidence found material systematic parsing errors. The
-country-aware applicability audit reconciled DEVELOPMENT denominators. The
-DeepParse infrastructure path closed as
-`DEEPPARSE_INFRASTRUCTURE_PATH_NOT_JUSTIFIED`; no protected DeepParse inference
-occurred. Optimized bounded readiness audit job `1763358` found that a
-deterministic Stage 7-local screen catches all six known boundary failures but
-cannot guarantee semantic label correctness. Fresh prediction-blinded review
-of the predeclared 240-case v2 validation selection then failed the frozen
-READY-precision, clear-misparse-leakage, and usable-abstention gates. The rule
-remains useful structural-warning evidence but is not publishable as the v2
-component-consumption gate. Owner decision D035 freezes evidence-only
-`stage07_parser_evidence_contract_v2`: exact v1 outputs and Stage 6 candidates
-are preserved, applicability and technical execution remain separate, and
-structural signals are warnings rather than semantic trust. Its full
-DEVELOPMENT projection and reopen validation passed for all 51,779 candidates
-in job `1763516`. Its first independent review found documentation/downstream-
-contract inconsistencies only. After that bounded correction, independent
-rereview job `1763656` passed exact candidate
-`656a16d3d1f33cb152ace557c26f42df047bc7d6`, and the owner accepted it as
-`STAGE_7_ACCEPTED`. None of this alters immutable v1 output or converts parser
-components into semantic or geographic truth; warning absence provides no
-trust guarantee. The old Stages 8–19 were never started. The compact
-evidence-first replacement Stage 8 DEVELOPMENT candidate was materialized by
-job `1763747` at exact executable
-`a2544401b4b699f6c020970f3507a2ae432746c5`. Exact reversibility and all frozen
-validators passed for that executable, but independent review rejected exact
-reporting candidate `adde81d2237e99993222994ce56efb0d74f7c2d3`: the
-publication state machine could expose success before prepublication reopen
-validation, and one current architecture table still placed pycountry and
-libaddressinput in Stage 8. The bounded fix is executable
-`bd89a032eb6fcf16a7515e0bd2991165d87246b1`. Repaired DEVELOPMENT job
-`1763984` published manifest `d521240b…`, reproduced the frozen logical dataset
-`9c9d431c…`, and passed the first repair's tests for executable `bd89a032…`.
-Independent rereview then failed exact reporting candidate `fdf2f8c…` because
-a real rename followed by an exception could leave reader-visible success while
-the invocation reported failure. The second bounded repair is executable
-`bdea7232a3f92ebd381be87610b753b8e4c35481`; it reconciles both temporary
-and final paths by captured filesystem identity and adopts final-only state
-only after parent fsync and complete independent reopen validation. Authorized
-job `1764219` then materialized executable `bdea7232…`; manifest `346ea27a…`,
-unchanged logical dataset `9c9d431c…`, every frozen validator, and the ordinary
-publication path reconciled exactly. Independent rereview then failed candidate
-`70e3de95…`: post-commit stdout failure produced a failure exit, and policy-A
-ownership was not rechecked after parent fsync/final validation. Third repair
-executable `c04cb97214a9f1e5d2b80512c756400321eefa80` separates publication
-from presentation status and makes a final no-follow identity verification the
-last rejection-capable publication operation. Authorized job `1764273`
-published manifest `2a50bd8c…`, the unchanged logical dataset `9c9d431c…`,
-and exact scientific and v3 terminal reconciliation. Exact candidate
-`231cdbf9db755fb56486c46b3b3faa02f5b5f3b6` then passed corrected independent
-rereview commit `f8a456f…` and job `1764376` with zero candidate defects and
-zero infrastructure-incomplete checks. Its scientific contract stayed
-unchanged through every publication remediation, and the owner accepted it as
-`STAGE_8_ACCEPTED`. Jobs `1763747`, `1763984`, and `1764219` remain immutable
-historical evidence for their exact executables; every failed review remains
-truthful. The pre-Stage-9 baseline is frozen. A separately authorized
-[Stage 9 design](stages/STAGE09_OFFLINE_REFERENCE_EVIDENCE.md) is owner-approved
-with required revisions incorporated and public reference bytes frozen;
-its separately authorized implementation and synthetic validation are complete,
-but controlled DEVELOPMENT job `1770156` failed in the synthetic filesystem
-preflight before protected input access. That historical job published no candidate.
-After owner-approved publication repair and direct PanFS capability evidence,
-corrected job `1771191` completed on 2026-09-12 and passed full in-job publication/
-scientific reopening and sanitized reconciliation: 51,779 candidates and 6,565,329
-reference-evidence rows. Independent review `a9ae443c…` / job `1772139` passed
-100 artifact checks with zero candidate defects. Owner decision D060 records
-`STAGE_9_ACCEPTED`, with no scientific output change or DEVELOPMENT rerun.
-The Q04 54,022 / 90,043 = 59.995780% conflict rate is a conditional reference-rule
-diagnostic, not an invalid-address rate; parser repetition materially weights
-evidence-row denominators. Country assessment remains unresolved because no
-qualifying full subdivision-code witnesses exist under the frozen rule; this
-does not invalidate other reference evidence. See the
-[acceptance record](../reports/development/stage09.md#owner-acceptance-and-freeze--2026-09-14). Replacement
-Stage 10 now has a separately authorized
-[design candidate](stages/STAGE10_MULTI_HYPOTHESIS_QUERY_GENERATION.md) revised after owner review and
-final after the ceiling correction, awaiting owner implementation authorization; it is not implemented or executed. Stages 11–14 remain
-proposed and not started.
-See
-[PIPELINE.md](PIPELINE.md).
+The implemented chain establishes source identity, preserves decoded values,
+adds clean and lowercase forms, reconstructs separate standard/native
+candidates, deduplicates exact candidate work, and records parser and reference
+evidence. Stage 10 generates query hypotheses offline. Retrieval, scoring and
+final selection remain proposed. See [PIPELINE.md](PIPELINE.md) for stage
+boundaries and [DATA_FLOW.md](DATA_FLOW.md) for schemas and map-back.
 
 ## Standard and native Orbis representations
 
-Both standard and native address representations originate from Orbis. Some
-standard representations are English translations, while native fields may
-retain the original script and local form. The pipeline treats them as
-separate candidates:
+Both representations originate from Orbis. Standard values may be English
+translations; native fields may preserve original script and local form.
+Neither is globally authoritative. They remain separate representation
+occurrences even when exact text shares a Stage 6 candidate ID.
 
-- native values are never overwritten by a standard or English form;
-- all address lines are not blindly concatenated;
-- the two representations may be parsed, evaluated, and queried independently;
-- transliteration, if approved later, remains a third derived candidate; and
-- each candidate maps back to the same immutable source row.
+Native text is never overwritten. Stage 5 joins nonempty lines in their original
+order within each representation, preserving duplicates and excluding separate
+geographic fields. Stage 10's narrowly eligible Greek/Cyrillic transliteration
+is an additional hypothesis; the full native candidate remains intact.
 
-## Conservative scientific philosophy
+## Scientific limits
 
-The project favors high-precision evidence over aggressive correction:
+- Raw source values and `stable_source_row_id_v1` are immutable. Transformations
+  add derived fields; deduplication retains every source/representation mapping.
+- Stage 7 preserves exact parser output, applicability, technical provenance
+  and structural warnings. Its rejected readiness experiment demonstrated that
+  warning absence cannot guarantee correct labels or boundaries.
+- Stage 8 is a reversible evidence projection and index, with no semantic
+  validation or reference lookup.
+- Stage 9 uses `SUPPORTED`, `CONTRADICTED`, `NOT_FOUND` and `NOT_EVALUABLE`.
+  These describe scoped reference checks, not address validity. GeoNames has
+  no negative authority; absence is never invalidity.
+- Stage 9's Q04 conflict rate is conditional on evaluable reference checks,
+  weighted by parser-component repetition. It is not an invalid-address rate.
+  Country assessments remain unresolved because the frozen rule found no
+  qualifying full subdivision-code witnesses.
+- Any future correction must retain the original value, proposal, evidence,
+  reference version and decision. Uncertainty remains explicit.
 
-- raw source values are immutable;
-- transformations add derived fields instead of overwriting inputs;
-- `stable_source_row_id_v1` remains unchanged across stages;
-- source rows are never deduplicated away;
-- a missing open-reference record does not make an address invalid;
-- `MISMATCH` requires strong positive contradictory evidence;
-- uncertain interpretation stays explicit rather than being silently inferred;
-- corrections, if later accepted, retain the original value, proposal,
-  evidence, reference version, and decision; and
-- protected addresses never leave controlled infrastructure.
+The [Stage 7 report](../reports/development/stage07.md),
+[Stage 8 report](../reports/development/stage08.md) and
+[Stage 9 acceptance record](../reports/development/stage09.md#owner-acceptance-and-freeze--2026-09-14)
+preserve the experiments, rejected candidates, publication repairs and review
+limits behind these boundaries. No failure is retrospectively relabeled.
 
-The legacy/later-stage validation vocabulary is `CONFIRMED`, `MISMATCH`,
-`NOT_FOUND`, `AMBIGUOUS`, `UNSUPPORTED`, and `INVALID_FORMAT`. The accepted
-Stage 9 reference-only contract separately uses `SUPPORTED`, `CONTRADICTED`,
-`NOT_FOUND`, and `NOT_EVALUABLE`, without mapping these to address validity.
+## Libraries and execution
 
-## Library-first architecture
+The code uses Python CSV/hash functions, PyArrow/Parquet, DuckDB, `unicodedata`
+and ftfy. Stage 7's immutable parsing run uses pinned libpostal/pypostal;
+DeepParse was closed without protected inference. Stage 9 uses frozen iso-codes
+JSON, offline libaddressinput metadata and GeoNames postal data. Stage 10 uses
+pinned ICU4C 77.1 for its transliteration family. Pandas is permitted only for
+small DEVELOPMENT inspection, not production transformations.
 
-Mature offline libraries and pinned reference datasets are preferred when they
-meet privacy, licensing, reproducibility, and scientific requirements. SAFE
-code supplies conservative orchestration, provenance, deterministic identity,
-evidence aggregation, policy, fail-closed validation, and verified gaps.
+Protected/heavy processing runs on Goethe-NHR compute nodes through SLURM.
+Local work is limited to code, documentation, synthetic tests, small diagnostics
+and authorized small DEVELOPMENT review. Protected values never go to external
+services, LLMs or Git. See [execution](EXECUTION.md) and
+[privacy](PRIVACY_AND_SECURITY.md).
 
-Accepted stages currently use Python's `csv` and `hashlib`, PyArrow/Parquet,
-DuckDB, `unicodedata`, `ftfy`, regular-expression/Arrow operations, and SAFE
-contracts. Accepted Stage 7 DEVELOPMENT evidence uses pinned
-libpostal/pypostal. DeepParse is closed and is not a planned runtime
-dependency. Implemented Stage 8 uses PyArrow/Parquet and bounded DuckDB
-validation only; it adds no pycountry, libaddressinput, or reference-data
-dependency.
-The owner-approved Stage 9 design freezes ISO country/subdivision JSON,
-offline libaddressinput metadata, and GeoNames postal evidence with bounded
-DuckDB and PyArrow/Parquet. It excludes fuzzy matching and street/house-number
-references from v1. The [public freeze](stages/STAGE09_REFERENCE_FREEZE.md)
-records concrete families and explicit negative-authority gates. The stack is
-accepted on DEVELOPMENT as offline reference evidence only, not geographic truth.
-Self-hosted SAFE Pelias would retain top-N features for later scoring, never
-treat the first result as truth. A planned library or dataset is not an
-implemented dependency; every new stage requires design and review before use.
+## Evaluation and current status
 
-Pandas is limited to small DEVELOPMENT inspection and notebooks. Production
-transformations use bounded, columnar or database-oriented execution.
+Benchmark V1 fixes 35,000 DEVELOPMENT and 15,000 sealed HOLDOUT rows from the
+1,405-file population. A deterministic 500-row DEVELOPMENT subset supports
+same-row review. The separate production population contains 1,411 files and
+141,048,582 rows; the later six files never alter Benchmark V1.
 
-## Development methodology
+Each stage requires design approval, implementation validation, authorized
+DEVELOPMENT evaluation, independent review and owner acceptance, then stops.
+Rejected runs remain immutable. HOLDOUT is reserved for one separately
+authorized final evaluation after the governing pipeline is frozen.
 
-Each scientific stage follows a fixed lifecycle:
-
-```text
-design -> review -> implement -> synthetic tests -> 35k DEVELOPMENT run
-       -> aggregate evaluation -> fixed-500 review -> independent review
-       -> accept and freeze -> stop
-```
-
-Rejected candidates remain immutable evidence. A minimal fix produces a new
-run and new review; it does not overwrite or relabel the rejected result.
-HOLDOUT is opened once only after the complete governing pipeline is frozen.
-
-## DEVELOPMENT and production separation
-
-Benchmark V1 contains 35,000 DEVELOPMENT rows and 15,000 sealed HOLDOUT rows
-drawn from the accepted 1,405-file population. Its identity is permanent; the
-six files delivered later do not change it. A deterministic 500-row subset of
-DEVELOPMENT supports repeated qualitative before/after review while all 35,000
-rows provide quantitative evidence.
-
-The production population is `production_population_1411_v1`: 1,411 files and
-141,048,582 rows. Production Stage 0 and Stage 1 are accepted. Production
-Stages 2–6 have not started. Heavy or protected execution runs only
-through SLURM on Goethe-NHR after separate authorization.
+Stages 0–9 are accepted on DEVELOPMENT; Stage 10 is implemented but unaccepted.
+Production Stages 0–1 are accepted. The [progress index](DEVELOPMENT_PROGRESS.md)
+records the latest execution checkpoint; [stage records](stages/README.md)
+separate frozen design snapshots from later implementation evidence.
 
 ## SAFE Pelias role
 
-SAFE Pelias is self-hosted within the protected execution environment and is
-used only after an accepted query registry, final workload QA, and separate
-exact-workload authorization. The proposed architecture retains top-N results
-from structured or whole-string queries as justified; it does not accept the
-first feature automatically. Authentication is runtime-only and never logged.
-Normal concurrency is 2–4 total requests across the complete process, not per
-worker or job.
+The repository has no geocoding client or implementation for authentication,
+request retries, rate limiting, result caching or match selection. Stage 10
+stores offline intents for `/v1/search` and `/v1/search/structured`; it sends no
+request.
+There is no implemented `X-API-Key` configuration, `/v1/autocomplete` or
+`/attribution` workflow.
 
-Result layer, match type, accuracy, independent component/geographic
-agreement, contradictions, and cross-query convergence are retained. Final
-acceptance is explicit at `EXACT_ADDRESS`, `STREET_ADDRESS`, `STREET`,
-`POSTCODE`, `LOCALITY`, `ADMIN`, or `UNRESOLVED`; a lower-granularity truthful
-result is preferable to a false point. Which granularities are usable for a
-particular research endpoint remains a later predeclared scientific policy.
+The proposed retrieval stage retains top-N results and evaluates layer, match
+type, accuracy, independent agreement, contradictions and cross-query
+convergence. Proposed output granularities are `EXACT_ADDRESS`, `STREET_ADDRESS`,
+`STREET`, `POSTCODE`, `LOCALITY`, `ADMIN` and `UNRESOLVED`. Research usability
+thresholds remain undecided. Normal concurrency is constrained to 2–4 requests
+across the complete process; this is a project policy, not an implemented
+limiter or verified service quota.
 
-## Documentation map
-
-The conceptual specification is [PIPELINE.md](PIPELINE.md), row evolution is
-documented in [DATA_FLOW.md](DATA_FLOW.md), durable decisions are recorded in
-[DECISIONS.md](DECISIONS.md), and exact stage status is summarized in
-[DEVELOPMENT_PROGRESS.md](DEVELOPMENT_PROGRESS.md). Privacy, execution, and
-reproduction requirements have separate guides. Accepted source-foundation
-records are retained under [history/](history/README.md) as provenance rather
-than as the active architecture.
+The current Stage 19 acceptance and exact-workload authorization gate remains
+controlling. The proposed Stage 12 retrieval placement and top-N policy require
+explicit reconciliation with that gate and the current `size=1` preference
+before execution. Credentials will remain runtime-only and must never be logged.

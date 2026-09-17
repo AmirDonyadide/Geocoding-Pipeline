@@ -1,8 +1,14 @@
 # Decision register
 
 This register contains durable scientific and operational decisions for the
-active library-first pipeline. Empirical reports are evidence, not permission
-to change a decision or start a stage.
+active library-first pipeline. Entries retain their historical scope and status;
+later decisions supersede them explicitly. Use [current progress](DEVELOPMENT_PROGRESS.md)
+for today's repository state. Empirical reports do not authorize another stage.
+
+Key transitions: D012 preserves Stage 3 v1/v2 ancestry; D037 accepts Stage 7 as
+evidence only; D047 accepts Stage 8; D060 accepts Stage 9; D063 fixes the Stage
+10 design ceiling; D064–D066 record its later implementation authorization.
+Frozen design wording remains a snapshot, not the latest execution status.
 
 ## Locked decisions
 
@@ -1652,40 +1658,22 @@ to change a decision or start a stage.
 
 ## Open decisions
 
-These questions require future stage designs and explicit approval:
+These questions remain for later approved designs or evaluation:
 
-- future reference vintages/country-specific extensions beyond frozen Stage 9 v1;
-- the [Stage 10 design candidate](stages/STAGE10_MULTI_HYPOTHESIS_QUERY_GENERATION.md)
-  and [final owner implementation approval](stages/STAGE10_DESIGN_REVIEW.md#remaining-owner-decisions);
-- Stage 13 scoring/calibration and contradiction policy; and
-- Stage 14 granularity-specific usability thresholds, including treatment of
-  interpolated Pelias address results.
+- reference vintages and country-specific extensions beyond Stage 9 v1;
+- Stage 10's scientific operating budget, still UNSELECTED, and later empirical
+  family value (D064–D066 already authorize its implementation/one catalog);
+- complete Stage 11 request semantics and the reconciliation of proposed Stage
+  12 retrieval/top-N with the current Stage 19 geocoding gate and size policy;
+- Stage 13 scoring, calibration and contradiction policy; and
+- Stage 14 usability thresholds, including interpolated Pelias address results.
 
-Nothing in this register authorizes HOLDOUT, another Stage 8 protected
-execution, geocoding, or production Stage 2 through Stage 8. D050 records the
-approved Stage 9 design/public-reference scope; D051 records the separate bounded
-Stage 9 implementation/DEVELOPMENT authorization, not acceptance or later stages.
-D060 alone records final Stage 9 DEVELOPMENT owner acceptance; it authorizes
-neither a rerun nor later-stage design/implementation.
-Stage 7 decisions
-D023–D036 retain their stated historical DEVELOPMENT scopes; D037 alone
-records final Stage 7 DEVELOPMENT acceptance. D038 records the prospective
-Stage 8 design boundary; D039/D040 record the rejected implementation and its
-single historical artifact; D041 records rejection and bounded implementation
-remediation; D042 freezes the first repaired DEVELOPMENT candidate without
-granting acceptance or later-stage authority; and D043 records the failed
-independent rereview plus the second bounded publication remediation. D044
-freezes the resulting DEVELOPMENT candidate without granting acceptance or
-later-stage authority. D045 records its failed independent rereview and the
-third bounded terminal-status/ownership remediation; it grants no execution or
-later-stage authority. D046 freezes the resulting DEVELOPMENT candidate
-without granting acceptance or later-stage authority. D047 alone records final
-Stage 8 DEVELOPMENT acceptance and preserves all prior Stage 8 failures as
-historical evidence. D048 records the architecture-only removal of superseded
-Phase implementation surfaces while preserving frozen source-foundation
-identifiers and accepted Stage 0–8 science.
+Acceptance of a stage grants neither a rerun nor later-stage/production
+execution. The original scopes and failures in D023–D060 remain historical
+records. HOLDOUT is sealed; production Stage 2 onward and geocoding require
+separate authorization.
 
-## Proposed decisions awaiting owner review
+## Stage 10 design history and implementation authorization
 
 ### D061 — Freeze the Stage 10 bounded-query design candidate for review
 

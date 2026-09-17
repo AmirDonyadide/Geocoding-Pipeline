@@ -4,117 +4,117 @@
 
 | Environment | Intended work |
 |---|---|
-| Mac/local | Code, documentation, Git, unit/synthetic tests, small diagnostics, lightweight validation, and small authorized DEVELOPMENT inspection |
-| Goethe-NHR compute node | Protected/heavy DEVELOPMENT work and all heavy production execution through SLURM |
-| Goethe-NHR login node | Git synchronization, light shell inspection, file transfer, submission, allocation, and scheduler/accounting commands only |
+| Mac/local | Code, documentation, Git, synthetic/unit tests, small diagnostics and authorized small DEVELOPMENT review |
+| Goethe compute node | Protected/heavy DEVELOPMENT work and heavy production processing through SLURM |
+| Goethe login node | Git, light shell inspection, file transfer, submission and scheduler/accounting commands |
 
-Production data is not run locally merely because it is accessible. When a
-workload classification is uncertain, use Goethe-NHR.
+When classification is uncertain, use Goethe-NHR. Scientific approval never
+waives the [execution policy](EXECUTION_POLICY.md).
 
 ## Required execution markers
 
-Every protected/heavy entry point fails closed before opening production input
-unless both markers are present:
+Protected/heavy entry points call
+`safe_geocoding_pipeline.execution_policy.require_goethe_nhr_slurm` before
+input access. Both markers are required:
 
 ```text
 SAFE_EXECUTION_SITE=goethe-nhr
 SLURM_JOB_ID=<non-empty scheduler job identity>
 ```
 
-The shared guard is
-`safe_geocoding_pipeline.execution_policy.require_goethe_nhr_slurm`. There is
-no ordinary force-local bypass. A scientific authorization never waives this
-site policy.
+A missing/wrong marker raises `HEAVY_PROCESS_CLUSTER_REQUIRED`. Do not forge a
+job ID for local execution. Synthetic tests use explicit non-production paths.
 
 ## Exact Git SHA binding
 
-GitHub `origin` is the shared source for code and documentation. A protected
-job runs code from an exact pushed commit, not a moving branch:
+Before an authorized submission:
 
-1. fetch remote state and inspect the intended branch;
-2. require a clean worktree;
-3. verify the reviewed commit is present on `origin`;
-4. create or select a detached/exact execution worktree;
-5. record the full commit in the submission environment;
-6. have the job compare the declared SHA with `git rev-parse HEAD`; and
-7. never pull or select new code inside an SBATCH job.
+1. Fetch `origin`, inspect status/divergence and verify the reviewed SHA is pushed.
+2. Select a clean worktree at that exact commit; use a detached checkout where
+   the launcher requires one.
+3. Record the full SHA and exact input/runtime/output bindings in the
+   stage-specific submission environment.
+4. Create the owner-only SLURM log directory before submission.
+5. Submit the reviewed job once and retain its job ID.
 
-If a cluster checkout is dirty, diverged, or retained as audit evidence, stop.
-Do not reset, clean, overwrite, or repurpose it for convenience.
+The job checks its SHA before protected input access and never pulls code.
+Dirty, diverged or audit worktrees must not be reset, cleaned or repurposed.
+A pending job is not grounds for a duplicate; follow the recorded stop rule.
+See the [launcher index](../cluster/goethe_nhr/README.md) and the relevant
+[stage record](stages/README.md), not a generic batch loop.
 
 ## Controlled storage
 
-The institutional deployment contract currently uses:
+The deployment root is
+`/work/footprint/donyadidegan/safe_geocoding_pipeline`, with controlled data
+under `derived/controlled/`, execution reports under `reports/generated/`
+and logs under `logs/slurm/`. These deployment paths are intentional bindings,
+not portable configuration. Accepted later stages canonicalize the configured
+`/work` anchor to its `/panfs/vdura1` mount spelling while rejecting disallowed
+links below it.
 
-```text
-/work/footprint/donyadidegan/safe_geocoding_pipeline
-```
-
-Within that controlled root, high-volume data, generated reports, and logs use
-environment-specific subdirectories such as:
-
-```text
-derived/controlled/
-reports/generated/
-logs/slurm/
-```
-
-These institutional paths legitimately remain in reviewed cluster launchers.
-Portable documentation and local configuration use placeholders or environment
-variables instead of personal absolute paths.
-
-Controlled directories are mode `0700`; controlled files are mode `0600`.
-`/scratch` is not used, `/work/footprint/public` is not modified, and the shared
-Conda base environment is not modified. Important code and documentation stay
-in Git-backed storage because `/work` is not backed up.
+Directories are `0700`; controlled files are `0600`. Use new immutable run
+directories. Do not use `/scratch`, modify `/work/footprint/public` or modify
+shared Conda base. Keep code and documentation in Git-backed storage; `/work`
+is not backed up.
 
 ## Immutable runs and atomic publication
 
-Each run receives a new, non-colliding output directory and binds input
-artifacts, contracts, fingerprints, Git SHA, runtime, and SLURM job identity.
-Writers build in a private in-progress directory, validate content and
-permissions, fsync where required, and atomically rename the complete bundle
-into its final location. A pre-existing output or temporary path is an error.
+Publication is stage-specific. Earlier stages, including accepted Stage 8,
+validate private temporary state and publish by their reviewed rename protocol.
+Stage 9 uses permanent reservation, immutable validated artifacts, registration,
+an atomic exclusive `_COMMITTED` seal and full reopen validation. Stage 10 reuses
+those primitives through its own adapter after checking the accepted topology.
 
-Terminal success markers are written only after validation. A partial or
-failed run is preserved with its evidence; it is not silently resumed,
-overwritten, or reported as accepted. A new attempt uses a new run ID unless an
-approved restart contract explicitly says otherwise.
+Directory or `_SUCCESS.json` existence alone cannot establish Stage 9/10 success.
+Preserve failed/incomplete runs and uncertain commit outcomes. Never take over
+an incomplete reservation, delete it for a retry or silently overwrite output.
+Resume/adoption is permitted only by the exact stage contract. See
+[publication policy](EXECUTION_POLICY.md#storage-and-publication-contract).
 
 ## Runtime and dependencies
 
-Local package development supports Python 3.11 or newer with the pinned
-dependencies in `pyproject.toml`. Reproducing accepted Stage 3 requires Python
-3.14.3, Unicode 16.0.0, ftfy 6.3.1, and PyArrow 25.0.0. The Stage 3 bootstrap
-fails rather than substituting another runtime.
+Package development declares Python >=3.11, with DuckDB 1.5.5, ftfy 6.3.1 and
+PyArrow 25.0.0 pinned in [pyproject.toml](../pyproject.toml). Accepted Stage 3–9
+execution uses exact Python 3.14.3 / Unicode 16.0.0 plus each stage's frozen
+dependencies. A newer Python does not satisfy an exact-runtime guard.
 
-Production transformations use PyArrow, DuckDB, or other approved bounded
-engines. Pandas is restricted to small DEVELOPMENT inspection/notebooks.
+Stage 3–7 bootstrap scripts create isolated virtual environments from the
+required interpreter. Run them on compute nodes under the reviewed launcher;
+they are not a Conda setup recipe. Stage 7 also requires its pinned
+libpostal/pypostal bundle. Stage 10's Q6 requires the locked ICU4C 77.1 /
+Unicode 16.0.0 / CLDR 47 build; system ICU and a Mac build cannot substitute
+for the verified Goethe runtime. See the
+[runtime record](stages/STAGE10_IMPLEMENTATION.md#exact-goethe-runtime-established--2026-09-15).
 
 ## Local-safe validation
 
-Install and run the local-safe suite without opening the controlled
-production-transfer payload:
+After [local setup](../README.md#local-setup), run the checks below. If a newly
+added console command is missing from an existing environment, repeat
+`python3 -m pip install -e '.[dev]'` to refresh the entry points.
 
 ```bash
-python3 -m pip install -e '.[dev]'
+python3 scripts/validate_stage_reports.py
+python3 scripts/validate_stage10_implementation.py
 python3 -m pytest -m "not requires_production_transfer_payload"
 ```
 
-The excluded marker covers four tests that exercise the real historical
-controlled-transfer payload. Their deselection must be reported; it is not a
-claim that those integration tests passed.
+The marker excludes four tests that require the ignored historical production
+transfer payload. Report them as deselected, not passed. The remaining suite
+still includes exact-runtime and Stage 10 ICU checks. Follow their prerequisites;
+do not weaken guards or acquire protected artifacts for documentation testing.
 
-The full environment command is `python3 -m pytest`, but it requires the exact
-ignored protected transfer prerequisites and fails if they are absent. Do not
-obtain or open protected artifacts merely to run documentation validation.
+For static checks, use `python3 -m ruff check src tests scripts`,
+`python3 -m ruff format --check src tests scripts` and `python3 -m mypy src`.
+The latest [implementation validation record](stages/STAGE10_IMPLEMENTATION.md#validation-evidence-and-execution-boundary)
+documents existing failures in broad `mypy src tests` and root-wide Ruff:
+historical test typing and preserved Stage 9 review-archive issues. Those
+historical findings are not evidence that current source checks fail.
 
 ## Current production boundary
 
-Production Stage 0 and Stage 1 are accepted for
-`production_population_1411_v1`. Production Stages 2–6 have not
-started. The accepted Stage 4 DEVELOPMENT launcher is separately scoped to the
-accepted 35,000-row Stage 3 artifact; no command in this guide authorizes
-production Stage 2 or any later production stage, or geocoding.
-
-The permanent detailed rules are in [EXECUTION_POLICY.md](EXECUTION_POLICY.md).
+Production Stages 0–1 are accepted for `production_population_1411_v1`;
+production Stage 2 onward has not started. DEVELOPMENT launchers bind specific
+accepted artifacts and may include review/equivalence work. They are not
+general production wrappers. [Current progress](DEVELOPMENT_PROGRESS.md)
+records the DEVELOPMENT checkpoint; this guide grants no execution authority.

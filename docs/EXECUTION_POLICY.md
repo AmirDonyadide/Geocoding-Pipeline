@@ -82,10 +82,28 @@ Protected inputs and outputs remain under controlled storage such as
 `derived/controlled/`; generated protected reports remain under
 `reports/generated/`; logs remain under `logs/slurm/`. All are ignored by Git.
 
-Run directories are immutable and collision-failing. Publication uses private
-temporary state, content/readback validation, permission validation, terminal
-markers, fsync where required, and atomic rename. Failures and partial attempts
-are preserved for diagnosis rather than silently replaced.
+Run identities are immutable and collision-failing. Every stage validates
+content, permissions, manifests and readback before success. Publication follows
+its frozen stage contract:
+
+- Accepted Stage 8 uses private temporary state, rename reconciliation, parent
+  fsync, full final reopening and a final no-follow ownership check. Presentation
+  failure after commit cannot demote a successful publication.
+- Stage 9 uses permanent exclusive reservation, immutable validated artifacts,
+  registration, an atomic exclusive zero-byte `_COMMITTED` seal and full reopen
+  validation. Directory or `_SUCCESS.json` existence alone is insufficient.
+  The tested PanFS path rejected `RENAME_NOREPLACE`; `O_CREAT|O_EXCL` was
+  demonstrated by diagnostic `1771149`.
+- Stage 10 reuses those Stage 9 primitives through its own registration adapter,
+  subject to preflight verification of the same controlled topology/filesystem.
+  A material environment change requires review, not an automatic fallback.
+
+Preserve failed attempts and uncertain commit outcomes. Never take over a stale
+reservation or delete a run to retry. Adoption requires exact externally pinned
+manifest/bindings and full validation; historical cross-job inode equality is
+not an identity contract. Resume must use the stage's explicit checkpoint
+validation. See the [accepted publication protocol](stages/STAGE09_PUBLICATION_PROTOCOL_REVISION.md)
+and [Stage 10 implementation](stages/STAGE10_IMPLEMENTATION.md).
 
 ## Data transfer boundary
 
@@ -103,8 +121,11 @@ does not itself authorize processing.
 The accepted Stage 3 execution runtime is Python 3.14.3 with
 `unicodedata.unidata_version == "16.0.0"`, ftfy 6.3.1, and PyArrow 25.0.0.
 Stage 3 bootstrap and preflight checks fail instead of substituting a different
-runtime. Node-local temporary storage must be validated before use; network
-filesystems and insufficient free space fail closed.
+runtime. Later stages retain their own exact locks, including Stage 7's parser
+bundle and Stage 10's ICU runtime; see
+[runtime details](EXECUTION.md#runtime-and-dependencies). Stage 3 node-local
+temporary storage must be validated before use; network filesystems and
+insufficient free space fail closed.
 
 ## Validation modes
 
@@ -121,41 +142,12 @@ documentation test pass.
 
 ## Current authorization boundary
 
-- Production Stage 0: `NEW_STAGE0_1411_ACCEPTED`.
-- Production Stage 1: `NEW_STAGE1_1411_ACCEPTED`.
-- Production Stage 2: **NOT STARTED**.
-- Production Stage 3: **NOT STARTED**.
-- Stage 4 DEVELOPMENT: **`STAGE_4_ACCEPTED`**.
-- Production Stage 4: **NOT STARTED**.
-- Stage 5 DEVELOPMENT: **`STAGE_5_ACCEPTED`**.
-- Production Stage 5: **NOT STARTED**.
-- Stage 6 DEVELOPMENT: **`STAGE_6_ACCEPTED`**.
-- Production Stage 6: **NOT STARTED**.
-- Stage 7 DEVELOPMENT:
-  **`STAGE_7_ACCEPTED`**. Exact candidate `656a16d3…` is accepted as an
-  evidence-only DEVELOPMENT stage after independent rereview job `1763656`.
-  Raw parser output remains hypotheses/evidence rather than semantic or
-  geographic truth; absence of structural warnings gives no trust guarantee.
-- Production Stage 7: **NOT STARTED**.
-- Stage 8:
-  **`STAGE_8_ACCEPTED`** on DEVELOPMENT.
-  Independent review rejected the candidate backed by job `1763747` and old
-  executable `a2544401b4b699f6c020970f3507a2ae432746c5`. Publication repair
-  executable `bd89a032eb6fcf16a7515e0bd2991165d87246b1` completed repaired
-  DEVELOPMENT job `1763984`; exact scientific reconciliation passed. A later
-  independent rereview failed reporting candidate `fdf2f8c…` on a post-effect
-  rename boundary. Second repair executable `bdea7232…` completed exactly one
-  authorized DEVELOPMENT materialization as job `1764219`; exact scientific
-  and ordinary-path publication reconciliation passed, but independent
-  rereview found post-commit CLI-status and final-ownership-recheck defects.
-  Third repair executable `c04cb972…` closes only those defects. Jobs
-  `1763747`, `1763984`, and `1764219` are historical evidence only and do not
-  validate it. Exactly one authorized third-remediation DEVELOPMENT
-  materialization completed as job `1764273`; its scientific and v3 terminal
-  reconciliation passed. Exact candidate `231cdbf9…` then passed corrected
-  independent rereview commit `f8a456f…` and job `1764376` with zero candidate
-defects. No new Stage 8 job is authorized. Production Stage 8 and Stage 9
-remain **NOT STARTED**; the pre-Stage-9 baseline is frozen and Stage 9 design
-requires separate authorization.
+Production Stages 0–1 are accepted; production Stage 2 onward has not started.
+DEVELOPMENT Stages 0–9 are accepted. Stage 10 is implemented but unaccepted;
+its [execution record](stages/STAGE10_IMPLEMENTATION.md) preserves the separately
+authorized single-run scope and latest preflight blocker. See
+[current progress](DEVELOPMENT_PROGRESS.md) for the status index.
 
-This policy grants no scientific-stage or production-run authorization.
+The governing geocoding gate remains Stage 19 acceptance plus separate exact
+workload authorization. Proposed stage renumbering does not waive it. This
+policy itself grants no stage, rerun, HOLDOUT or production authority.

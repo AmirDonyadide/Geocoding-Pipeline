@@ -1,7 +1,7 @@
 # DEVELOPMENT progress
 
-This page is the short current status index. Technical contracts and evidence
-are in the linked stage records and sanitized reports.
+Current repository status. Execution checkpoints are dated records, not live
+scheduler observations. Contracts and evidence are linked below.
 
 | Stage | Name | Status | DEVELOPMENT evidence | Production status |
 |---:|---|---|---|---|
@@ -15,7 +15,7 @@ are in the linked stage records and sanitized reports.
 | 7 | libpostal parsing/evidence | **`STAGE_7_ACCEPTED`** | Evidence-only job `1763516`; rereview job `1763656`; no semantic-trust claim; [report](../reports/development/stage07.md) | **NOT STARTED** |
 | 8 | Lossless address-evidence projection | **`STAGE_8_ACCEPTED`** | Candidate `231cdbf9…`; executable `c04cb972…`; jobs `1764273`/`1764376`; zero candidate defects; [report](../reports/development/stage08.md) | **NOT STARTED** |
 | 9 | Conservative offline reference evidence | **`STAGE_9_ACCEPTED`** | Executable `3e10ac7c…`; job `1771191`; independent review `a9ae443c…` / job `1772139`; zero candidate defects; [acceptance](../reports/development/stage09.md#owner-acceptance-and-freeze--2026-09-14) | **NOT STARTED** |
-| 10 | Bounded multi-hypothesis query generation | **DESIGN FINAL** | [Design package](stages/STAGE10_MULTI_HYPOTHESIS_QUERY_GENERATION.md), D063 final ceiling correction; awaiting authorization to implement | **NOT STARTED** |
+| 10 | Bounded multi-hypothesis query generation | **IMPLEMENTED — NOT ACCEPTED** | Executable `f83480d6…`; public runtime job `1772341` completed; connection preflight blocked DEVELOPMENT submission on 2026-09-15; [record](stages/STAGE10_IMPLEMENTATION.md#executable-pushed-connection-preflight-blocked--2026-09-15) | **NOT STARTED** |
 | 11–14 proposed | Query QA → Pelias top-N → scoring → granularity/abstain | **PROPOSED — NOT STARTED** | Remaining compact replacement architecture; [pipeline specification](PIPELINE.md) | **NOT STARTED** |
 
 Benchmark V1 contains 35,000 DEVELOPMENT and 15,000 sealed HOLDOUT rows from
@@ -23,56 +23,24 @@ the permanent 1,405-file population. The fixed 500-row qualitative subset has
 fingerprint
 `014f7c1373380b265f34e2ecb76614161b320e2bb972befb8f53994cc5a1dd52`.
 
-DEVELOPMENT Stages 0–9 are accepted. Stage 7 is accepted only as reproducible
-parser/applicability/technical/provenance/warning evidence with exact map-back;
-it guarantees neither semantic component correctness nor geographic truth.
-Machine-only job `1763433` and the owner-authorized 240-case review remain the
-immutable failed `STAGE07_V2_FRESH_DEVELOPMENT_VALIDATION_FAIL` readiness
-experiment, not a trust gate. The first independent review's documentation-
-only failure and corrected rereview pass are both preserved. Stage 8 job
-`1763747` completed the one authorized DEVELOPMENT materialization at exact
-executable `a2544401b4b699f6c020970f3507a2ae432746c5`; its immutable manifest is
-`bdf86738…` and logical dataset is `9c9d431c…`. Exact counts, reversibility,
-frozen validators, privacy, publication, and permissions passed for that old
-executable. Independent review nevertheless rejected reporting candidate
-`adde81d…` because a synthetic prepublication failure could leave a success
-marker and because current Stage 8/Stage 9 tool wording was stale. The repair
-at executable `bd89a03…` completed job `1763984` with manifest `d521240b…` and
-the same frozen logical dataset `9c9d431c…`; exact scientific reconciliation
-passed. Independent rereview nevertheless failed reporting candidate
-`fdf2f8c…`: a real rename followed by an exception could leave reader-visible
-success while the invocation reported failure. Second repair executable
-`bdea7232…` reconciles both paths using the captured attempt identity and
-adopts only after parent fsync plus complete final reopen validation.
-Authorized job `1764219` produced manifest `346ea27a…` and the same frozen
-logical dataset `9c9d431c…`; all scientific and ordinary publication checks
-pass. Independent rereview nevertheless failed candidate `70e3de95…` because
-stdout failure after committed success produced a failure exit and FINAL
-ownership was not re-established after parent fsync/final validation. Third
-repair executable `c04cb972…` fixes only those terminal defects. Jobs
-`1763747`, `1763984`, and `1764219` remain historical evidence, are not called
-corrupt, and cannot validate it. Authorized job `1764273` produced manifest
-`2a50bd8c…`, the unchanged logical dataset `9c9d431c…`, and exact scientific
-and v3 publication-terminal reconciliation. Corrected independent rereview
-commit `f8a456f5c939c4061d2be232fd5037010b7a88c8`, harness SHA-256
-`4e728ca7…`, evidence SHA-256 `9fe94207…`, and job `1764376` then passed exact
-candidate `231cdbf9…` with zero candidate defects and zero infrastructure-
-incomplete checks. Review-only RH-001 remains preserved and is not a candidate
-defect. Stage 8 is `STAGE_8_ACCEPTED`; its scientific contract remained
-unchanged through every publication remediation.
-The old Stages 8–19 were never started. Stage 9 is `STAGE_9_ACCEPTED` under
-D060, tagged `stage09-offline-reference-evidence-v1`. Independent review passed
-100 artifact checks, 836 candidate tests and 23 additional public/synthetic
-checks, with zero candidate defects and no required scientific change or rerun.
-Stage 9 remains reference evidence only. Its high Q04 conditional conflict rate
-is not an invalid-address rate; all country assessments remain unresolved under
-the frozen witness rule. The separately authorized Stage 10 documentation-only
-design incorporates the final ceiling correction and awaits implementation
-authorization; implementation/execution are not started.
-Replacement Stages 11–14 remain proposed and not started.
-Production Stage 0 and Stage 1 are accepted; production Stage 2 and
-later are not started. HOLDOUT is untouched and sealed; production/Pelias
-untouched. The pre-Stage-9 baseline and all historical failures remain frozen.
-Stage 9 acceptance itself authorized no later work. D061 records the first
-draft; D062 records the context revision and D063 the final ceiling correction.
-NEXT: OWNER AUTHORIZATION TO IMPLEMENT STAGE 10. No implementation or job is authorized.
+## Current checkpoint
+
+D064–D066 record authorization for Stage 10 implementation and exactly one
+bounded DEVELOPMENT catalog, followed by independent review. Executable
+`f83480d60449bcc904c0c622e394e12df3c3f2d9` is pushed. The pinned Goethe ICU
+runtime was verified by public-only job `1772341`; that job is not a DEVELOPMENT
+execution. On 2026-09-15, DNS resolution failed while eduVPN was disconnected,
+before remote checkout, publication reservation or scheduler submission.
+The [implementation record](stages/STAGE10_IMPLEMENTATION.md#executable-pushed-connection-preflight-blocked--2026-09-15)
+defines the outstanding preflight and single-run boundary. No DEVELOPMENT
+artifact or Stage 10 acceptance is claimed.
+
+Stage 7 acceptance guarantees reproducible parser evidence, not semantic truth
+or trust from warning absence. Stage 8 acceptance preserves its lossless
+projection and all rejected publication attempts. Stage 9 acceptance is scoped
+reference evidence: Q04 conflict rates are not invalid-address rates, and its
+country assessments remain unresolved under the frozen witness rule. Exact
+limitations and histories remain in the linked reports.
+
+Production Stage 2 onward, Stage 11 onward and geocoding remain unstarted.
+HOLDOUT remains sealed. Documentation maintenance does not authorize execution.

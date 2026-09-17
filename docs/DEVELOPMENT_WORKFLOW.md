@@ -13,7 +13,7 @@ design
   -> synthetic/unit tests
   -> full 35,000-row DEVELOPMENT execution
   -> aggregate scientific evaluation
-  -> fixed-500 qualitative review
+  -> stage-specific review (fixed-500 where required)
   -> independent review
   -> accept and freeze
   -> stop
@@ -22,15 +22,9 @@ design
 Stages 0–9 are accepted on DEVELOPMENT under their stage-specific review gates.
 Stage 9's frozen aggregate/public/synthetic review required no protected human
 address inspection; its acceptance does not authorize such inspection or a rerun.
-Stage 7 retains its full failed-design history: the first giant-candidate stop,
-resource-sufficient v1 execution, material semantic-quality findings, DeepParse
-closure, failed readiness validation, and first independent-review
-documentation failure. Its corrected evidence-only candidate passed
-independent rereview and is accepted without relabeling those failures.
-Stage 8 likewise retains three candidate review failures and their bounded
-publication remediations. Its third-remediation candidate passed corrected
-independent rereview with zero candidate defects; the review-only RH-001
-harness failure remains separate historical evidence.
+Rejected scientific candidates and review-harness failures remain distinct in
+the [stage reports](../reports/development/README.md). Acceptance never relabels
+an earlier failure.
 
 ## Design and implementation
 
@@ -64,8 +58,9 @@ stable identities, source filenames, and free-text examples remain protected.
 ## Independent review and freeze
 
 Independent review binds the exact implementation commit and immutable run
-artifacts, reproduces critical counts/fingerprints, inspects the fixed review
-surface in the controlled environment, and returns an explicit decision.
+artifacts, reproduces critical counts/fingerprints, uses the stage-authorized
+review surface in the controlled environment, and returns an explicit decision.
+Protected human inspection is not implied for evidence-only stages.
 Acceptance freezes the contract, evidence, implementation lineage, and run
 identity. It does not authorize production execution or the next stage.
 
@@ -114,7 +109,7 @@ reason.
 
 DEVELOPMENT acceptance and production execution are different decisions.
 Production Stage 0 and Stage 1 are accepted for the 1,411-file population.
-Production Stages 2–8 have not started. Before production Stage 2 can
+Production Stage 2 onward has not started. Before production Stage 2 can
 run, its exact launcher, commit, population binding, resources, output paths,
 and validation plan require separate review and authorization.
 

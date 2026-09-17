@@ -2,17 +2,17 @@
 
 ## Evidence layers
 
-Completed stages are evaluated through three complementary evidence layers.
+Stage contracts select from three complementary evidence layers.
 
 1. **Full 35,000-row DEVELOPMENT evaluation.** This is the quantitative and
    scientific evidence: counts, preservation checks, reason distributions,
    fingerprints, resource observations, and other aggregate diagnostics.
-2. **Fixed 500-row DEVELOPMENT review subset.** The same deterministic source
-   rows are followed across stages for protected human before/after inspection.
+2. **Fixed 500-row DEVELOPMENT review subset.** Stages using this contract
+   follow the same source identities for authorized before/after review.
    The subset does not replace full-DEVELOPMENT evaluation.
 3. **Sanitized Git-safe reports.** The authoritative human explanation for
-   each accepted stage is committed under `reports/development/`; the matching
-   structured evidence is under `reports/generated/`. Neither class contains
+   each accepted stage is committed under `reports/development/`; Stage 0–8
+   structured summaries are under `reports/generated/`. Neither class contains
    row-level source values or stable identities.
 
 Every stage comparison is keyed by `stable_source_row_id_v1`. Never compare by
@@ -21,13 +21,16 @@ ordered identity stream.
 
 ## What is in Git
 
-The [reports index](../reports/README.md) is the single entry point. Open exactly
-one `reports/development/stageXX.md` file to understand a stage and its accepted
-history. Use exactly one `reports/generated/stageXX.json` file for machine-
-readable SHAs, jobs, counts, fingerprints, validation, and review evidence.
-These reports support status and aggregate audit; they never expose individual
-protected records. The fixed-500 selection fingerprint is consolidated into
-the relevant stage summaries rather than maintained as a competing report.
+Start with the [reports index](../reports/README.md). Each accepted stage has
+one `reports/development/stageXX.md` report. Stages 0–8 also have paired
+`reports/generated/stageXX.json` summaries with exact SHAs, jobs, counts and
+fingerprints. Stage 9 uses its acceptance report and
+[independent review evidence](../review/stage09_independent/REVIEW_EVIDENCE.json);
+there is no `reports/generated/stage09.json`.
+
+These records contain aggregate audit evidence, never protected rows. Their
+historical stop statements describe the recorded checkpoint; use
+[current progress](DEVELOPMENT_PROGRESS.md) for subsequent stage status.
 
 ## Protected Stage 2 review artifact
 
@@ -70,9 +73,8 @@ environment-specific root outside Git:
 export SAFE_STAGE03_REVIEW_ROOT=/controlled/path/to/stage03_review_bundle
 ```
 
-PyArrow is sufficient to read the fixed 500-row artifact. Pandas is acceptable
-here because this is small, controlled DEVELOPMENT inspection—not a production
-transformation.
+The example uses the installed PyArrow dependency and prints only a count.
+Inspect the selected values only inside the authorized controlled environment.
 
 ```python
 import os
@@ -82,20 +84,15 @@ import pyarrow.parquet as pq
 
 review_root = Path(os.environ["SAFE_STAGE03_REVIEW_ROOT"])
 table = pq.read_table(review_root / "stage03_review.parquet")
-df = table.to_pandas()
-
-changed = df[df["stage03_row_changed"]]
-print(changed.shape[0])
-
-comparison = changed[
+comparison = table.filter(table["stage03_row_changed"]).select(
     [
         "stable_source_row_id_v1",
         "street_address_line_1",
         "stage03_clean_street_address_line_1",
         "stage03_change_details",
     ]
-]
-print(comparison.head())
+)
+print(comparison.num_rows)
 ```
 
 Do not print, paste, screenshot, or transmit protected values outside the
@@ -104,34 +101,33 @@ reports or synthetic examples.
 
 ## Comparing Stage 2 and Stage 3 explicitly
 
-If separate protected artifacts must be joined, validate a one-to-one join on
-the stable identity:
+Stage 3 already contains raw/clean pairs. To compare Stage 2-only fields, set
+`SAFE_DEVELOPMENT_REVIEW_ROOT` to the authorized Stage 2 review bundle and align
+the two tables by stable identity, checking uniqueness and complete membership:
 
 ```python
 import os
 from pathlib import Path
 
+import pyarrow.compute as pc
 import pyarrow.parquet as pq
 
 stage2_root = Path(os.environ["SAFE_DEVELOPMENT_REVIEW_ROOT"])
 stage3_root = Path(os.environ["SAFE_STAGE03_REVIEW_ROOT"])
-
-stage2 = pq.read_table(
-    stage2_root / "stages" / "stage02" / "stage02_review.parquet"
-).to_pandas()
-stage3 = pq.read_table(stage3_root / "stage03_review.parquet").to_pandas()
-
-joined = stage2[["stable_source_row_id_v1"]].merge(
-    stage3,
-    on="stable_source_row_id_v1",
-    how="inner",
-    validate="one_to_one",
-)
-assert len(joined) == 500
+stage2 = pq.read_table(stage2_root / "stages/stage02/stage02_review.parquet")
+stage3 = pq.read_table(stage3_root / "stage03_review.parquet")
+key = "stable_source_row_id_v1"
+assert stage2.num_rows == stage3.num_rows == 500
+assert stage2[key].null_count == stage3[key].null_count == 0
+assert len(pc.unique(stage2[key])) == len(pc.unique(stage3[key])) == 500
+positions = pc.index_in(stage2[key], value_set=stage3[key])
+assert positions.null_count == 0
+stage3_aligned = stage3.take(positions)
+assert stage2[key].equals(stage3_aligned[key])
 ```
 
-The Stage 3 artifact already includes the covered raw/clean pairs, so this join
-is normally needed only to inspect Stage 2-only provenance fields.
+This preserves nested review columns and needs no optional pandas installation.
+The aligned tables remain protected; do not emit their rows to shared logs.
 
 ## Inspecting each completed stage
 
@@ -146,6 +142,7 @@ is normally needed only to inspect Stage 2-only provenance fields.
 | 6 | Exact registry, collisions, counts, and complete map-back | Machine-verified fixed-500 mapping | [Stage 6](../reports/development/stage06.md) | [JSON](../reports/generated/stage06.json) |
 | 7 | Pinned parser evidence, applicability, warnings, and map-back | 120-case diagnostic and failed 240-case readiness experiment | [Stage 7](../reports/development/stage07.md) | [JSON](../reports/generated/stage07.json) |
 | 8 | Lossless projection, reversibility, publication, and map-back | Corrected independent rereview | [Stage 8](../reports/development/stage08.md) | [JSON](../reports/generated/stage08.json) |
+| 9 | Scoped offline reference checks, witnesses, coverage and publication | Authorized aggregate/public/synthetic review; no protected human address inspection | [Stage 9](../reports/development/stage09.md#owner-acceptance-and-freeze--2026-09-14) | [Review evidence](../review/stage09_independent/REVIEW_EVIDENCE.json) |
 
 Stage records under [`docs/stages/`](stages/README.md) explain the exact
 accepted evidence and production status.

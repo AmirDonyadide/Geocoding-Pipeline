@@ -132,7 +132,7 @@ production snapshot does not authorize rebuilding or modifying Benchmark V1.
 The fixed 500-row qualitative follow-through subset is selected only from this
 accepted DEVELOPMENT artifact under a separate passive reporting contract.
 It never changes Benchmark V1 and does not replace full 35,000-row metrics.
-See `docs/DEVELOPMENT_REPORTING.md`.
+See [DEVELOPMENT reporting](DEVELOPMENT_REPORTING.md).
 
 ## Execution and acceptance
 

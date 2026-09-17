@@ -58,9 +58,11 @@ Writers validate owner-only permissions before success publication. Symbolic
 links, path escapes, pre-existing outputs, or unexpectedly permissive modes
 fail closed where the stage contract requires a controlled path.
 
-Temporary and in-progress outputs use the same owner-only boundary. Final
-publication occurs only after readback and validation, using an atomic rename
-into a new immutable run directory.
+Temporary and in-progress outputs use the same owner-only boundary. Publication
+requires readback and validation under the stage's frozen protocol. Stage 9/10
+use permanent reservation and an exclusive commit seal; earlier stages retain
+their accepted publication semantics. See
+[publication policy](EXECUTION_POLICY.md#storage-and-publication-contract).
 
 ## Fail-closed execution
 

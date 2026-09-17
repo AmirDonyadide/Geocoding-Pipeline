@@ -54,9 +54,8 @@ Stage 3 cleaning order and ftfy behavior. Runtime or reporting improvements do
 not silently change a scientific contract; any changed scientific semantics
 require a new reviewed version.
 
-External reference data used by future stages must be direct, licensed,
-versioned, checksummed, and locally reproducible. A library name alone is not a
-reproduction specification.
+External reference data must be direct, licensed, versioned, checksummed and
+locally reproducible. A library name alone is not a reproduction specification.
 
 ## Fingerprints
 
@@ -81,8 +80,11 @@ contract/reference/runtime versions, output artifacts, permissions, exact Git
 SHA, execution site, and SLURM job where applicable. Protected manifests stay
 controlled if they reveal row-level topology or paths.
 
-Writers publish atomically only after validation. A terminal success marker
-binds the completed manifest; it is not created for partial output.
+Publication requires full validation under the frozen stage protocol. Stage 9
+and Stage 10 bind manifests through registration and an exclusive `_COMMITTED`
+seal; marker or directory existence alone is not proof of success. Earlier
+publication contracts remain unchanged. See
+[publication policy](EXECUTION_POLICY.md#storage-and-publication-contract).
 
 ## SLURM job identity
 
@@ -106,8 +108,8 @@ The later six production files do not alter Benchmark V1.
 
 The fixed 500-row DEVELOPMENT review subset has fingerprint
 `014f7c1373380b265f34e2ecb76614161b320e2bb972befb8f53994cc5a1dd52`.
-Each stage creates a new immutable review artifact for these identities rather
-than rewriting earlier views.
+Stages using this review contract create new immutable views of those identities
+without rewriting earlier artifacts.
 
 ## Production identity
 
@@ -122,7 +124,7 @@ files and 141,048,582 rows. Accepted production Stage 1 is bound by:
 - manifest SHA-256:
   `1fb6176d8eff6dfe71c3c02c1e36e00d35937c7bc662234b7620289d4b055bd7`.
 
-Production Stages 2–8 have not started.
+Production Stage 2 onward has not started.
 
 ## Accepted and rejected evidence
 
@@ -135,19 +137,20 @@ production scalability and reporting evidence were rejected. V2 created new
 immutable output, proved exact scientific/reason equality, and received a new
 review. Rewriting or squashing that sequence would remove meaningful evidence.
 
-Stage 8 DEVELOPMENT is accepted at exact candidate
-`231cdbf9db755fb56486c46b3b3faa02f5b5f3b6`, preserved through normal merge
-`ce9e9cac60ba1a767043a7bf09bbf0ad2589f3b3`, with exact executable
-`c04cb97214a9f1e5d2b80512c756400321eefa80`, authoritative job `1764273`,
-manifest `2a50bd8c066552c9cb7505ed2d6071f1ee36161b9a2cc07f3ed364cf00237827`,
-and logical dataset
-`9c9d431c2c1b92712e0cb372f2661ad48f4fe8758dc0327d25aef90ab2c2d526`.
-Corrected independent rereview commit `f8a456f5c939c4061d2be232fd5037010b7a88c8`
-and job `1764376` passed with zero candidate defects; evidence SHA-256 is
-`9fe9420779a96f8c3663e8876cb3206a72ca15931bdfa23105d13dddf7546de0`.
-The three earlier candidate failures, their exact executables/jobs, and
-review-only RH-001 remain distinct reachable evidence. The scientific contract
-did not change through the publication remediations.
+Stage 8's three publication remediations preserved the same logical dataset;
+only the final executable and corrected independent review establish acceptance.
+The [Stage 8 report](../reports/development/stage08.md) binds every candidate,
+manifest, job and review result, including review-only RH-001. Stage 9's
+[acceptance record](../reports/development/stage09.md#owner-acceptance-and-freeze--2026-09-14)
+binds its frozen references, six relations and reservation/seal protocol.
+
+Stage 10's [design inventory](scientific_assets/stage10_design_freeze_v1.json)
+hashes five normative Markdown files and its transliteration specification.
+Those bytes are scientific inputs and must not be reformatted during editorial
+maintenance. The separate [implementation record](stages/STAGE10_IMPLEMENTATION.md)
+tracks subsequent authorization, runtime, executable and execution status.
+Runtime semantic identity excludes operational paths/times, while the Stage 10
+transform-asset binding uses the complete runtime-lock hash; they are distinct.
 
 ## Why failed attempts are preserved
 
@@ -167,5 +170,9 @@ row content. Full scientific reproduction requires authorized access to the
 controlled input and immutable artifacts; documentation alone never grants
 that access. The [authoritative human reports](../reports/development/README.md)
 and [machine-readable summaries](../reports/generated/README.md) provide exactly
-one accepted record of each Stage 0–8; superseded detailed reports remain in
-Git history.
+one human report per accepted Stage 0–9 and one machine summary per Stage 0–8.
+Stage 9's structured review evidence is in
+[REVIEW_EVIDENCE.json](../review/stage09_independent/REVIEW_EVIDENCE.json).
+Superseded detailed reports remain in Git history. Missing early DEVELOPMENT
+execution identities are explicitly `HISTORICAL_PROVENANCE_NOT_RETAINED`; the
+206-file Phase history cannot substitute for the later 1,405-file benchmark.

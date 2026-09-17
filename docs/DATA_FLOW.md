@@ -59,9 +59,17 @@ Stage 8 lossless address-evidence projection (accepted on DEVELOPMENT)
   + source-candidate map + deterministic STANDARD/NATIVE occurrence view
         |
         v
-Proposed Stages 9–14 (not started)
-  reference evidence -> hypotheses -> query identities -> top-N results
-  -> scoring/granularity -> complete source-row mappings
+Stage 9: offline reference evidence (accepted on DEVELOPMENT)
+  scoped reference checks and witnesses; no address-validity decision
+        |
+        v
+Stage 10: query hypotheses (implemented, DEVELOPMENT not executed)
+  occurrence-specific intents + family decisions + aggregate diagnostics
+        |
+        v
+Proposed Stages 11–14 (not started)
+  request identities/QA -> top-N results -> scoring/granularity
+  -> complete source-row mappings
 ```
 
 ## Raw source record
@@ -69,8 +77,19 @@ Proposed Stages 9–14 (not started)
 The source contract contains 15 non-null string fields. Postal codes remain
 strings. Standard address lines (`street_address_line_1` through `_4`) and
 native lines (`street_address_line_1_native` through `_4_native`) remain
-distinct. A physical newline is not assumed to delimit a record; Stage 0 and
-Stage 1 use CSV-aware logical records.
+distinct. The ordered header in
+[raw_csv.py](../src/safe_geocoding_pipeline/raw_csv.py) is:
+
+```text
+id,street_address_line_1,street_address_line_2,street_address_line_3,street_address_line_4,street_address_line_1_native,street_address_line_2_native,street_address_line_3_native,street_address_line_4_native,postcode,city,region_in_country,country_iso_code,batch_priority,location_information
+```
+
+The parser uses strict UTF-8 with an optional leading BOM, comma delimiter,
+double-quote quoting with doubled quotes, no escape character and no initial
+space skipping. Files are opened with `newline=""`; a physical newline need
+not end a logical record. There is no delimiter sniffing or TSV mode. A one-column
+parse or unexpected header is a schema problem to investigate, not permission
+to rewrite or reinterpret raw input.
 
 A synthetic conceptual source row might contain:
 
@@ -145,7 +164,7 @@ street_address_line_1 = "  10 Example Street  "       # preserved raw
 stage03_clean_street_address_line_1 = "10 Example Street"
 stage03_change_details = [
   {field_name: "street_address_line_1",
-   reason_codes: ["WHITESPACE_TRIMMED"]}
+   reason_codes: ["WHITESPACE_COLLAPSED", "WHITESPACE_TRIMMED"]}
 ]
 stage03_row_changed = true
 ```
@@ -197,63 +216,48 @@ and complete 69,747-occurrence map-back for all 51,779 exact candidates. Its
 components remain hypotheses/evidence only; no warning status establishes
 semantic correctness or geographic truth.
 
-Stage 8 job `1763747` materialized the first DEVELOPMENT candidate and passed
-exact count, binding, reversibility, publication, and privacy validation for
-old executable `a2544401b4b699f6c020970f3507a2ae432746c5`. It
-preserves the complete Stage 7 candidate row, emits one ordered long-form
-evidence row per raw component without changing labels/values/order/duplicates,
-and preserves a source-row map with separate STANDARD/NATIVE candidate slots.
-The exact nested Stage 7 list remains authoritative. A mapped SAFE
-parser-evidence name remains `PARSER_EVIDENCE`; Stage 8 emits no hypothesis or
-reference result. pycountry and libaddressinput are deferred to the Stage 9
-design boundary. Independent review rejected reporting candidate `adde81d…`
-for publication-state ordering and stale current architecture wording.
-First repair executable `bd89a03…` produced candidate job `1763984`; its exact
-scientific reconciliation passed. Independent rereview then found that a real
-rename followed by an exception could leave a reader-visible success while the
-invocation reported failure. Second repair `bdea7232…` reconciles both
-temporary and final paths by captured filesystem identity and permits adoption
-only after parent fsync plus complete final reopen validation. Authorized job
-`1764219` materialized the repair with manifest `346ea27a…`, unchanged logical
-dataset `9c9d431c…`, and exact scientific and ordinary publication
-reconciliation. Independent rereview then failed it because post-commit stdout
-failure produced a failure exit and policy-A ownership was not rechecked after
-parent fsync/final validation. Third repair `c04cb972…` separates publication
-and presentation status and adds the terminal no-follow ownership check.
-Authorized job `1764273` materialized it with manifest `2a50bd8c…`, the same
-logical dataset `9c9d431c…`, and exact v3 terminal reconciliation. Exact
-candidate `231cdbf9…` then passed corrected independent rereview job `1764376`
-with zero candidate defects and is accepted as `STAGE_8_ACCEPTED`. Jobs
-`1763747`, `1763984`, and `1764219` remain immutable historical evidence for
-their exact executables and do not validate the accepted executable.
+Stage 8 preserves the complete Stage 7 candidate row, emits one ordered
+long-form row per parser component, and retains a source map with separate
+STANDARD/NATIVE slots. Labels, values, order and duplicates remain exact; the
+nested Stage 7 list is authoritative. Mapped names are parser evidence, not
+verified components. Its three stored relations are `candidate_evidence`,
+`parser_component_evidence` and `source_candidate_map`; the deterministic
+`representation_occurrence_v1` view exposes each present source/role slot.
+The [Stage 8 report](../reports/development/stage08.md) retains publication
+repair history and scientific-equality evidence.
 
-The accepted Stage 8 implementation and proposed Stages 9–14 are constrained
-by these accepted principles:
-
-- lowercase, reconstructed, parsed, normalized, transliterated, corrected, and
-  query-ready values are separate derived representations;
-- standard and native occurrences retain separate mappings/evidence, while
-  exact-equal Stage 6 canonical text may share one content identity;
-- each candidate identity maps to one or more `stable_source_row_id_v1` values;
-- a source row may map to multiple scientifically justified candidates;
-- candidate and query deduplication does not delete source rows; and
-- the final result maps selected query/geocoder evidence back to every source
-  row through validated one-to-many/many-to-one mappings.
+Each candidate can map to multiple source rows; one source row can have
+multiple candidates and hypotheses. Exact-equal text may share a content ID,
+but STANDARD/NATIVE occurrences retain distinct provenance. Final results must
+map back through these relationships without dropping source rows.
 
 ## Validation evidence
 
-Planned component validation records the reference and version, compared
-fields, outcome, ambiguity, and supporting/contradictory evidence. The closed
-outcomes are:
+Accepted Stage 9 records scoped offline checks against a frozen public reference
+pack, with exact source/candidate/component pointers and witness provenance.
+Its six relations are defined in the
+[Stage 9 contract](stages/STAGE09_OFFLINE_REFERENCE_EVIDENCE.md#minimal-relational-schema-and-necessity).
+They add reference evidence; Stage 8 remains the mapping authority.
 
-| Status | Meaning |
+| Stage 9 status | Meaning |
 |---|---|
-| `CONFIRMED` | Positive compatible reference evidence |
-| `MISMATCH` | Strong positive contradictory evidence |
-| `NOT_FOUND` | No matching reference record; not proof of invalidity |
-| `AMBIGUOUS` | More than one plausible interpretation/reference result |
-| `UNSUPPORTED` | The check is unavailable for this geography/value |
-| `INVALID_FORMAT` | A reviewed syntax contract is violated |
+| `SUPPORTED` | Positive evidence within the reference capability's scope |
+| `CONTRADICTED` | Positive conflict under an explicitly authorized negative capability |
+| `NOT_FOUND` | An evaluable lookup found no support; absence is not invalidity |
+| `NOT_EVALUABLE` | Prerequisites or a supported reference capability are unavailable |
+
+GeoNames has no negative authority. Country assessments and individual checks
+are separate; recognition of a country code is not proof that the address lies
+in that country. Keep evidence-row, candidate, occurrence and source-row
+denominators distinct.
+
+The legacy/later-stage vocabulary `CONFIRMED`, `MISMATCH`, `NOT_FOUND`,
+`AMBIGUOUS`, `UNSUPPORTED` and `INVALID_FORMAT` is not Stage 9's schema.
+In that proposal, `CONFIRMED` means compatible positive evidence; `MISMATCH`
+requires strong positive contradiction; `AMBIGUOUS` means multiple plausible
+interpretations; `UNSUPPORTED` means the check is unavailable; and
+`INVALID_FORMAT` means a reviewed syntax rule is violated. Neither vocabulary
+makes reference absence an invalid-address decision.
 
 ## Query identity and map-back
 
@@ -279,6 +283,9 @@ query_semantic_id values. Contexts sharing candidate text cannot contaminate or
 suppress each other. Equal intents across contexts retain separate hypotheses
 until the future request layer shares their execution. Final left joins retain
 no-candidate and zero-hypothesis source rows. Q7 is globally deferred, with no
-pseudo-context hypotheses. Q5/Q6 may coexist. Five/context and ten/source row are uniform
-engineering safety bounds (tighter reachable role maximum nine/row); scientific operating budget is unselected. The design is
-final and awaits owner authorization to implement; no execution or Stage 11 work.
+pseudo-context hypotheses. Q5/Q6 may coexist. The uniform engineering bounds
+are five hypotheses/context and ten/source row; the tighter reachable role
+maximum is nine/row. The scientific operating budget is unselected. The
+implementation is complete, but the latest
+[execution record](stages/STAGE10_IMPLEMENTATION.md) reports no DEVELOPMENT
+submission. Stage 11 remains unimplemented.

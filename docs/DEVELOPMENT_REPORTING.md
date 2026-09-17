@@ -22,10 +22,10 @@ Its fixed subset fingerprint is
 All 269 observed country strata are represented, 243 source files contribute
 rows, and no deterministic quota has a shortfall.
 
-## Why one fixed subset exists
+## Fixed subset
 
-The same 500 source rows are followed through Stage 2 and every later accepted
-DEVELOPMENT stage. This supports qualitative inspection, debugging, and
+Stages using this review contract follow the same 500 source rows from Stage 2
+onward. This supports qualitative inspection, debugging, and
 colleague demonstrations without allowing convenient examples to drift from
 stage to stage. Balanced deterministic quotas cover country, geocoding-history,
 batch-priority, standard/native availability and equality, line counts,
@@ -84,9 +84,9 @@ reject any path component named `holdout`, and selection validates every input
 split as `DEVELOPMENT`. **Do not use HOLDOUT for reporting, review, debugging,
 or tuning.**
 
-## Future-stage integration
+## Stage integration
 
-For each accepted DEVELOPMENT stage:
+For a DEVELOPMENT stage using this fixed-subset review contract:
 
 1. validate the complete accepted 35,000-row stage bundle;
 2. bind the fixed subset fingerprint and exact stable identities;
@@ -97,9 +97,12 @@ For each accepted DEVELOPMENT stage:
 5. compare the same 500 rows qualitatively while evaluating all 35,000 rows
    quantitatively; and
 6. after acceptance, consolidate supported facts into the single stage report
-   and generated acceptance summary without retaining competing current files.
+   and, where the stage has one, its generated acceptance summary.
 
 This framework is evaluation infrastructure. Stages 3–8 later used or bound the
 same fixed identities as applicable and are separately accepted on DEVELOPMENT;
-the reporting framework did not itself authorize them. It does not authorize
-Stage 9, HOLDOUT, or production Stage 2.
+the reporting framework did not itself authorize them. Stage 9 has a separate
+[accepted aggregate/public/synthetic review](../reports/development/stage09.md#owner-acceptance-and-freeze--2026-09-14),
+with no protected human address inspection and no paired `stage09.json`.
+Stage-specific review contracts govern later stages. This framework grants no
+new execution, HOLDOUT or production authority.

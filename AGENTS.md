@@ -7,8 +7,10 @@
   relevant documentation before acting.
 - Design and obtain explicit review/approval before implementing a stage. Stop
   after every stage; evidence is not permission to continue.
-- Stages 0–9 are accepted on DEVELOPMENT. Stage 10 and production Stage 2 are
-  not started and require separate explicit authorization.
+- Stages 0–9 are accepted on DEVELOPMENT. Stage 10 is implemented but not
+  accepted; its latest execution checkpoint is in `docs/DEVELOPMENT_PROGRESS.md`.
+  Production Stage 2 is not started. New stage work and runs require explicit
+  authorization; documentation maintenance grants none.
 - Preserve accepted/rejected scientific history. Do not rebase, squash, or
   rewrite the Stage 3 v1/v2 ancestry.
 - Maintain one active scientific stage workflow at a time. Submit a reviewed
