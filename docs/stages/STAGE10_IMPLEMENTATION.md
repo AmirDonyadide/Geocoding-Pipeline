@@ -15,7 +15,11 @@ parent. All implementation descends from that freeze. No Stage 10 acceptance tag
 Historical status wording in the normative design remains frozen; this separate
 record carries the new implementation authorization.
 
-**IMPLEMENTATION PUSHED — GOETHE CONNECTION PREFLIGHT BLOCKED — NO DEVELOPMENT JOB SUBMITTED — NOT ACCEPTED.**
+**IMPLEMENTED — DEVELOPMENT JOB 1772639 TIMED OUT — OWNER REVIEW REQUIRED — NOT ACCEPTED.**
+
+The latest [execution reconciliation](#development-timeout-reconciliation--2026-09-19)
+supersedes the earlier connection blocker. Historical checkpoints below remain
+dated evidence; they do not authorize another submission.
 
 ## Transliteration runtime blocker, 2026-09-14
 
@@ -359,3 +363,134 @@ No additional scientific approval is needed. Do not count the failed SSH
 connection as a job attempt, and do not silently skip any pre-submission gate.
 HOLDOUT remains sealed; Stage 0–9 unchanged; production/Pelias untouched;
 Stage 11 NOT STARTED; Stage 10 NOT ACCEPTED.
+
+### DEVELOPMENT timeout reconciliation — 2026-09-19
+
+**STAGE10_DEVELOPMENT_RUN_FAILED**
+
+After the owner restored eduVPN on 2026-09-15, the authorized preflight passed:
+clean detached executable `f83480d60449bcc904c0c622e394e12df3c3f2d9`, exact
+accepted Stage 6/8/9 manifests and reference pack, frozen design/implementation
+inventory, ICU archive/data/library/lock hashes, private PanFS topology and
+absent destination/reservation. Exactly one DEVELOPMENT job, **1772639**, was
+submitted at **2026-09-15T14:22:01Z**. Its first observation was PENDING / Priority;
+the session stopped without polling, cancellation or resubmission.
+
+On the owner's 2026-09-19 continuation, one successful accounting query reported:
+
+| Accounting field | Observed value |
+| --- | --- |
+| Allocation state / exit field | TIMEOUT / `0:0` |
+| Batch state / exit | CANCELLED / `0:15` (SIGTERM) |
+| Allocation elapsed | `1-00:00:20` (86,420 seconds) |
+| Batch elapsed | `1-00:00:21` (86,421 seconds) |
+| Batch MaxRSS | `7583388K` (about 7.23 GiB) |
+| Requested resources | 1 node/task, 4 CPUs, 32 GiB, 24 hours; general1 / footprint |
+| Allocated CPUs | 80; application thread limit remains 4 |
+| Dependencies / requeue | None / disabled |
+| Submit / start / end, scheduler strings | `2026-09-15T16:22:01` / `2026-09-18T00:47:21` / `2026-09-19T00:47:41` |
+
+Scheduler strings above carry no offset in sacct and are retained as reported.
+The independent submission receipt supplies UTC. The allocation's `0:0` field
+does **not** indicate success: terminal state is TIMEOUT and the batch received
+SIGTERM. There is no OOM marker in the preserved stderr. The initial accounting
+request used unsupported field `Restarts` and returned no state; removing that
+field yielded the single successful terminal observation, not a polling loop.
+
+**Classification: RESOURCE — walltime exhausted.** The implementation's
+generation throughput and precise bottleneck remain unresolved; this is not
+evidence for increasing the time limit or changing scientific eligibility.
+No runtime mismatch, scientific defect or publication failure was observed.
+Those statements do not certify uncompleted output checks.
+
+#### Preserved evidence and last evidenced phase
+
+The publication key is `stage10_development_20260915T142128Z_f83480d60449`.
+The target under
+`/panfs/vdura1/footprint/donyadidegan/safe_geocoding_pipeline/derived/controlled/stage10/development/`
+is **absent**. There is no final reservation directory, registration, manifest,
+`_COMMITTED` seal, logical dataset fingerprint or validated candidate to adopt.
+
+The private work root remains:
+`/panfs/vdura1/footprint/donyadidegan/safe_geocoding_pipeline/derived/controlled/stage10/development/work/stage10_development_20260915T142128Z_f83480d60449_4v1m114k`.
+Shell metadata inspection found:
+
+| Preserved item | Bytes / state |
+| --- | --- |
+| `attempt.json` | 340; created `2026-09-17T23:56:30.302345+00:00` |
+| `workspace/context.duckdb` | 1,517,826,048 |
+| `workspace/context.duckdb.wal` | 3,802,981,496; last modification `2026-09-18T22:47:26.537344056Z` |
+| Candidate-certificate Parquet part | 3,483,672 |
+| Context-key Parquet part | 5,512,940 |
+| Shard directories | 1, prefix `0`; created by generation after workspace preparation |
+| Shard files | 1 partial `query_family_decision/part-000000.parquet`, 2,172,840 bytes |
+| Completed `checkpoint.json` files | 0 |
+| Application `failure.json` / `completed.json` | Both absent |
+
+Directories were `0700`, files `0600`; no shard symlink was found. None of the
+database, WAL or Parquet payloads was opened during reconciliation. The partial
+Parquet file is neither validated nor assumed complete. Its row count is unknown;
+buffered hypotheses and completed contexts cannot be inferred from file counts.
+No incomplete shard is eligible for checkpoint adoption.
+
+Code order places `attempt.json` after exact runtime and input consumption;
+shard creation follows `work.prepare()`. Thus the last evidenced phase is
+**incomplete shard-0 generation**. The metadata does not locate the expensive
+context, selector, transformation or database operation. No profiler or protected
+rerun was launched. Runtime lock and ready-record hashes still match, and the
+detached checkout remains clean at the exact executable.
+
+The accepted combined Stage 10 input binding recorded in the attempt is
+`531d512f6c177fb5a9d6cd262e66846cdfd5cc66ba818c5aba8030165648878e`;
+runtime build lock is
+`20bfe735dca8b35b0ea10f1e3d729f2007e4cf3333dd5d5b5cdd527ef638d2cd`.
+This is gate/attempt evidence, not independent completed-candidate validation.
+
+Submission receipts remain under
+`/panfs/vdura1/footprint/donyadidegan/safe_geocoding_pipeline/integration_stage10/submission_f83480d60449`.
+A new exclusive `0600` **post-termination reconciliation** record,
+`reconciliation_20260919_timeout.json`, records accounting, metadata and the stop
+boundary. It is not a retroactively fabricated in-job failure receipt. No
+historical log, attempt, partial output or runtime was changed.
+
+| Evidence | SHA-256 |
+| --- | --- |
+| Attempt receipt | `fe5451fabd7bb942ba96aa51e46d11299341679acdcc2eb45ea6d7fdabce9504` |
+| Submission receipt | `f98631163fa7a301505565bc7005f5a1d31f3caad8bf0c513b2bf3b33d8f1671` |
+| Initial scheduler-state receipt | `ebc8cde014664102b15682213bbc8ea2821dfb78a4a059d01d2ddb74dfb41bbc` |
+| Preflight receipt | `51a1bb11533eac4828f81e2583d57f1c974617642fc715e4ee99612f491916f1` |
+| Empty SLURM stdout | `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855` |
+| SLURM stderr, 104 bytes, one time-limit cancellation line | `f3ab4bb108e0dc443a57f07cf536015a9a87498ffed71c50b3b73ad960ebadc5` |
+| Post-termination reconciliation receipt | `578f1082f1548e5683ad5284cdcce79716ccb020e8e59adc760f95c8f097ea87` |
+
+#### Complete bounded failure-review ledger
+
+| ID | Finding / classification | Disposition |
+| --- | --- | --- |
+| F01 | RESOURCE: the authorized 24-hour allocation expired during incomplete generation | Confirmed terminal failure; preserve attempt; no cancel, restart, resource change or resubmission. Owner review required. |
+| F02 | IMPLEMENTATION investigation: no complete shard after the allocation; expensive operation and throughput cause unknown | Open. Existing metadata cannot distinguish context construction, evidence certificates, family work, buffering or database cost. Any proposed repair needs evidence and owner review; no speculation promoted to diagnosis. |
+| F03 | IMPLEMENTATION observability: SIGTERM produced no application failure receipt or explicit progress receipt within shard 0 | Confirmed gap. Python exception handling does not intercept default SIGTERM. Separate reconciliation preserves the observed failure without modifying the attempt. No signal handler or checkpoint policy changed in this review. |
+| F04 | REPORTING_ONLY: current status pages still described the resolved VPN blocker and no submission | Resolved by this dated record and aligned current-status links; earlier dated history retained. |
+| F05 | REVIEW_TOOLING: sacct rejected the unsupported `Restarts` field | Resolved by using supported fields. No state was obtained from the rejected query; no repeated successful scheduler poll. |
+
+The bounded review covered occurrence/candidate grain, row-country and boundary
+isolation, parser/reference authority, Q5 safety, Q6 identity, family convergence,
+decision cardinality, identities, ceilings, orphans/map-back, expansion, privacy,
+publication and scale. With no complete shard or candidate, none of the scientific
+output invariants or Q1–Q6 distributions can be independently measured here.
+Their synthetic evidence remains the earlier pre-submission record, not proof
+that this failed execution passed. Q7 remains absent from the executable; no
+Stage 11 work or cross-context request deduplication occurred. No protected
+strings, source-row IDs or payload examples enter this report.
+
+The only changes after failure are sanitized reporting and the external
+reconciliation receipt. Executable, frozen design/specs, runtime lock and Stage
+0–9 science remain unchanged. Scientific operating budget is **UNSELECTED**.
+Reporting validation passed the Stage 10 design/runtime/schema/inventory check,
+stage-report validator, both report tests, and diff/changed-file privacy review.
+No implementation or protected test was rerun during failure reconciliation.
+HOLDOUT remains sealed; production/Pelias untouched; Stage 11 NOT STARTED;
+Stage 10 NOT ACCEPTED. The one authorized DEVELOPMENT submission has been used.
+
+**NEXT: OWNER REVIEW OF STAGE 10 DEVELOPMENT FAILURE.** No new execution or
+implementation repair is authorized by this reporting checkpoint.

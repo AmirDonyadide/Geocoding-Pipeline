@@ -19,7 +19,7 @@ before a separately authorized submission.
 | `stage09_filesystem_diagnostic.sbatch`, `stage09_exclusive_create_diagnostic.sbatch` | Preserved synthetic filesystem capability experiments |
 | [stage09_offline_reference_evidence.sbatch](stage09_offline_reference_evidence.sbatch) | Accepted offline reference evidence using the permanent reservation/commit-seal protocol |
 | [stage10_build_transliteration_runtime.sbatch](stage10_build_transliteration_runtime.sbatch) | Public-only locked ICU runtime preparation; completed job `1772341` |
-| [stage10_development.sbatch](stage10_development.sbatch) | Implemented offline query generation; no DEVELOPMENT job submitted at the latest [checkpoint](../../docs/stages/STAGE10_IMPLEMENTATION.md#executable-pushed-connection-preflight-blocked--2026-09-15) |
+| [stage10_development.sbatch](stage10_development.sbatch) | One authorized execution, job `1772639`, timed out; partial work preserved; no rerun authorized; [checkpoint](../../docs/stages/STAGE10_IMPLEMENTATION.md#development-timeout-reconciliation--2026-09-19) |
 
 The historical Stage 7 resource-cap crashes, DeepParse closure and failed
 semantic-readiness rule remain distinct from accepted parser evidence. See the

@@ -16,7 +16,7 @@ status is summarized in [progress](../DEVELOPMENT_PROGRESS.md).
 | 7 | [libpostal parsing/evidence](STAGE07_LIBPOSTAL_PARSING.md) | `STAGE_7_ACCEPTED` | NOT STARTED |
 | 8 | [Lossless address-evidence projection](STAGE08_ADDRESS_EVIDENCE_PROJECTION.md) | `STAGE_8_ACCEPTED`; candidate `231cdbf9…`, executable `c04cb972…`, job `1764273`, independent job `1764376` | NOT STARTED |
 | 9 | [Conservative offline geographic reference evidence](STAGE09_OFFLINE_REFERENCE_EVIDENCE.md) | `STAGE_9_ACCEPTED`; executable `3e10ac7c…`, job `1771191`, independent job `1772139`; [owner acceptance](../../reports/development/stage09.md#owner-acceptance-and-freeze--2026-09-14) | NOT STARTED |
-| 10 | [Bounded multi-hypothesis query generation](STAGE10_MULTI_HYPOTHESIS_QUERY_GENERATION.md) | Implemented; no DEVELOPMENT job submitted; not accepted; [execution record](STAGE10_IMPLEMENTATION.md) | NOT STARTED |
+| 10 | [Bounded multi-hypothesis query generation](STAGE10_MULTI_HYPOTHESIS_QUERY_GENERATION.md) | DEVELOPMENT job `1772639` timed out; owner failure review; not accepted; [execution record](STAGE10_IMPLEMENTATION.md#development-timeout-reconciliation--2026-09-19) | NOT STARTED |
 
 ## Reading frozen records
 

@@ -1880,3 +1880,25 @@ that predicate/proof and dependent bounds; the other reviewed decisions stand.
   records all bounded findings, fixes, synthetic validation, historical static
   check limitations and the single-execution stop boundary. This is executable
   preparation, not scientific acceptance or authorization for another stage.
+
+### D067 — Preserve Stage 10 DEVELOPMENT timeout and stop for owner review
+
+- **Evidence, 2026-09-19:** The single D064-authorized DEVELOPMENT execution,
+  job `1772639` at executable `f83480d60449bcc904c0c622e394e12df3c3f2d9`,
+  ended TIMEOUT after `1-00:00:20`; batch exit `0:15`, MaxRSS `7583388K`.
+  It was submitted on 2026-09-15 after the VPN blocker was resolved and exact
+  input/runtime/PanFS preflight passed. No duplicate or replacement was submitted.
+- **Disposition:** RESOURCE / walltime failure, with generation throughput
+  unlocalized and an application termination-receipt/progress gap. The
+  [complete bounded failure ledger](stages/STAGE10_IMPLEMENTATION.md#complete-bounded-failure-review-ledger)
+  distinguishes confirmed observations from unresolved implementation questions.
+  No frozen scientific rule or operating budget changes.
+- **Preservation:** Private attempt, database/WAL and one partial shard file
+  retained; zero completed checkpoints, no final artifact/reservation,
+  registration, manifest or commit seal. A separate exclusive post-termination
+  reconciliation receipt preserves the observation without altering the attempt.
+  No protected payload was opened in this review.
+- **Boundary:** Owner failure review before any repair or new execution. This
+  reporting entry grants neither. Stage 10 NOT ACCEPTED; operating budget
+  UNSELECTED; Stage 0–9 unchanged; HOLDOUT sealed; production/Pelias untouched;
+  Stage 11 NOT STARTED.

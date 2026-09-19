@@ -18,8 +18,9 @@ stage.
   No accepted design or implementation exists.
 
 Stages 0–9 are accepted on DEVELOPMENT. Stage 10 is implemented but not
-accepted: its latest [implementation checkpoint](stages/STAGE10_IMPLEMENTATION.md#executable-pushed-connection-preflight-blocked--2026-09-15)
-records a failed connection preflight before any DEVELOPMENT job submission.
+accepted: its latest [implementation checkpoint](stages/STAGE10_IMPLEMENTATION.md#development-timeout-reconciliation--2026-09-19)
+records DEVELOPMENT job `1772639` timing out with no committed candidate.
+Partial work is preserved; owner failure review is required before repair or rerun.
 Stages 11–14 remain proposed. Production Stages 0–1 are accepted for the
 1,411-file population; production Stage 2 onward has not started.
 
@@ -311,11 +312,12 @@ geocoder results and the final accepted match. Stages 8–9 are accepted, Stage
   Q6 requires the separately locked runtime; system ICU is not a substitute.
 - **Acceptance:** Explicit hypothesis identity/type/reason, complete map-back,
   no overwrite, multilingual review, and bounded query ladders.
-- **Status:** **IMPLEMENTED — NO DEVELOPMENT JOB SUBMITTED — NOT ACCEPTED**
-  at the latest recorded checkpoint. D064 authorized implementation and one
-  bounded DEVELOPMENT run; executable `f83480d60449bcc904c0c622e394e12df3c3f2d9`
-  is pushed. Public runtime preparation completed, but the Goethe connection
-  preflight blocked submission. The [frozen design](stages/STAGE10_MULTI_HYPOTHESIS_QUERY_GENERATION.md)
+- **Status:** **IMPLEMENTED — DEVELOPMENT TIMEOUT — NOT ACCEPTED**.
+  The one authorized run, job `1772639`, used executable
+  `f83480d60449bcc904c0c622e394e12df3c3f2d9` and reached incomplete shard-0
+  generation before its 24-hour limit. No candidate was committed; partial work
+  is preserved for owner failure review. No rerun is authorized. The
+  [frozen design](stages/STAGE10_MULTI_HYPOTHESIS_QUERY_GENERATION.md)
   and [implementation record](stages/STAGE10_IMPLEMENTATION.md) distinguish
   scientific rules, local evidence and execution status. Stage 11 and geocoding
   remain unauthorized.

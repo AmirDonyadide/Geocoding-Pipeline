@@ -6,8 +6,8 @@ standard and native address candidates, and records the evidence needed to
 judge whether an eventual coordinate is suitable for point-level research.
 
 DEVELOPMENT Stages 0–9 are accepted. Stage 10 query generation is implemented
-but not accepted; the latest execution record reports a blocked Goethe
-connection preflight and no DEVELOPMENT job submission. Production Stages 0–1
+but not accepted; DEVELOPMENT job `1772639` timed out with partial work preserved
+and no committed candidate. Owner failure review is next. Production Stages 0–1
 are accepted; production Stage 2 onward has not started. See
 [current progress](docs/DEVELOPMENT_PROGRESS.md).
 
@@ -19,7 +19,7 @@ are accepted; production Stage 2 onward has not started. See
 | 3–5 | Derived clean text, exact Unicode lowercase, separate standard/native line-body candidates |
 | 6–8 | Exact candidate deduplication with complete map-back, parser evidence, lossless evidence index |
 | 9 | Conservative offline country, postal-code, locality and administrative reference evidence |
-| 10 | Bounded query hypotheses; implemented, awaiting DEVELOPMENT execution and review |
+| 10 | Bounded query hypotheses; DEVELOPMENT timeout, awaiting owner failure review |
 | 11–14 | Proposed request deduplication/QA, Pelias retrieval, scoring and granularity/abstention |
 
 Parser labels and reference matches are evidence, not verified address truth.

@@ -15,7 +15,7 @@ scheduler observations. Contracts and evidence are linked below.
 | 7 | libpostal parsing/evidence | **`STAGE_7_ACCEPTED`** | Evidence-only job `1763516`; rereview job `1763656`; no semantic-trust claim; [report](../reports/development/stage07.md) | **NOT STARTED** |
 | 8 | Lossless address-evidence projection | **`STAGE_8_ACCEPTED`** | Candidate `231cdbf9…`; executable `c04cb972…`; jobs `1764273`/`1764376`; zero candidate defects; [report](../reports/development/stage08.md) | **NOT STARTED** |
 | 9 | Conservative offline reference evidence | **`STAGE_9_ACCEPTED`** | Executable `3e10ac7c…`; job `1771191`; independent review `a9ae443c…` / job `1772139`; zero candidate defects; [acceptance](../reports/development/stage09.md#owner-acceptance-and-freeze--2026-09-14) | **NOT STARTED** |
-| 10 | Bounded multi-hypothesis query generation | **IMPLEMENTED — NOT ACCEPTED** | Executable `f83480d6…`; public runtime job `1772341` completed; connection preflight blocked DEVELOPMENT submission on 2026-09-15; [record](stages/STAGE10_IMPLEMENTATION.md#executable-pushed-connection-preflight-blocked--2026-09-15) | **NOT STARTED** |
+| 10 | Bounded multi-hypothesis query generation | **DEVELOPMENT TIMEOUT — NOT ACCEPTED** | Executable `f83480d6…`; job `1772639` timed out; partial shard preserved, no committed candidate; [reconciliation](stages/STAGE10_IMPLEMENTATION.md#development-timeout-reconciliation--2026-09-19) | **NOT STARTED** |
 | 11–14 proposed | Query QA → Pelias top-N → scoring → granularity/abstain | **PROPOSED — NOT STARTED** | Remaining compact replacement architecture; [pipeline specification](PIPELINE.md) | **NOT STARTED** |
 
 Benchmark V1 contains 35,000 DEVELOPMENT and 15,000 sealed HOLDOUT rows from
@@ -29,11 +29,19 @@ D064–D066 record authorization for Stage 10 implementation and exactly one
 bounded DEVELOPMENT catalog, followed by independent review. Executable
 `f83480d60449bcc904c0c622e394e12df3c3f2d9` is pushed. The pinned Goethe ICU
 runtime was verified by public-only job `1772341`; that job is not a DEVELOPMENT
-execution. On 2026-09-15, DNS resolution failed while eduVPN was disconnected,
-before remote checkout, publication reservation or scheduler submission.
-The [implementation record](stages/STAGE10_IMPLEMENTATION.md#executable-pushed-connection-preflight-blocked--2026-09-15)
-defines the outstanding preflight and single-run boundary. No DEVELOPMENT
-artifact or Stage 10 acceptance is claimed.
+execution. After eduVPN was restored and preflight passed, DEVELOPMENT job
+`1772639` was submitted exactly once at `2026-09-15T14:22:01Z`. Its initial
+PENDING / Priority observation ended the session without polling or resubmission.
+
+On the owner's 2026-09-19 continuation, accounting reported **TIMEOUT**, elapsed
+`1-00:00:20`; batch exit `0:15`, MaxRSS `7583388K`. One incomplete generation
+shard, the database/WAL and attempt receipt remain private. There are zero
+complete shard checkpoints and no final artifact, registration or commit seal.
+The [failure record and bounded ledger](stages/STAGE10_IMPLEMENTATION.md#development-timeout-reconciliation--2026-09-19)
+classify walltime exhaustion and retain the unresolved throughput/observability
+issues. No protected payload was opened during reconciliation. No repair,
+restart or resubmission occurred; **owner failure review is next**. The single
+DEVELOPMENT execution authorization has been used. Stage 10 remains unaccepted.
 
 Stage 7 acceptance guarantees reproducible parser evidence, not semantic truth
 or trust from warning absence. Stage 8 acceptance preserves its lossless
