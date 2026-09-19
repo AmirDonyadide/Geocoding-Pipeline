@@ -43,6 +43,13 @@ issues. No protected payload was opened during reconciliation. No repair,
 restart or resubmission occurred; **owner failure review is next**. The single
 DEVELOPMENT execution authorization has been used. Stage 10 remains unaccepted.
 
+The owner subsequently authorized **one bounded throughput diagnostic** (D068),
+after preserved-evidence/static review, to determine the unknown bottleneck.
+The [diagnostic plan and harness review](stages/STAGE10_THROUGHPUT_DIAGNOSTIC.md)
+bind a 16-context immutable-ID slice, copied database/WAL inspection, 30-minute
+SLURM bound and aggregate timings. This is separate from a full DEVELOPMENT
+retry, which remains unauthorized. No candidate publication or science change.
+
 Stage 7 acceptance guarantees reproducible parser evidence, not semantic truth
 or trust from warning absence. Stage 8 acceptance preserves its lossless
 projection and all rejected publication attempts. Stage 9 acceptance is scoped

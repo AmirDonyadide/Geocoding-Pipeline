@@ -15,7 +15,7 @@ parent. All implementation descends from that freeze. No Stage 10 acceptance tag
 Historical status wording in the normative design remains frozen; this separate
 record carries the new implementation authorization.
 
-**IMPLEMENTED — DEVELOPMENT JOB 1772639 TIMED OUT — OWNER REVIEW REQUIRED — NOT ACCEPTED.**
+**IMPLEMENTED — DEVELOPMENT JOB 1772639 TIMED OUT — BOUNDED THROUGHPUT DIAGNOSIS AUTHORIZED — NOT ACCEPTED.**
 
 The latest [execution reconciliation](#development-timeout-reconciliation--2026-09-19)
 supersedes the earlier connection blocker. Historical checkpoints below remain
@@ -494,3 +494,12 @@ Stage 10 NOT ACCEPTED. The one authorized DEVELOPMENT submission has been used.
 
 **NEXT: OWNER REVIEW OF STAGE 10 DEVELOPMENT FAILURE.** No new execution or
 implementation repair is authorized by this reporting checkpoint.
+
+### Owner-authorized throughput diagnosis — 2026-09-19
+
+The owner acknowledged the failure and authorized preserved-evidence/static
+review plus exactly one bounded compute diagnostic if required. The
+[diagnostic plan, static ledger and harness validation](STAGE10_THROUGHPUT_DIAGNOSTIC.md)
+record that separate scope. Original executable and failed attempt remain
+unchanged. No full DEVELOPMENT retry, resource increase or scientific change is
+authorized; candidate acceptance and Stage 11 remain out of scope.

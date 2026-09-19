@@ -1902,3 +1902,22 @@ that predicate/proof and dependent bounds; the other reviewed decisions stand.
   reporting entry grants neither. Stage 10 NOT ACCEPTED; operating budget
   UNSELECTED; Stage 0–9 unchanged; HOLDOUT sealed; production/Pelias untouched;
   Stage 11 NOT STARTED.
+
+### D068 — Owner authorizes one bounded Stage 10 throughput diagnostic
+
+- **Authority, 2026-09-19:** Review of failed job `1772639`; determine the unknown
+  throughput cause from preserved evidence, static review and, if needed, exactly
+  one controlled diagnostic. No full DEVELOPMENT resubmission or walltime change.
+- **Evidence:** Existing logs/accounting/metadata do not establish the dominant
+  operation or exact completed contexts. Deeper database/WAL inspection runs on
+  a compute node using a private verified copy inside the single diagnostic.
+- **Plan:** [Throughput diagnostic](stages/STAGE10_THROUGHPUT_DIAGNOSTIC.md):
+  lowest immutable context ID per existing hex prefix, target 16 contexts,
+  45-second per-context measurement cap, 25-minute soft / 30-minute SLURM bound,
+  4 CPUs / 32 GiB. Exact unchanged family functions, scoped aggregate timings,
+  protected copy/serialization, no candidate publication or incomplete adoption.
+- **Boundary:** Commit/push instrumentation before one clean detached submission.
+  PENDING/RUNNING means report once and stop. Later continuation analyzes the
+  complete performance ledger before any repair/full-run decision. Stage 0–9,
+  Stage 10 science/ceilings and UNSELECTED operating budget unchanged; HOLDOUT
+  sealed; production/Pelias untouched; Stage 11 NOT STARTED; Stage 10 NOT ACCEPTED.
