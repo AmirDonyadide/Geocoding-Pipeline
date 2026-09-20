@@ -83,6 +83,18 @@ binds the destination, selection and next action. This is not a candidate
 publication. No repeated poll, cancellation, resubmission or full DEVELOPMENT
 retry occurred. **NEXT: owner continuation to reconcile this confirmation.**
 
+On the next owner continuation, one terminal accounting check reported
+confirmation **1774012 FAILED / 1:0**, elapsed **00:10:31**, batch MaxRSS
+**3589792 KiB** (application peak **5342460 KiB**, a separate source). The exact
+16-context gate passed with **96 decisions / 35 hypotheses**, but DuckDB rejected
+the harness's indexed-table rename before the 4424-context pass. **Zero shard
+checkpoint units completed.** The [complete failure reconciliation and ledger](stages/STAGE10_REPAIR_CONFIRMATION_1774012.md)
+records the same-version synthetic reproduction, the omitted setup test and a
+mutable timing-snapshot defect. Immutable gate receipts preserve exact timings.
+No long-shard throughput/resume/WAL conclusion or full-run projection is
+available. No executable fix, replacement job or full DEVELOPMENT retry was
+made. **NEXT: OWNER REVIEW OF THE CONFIRMATION HARNESS/OBSERVABILITY FAILURE.**
+
 Stage 7 acceptance guarantees reproducible parser evidence, not semantic truth
 or trust from warning absence. Stage 8 acceptance preserves its lossless
 projection and all rejected publication attempts. Stage 9 acceptance is scoped

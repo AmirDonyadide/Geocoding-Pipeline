@@ -1959,3 +1959,24 @@ that predicate/proof and dependent bounds; the other reviewed decisions stand.
   production or Pelias. Operating budget UNSELECTED. Pending/running means
   report once and stop; no automatic resubmission. Owner review of completed
   confirmation evidence precedes any corrected full DEVELOPMENT execution.
+
+
+### D071 — Reconcile failed Stage 10 repair confirmation without resubmission
+
+- **Evidence, 2026-09-20:** Confirmation `1774012`, exact repaired executable
+  `808123bb145107d7b025471b3b02869cc95fb44a`, FAILED / 1:0 in 631 seconds.
+  Exact protected 16-context equivalence passed (96 decisions / 35 hypotheses).
+  The harness then hit a DuckDB indexed-table rename dependency before the
+  first-shard replay; zero checkpoint units completed. This is a
+  REVIEW_HARNESS / IMPLEMENTATION failure, not resource exhaustion or a
+  scientific mismatch.
+- **Review:** The [complete P01–P12 reconciliation and C01–C03 defects](stages/STAGE10_REPAIR_CONFIRMATION_1774012.md)
+  preserve all evidence. Public same-version reproduction confirms the index
+  dependency; the local helper test omitted that setup step. Mutable nested
+  timing snapshots also require a correction; reporting uses the separately
+  serialized gate receipt. No executable correction is made by this record.
+- **Boundary:** The one confirmation authorization is consumed. No replacement,
+  full DEVELOPMENT retry, resource increase or Stage 10 acceptance follows.
+  Owner review of the harness/observability failure is next. Original attempts,
+  accepted Stage 0–9, Stage 10 science and UNSELECTED operating budget remain
+  unchanged. HOLDOUT sealed; production/Pelias untouched; Stage 11 NOT STARTED.
