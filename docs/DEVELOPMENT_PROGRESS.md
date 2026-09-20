@@ -73,6 +73,16 @@ the exact original 4424-context shard and verifies repartition/resume equality.
 At this pre-submission checkpoint no confirmation job has been submitted. A full
 DEVELOPMENT retry remains unauthorized; Stage 10 is NOT ACCEPTED.
 
+The repaired executable **`808123bb145107d7b025471b3b02869cc95fb44a`** was
+pushed on `perf/stage10-query-generation`. The exact detached Goethe checkout
+passed metadata/hash reconciliation. Confirmation **1774012** was submitted
+once at `2026-09-20T10:40:09Z` (submission-request UTC), requesting 4 CPUs,
+32 GiB and four hours, with no dependency/requeue. Its sole initial observation
+was **PENDING / Resources**. The [sanitized submission receipt](scientific_assets/stage10_repair_confirmation_submission_1774012.json)
+binds the destination, selection and next action. This is not a candidate
+publication. No repeated poll, cancellation, resubmission or full DEVELOPMENT
+retry occurred. **NEXT: owner continuation to reconcile this confirmation.**
+
 Stage 7 acceptance guarantees reproducible parser evidence, not semantic truth
 or trust from warning absence. Stage 8 acceptance preserves its lossless
 projection and all rejected publication attempts. Stage 9 acceptance is scoped
