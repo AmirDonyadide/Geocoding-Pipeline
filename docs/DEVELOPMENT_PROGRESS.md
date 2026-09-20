@@ -40,7 +40,7 @@ complete shard checkpoints and no final artifact, registration or commit seal.
 The [failure record and bounded ledger](stages/STAGE10_IMPLEMENTATION.md#development-timeout-reconciliation--2026-09-19)
 classify walltime exhaustion and retain the unresolved throughput/observability
 issues. No protected payload was opened during reconciliation. No repair,
-restart or resubmission occurred; **owner failure review is next**. The single
+restart or resubmission occurred at that checkpoint. The single
 DEVELOPMENT execution authorization has been used. Stage 10 remains unaccepted.
 
 The owner subsequently authorized **one bounded throughput diagnostic** (D068),
@@ -49,6 +49,17 @@ The [diagnostic plan and harness review](stages/STAGE10_THROUGHPUT_DIAGNOSTIC.md
 bind a 16-context immutable-ID slice, copied database/WAL inspection, 30-minute
 SLURM bound and aggregate timings. This is separate from a full DEVELOPMENT
 retry, which remains unauthorized. No candidate publication or science change.
+
+On the owner's 2026-09-20 continuation, the single diagnostic **1773901** at
+`622c0589d1dc6c7fd16224a1c46a1d5249bd4bc4` was COMPLETED / 0:0 in 102 seconds.
+The copied database recovered 3365 diagnostic rows in shard 0 of 4424 contexts,
+bounding original completed generation at 3364–3365 contexts. All 16 selected
+diagnostic contexts completed. Reference-witness certificate construction is
+the dominant measured cost, but the much faster small slice does **not fully
+explain the original timeout**. The [complete performance ledger and proposal](stages/STAGE10_THROUGHPUT_DIAGNOSTIC.md#completed-diagnostic-reconciliation--2026-09-20)
+distinguish measurement, coverage limits and proposed repairs. No repair or
+additional job was executed; **owner review of that ledger is next**. Stage 10
+remains unaccepted and its operating budget remains UNSELECTED.
 
 Stage 7 acceptance guarantees reproducible parser evidence, not semantic truth
 or trust from warning absence. Stage 8 acceptance preserves its lossless

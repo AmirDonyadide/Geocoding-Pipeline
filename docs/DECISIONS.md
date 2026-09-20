@@ -1921,3 +1921,27 @@ that predicate/proof and dependent bounds; the other reviewed decisions stand.
   complete performance ledger before any repair/full-run decision. Stage 0–9,
   Stage 10 science/ceilings and UNSELECTED operating budget unchanged; HOLDOUT
   sealed; production/Pelias untouched; Stage 11 NOT STARTED; Stage 10 NOT ACCEPTED.
+
+### D069 — Reconcile the single Stage 10 throughput diagnostic without a retry
+
+- **Evidence, 2026-09-20:** Diagnostic job `1773901`, executable
+  `622c0589d1dc6c7fd16224a1c46a1d5249bd4bc4`, COMPLETED / 0:0 in 102 seconds.
+  The original attempt was inspected through a private verified database/WAL
+  copy, recovering 3365 diagnostic rows in the 4424-context first shard.
+  Original completed-generation count is bounded at 3364–3365; exact persisted
+  output counts remain unavailable. All 16 diagnostic contexts completed.
+- **Finding:** Witness certificates consumed 78.13% of sampled context time;
+  repeated immutable registry encoding and selector inserts are confirmed
+  avoidable work. The sample's low component volume and short cursor lifetime
+  do not explain the full 24-hour timeout. A public synthetic cursor experiment
+  reproduced WAL growth without slowdown; it is not a cluster speed prediction.
+- **Disposition:** The [complete performance ledger](stages/STAGE10_THROUGHPUT_DIAGNOSTIC.md#complete-post-diagnostic-performance-defect-ledger)
+  records all measured findings, unresolved coverage and proposed minimal
+  repairs/equivalence tests. This is evidence reconciliation, not a newly
+  approved implementation or execution policy. The one diagnostic authorization
+  is consumed. No repair, second diagnostic, full retry, walltime increase,
+  candidate publication or acceptance occurred.
+- **Boundary:** Owner review of the ledger/proposed repair is next. The original
+  executable, Stage 0–9 and frozen Stage 10 science remain unchanged; operating
+  budget UNSELECTED; HOLDOUT sealed; production/Pelias untouched; Stage 11
+  NOT STARTED; Stage 10 NOT ACCEPTED.

@@ -164,3 +164,275 @@ remaining copied-workspace transaction, proves a new transaction can begin/end,
 and resets the bounded caches. A synthetic interrupted-transaction test verifies
 that original context-key rows remain present and no state contaminates the next
 measurement. This changes diagnostic cleanup only, not candidate execution.
+
+## Completed diagnostic reconciliation — 2026-09-20
+
+**STAGE10_THROUGHPUT_DIAGNOSIS_COMPLETE.** The dominant measured generation cost
+is reference-witness certificate construction, particularly repeated complete
+registry encoding and selector inserts. **The original 24-hour timeout is not
+fully explained.** The 16-context slice is substantially faster than the failed
+run's recovered average and does not cover large parser-component populations,
+long-running cursor/transaction retention, or elapsed-time-dependent slowdown.
+No repaired executable, additional diagnostic, full DEVELOPMENT retry, changed
+walltime or candidate publication is authorized by this evidence.
+
+### Execution and evidence binding
+
+- Diagnostic executable: `622c0589d1dc6c7fd16224a1c46a1d5249bd4bc4`, pushed on
+  `diagnostic/stage10-throughput`; clean detached Goethe checkout.
+- Exactly one diagnostic submission: job **1773901**, UTC
+  `2026-09-19T12:32:04Z`; first observation PENDING / Resources, then STOP.
+- One terminal accounting inspection on the owner's continuation: allocation
+  and batch **COMPLETED / 0:0**, elapsed **102 seconds**. Scheduler start/end
+  are `2026-09-19T20:12:48` / `2026-09-19T20:14:30`, retained without adding
+  timezone information absent from the accounting fields.
+- Request: one node/task, 4 CPUs, 32 GiB, 30 minutes, general1/footprint,
+  no dependencies/requeue. Allocation reports 80 CPUs; this is not 80 worker
+  threads. TotalCPU `01:31.076`, UserCPU `01:13.385`, SystemCPU `00:17.691`.
+- Batch MaxRSS **2552312K** (2.43 GiB); application `RUSAGE_SELF` maximum
+  **7643892 KiB** (7.29 GiB). Both measurements are retained. Their different
+  collection methods/windows are not reconciled by available evidence; do not
+  substitute the smaller scheduler value for the application high-water mark.
+- Batch MaxDiskRead `19079574.86K`, MaxDiskWrite `8989951.63K`. Application
+  I/O deltas include `rchar=19987091571`, `wchar=9208035265`,
+  `read_bytes=33660928`, `write_bytes=9208344576`. These cover snapshot copying,
+  recovery and measurements; they are not generation-only physical PanFS I/O.
+- Stdout contains only `DIAGNOSTIC_COMPLETE`; stderr is empty. Hashes:
+  stdout `5fa7f12b5ca68133362a61cb80e5cdee66ff7a85f87d55309f5f2e638646a0cb`,
+  stderr `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+
+Private output:
+`/work/footprint/donyadidegan/safe_geocoding_pipeline/derived/controlled/stage10/diagnostics/stage10_throughput_20260919T122820Z_622c0589d1dc`.
+It resolves through the established PanFS project anchor. The copied workspace,
+private selected IDs and protected serializations remain there. Only the
+[sanitized aggregate/function report](../scientific_assets/stage10_throughput_diagnostic_1773901.json)
+is copied into Git, byte-identical with SHA-256
+`260355d945ee7a2104848aa29a06989a3d0229223bf07b4cff6094a1f30dfed1`.
+This is observational evidence, not a normative scientific asset or candidate
+manifest. The frozen scientific/executable hash inventories are unchanged.
+
+The original database/WAL were copied and hash-verified before recovery:
+
+| Preserved file | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `context.duckdb` | 1517826048 | `693d4c42c47cb3b4463dbb7f0f7730879213fd23b1118e1f075e1b2cdc65818a` |
+| `context.duckdb.wal` | 3802981496 | `7290dc3872355d4efc5d0d7c3f4ba9fcf14ebb8aad84fcd3a8d628d07bf1c99b` |
+
+Original attempt hash, file sizes, modes and modification timestamps match the
+pre-diagnostic observations on reopening. DuckDB accessed only the copy.
+`preserved_evidence.json` SHA is
+`27dae34a7209a6dfe146f2b86cd1d64c1454d25ff2586da1cfd125ee21ac3cfe`.
+Runtime/hash/input gates passed; six public ICU vectors passed. No candidate
+registration, manifest, commit seal or adoption was attempted.
+
+### Recovered original progress and observed rates
+
+| Quantity | Recovered result |
+| --- | ---: |
+| Total query contexts | 69747 |
+| STANDARD / NATIVE contexts | 34822 / 34925 |
+| Exact first-shard allocation, prefix `0` | 4424 |
+| Distinct diagnostic rows, all in shard `0` | 3365 |
+| Completed generation calls | 3364–3365 |
+| Generated family decisions | 20184–20190 |
+| Exact generated/persisted hypothesis count | Unknown; upper bound 16825 |
+| Readable completed partial-decision file row count | Unknown; missing closing Parquet footer |
+| Complete shard checkpoints | 0 |
+| Recovered selector rows | 517 |
+| Prepared parser components / source-reference rows | 6106088 / 933012 |
+| Prepared match members / public objects | 554366 / 1844460 |
+
+The diagnostic-row insert occurs immediately before yielding a context. Thus
+all but possibly the last yielded context completed generation; the last may
+have completed too. These are bounds on calls/rows produced, not adopted output
+counts. Buffering and the missing Parquet footer prevent exact durable output
+counts. Recovery finding committed diagnostic rows disproves the interpretation
+that all progress remained inside one uncommitted generation transaction.
+It does not establish the state of the final interrupted certificate transaction.
+
+Assuming original scheduler times use the same `+0200` site clock as the
+explicitly offset file timestamps, approximately **69m09s** preceded attempt
+creation (runtime/input validation and other setup), **2m08s** elapsed from attempt creation to shard
+creation, and **22h49m03s** remained in shard 0 before SIGTERM. Those are phase
+envelopes from timestamps, not isolated function timings; scheduler fields lack
+their own timezone offset. Under that clock assumption, the last interval is
+82142.519 seconds. Shard completion was **76.040–76.062%**.
+
+**MEASURED, whole-job average:** 0.038926–0.038938 completed contexts/second
+and 0.233557–0.233626 generated decisions/second over the scheduler's 86420
+seconds, including startup. This needs no cross-clock assumption.
+**DERIVED, generation-interval average under the clock assumption above:**
+0.040953–0.040965 completed contexts/second,
+0.245719–0.245792 generated decisions/second, or 24.411–24.418 seconds per
+completed context across that interval, including any last incomplete work.
+An exact hypotheses/second rate cannot be derived. No original per-context
+time series exists, so steady progress, stalls and linear output growth are
+unknown. **EXTRAPOLATED total DEVELOPMENT runtime: not justified.**
+
+### Measured diagnostic phases and coverage
+
+All 16 predeclared minimum-ID contexts completed; zero time caps, transform
+failures or reported technical failures. Selection digest:
+`fb285755e571bca37c7e3245a806ffee7cea180b2d1aab3783dee662a265763d`.
+There were 96 Q1–Q6 decisions and 35 hypotheses. Eligible family counts were
+Q1=7, Q2=9, Q3=16, Q4=8, Q5=0, Q6=2: 42 eligible contributions converged to
+35 intents. These diagnostic rows are not a Stage 10 DEVELOPMENT candidate.
+Q5 eligibility logic ran, but no eligible whole-line deletion was measured.
+Two protected eligible Q6 calls and six separate public ICU vectors ran.
+
+| Timed phase | Wall seconds | Interpretation |
+| --- | ---: | --- |
+| Runtime verification | 3.763 | Exact frozen runtime gate, not pure ICU initialization |
+| Verified snapshot copy | 29.885 | Diagnostic overhead, absent from original generation |
+| Copied WAL recovery | 24.732 | Diagnostic overhead |
+| Preserved aggregate inspection | 0.066 | Includes deterministic slice selection |
+| Bounded upstream reads, total | 9.894 | Source views, not full upstream recertification |
+| Stage 9 selected-view read | 7.924 | 450 decoded rows / 424792 bytes, included above |
+| Context construction | 17.720 | 16 measured contexts |
+| Witness certificate | 13.845 | Included in context construction: **78.13%** |
+| Parser certificate | 0.116 | Included in context construction; only 45 components |
+| Q1–Q6 family generation | 0.095 | Evidence eligibility work also occurs in context construction |
+| Q3 / Q4 / Q5 decision function totals | 0.00165 / 0.00163 / 0.00054 | Not complete upstream evidence cost |
+| Q6 decision functions / actual ICU transform | 0.06720 / 0.000270 | Two transforms; includes initial script loading in decision time |
+| Identity hashing / identity validation | 0.0347 / 0.0140 | Nested within measured work |
+| Canonical JSON encoding | 0.00834 | Does not include typed evidence serialization |
+| Serialization and writer close | 0.459 | 32 per-context relation writers, diagnostic grain |
+| Writer close / directory fsync | 0.239 / 0.00206 | Included above; no original publication timing |
+
+Application elapsed is 90.010 seconds, measured after preflight and before final
+database/runtime close; scheduler elapsed is 102 seconds. Their difference is
+not evidence of unexplained generation time. Timings are inclusive; nested
+rows must not be summed. Completed-work time (context + families + serialization)
+is 18.273 seconds: **0.875605 contexts/s**, **5.253629 decisions/s**,
+**1.915386 hypotheses/s** for this instrumented slice only. Context construction
+min/median/max is 0.748/0.951/3.157 seconds. Witness construction is
+0.575/0.683/2.781 seconds. cProfile and wrappers add measurement overhead.
+
+Function profiles localize certificate cost: `_select_registry` 627 calls /
+10.441 cumulative seconds; `_select` 1426 calls / 10.405 seconds;
+`encoded` 1907 calls / 6.362 seconds; recursive `value_chunks` 6284688 calls /
+5.700 seconds; `ordered_values` 2042 calls / 2.544 seconds. These overlap.
+Selector inserts alone take 4.082 seconds; total SQL execute count is 1881,
+with 374 streaming cursor creations. Only three registry SQL reads occurred,
+so caching decoded registry objects already works; their repeated recursive
+ordering/encoding and selector submission remain on the hot path.
+
+Selected component/source-reference lookup SQL took 0.032/0.121 seconds.
+EXPLAIN operator summaries contain SEQ_SCAN and ORDER_BY, but retain neither
+actual scanned-row counts nor execution profiles. This does **not** establish
+a global full-scan bottleneck or prove index use at runtime. The diagnostic
+also executes the shard join 16 times (3.031 seconds), where the original opens
+one join/cursor per shard. Arrow-reader creation is 0.021 seconds; row conversion
+is included in function timings rather than independently timed.
+
+Context construction consumes 21.680 CPU seconds / 17.720 wall seconds; witness
+construction 15.506 CPU / 13.845 wall. This shows active CPU work, serial Python
+serialization and some native parallel work. It does not partition total time
+into CPU, storage waits, locks or spilling. No lock-wait trace or original
+spill time series exists. Native transforms and output fsync are negligible in
+this slice; that does not exclude rare large-component/Q5 costs elsewhere.
+
+### Diagnostic limits and public cursor experiment
+
+The selected 16 distinct candidates have 45 parser components (2.8125/candidate).
+The accepted 51779 exact candidates have 6106088 components
+(117.925955/candidate). These aggregates establish weak coverage of component
+volume; they neither identify protected examples nor characterize the tail.
+There is no representative throughput estimate for the full population.
+
+The diagnostic closes the streaming shard cursor after each selected context,
+starts from recovered/checkpointed database state and fresh bounded caches, and
+closes writers per context. Original generation holds the cursor across 4424
+contexts, accumulating transactions/WAL until shard completion. The 45-second
+caps did not censor this slice, but the slice cannot test those long-lived
+conditions. These are material review-harness limits, not output differences.
+
+A bounded public/invented local DuckDB 1.5.5 experiment checked that concern:
+1000 committed cycles, each deleting and re-inserting the same three primary
+keys with a 106496-byte invented payload, while an ordered 1100-row reader was
+either held open or closed per cycle. Each fresh database used four DuckDB
+threads, a 1GB memory limit, Arrow reader batch size one, and the same
+`INSERT ... ON CONFLICT ... DO UPDATE ... RETURNING payload` selector SQL.
+The payload was `b"public-synthetic-registry-" * 4096`; the key section was 4
+with one-byte keys 0–2. Both modes ran sequentially in one Mac process.
+No accepted inputs or code were used as
+data. Five batches of 200 cycles took 0.437/0.433/0.443/0.427/0.422 seconds with
+the reader held, versus 0.582/0.867/1.172/1.025/1.033 when closed. The held
+reader left a 319778247-byte WAL and 12288-byte database; closing per cycle left
+a 3837236-byte WAL and 616574976-byte database before final close.
+Both retained the same three live selector rows and exact payloads.
+
+This reproduces cursor-sensitive checkpoint/storage behavior, **not the timeout**:
+the held reader did not slow down in this small experiment. Single local trials,
+a different OS/filesystem and shared-process high-water RSS cannot justify a
+Goethe speedup estimate, a memory comparison or attribution of the original
+timeout to WAL growth. Synthetic artifacts remain in ignored local cache.
+
+### Complete post-diagnostic performance defect ledger
+
+| ID | Classification | Finding and disposition |
+| --- | --- | --- |
+| P01 | PERFORMANCE_SECONDARY | N+1 SQL/one-row Arrow access is confirmed: 1881 SQL calls, 374 cursor creations for 16 contexts. Indexed table creation exists; measured source/component lookups are small. Batch where equivalence is proven; no claim that full-table scans dominate. OPEN for repair review. |
+| P02 | PERFORMANCE_SECONDARY | Parser schema rebuilt once per component: 45 calls / 0.070 seconds in the small slice. Six million upstream components make this avoidable repeat work relevant, but heavy contexts were not measured. Hoist immutable schema and preserve exact component stream/certificate. OPEN. |
+| P03 | PERFORMANCE_ROOT_CAUSE (measured slice only) | Witness construction is 78.13% of context time. Registry SQL cache works but complete immutable registry payload is repeatedly ordered/encoded for every reference/witness/ancestor visit; selector writes repeat before database dedup. Exact code/profile evidence confirms this cost. Original 24-hour attribution remains incomplete. OPEN for narrow repair. |
+| P04 | CHECKPOINTING | Actual shard 0 has 4424 contexts; 3364–3365 completed calls yielded no durable checkpoint. Sixteen prefixes were an uncalibrated operational choice. Smaller deterministic partitions can preserve logical rows/IDs; partition and crash/restart equivalence must be tested. No change made. |
+| P05 | OBSERVABILITY | Original lacks within-shard counters/timing and SIGTERM receipt. Recovery bounds progress but cannot give exact hypothesis/durable decision counts or time series. Diagnostic records these only for itself. Add privacy-safe bounded progress and termination evidence in a reviewed repair; no raw exception text. OPEN. |
+| P06 | INFORMATIONAL | ICU handles/regexes are reused and convergence remains bounded by six families. Q6 transform 0.000270 seconds; Q5 has zero eligible removals in slice. No evidence of ICU, Q3, family convergence or per-record fsync dominance here. Rare/heavy behavior remains untested. |
+| P07 | RESOURCE | 24-hour walltime exhaustion is confirmed; memory was below the original request. Substantial original CPU use and generation-phase envelope are measured, but no representative full-runtime prediction or CPU/I/O/lock partition is possible. No walltime/memory increase proposed as a repair. |
+| P08 | CHECKPOINTING | Long-lived streaming read plus per-certificate commits can defer storage checkpointing. Synthetic experiment reproduces WAL behavior without slowdown. Recovered committed diagnostics rule out one wholly uncommitted generation transaction. WAL alone is not root-cause proof. OPEN for lifecycle review. |
+| P09 | REVIEW_HARNESS | Sixteen minimum-ID contexts, low component volume, short cursor lifetime and recovered state do not reproduce the original 22h49m generation regime. Measured speed is about 21 times the original interval average; no linear extrapolation, tail claim or full timeout explanation. Explicitly unresolved. |
+| P10 | OBSERVABILITY | Inclusive profile timings, non-ANALYZE plans, missing row-conversion/spill/lock timings and differing RSS sources limit attribution. Preserve both RSS observations and all method distinctions. Resolved in reporting; future measurement coverage requires review. |
+| P11 | PERFORMANCE_SECONDARY | Original publication validation calls full replay multiple times; static review finds the same costly context certificates regenerated during validation. This was not reached in job 1772639 and cannot cause its first-shard timeout. Preserve validation/reopen semantics and include replay cost in any later runtime estimate. OPEN, no validation weakened. |
+| P12 | INFORMATIONAL | All 16 contexts/96 decisions completed with exact identity checks; hashes/runtime gates passed, original files preserved, no candidate published. No scientific/family/budget/accepted-stage change. This diagnostic is structural/performance evidence only. CLOSED for this review. |
+
+H01–H09 above remain the pre-submission harness fixes. P09–P10 record additional
+limitations learned after execution, rather than retroactively claiming the
+experiment reproduced every original condition. The single diagnostic
+authorization is exhausted; no second protected experiment is submitted.
+
+### Smallest proposed repair and required proof
+
+First remove repeated immutable registry serialization from
+`ReferenceAccess._select_registry` / `_select`: validate and retain exact ordered
+payload bytes per registry identity under the existing byte budget, and avoid
+re-inserting an already verified identical registry in the current certificate.
+Preserve FK/collision checks, section/key ordering, complete selector membership
+and exact certificate bytes. Do not cache row-local eligibility by candidate.
+If R is registry visits and B the encoded payload size, current serialization
+cost is O(R×B); a byte-bounded immutable payload cache reduces it to
+O(M×B + R) metadata lookup work, where M is cache misses. It is not an unlimited
+global map. Registry selector inserts can become one per distinct verified
+registry per certificate, while all reference evidence still contributes.
+
+Then hoist the immutable parser schema and review set-based selector staging
+and smaller deterministic checkpoints. Those are separate bounded repair
+items, not permission to combine transformations, drop repeated evidence, skip
+validation or alter scientific context grain. No speedup factor is promised:
+10.441 seconds is overlapping profile attribution, not wholly removable work.
+
+Required tests before any repaired executable/full retry: byte-exact selector
+certificates and complete Q1–Q6 relation equality; repeated/shared registry and
+ancestor cases; FK/collision rejection; bounded-cache eviction; extreme synthetic
+component counts; all prior Stage 10 science and Stage 8/9 regression tests;
+safe suite/static/privacy checks; partition/order/restart equivalence; fault
+injection across checkpoints and publication. Add operation-count regressions
+for repeated encoding/inserts, rather than machine-dependent speed thresholds.
+
+Because this diagnostic does not explain the original runtime gap, a separately
+owner-authorized bounded comparison should cover long-lived cursor behavior and
+large-component workloads before a full retry. Selection must remain immutable
+and mechanical, with no address-content tuning. No extra experiment or repair
+is executed in this reporting continuation. **NEXT: OWNER REVIEW OF THE
+PERFORMANCE LEDGER AND PROPOSED REPAIR.** Stage 10 NOT ACCEPTED; operating budget
+UNSELECTED; Stage 0–9 unchanged; HOLDOUT sealed; production/Pelias untouched;
+Stage 11 NOT STARTED.
+
+Reporting validation passes: exact aggregate-report SHA, job/executable/count
+reconciliation, public-function/profile field checks, absence of protected
+value/ID/SQL-parameter fields, all changed-document links and anchors, original
+Stage 10 implementation/design/runtime/schema inventory, accepted stage-report
+validation and `git diff --check`. No executable changed, so the previously
+recorded 232 focused / 1006 safe-suite results are retained without claiming a
+new full-suite run. Only sanitized documentation and the aggregate evidence
+record are added in this continuation; the diagnostic branch remains separate
+from main pending owner review.

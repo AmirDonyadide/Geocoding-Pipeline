@@ -15,11 +15,14 @@ parent. All implementation descends from that freeze. No Stage 10 acceptance tag
 Historical status wording in the normative design remains frozen; this separate
 record carries the new implementation authorization.
 
-**IMPLEMENTED — DEVELOPMENT JOB 1772639 TIMED OUT — BOUNDED THROUGHPUT DIAGNOSIS AUTHORIZED — NOT ACCEPTED.**
+**IMPLEMENTED — DEVELOPMENT JOB 1772639 TIMED OUT — DIAGNOSTIC COMPLETE, TIMEOUT NOT FULLY EXPLAINED — NOT ACCEPTED.**
 
 The latest [execution reconciliation](#development-timeout-reconciliation--2026-09-19)
 supersedes the earlier connection blocker. Historical checkpoints below remain
 dated evidence; they do not authorize another submission.
+The [2026-09-20 diagnostic reconciliation](STAGE10_THROUGHPUT_DIAGNOSTIC.md#completed-diagnostic-reconciliation--2026-09-20)
+records the single completed performance experiment and remaining repair-review
+questions. No full DEVELOPMENT retry or science change occurred.
 
 ## Transliteration runtime blocker, 2026-09-14
 
