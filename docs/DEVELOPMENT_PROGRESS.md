@@ -106,6 +106,19 @@ checkpoint comparison and an incomplete-unit resume fixture. No replacement
 job has been submitted at this repair checkpoint. No full DEVELOPMENT run,
 candidate publication or Stage 10 acceptance is authorized by this repair.
 
+The harness-only correction **`68ce5fbd61c242fd44bdf9094a892d2d040cd628`** is
+pushed on `perf/stage10-query-generation`. Metadata preflight verified the clean
+detached Goethe checkout, accepted Stage 6/8/9 manifest hashes, ICU lock/binaries,
+and the same private PanFS topology. Replacement confirmation **1774111** was
+submitted exactly once at **2026-09-20T19:00:12Z** (submission-request UTC), with
+4 CPUs, 32 GiB, four hours, no dependency and no requeue. Its only scheduler
+observation was **PENDING / Resources**. The [sanitized submission receipt](scientific_assets/stage10_repair_confirmation_submission_1774111.json)
+binds the exact original prefix-zero 4424-context population and expected
+70/139/70 checkpoint units, including 69 reused units and 8 regenerated contexts
+in the resume test. No repeated poll, cancellation, extra submission, candidate
+publication or full DEVELOPMENT run occurred. **NEXT: OWNER CONTINUATION TO
+RECONCILE REPLACEMENT CONFIRMATION 1774111.**
+
 Stage 7 acceptance guarantees reproducible parser evidence, not semantic truth
 or trust from warning absence. Stage 8 acceptance preserves its lossless
 projection and all rejected publication attempts. Stage 9 acceptance is scoped
