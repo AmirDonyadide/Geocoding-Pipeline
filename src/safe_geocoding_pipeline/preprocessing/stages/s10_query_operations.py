@@ -43,6 +43,7 @@ class Progress:
             0,
         )
         self.timings: dict[str, dict[str, int]] = {}
+        self.observations: dict[str, int] = {}
         self.wal_high_water_bytes = 0
         self.sequence = 0
         self.failed_phase: str | None = None
@@ -79,7 +80,10 @@ class Progress:
             "failed_phase": self.failed_phase,
             "elapsed_ns": time.monotonic_ns() - self.started,
             "counts": dict(self.counts),
-            "timings_inclusive": self.timings,
+            "timings_inclusive": {
+                name: dict(value) for name, value in self.timings.items()
+            },
+            "observations": dict(self.observations),
             "wal_observed_high_water_bytes": self.wal_high_water_bytes,
             "max_rss_native": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss,
         }

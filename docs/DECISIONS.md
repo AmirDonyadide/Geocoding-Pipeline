@@ -1980,3 +1980,20 @@ that predicate/proof and dependent bounds; the other reviewed decisions stand.
   Owner review of the harness/observability failure is next. Original attempts,
   accepted Stage 0–9, Stage 10 science and UNSELECTED operating budget remain
   unchanged. HOLDOUT sealed; production/Pelias untouched; Stage 11 NOT STARTED.
+
+### D072 — Owner authorizes one Stage 10 harness repair and replacement confirmation
+
+- The owner classifies 1774012 as a confirmation harness/observability failure;
+  the repaired computation at `808123bb145107d7b025471b3b02869cc95fb44a` remains
+  unchanged. One harness-only correction and one replacement four-hour
+  confirmation are authorized; no full DEVELOPMENT retry or science change.
+- The [harness repair and complete review ledger](stages/STAGE10_CONFIRMATION_HARNESS_REPAIR.md)
+  resolve indexed-table setup, missing setup-path coverage and mutable timing
+  snapshots. One-time parser preparation is measured, not further optimized.
+  The exact protected 16/96/35 equality gate precedes the original 4424-context
+  first-shard replay, repartition and incomplete-unit resume checks.
+- Exact pushed detached code and runtime/input pins are required. Pending or
+  running: one observation and stop; no automatic cancellation or resubmission.
+  No candidate publication, HOLDOUT, production, Pelias or Stage 11. Operating
+  budget UNSELECTED; Stage 10 NOT ACCEPTED. Full-run authorization remains a
+  later owner decision after complete confirmation reconciliation.

@@ -28,7 +28,7 @@ readonly stage10_project="$(realpath -e /work/footprint/donyadidegan/safe_geocod
 cd "${STAGE10_CONFIRMATION_CHECKOUT}"
 [[ "$(git rev-parse HEAD)" == "${STAGE10_CONFIRMATION_SHA}" ]]
 [[ -z "$(git status --porcelain)" && -z "$(git symbolic-ref -q HEAD || true)" ]]
-git merge-base --is-ancestor 2ab3b143b2731f6781564646a9c91e844da2a176 HEAD
+git merge-base --is-ancestor 2a9fe6c7f6c291ae0f8b81a9e362d6714cf0b711 HEAD
 chmod 0600 "${stage10_project}/logs/slurm/${SLURM_JOB_NAME}_${SLURM_JOB_ID}.out" \
   "${stage10_project}/logs/slurm/${SLURM_JOB_NAME}_${SLURM_JOB_ID}.err"
 export SAFE_EXECUTION_SITE=goethe-nhr

@@ -95,6 +95,17 @@ No long-shard throughput/resume/WAL conclusion or full-run projection is
 available. No executable fix, replacement job or full DEVELOPMENT retry was
 made. **NEXT: OWNER REVIEW OF THE CONFIRMATION HARNESS/OBSERVABILITY FAILURE.**
 
+The owner subsequently authorized **one harness-only repair and one replacement
+confirmation** (D072). The [repair record](stages/STAGE10_CONFIRMATION_HARNESS_REPAIR.md)
+fixes indexed-table setup, tests the actual setup-to-replay path, and captures
+immutable timing snapshots. Repaired scientific computation remains pinned to
+`808123bb145107d7b025471b3b02869cc95fb44a`; the material parser preparation cost
+is measured without further optimization. The exact 16/96/35 gate still precedes
+the original 4424-context replay with separate setup/replay timings, 64/32-context
+checkpoint comparison and an incomplete-unit resume fixture. No replacement
+job has been submitted at this repair checkpoint. No full DEVELOPMENT run,
+candidate publication or Stage 10 acceptance is authorized by this repair.
+
 Stage 7 acceptance guarantees reproducible parser evidence, not semantic truth
 or trust from warning absence. Stage 8 acceptance preserves its lossless
 projection and all rejected publication attempts. Stage 9 acceptance is scoped
