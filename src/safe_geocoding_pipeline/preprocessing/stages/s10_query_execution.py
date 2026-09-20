@@ -27,6 +27,7 @@ from . import s10_query_contexts as contexts
 from . import s10_query_input as inputs
 from . import s10_query_io as io
 from . import s10_query_materializer as materializer
+from . import s10_query_operations as ops
 from . import s10_query_publication as pub
 from . import s10_query_transliteration as t
 
@@ -222,6 +223,13 @@ def offline_network() -> Iterator[None]:
 def run(
     config: Stage10Config, *, validate_only: bool = False
 ) -> generic_io.PublicationResult:
+    with ops.termination_guard():
+        return _run(config, validate_only=validate_only)
+
+
+def _run(
+    config: Stage10Config, *, validate_only: bool = False
+) -> generic_io.PublicationResult:
     stage08, stage09, runtime_root = config.preflight()
     if not validate_only:
         c.require(
@@ -234,7 +242,6 @@ def run(
     published = False
     try:
         with offline_network():
-            accepted = inputs.consume_inputs(stage08, stage09, config.stage06_root)
             parent = config.output_directory.parent / "work"
             if not parent.exists():
                 parent.mkdir(mode=0o700)
@@ -243,6 +250,16 @@ def run(
             root = Path(
                 tempfile.mkdtemp(prefix=config.output_directory.name + "_", dir=parent)
             )
+            preparation = ops.Progress(root / "input_progress")
+            preparation.phase = "input_validation"
+            preparation.record(announce=True)
+            try:
+                with preparation.measure("input_validation"):
+                    accepted = inputs.consume_inputs(
+                        stage08, stage09, config.stage06_root
+                    )
+            finally:
+                preparation.record(announce=True)
             workspace_root = root / "workspace"
             work = contexts.ContextWorkspace(
                 accepted, workspace_root, c.science_fingerprint(runtime.asset_binding)
@@ -278,7 +295,9 @@ def run(
                 "preparation_job_id": "1772341",
             }
             try:
-                work.prepare()
+                with work.progress.measure("workspace_preparation"):
+                    work.prepare()
+                work.progress.record(announce=True)
                 if validate_only:
                     c.require(
                         config.expected_manifest_sha256 is not None,
@@ -338,6 +357,7 @@ def run(
                         "status": "FAILED_ATTEMPT_PRESERVED",
                         "code": code,
                         "elapsed_seconds": int(time.monotonic() - start),
+                        "progress": work.progress.snapshot(),
                     },
                 )
                 raise
@@ -353,6 +373,7 @@ def run(
                         "max_rss_kib": resource.getrusage(
                             resource.RUSAGE_SELF
                         ).ru_maxrss,
+                        "progress": work.progress.snapshot(),
                     },
                 )
             except OSError:

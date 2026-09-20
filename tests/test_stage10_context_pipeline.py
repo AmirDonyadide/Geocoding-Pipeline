@@ -68,7 +68,10 @@ def synthetic_inputs(reference_view: Any, tmp_path: Any, request: Any) -> Any:
             ("unit", "unit 5"),
         )
     ]
-    same_country = getattr(request, "param", False)
+    settings = getattr(request, "param", False)
+    same_country = (
+        settings.get("same_country", False) if isinstance(settings, dict) else settings
+    )
     candidate = complete(
         s8.candidate_evidence_schema(),
         {
@@ -94,7 +97,9 @@ def synthetic_inputs(reference_view: Any, tmp_path: Any, request: Any) -> Any:
         present = index < 2
         row = {
             **source(),
-            "stable_source_row_id_v1": bytes([index + 1]) * 32,
+            "stable_source_row_id_v1": settings["source_ids"][index]
+            if isinstance(settings, dict) and "source_ids" in settings
+            else bytes([index + 1]) * 32,
             "stage03_clean_country_iso_code": country,
             "stage08_source_row_ordinal": index,
         }

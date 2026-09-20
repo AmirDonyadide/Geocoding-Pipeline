@@ -152,7 +152,13 @@ def test_timed_connection_full_context_fidelity(
     ]
     raw = work.db
     metrics = d.Metrics()
-    work.db = d.TimedDB(raw, metrics)  # type: ignore[assignment]
+
+    class CurrentTimedDB(d.TimedDB):
+        @property
+        def source_revision(self) -> int:
+            return int(self.raw.source_revision)
+
+    work.db = CurrentTimedDB(raw, metrics)  # type: ignore[assignment]
     assert work.reference is not None
     work.reference.db = work.db
     work.reference.certificates = cx.ByteCache(1024 * 1024)
@@ -163,8 +169,10 @@ def test_timed_connection_full_context_fidelity(
             f.generate(context, runtime) for context in work.contexts(diagnostics=False)
         ]
     assert actual == expected
-    assert metrics.values["sql_selector_insert"]["calls"] > 0
-    assert metrics.values["sql_components"]["calls"] > 0
+    assert (
+        "sql_selector_insert" not in metrics.values
+    )  # repaired accumulation has no SQL writes
+    assert "sql_components" not in metrics.values  # complete component tuples reused
     work.close()
 
 

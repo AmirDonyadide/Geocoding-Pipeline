@@ -61,6 +61,18 @@ distinguish measurement, coverage limits and proposed repairs. No repair or
 additional job was executed; **owner review of that ledger is next**. Stage 10
 remains unaccepted and its operating budget remains UNSELECTED.
 
+The owner then approved one consolidated performance repair and **one first-shard
+confirmation**, recorded in D070 and the [complete repair/review ledger](stages/STAGE10_PERFORMANCE_REPAIR.md).
+The repair preserves science and all eligible families, adds bounded immutable
+reference payload reuse, one private context join/index, parser certificates,
+64-context checkpoints/resume and aggregate observability. Local validation:
+258 focused Stage 10 tests and 1032 safe repository tests passed; exact
+old/new synthetic equivalence, mypy, Ruff and execution/document gates passed.
+The confirmation first gates on the preserved 16-context outputs, then processes
+the exact original 4424-context shard and verifies repartition/resume equality.
+At this pre-submission checkpoint no confirmation job has been submitted. A full
+DEVELOPMENT retry remains unauthorized; Stage 10 is NOT ACCEPTED.
+
 Stage 7 acceptance guarantees reproducible parser evidence, not semantic truth
 or trust from warning absence. Stage 8 acceptance preserves its lossless
 projection and all rejected publication attempts. Stage 9 acceptance is scoped

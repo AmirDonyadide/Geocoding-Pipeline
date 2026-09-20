@@ -1945,3 +1945,17 @@ that predicate/proof and dependent bounds; the other reviewed decisions stand.
   executable, Stage 0–9 and frozen Stage 10 science remain unchanged; operating
   budget UNSELECTED; HOLDOUT sealed; production/Pelias untouched; Stage 11
   NOT STARTED; Stage 10 NOT ACCEPTED.
+
+### D070 — Owner authorizes consolidated Stage 10 remediation and one confirmation
+
+- The owner accepted the complete P01–P12 diagnostic ledger and authorized one
+  consolidated performance repair, unchanged science, comprehensive equivalence
+  and safe tests, then exactly one bounded first-shard performance confirmation.
+- The [repair record](stages/STAGE10_PERFORMANCE_REPAIR.md) binds the original
+  executable/evidence, bounded operational changes and exact 4424-context
+  population. The protected 16-context equality gate runs first inside that
+  same compute allocation; local tests use synthetic/public inputs only.
+- No full DEVELOPMENT retry, candidate publication, Stage 11, HOLDOUT,
+  production or Pelias. Operating budget UNSELECTED. Pending/running means
+  report once and stop; no automatic resubmission. Owner review of completed
+  confirmation evidence precedes any corrected full DEVELOPMENT execution.

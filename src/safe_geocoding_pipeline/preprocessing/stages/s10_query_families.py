@@ -8,12 +8,15 @@ import tempfile
 import unicodedata
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
+from contextlib import nullcontext
+from functools import cached_property
 from pathlib import Path
 from typing import Any, Protocol
 
 from . import s10_query_contract as c
 from . import s10_query_transliteration as transliteration
 from .s10_query_evidence import FieldPolicy
+from .s10_query_operations import Progress
 
 ComponentReader = Callable[[bool], Iterator[Mapping[str, Any]]]
 UNIT = re.compile(r"(?:unit|suite|apt|apartment) [0-9]+[a-z]?")
@@ -47,8 +50,9 @@ class QueryContext:
     fields: FieldPolicy
     certificates: Mapping[str, Mapping[str, Any]]
     spool_root: Path
+    progress: Progress | None = None
 
-    @property
+    @cached_property
     def identifier(self) -> bytes:
         return c.context_id(self.upstream_identity, self.source_id, self.role)
 
@@ -275,7 +279,10 @@ def _transliterated(context: QueryContext, runtime: TransformRuntime) -> FamilyR
         return FamilyResult(
             None, ("UNSUPPORTED_SCRIPT_TRANSLITERATION",), tuple(traces)
         )
-    converted = runtime.transform(script, normalized)
+    with (
+        context.progress.measure("icu_transform") if context.progress else nullcontext()
+    ):
+        converted = runtime.transform(script, normalized)
     traces.append(
         step(
             1,
@@ -342,7 +349,12 @@ def _family(
     if family == "Q4":
         return _structured(context)
     if family == "Q5":
-        return strip_units(context)
+        with (
+            context.progress.measure("q5_alignment")
+            if context.progress
+            else nullcontext()
+        ):
+            return strip_units(context)
     c.require(family == "Q6", "STAGE10_FAMILY_INVALID")
     return _transliterated(context, runtime)
 
@@ -360,7 +372,12 @@ def generate(
     hypotheses: dict[bytes, dict[str, Any]] = {}
     decisions = []
     for family in c.FAMILIES:
-        result = _family(context, family, runtime)
+        with (
+            context.progress.measure(family)
+            if context.progress is not None
+            else nullcontext()
+        ):
+            result = _family(context, family, runtime)
         reasons = list(result.reasons)
         hypothesis_id = None
         membership = "NONE"

@@ -6,9 +6,9 @@ import hashlib
 import re
 from collections import OrderedDict
 from collections.abc import Generator, Iterable, Iterator, Mapping, Sequence
-from functools import partial
+from functools import cache, partial
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import duckdb
 import pyarrow as pa
@@ -23,6 +23,27 @@ from . import s10_query_evidence as evidence
 from . import s10_query_families as families
 from . import s10_query_input as inputs
 from . import s10_query_io as io
+from . import s10_query_operations as ops
+
+
+@cache
+def reference_schema(name: str) -> Any:
+    return s9.relation_schema(name)
+
+
+@cache
+def component_schema() -> Any:
+    return s8.parser_component_evidence_schema()
+
+
+@cache
+def occurrence_schema() -> Any:
+    return s8.representation_occurrence_schema()
+
+
+@cache
+def source_schema() -> Any:
+    return s8.source_candidate_map_schema()
 
 
 def encoded(values: Sequence[Any]) -> bytes:
@@ -44,15 +65,25 @@ def certificate(selector: str, rows: Iterable[Sequence[Any]]) -> dict[str, Any]:
 
 
 def sql_rows(
-    db: duckdb.DuckDBPyConnection, query: str, parameters: Sequence[Any] = ()
+    db: duckdb.DuckDBPyConnection,
+    query: str,
+    parameters: Sequence[Any] = (),
+    *,
+    batch_rows: int = 1,
 ) -> Generator[dict[str, Any], None, None]:
     # A separate cursor keeps a streaming parent query alive during nested
     # exact-key reference access. All tables are private operational workspace.
     cursor = db.cursor()
     try:
-        reader = cursor.execute(query, list(parameters)).to_arrow_reader(batch_size=1)
+        reader = cursor.execute(query, list(parameters)).to_arrow_reader(
+            batch_size=batch_rows
+        )
         for batch in reader:
-            yield from batch.to_pylist()
+            if batch.nbytes <= ops.PAGE_BYTES:
+                yield from batch.to_pylist()
+            else:
+                for ordinal in range(batch.num_rows):
+                    yield batch.slice(ordinal, 1).to_pylist()[0]
     finally:
         cursor.close()
 
@@ -108,18 +139,26 @@ class ByteCache:
 class ReferenceAccess:
     """Public-object keys and accepted witness sets, with disk-backed dedup."""
 
-    def __init__(self, db: duckdb.DuckDBPyConnection) -> None:
+    def __init__(
+        self,
+        db: duckdb.DuckDBPyConnection,
+        root: Path | None = None,
+        progress: ops.Progress | None = None,
+    ) -> None:
         self.db = db
+        self.root = root
+        self.progress = progress or ops.Progress()
         self.cache = ByteCache()
         self.certificates = ByteCache(1024 * 1024)
-        db.execute(
-            "CREATE TABLE selector_selection(section UTINYINT, sort_key BLOB, payload BLOB, PRIMARY KEY(section,sort_key))"
-        )
+        self.member_cache = ByteCache(4 * 1024 * 1024)
+        self.selection: ops.SelectorAccumulator | None = None
 
-    def _record(self, name: str, key: str, identifier: bytes) -> Mapping[str, Any]:
+    def _material(
+        self, name: str, key: str, identifier: bytes
+    ) -> tuple[Mapping[str, Any], bytes]:
         cache_key = name.encode() + identifier
-        record = self.cache.get(cache_key)
-        if record is None:
+        material = self.cache.get(cache_key)
+        if material is None:
             record = one(
                 self.db, f"SELECT * FROM stage10_{name} WHERE {key}=?", [identifier]
             )
@@ -128,9 +167,13 @@ class ReferenceAccess:
                 "objects": "reference_object",
                 "registry": "reference_registry",
             }[name]
-            size = len(encoded(c.ordered_values(record, s9.relation_schema(relation))))
-            self.cache.put(cache_key, record, size)
-        return dict(record)
+            payload = encoded(c.ordered_values(record, reference_schema(relation)))
+            material = record, payload
+            self.cache.put(cache_key, material, len(payload) * 2)
+        return material[0], material[1]
+
+    def _record(self, name: str, key: str, identifier: bytes) -> Mapping[str, Any]:
+        return dict(self._material(name, key, identifier)[0])
 
     def capability(self, identifier: bytes) -> Mapping[str, Any]:
         return self._record("capabilities", "capability_id", identifier)
@@ -142,11 +185,32 @@ class ReferenceAccess:
         return self._record("registry", "reference_version_id", identifier)
 
     def members(self, identifier: bytes) -> Iterator[dict[str, Any]]:
-        yield from sql_rows(
+        cached = self.member_cache.get(identifier)
+        if cached is not None:
+            yield from cached
+            return
+        saved: list[dict[str, Any]] | None = []
+        size = 0
+        for row in sql_rows(
             self.db,
             "SELECT * FROM stage10_members WHERE match_set_id=? ORDER BY member_ordinal",
             [identifier],
-        )
+        ):
+            if saved is not None:
+                size += 1024 + len(
+                    encoded(
+                        c.ordered_values(
+                            row, reference_schema("reference_match_member")
+                        )
+                    )
+                )
+                if 1024 + 8 * size > self.member_cache.limit:
+                    saved = None
+                else:
+                    saved.append(row)
+            yield row
+        if saved is not None:
+            self.member_cache.put(identifier, tuple(saved), size)
 
     def witnesses(self, row: Mapping[str, Any]) -> Iterator[Mapping[str, Any]]:
         count = row["witness_count"]
@@ -171,24 +235,19 @@ class ReferenceAccess:
             c.require(seen == count, "STAGE10_WITNESS_COUNT_INVALID")
 
     def _select(self, section: int, key: bytes, values: Sequence[Any]) -> None:
-        payload = encoded(values)
-        # Conflict checks complete encoded rows. No arbitrary truncation or
-        # growing Python object-ID set; SQLite-like ownership lives in DuckDB.
-        stored = self.db.execute(
-            "INSERT INTO selector_selection VALUES (?,?,?) ON CONFLICT(section,sort_key) DO UPDATE SET payload=selector_selection.payload RETURNING payload",
-            [section, key, payload],
-        ).fetchone()
-        c.require(
-            stored is not None and stored[0] == payload, "STAGE10_SELECTOR_ID_COLLISION"
+        assert self.selection is not None
+        self.selection.add(section, key, encoded(values))
+
+    def _select_record(
+        self, section: int, name: str, key: str, identifier: bytes
+    ) -> None:
+        assert self.selection is not None
+        self.selection.add(
+            section, identifier, self._material(name, key, identifier)[1]
         )
 
     def _select_registry(self, identifier: bytes) -> None:
-        record = self.registry(identifier)
-        self._select(
-            4,
-            identifier,
-            c.ordered_values(record, s9.relation_schema("reference_registry")),
-        )
+        self._select_record(4, "registry", "reference_version_id", identifier)
 
     def _select_object(self, identifier: bytes, version: bytes) -> Mapping[str, Any]:
         first = self.object(identifier)
@@ -201,11 +260,7 @@ class ReferenceAccess:
                 "STAGE10_REFERENCE_ANCESTRY_INVALID",
             )
             ancestors.add(key)
-            self._select(
-                2,
-                key,
-                c.ordered_values(current, s9.relation_schema("reference_object")),
-            )
+            self._select_record(2, "objects", "reference_object_id", key)
             self._select_registry(version)
             parent = current["explicit_parent_id"]
             if parent is None:
@@ -213,6 +268,12 @@ class ReferenceAccess:
             current = self.object(parent)
 
     def witness_certificate(self, rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+        with self.progress.measure("certificate"):
+            return self._cached_witness_certificate(rows)
+
+    def _cached_witness_certificate(
+        self, rows: Sequence[Mapping[str, Any]]
+    ) -> dict[str, Any]:
         key = encoded(
             tuple(
                 (
@@ -233,18 +294,17 @@ class ReferenceAccess:
         cached = self.certificates.get(key)
         if cached is not None:
             return dict(cached)
-        self.db.execute("BEGIN TRANSACTION")
+        self.selection = ops.SelectorAccumulator(self.db, self.root)
         try:
-            result = self._witness_certificate(rows)
-            self.db.execute("COMMIT")
-        except BaseException:
-            self.db.execute("ROLLBACK")
-            raise
+            with self.progress.measure("certificate_build"):
+                result = self._witness_certificate(rows)
+        finally:
+            self.selection.close()
+            self.selection = None
         self.certificates.put(key, result, len(key) + 128)
         return result
 
     def _witness_certificate(self, rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
-        self.db.execute("DELETE FROM selector_selection")
         for row in rows:
             version = row["reference_version_id"]
             if version is not None:
@@ -259,11 +319,7 @@ class ReferenceAccess:
                     and cap["question_catalog_id"] == row["question_catalog_id"],
                     "STAGE10_CAPABILITY_FK_INVALID",
                 )
-                self._select(
-                    3,
-                    identifier,
-                    c.ordered_values(cap, s9.relation_schema("reference_capability")),
-                )
+                self._select_record(3, "capabilities", "capability_id", identifier)
             if row["single_witness"] is not None:
                 values = s9.witness_tuple(row["single_witness"])
                 self._select(0, encoded(values), values)
@@ -273,7 +329,7 @@ class ReferenceAccess:
                         1,
                         encoded((member["match_set_id"], member["member_ordinal"])),
                         c.ordered_values(
-                            member, s9.relation_schema("reference_match_member")
+                            member, reference_schema("reference_match_member")
                         ),
                     )
             for witness in self.witnesses(row):
@@ -299,22 +355,8 @@ class ReferenceAccess:
                         == 1,
                         "STAGE10_WITNESS_FIELD_FK_INVALID",
                     )
-        digest = hashlib.sha256()
-        count = 0
-        for row in upstream_io.sorted_rows(
-            self.db,
-            "SELECT section,payload FROM selector_selection ORDER BY section,sort_key",
-            batch_rows=1,
-        ):
-            for chunk in c.framed((row["section"],)):
-                digest.update(chunk)
-            digest.update(row["payload"])
-            count += 1
-        return {
-            "selector_id": "REFERENCE_WITNESSES_V1",
-            "selected_count": count,
-            "selected_stream_sha256": digest.digest(),
-        }
+        assert self.selection is not None
+        return dict(self.selection.certificate())
 
 
 class ContextWorkspace:
@@ -325,14 +367,23 @@ class ContextWorkspace:
     ) -> None:
         self.accepted, self.root, self.science = accepted, root, science
         root.mkdir(mode=0o700)
-        self.db = upstream_io.bounded_connection(
+        self.progress = ops.Progress(root / "progress")
+        raw = upstream_io.bounded_connection(
             root / "spill", database=root / "context.duckdb", memory="8GB", threads=4
+        )
+        self.db = cast(
+            duckdb.DuckDBPyConnection, ops.TimedConnection(raw, self.progress)
         )
         accepted.register_views(self.db)
         self.reference: ReferenceAccess | None = None
         self.parser_certificates = ByteCache(1024 * 1024)
+        self.component_cache = ByteCache(4 * 1024 * 1024)
+        self.diagnostic_buffer: list[dict[str, Any]] = []
+        self.diagnostic_bytes = 0
+        self.context_index_revision: int | None = None
 
     def close(self) -> None:
+        self.flush_diagnostics()
         self.db.close()
 
     def _assert_zero(self, query: str, code: str) -> None:
@@ -432,7 +483,121 @@ class ContextWorkspace:
         self.db.execute(
             "CREATE TABLE stage10_context_diagnostics(query_context_id BLOB, stable_source_row_id_v1 BLOB, stage06_exact_candidate_id BLOB, role VARCHAR, country VARCHAR, boundary_fingerprint BLOB, boundary_value BLOB, country_state VARCHAR, q04_postcode_gate BOOLEAN, q08_postcode_gate BOOLEAN)"
         )
-        self.reference = ReferenceAccess(self.db)
+        self.reference = ReferenceAccess(self.db, self.root, self.progress)
+        self.prepare_parser_certificates()
+        self.prepare_context_index()
+        self.checkpoint_database()
+
+    def prepare_context_index(self) -> None:
+        """One external join; private derived index, never a new source map."""
+        with self.progress.measure("context_index_preparation"):
+            self.db.execute("""CREATE TABLE stage10_generation_contexts AS
+SELECT k.query_context_id,k AS occurrence,s AS source,l AS lines,c AS candidate,h.candidate_selector_sha256
+FROM stage10_context_keys k JOIN stage10_sources s USING(stable_source_row_id_v1)
+JOIN stage10_lines l USING(stable_source_row_id_v1)
+JOIN stage10_candidates c ON c.stage06_exact_candidate_id=k.stage06_exact_candidate_id
+JOIN stage10_candidate_certificates h ON h.stage06_exact_candidate_id=k.stage06_exact_candidate_id
+ORDER BY k.query_context_id""")
+            self.db.execute(
+                "CREATE UNIQUE INDEX generation_context_key ON stage10_generation_contexts(query_context_id)"
+            )
+            self._assert_zero(
+                """SELECT count(*) FROM stage10_context_keys k
+FULL OUTER JOIN stage10_generation_contexts g USING(query_context_id)
+WHERE k.query_context_id IS NULL OR g.query_context_id IS NULL""",
+                "STAGE10_CONTEXT_INDEX_MAP_BACK_INVALID",
+            )
+            self.context_index_revision = cast(Any, self.db).source_revision
+
+    def checkpoint_database(self) -> None:
+        self.progress.observe_wal(self.root / "context.duckdb")
+        with self.progress.measure("database_checkpoint"):
+            self.db.execute("CHECKPOINT")
+        c.require(
+            self.progress.observe_wal(self.root / "context.duckdb") == 0,
+            "STAGE10_WAL_CHECKPOINT_INCOMPLETE",
+        )
+
+    def flush_diagnostics(self) -> None:
+        if not self.diagnostic_buffer:
+            return
+        schema = (
+            self.db.execute("SELECT * FROM stage10_context_diagnostics LIMIT 0")
+            .to_arrow_table()
+            .schema
+        )
+        table = pa.Table.from_pylist(self.diagnostic_buffer, schema=schema)
+        with self.progress.measure("diagnostic_write"):
+            self.db.register("stage10_diagnostic_batch", table)
+            try:
+                self.db.execute(
+                    "INSERT INTO stage10_context_diagnostics SELECT * FROM stage10_diagnostic_batch"
+                )
+            finally:
+                self.db.unregister("stage10_diagnostic_batch")
+        self.diagnostic_buffer.clear()
+        self.diagnostic_bytes = 0
+
+    def prepare_parser_certificates(self) -> None:
+        """One complete component stream; derivative cache, never input authority."""
+        schema = pa.schema(
+            [
+                pa.field("stage06_exact_candidate_id", pa.binary(32), nullable=False),
+                pa.field("selected_count", pa.uint64(), nullable=False),
+                pa.field("selected_stream_sha256", pa.binary(32), nullable=False),
+            ]
+        )
+        writer = io.RelationWriter(self.root / "parser_certificates", schema)
+        previous: bytes | None = None
+        count, digest = 0, hashlib.sha256()
+        with self.progress.measure("parser_certificate_preparation"):
+            for row in sql_rows(
+                self.db,
+                "SELECT * FROM stage10_components ORDER BY stage06_exact_candidate_id,stage08_component_ordinal",
+                # Accepted component values can be giant scalars. Never retain
+                # a fixed batch of many such scalars in Arrow/Python memory.
+                batch_rows=1,
+            ):
+                candidate = row["stage06_exact_candidate_id"]
+                if previous is not None and candidate != previous:
+                    writer.append(
+                        {
+                            "stage06_exact_candidate_id": previous,
+                            "selected_count": count,
+                            "selected_stream_sha256": digest.digest(),
+                        }
+                    )
+                    count, digest = 0, hashlib.sha256()
+                c.require(
+                    row["stage08_component_ordinal"] == count,
+                    "STAGE10_COMPONENT_ORDINAL_INVALID",
+                )
+                for chunk in c.framed(c.ordered_values(row, component_schema())):
+                    digest.update(chunk)
+                count += 1
+                previous = candidate
+            if previous is not None:
+                writer.append(
+                    {
+                        "stage06_exact_candidate_id": previous,
+                        "selected_count": count,
+                        "selected_stream_sha256": digest.digest(),
+                    }
+                )
+            writer.close()
+            self.db.execute(
+                "CREATE TABLE stage10_parser_certificates AS SELECT c.stage06_exact_candidate_id,coalesce(p.selected_count,0)::UBIGINT selected_count,coalesce(p.selected_stream_sha256,?) selected_stream_sha256 FROM stage10_candidates c LEFT JOIN "
+                + io.parquet_sql(writer.paths)
+                + " p USING(stage06_exact_candidate_id)",
+                [hashlib.sha256().digest()],
+            )
+            self.db.execute(
+                "CREATE UNIQUE INDEX parser_certificate_key ON stage10_parser_certificates(stage06_exact_candidate_id)"
+            )
+            self._assert_zero(
+                "SELECT count(*) FROM stage10_parser_certificates p JOIN stage10_candidates c USING(stage06_exact_candidate_id) WHERE p.selected_count<>c.stage08_raw_component_count",
+                "STAGE10_COMPONENT_COUNT_INVALID",
+            )
 
     def _candidate_certificates(self) -> None:
         schema = pa.schema(
@@ -476,174 +641,273 @@ class ContextWorkspace:
     def components(
         self, candidate: bytes, reverse: bool
     ) -> Iterator[Mapping[str, Any]]:
+        cached = self.component_cache.get(candidate)
+        if cached is not None:
+            yield from reversed(cached) if reverse else cached
+            return
+        saved: list[Mapping[str, Any]] | None = []
+        size = 0
         direction = "DESC" if reverse else "ASC"
-        yield from sql_rows(
+        for row in sql_rows(
             self.db,
             f"SELECT * FROM stage10_components WHERE stage06_exact_candidate_id=? ORDER BY stage08_component_ordinal {direction}",
             [candidate],
-        )
+            batch_rows=1,
+        ):
+            if saved is not None:
+                size += 1024 + len(encoded(c.ordered_values(row, component_schema())))
+                if 1024 + 8 * size > self.component_cache.limit:
+                    saved = None
+                else:
+                    saved.append(row)
+            yield row
+        if saved is not None:
+            self.component_cache.put(
+                candidate, tuple(reversed(saved)) if reverse else tuple(saved), size
+            )
 
     def parser_certificate(self, candidate_id: bytes) -> dict[str, Any]:
         cached = self.parser_certificates.get(candidate_id)
         if cached is not None:
             return dict(cached)
-        result = certificate(
-            "PARSER_COMPONENTS_V1",
-            (
-                c.ordered_values(row, s8.parser_component_evidence_schema())
-                for row in self.components(candidate_id, False)
-            ),
+        row = one(
+            self.db,
+            "SELECT * FROM stage10_parser_certificates WHERE stage06_exact_candidate_id=?",
+            [candidate_id],
         )
+        result = {
+            "selector_id": "PARSER_COMPONENTS_V1",
+            "selected_count": row["selected_count"],
+            "selected_stream_sha256": row["selected_stream_sha256"],
+        }
         self.parser_certificates.put(candidate_id, result, 128)
         return result
 
-    def contexts(
-        self, prefix: str | None = None, *, diagnostics: bool = True
-    ) -> Iterator[families.QueryContext]:
-        c.require(self.reference is not None, "STAGE10_CONTEXT_WORKSPACE_UNPREPARED")
-        assert self.reference is not None
-        query = """SELECT k AS occurrence,s AS source,l AS lines,c AS candidate,h.candidate_selector_sha256
-FROM stage10_context_keys k JOIN stage10_sources s USING(stable_source_row_id_v1)
-JOIN stage10_lines l USING(stable_source_row_id_v1)
-JOIN stage10_candidates c ON c.stage06_exact_candidate_id=k.stage06_exact_candidate_id
-JOIN stage10_candidate_certificates h ON h.stage06_exact_candidate_id=k.stage06_exact_candidate_id
-{where}
-ORDER BY k.query_context_id""".format(
-            where=""
-            if prefix is None
-            else "WHERE starts_with(hex(k.query_context_id), "
-            + io.sql_literal(prefix.upper())
-            + ")"
-        )
+    def context_rows(
+        self,
+        prefix: str | None = None,
+        *,
+        after: bytes | None = None,
+        until: bytes | None = None,
+        page_rows: int = ops.PAGE_CONTEXTS,
+    ) -> Iterator[dict[str, Any]]:
         c.require(
             prefix is None or re.fullmatch(r"[0-9a-fA-F]{1,2}", prefix) is not None,
             "STAGE10_SHARD_PREFIX_INVALID",
         )
-        max_source_checks = sum(len(q.references) for q in s9.QUESTIONS.values())
-        for joined in sql_rows(self.db, query):
-            occurrence, source, candidate = (
-                joined["occurrence"],
-                joined["source"],
-                joined["candidate"],
+        c.require(1 <= page_rows <= ops.PAGE_CONTEXTS, "STAGE10_PAGE_SIZE_INVALID")
+        if self.context_index_revision != cast(Any, self.db).source_revision:
+            self.db.execute("DROP TABLE stage10_generation_contexts")
+            self.prepare_context_index()
+        query = """SELECT * EXCLUDE(query_context_id) FROM stage10_generation_contexts k
+WHERE {where} ORDER BY k.query_context_id LIMIT {limit}"""
+        while True:
+            conditions, parameters = [], []
+            if prefix is not None:
+                # Exact half-open binary range, instead of hex() on every key.
+                lo = bytes.fromhex(prefix.lower().ljust(64, "0"))
+                hi_int = int(prefix, 16) + 1
+                conditions.append("k.query_context_id>=?")
+                parameters.append(lo)
+                if hi_int < 16 ** len(prefix):
+                    conditions.append("k.query_context_id<?")
+                    parameters.append(
+                        bytes.fromhex(
+                            format(hi_int, "x").zfill(len(prefix)).ljust(64, "0")
+                        )
+                    )
+            if after is not None:
+                conditions.append("k.query_context_id>?")
+                parameters.append(after)
+            if until is not None:
+                conditions.append("k.query_context_id<=?")
+                parameters.append(until)
+            cursor = self.db.cursor()
+            rows: list[dict[str, Any]] = []
+            size = 0
+            try:
+                reader = cursor.execute(
+                    query.format(
+                        where=" AND ".join(conditions) or "TRUE", limit=page_rows
+                    ),
+                    parameters,
+                ).to_arrow_reader(batch_size=1)
+                for batch in reader:
+                    if rows and size + 8 * batch.nbytes > ops.PAGE_BYTES:
+                        break
+                    rows.extend(batch.to_pylist())
+                    size += 8 * batch.nbytes
+            finally:
+                cursor.close()
+            if not rows:
+                return
+            last = rows[-1]["occurrence"]["query_context_id"]
+            c.require(
+                after is None or last > after, "STAGE10_CONTEXT_PAGE_ORDER_INVALID"
             )
-            source_id, candidate_id = (
-                source["stable_source_row_id_v1"],
-                candidate["stage06_exact_candidate_id"],
-            )
-            role = occurrence["stage08_representation"]
-            source_rows: list[dict[str, Any]] = []
-            for row in sql_rows(
-                self.db,
-                "SELECT * FROM stage10_source_reference WHERE stable_source_row_id_v1=? AND stage06_exact_candidate_id=? ORDER BY evidence_id",
-                [source_id, candidate_id],
+            # The cursor is already closed before any context/certificate work.
+            yield from rows
+            after = last
+
+    def contexts(
+        self,
+        prefix: str | None = None,
+        *,
+        diagnostics: bool = True,
+        after: bytes | None = None,
+        until: bytes | None = None,
+        page_rows: int = ops.PAGE_CONTEXTS,
+    ) -> Iterator[families.QueryContext]:
+        c.require(self.reference is not None, "STAGE10_CONTEXT_WORKSPACE_UNPREPARED")
+        try:
+            for joined in self.context_rows(
+                prefix, after=after, until=until, page_rows=page_rows
             ):
-                c.require(
-                    len(source_rows) < max_source_checks,
-                    "STAGE10_SOURCE_EVIDENCE_EXPANSION",
-                )
-                source_rows.append(row)
+                if diagnostics:
+                    self.progress.counts["contexts_loaded"] += 1
+                with self.progress.measure("context_construction"):
+                    context = self._context(joined, diagnostics)
+                yield context
+        finally:
+            if diagnostics:
+                self.flush_diagnostics()
+                self.checkpoint_database()
+
+    def _context(
+        self, joined: Mapping[str, Any], diagnostics: bool
+    ) -> families.QueryContext:
+        assert self.reference is not None
+        max_source_checks = sum(len(q.references) for q in s9.QUESTIONS.values())
+        occurrence, source, candidate = (
+            joined["occurrence"],
+            joined["source"],
+            joined["candidate"],
+        )
+        source_id, candidate_id = (
+            source["stable_source_row_id_v1"],
+            candidate["stage06_exact_candidate_id"],
+        )
+        role = occurrence["stage08_representation"]
+        source_rows: list[dict[str, Any]] = []
+        for row in sql_rows(
+            self.db,
+            "SELECT * FROM stage10_source_reference WHERE stable_source_row_id_v1=? AND stage06_exact_candidate_id=? ORDER BY evidence_id",
+            [source_id, candidate_id],
+        ):
+            c.require(
+                len(source_rows) < max_source_checks,
+                "STAGE10_SOURCE_EVIDENCE_EXPANSION",
+            )
+            source_rows.append(row)
+        with self.progress.measure("source_field_evidence"):
             policy = evidence.evaluate_source_fields(
                 source, candidate, source_rows, self.reference
             )
-            line_names = inputs.source_line_fields(role)
-            line_values = tuple(joined["lines"][n] for n in line_names)
-            c.require(
-                line_values[0] == candidate_id
-                and line_values[5] == candidate["stage06_candidate_lower"]
-                and line_values[6] is True,
-                "STAGE10_SOURCE_LINE_CANDIDATE_MISMATCH",
-            )
-            certs = {
-                "CANDIDATE_V1": {
-                    "selector_id": "CANDIDATE_V1",
-                    "selected_count": 1,
-                    "selected_stream_sha256": joined["candidate_selector_sha256"],
-                },
-                "OCCURRENCE_V1": certificate(
-                    "OCCURRENCE_V1",
-                    [
-                        c.ordered_values(
-                            occurrence, s8.representation_occurrence_schema()
-                        )
-                    ],
-                ),
-                "SOURCE_CONTEXT_V1": certificate(
-                    "SOURCE_CONTEXT_V1",
-                    [c.ordered_values(source, s8.source_candidate_map_schema())],
-                ),
-                "SOURCE_LINES_V1": certificate("SOURCE_LINES_V1", [line_values]),
-                "PARSER_COMPONENTS_V1": self.parser_certificate(candidate_id),
-                "SOURCE_REFERENCE_V1": certificate(
-                    "SOURCE_REFERENCE_V1",
-                    (
-                        c.ordered_values(
-                            row, s9.relation_schema("candidate_reference_evidence")
-                        )
-                        for row in source_rows
-                    ),
-                ),
-                "REFERENCE_WITNESSES_V1": self.reference.witness_certificate(
-                    source_rows
-                ),
-            }
-            context = families.QueryContext(
-                self.accepted.context_binding,
-                self.accepted.identifier,
-                self.science,
-                source_id,
-                role,
-                candidate_id,
-                candidate["stage06_candidate_lower"],
-                line_values[1:5],
-                line_values[8],
-                line_values[7],
-                candidate["stage07_parse_status"],
-                candidate["stage08_raw_component_count"],
-                partial(self.components, candidate_id),
-                tuple(
-                    source[n]
-                    for n in (
-                        "stage04_lower_city",
-                        "stage04_lower_postcode",
-                        "stage04_lower_region_in_country",
-                        "stage04_lower_country_iso_code",
+        line_names = inputs.source_line_fields(role)
+        line_values = tuple(joined["lines"][n] for n in line_names)
+        c.require(
+            line_values[0] == candidate_id
+            and line_values[5] == candidate["stage06_candidate_lower"]
+            and line_values[6] is True,
+            "STAGE10_SOURCE_LINE_CANDIDATE_MISMATCH",
+        )
+        certs = {
+            "CANDIDATE_V1": {
+                "selector_id": "CANDIDATE_V1",
+                "selected_count": 1,
+                "selected_stream_sha256": joined["candidate_selector_sha256"],
+            },
+            "OCCURRENCE_V1": certificate(
+                "OCCURRENCE_V1",
+                [c.ordered_values(occurrence, occurrence_schema())],
+            ),
+            "SOURCE_CONTEXT_V1": certificate(
+                "SOURCE_CONTEXT_V1",
+                [c.ordered_values(source, source_schema())],
+            ),
+            "SOURCE_LINES_V1": certificate("SOURCE_LINES_V1", [line_values]),
+            "PARSER_COMPONENTS_V1": self.parser_certificate(candidate_id),
+            "SOURCE_REFERENCE_V1": certificate(
+                "SOURCE_REFERENCE_V1",
+                (
+                    c.ordered_values(
+                        row, reference_schema("candidate_reference_evidence")
                     )
+                    for row in source_rows
                 ),
-                source["stage03_clean_postcode"],
-                source["stage03_clean_city"],
-                policy,
-                certs,
-                self.root,
-            )
-            context.validate()
-            c.require(
-                context.identifier == occurrence["query_context_id"],
-                "STAGE10_CONTEXT_KEY_COLLISION",
-            )
-            if diagnostics:
-                raw_country = source["stage03_clean_country_iso_code"]
-                state = (
-                    "SOURCE_CODE_RECOGNIZED"
-                    if policy.country is not None
-                    else "SOURCE_CODE_MISSING"
-                    if not raw_country
-                    else "SOURCE_CODE_MALFORMED"
-                    if re.fullmatch(r"[A-Za-z]{2}", raw_country) is None
-                    else "SOURCE_CODE_UNRECOGNIZED"
+            ),
+            "REFERENCE_WITNESSES_V1": self.reference.witness_certificate(source_rows),
+        }
+        context = families.QueryContext(
+            self.accepted.context_binding,
+            self.accepted.identifier,
+            self.science,
+            source_id,
+            role,
+            candidate_id,
+            candidate["stage06_candidate_lower"],
+            line_values[1:5],
+            line_values[8],
+            line_values[7],
+            candidate["stage07_parse_status"],
+            candidate["stage08_raw_component_count"],
+            partial(self.components, candidate_id),
+            tuple(
+                source[n]
+                for n in (
+                    "stage04_lower_city",
+                    "stage04_lower_postcode",
+                    "stage04_lower_region_in_country",
+                    "stage04_lower_country_iso_code",
                 )
-                self.db.execute(
-                    "INSERT INTO stage10_context_diagnostics VALUES (?,?,?,?,?,?,?,?,?,?)",
-                    [
-                        context.identifier,
-                        source_id,
-                        candidate_id,
-                        role,
-                        policy.country,
-                        c.identity("stage10-boundary-context:v1", context.lines),
-                        encoded(context.lines),
-                        state,
-                        "Q04" in policy.contradiction_capabilities,
-                        "Q08" in policy.contradiction_capabilities,
-                    ],
-                )
-            yield context
+            ),
+            source["stage03_clean_postcode"],
+            source["stage03_clean_city"],
+            policy,
+            certs,
+            self.root,
+            self.progress,
+        )
+        context.validate()
+        c.require(
+            context.identifier == occurrence["query_context_id"],
+            "STAGE10_CONTEXT_KEY_COLLISION",
+        )
+        if diagnostics:
+            raw_country = source["stage03_clean_country_iso_code"]
+            state = (
+                "SOURCE_CODE_RECOGNIZED"
+                if policy.country is not None
+                else "SOURCE_CODE_MISSING"
+                if not raw_country
+                else "SOURCE_CODE_MALFORMED"
+                if re.fullmatch(r"[A-Za-z]{2}", raw_country) is None
+                else "SOURCE_CODE_UNRECOGNIZED"
+            )
+            diagnostic = {
+                "query_context_id": context.identifier,
+                "stable_source_row_id_v1": source_id,
+                "stage06_exact_candidate_id": candidate_id,
+                "role": role,
+                "country": policy.country,
+                "boundary_fingerprint": c.identity(
+                    "stage10-boundary-context:v1", context.lines
+                ),
+                "boundary_value": encoded(context.lines),
+                "country_state": state,
+                "q04_postcode_gate": "Q04" in policy.contradiction_capabilities,
+                "q08_postcode_gate": "Q08" in policy.contradiction_capabilities,
+            }
+            size = 1024 + 8 * len(diagnostic["boundary_value"])
+            if self.diagnostic_buffer and self.diagnostic_bytes + size > ops.PAGE_BYTES:
+                self.flush_diagnostics()
+                self.checkpoint_database()
+            self.diagnostic_buffer.append(diagnostic)
+            self.diagnostic_bytes += size
+            if (
+                len(self.diagnostic_buffer) >= ops.PAGE_CONTEXTS
+                or self.diagnostic_bytes >= ops.PAGE_BYTES
+            ):
+                self.flush_diagnostics()
+                self.checkpoint_database()
+        return context
