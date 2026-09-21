@@ -2036,3 +2036,27 @@ that predicate/proof and dependent bounds; the other reviewed decisions stand.
   running requires reporting once and stopping. Full DEVELOPMENT still requires
   a later owner decision. No candidate publication, HOLDOUT, production, Pelias,
   Stage 11 or acceptance. Operating budget UNSELECTED; Stage 0–9 frozen.
+
+### D075 — Validate final Stage 10 performance confirmation; await full-run authority
+
+- **Evidence, 2026-09-21:** Job `1774301`, executable/harness
+  `63f3cd107e69c9ddc14b9b517b0c7ab3d5861e66`, COMPLETED / 0:0 in 2427 s.
+  Exact 16/96/35 gate and all 4424 historical contexts match; generation produces
+  26544 decisions / 9065 hypotheses / 70 checkpoints in 1339.761 s. Full adoption
+  takes 12.585 s with zero certificate/scientific regeneration; separate tail
+  resume adopts 69 units and regenerates only eight contexts, exactly equal.
+- **Review:** The [complete reconciliation and P01–P12 ledger](stages/STAGE10_FINAL_CONFIRMATION_1774301.md)
+  verify SQL complexity (10449 versus 2329428 calls), certificate reuse, stable
+  sustained throughput, bounded WAL/memory and all 379 durable receipt hashes.
+  Certificate work remains material (86.7% of replay) but its repeated SQL/encoding
+  defect is fixed. Historical 24h causality remains unresolved/informational.
+- **Planning, not new authorization:** Full DEVELOPMENT has 69747 contexts.
+  Generation plus the three unchanged scientific publication/reopen replays,
+  setup/input and explicit finalization allowances project to 24.3h central /
+  30.1h conservative. Recommend 4 CPUs / 32 GiB / 36h only if the owner authorizes
+  the corrected full run. No candidate publication was exercised here, and no
+  full run or extra job was submitted. No validation safeguard was weakened.
+- **Boundary:** NEXT: OWNER AUTHORIZATION FOR ONE CORRECTED STAGE 10 DEVELOPMENT
+  RUN. Stage 0–9 and Stage 10 science unchanged; operating budget UNSELECTED;
+  HOLDOUT sealed; production/Pelias untouched; Stage 11 NOT STARTED;
+  Stage 10 NOT ACCEPTED. Later independent candidate review remains required.

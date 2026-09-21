@@ -171,3 +171,29 @@ DEVELOPMENT retry**. No repeated poll, cancellation or resubmission occurred.
 **NEXT: owner continuation to reconcile job 1774301 once.** Stage 10 is NOT
 ACCEPTED; operating budget UNSELECTED; Stage 0–9 and Stage 10 science unchanged;
 HOLDOUT sealed; production/Pelias untouched; Stage 11 NOT STARTED.
+
+On owner continuation **2026-09-21**, one terminal accounting check reported
+**1774301 COMPLETED / 0:0**, elapsed **40m27s**. The
+[final confirmation reconciliation](stages/STAGE10_FINAL_CONFIRMATION_1774301.md)
+validates all **4424 contexts / 26544 decisions / 9065 hypotheses**, with **70
+checkpoints** and exact historical scientific equality. Generation took
+**1339.761 s** after **903.036 s** of one-time preparation. Full resume adopted
+all 70 units in **12.585 s**, with **zero certificate calls or regenerated
+contexts**; separate partial-tail resume adopted 69 units and rebuilt only eight
+contexts, preserving identical output. SQL calls fell **2329428 → 10449**;
+certificate work **5323.204 → 1161.041 s**. Early/middle/late throughput was
+**3.863 / 2.950 / 3.630 contexts/s**. Sampled WAL stayed within **4.477 MiB**,
+cleared at observed checkpoints and was absent after close. All **379** durable
+receipt hashes validate, including terminal success; no unresolved technical
+failure or protected leakage. This is
+**STAGE10_FINAL_PERFORMANCE_CONFIRMATION_VALIDATED**, not a candidate publication.
+
+The conditional full-run forecast is **24.3h central / 30.1h conservative**,
+including the unchanged **three scientific publication/reopen replays** and
+explicit input/finalization allowances. Proposed request: **4 CPUs / 32 GiB /
+36h**, subject to owner authorization. No corrected full DEVELOPMENT job has
+been submitted. Complete P01–P12 disposition and measurement limits are in the
+linked report. **NEXT: OWNER AUTHORIZATION FOR ONE CORRECTED STAGE 10 DEVELOPMENT
+RUN.** Stage 10 remains NOT ACCEPTED; operating budget UNSELECTED; Stage 0–9
+and Stage 10 science unchanged; HOLDOUT sealed; production/Pelias untouched;
+Stage 11 NOT STARTED.
