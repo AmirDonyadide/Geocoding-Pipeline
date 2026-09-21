@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from functools import cache
+
 import hashlib
 import struct
 from collections.abc import Iterable, Iterator, Mapping, Sequence
@@ -30,6 +32,7 @@ def write_json(path: Path, value: Any) -> None:
     write_exclusive(path, c.canonical(value))
 
 
+@cache
 def output_schema(name: str) -> Any:
     """Attach the frozen closed constraints to the physical Arrow schema."""
     base = c.schema(name)

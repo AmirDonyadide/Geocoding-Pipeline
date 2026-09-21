@@ -1902,3 +1902,161 @@ that predicate/proof and dependent bounds; the other reviewed decisions stand.
   reporting entry grants neither. Stage 10 NOT ACCEPTED; operating budget
   UNSELECTED; Stage 0–9 unchanged; HOLDOUT sealed; production/Pelias untouched;
   Stage 11 NOT STARTED.
+
+### D068 — Owner authorizes one bounded Stage 10 throughput diagnostic
+
+- **Authority, 2026-09-19:** Review of failed job `1772639`; determine the unknown
+  throughput cause from preserved evidence, static review and, if needed, exactly
+  one controlled diagnostic. No full DEVELOPMENT resubmission or walltime change.
+- **Evidence:** Existing logs/accounting/metadata do not establish the dominant
+  operation or exact completed contexts. Deeper database/WAL inspection runs on
+  a compute node using a private verified copy inside the single diagnostic.
+- **Plan:** [Throughput diagnostic](stages/STAGE10_THROUGHPUT_DIAGNOSTIC.md):
+  lowest immutable context ID per existing hex prefix, target 16 contexts,
+  45-second per-context measurement cap, 25-minute soft / 30-minute SLURM bound,
+  4 CPUs / 32 GiB. Exact unchanged family functions, scoped aggregate timings,
+  protected copy/serialization, no candidate publication or incomplete adoption.
+- **Boundary:** Commit/push instrumentation before one clean detached submission.
+  PENDING/RUNNING means report once and stop. Later continuation analyzes the
+  complete performance ledger before any repair/full-run decision. Stage 0–9,
+  Stage 10 science/ceilings and UNSELECTED operating budget unchanged; HOLDOUT
+  sealed; production/Pelias untouched; Stage 11 NOT STARTED; Stage 10 NOT ACCEPTED.
+
+### D069 — Reconcile the single Stage 10 throughput diagnostic without a retry
+
+- **Evidence, 2026-09-20:** Diagnostic job `1773901`, executable
+  `622c0589d1dc6c7fd16224a1c46a1d5249bd4bc4`, COMPLETED / 0:0 in 102 seconds.
+  The original attempt was inspected through a private verified database/WAL
+  copy, recovering 3365 diagnostic rows in the 4424-context first shard.
+  Original completed-generation count is bounded at 3364–3365; exact persisted
+  output counts remain unavailable. All 16 diagnostic contexts completed.
+- **Finding:** Witness certificates consumed 78.13% of sampled context time;
+  repeated immutable registry encoding and selector inserts are confirmed
+  avoidable work. The sample's low component volume and short cursor lifetime
+  do not explain the full 24-hour timeout. A public synthetic cursor experiment
+  reproduced WAL growth without slowdown; it is not a cluster speed prediction.
+- **Disposition:** The [complete performance ledger](stages/STAGE10_THROUGHPUT_DIAGNOSTIC.md#complete-post-diagnostic-performance-defect-ledger)
+  records all measured findings, unresolved coverage and proposed minimal
+  repairs/equivalence tests. This is evidence reconciliation, not a newly
+  approved implementation or execution policy. The one diagnostic authorization
+  is consumed. No repair, second diagnostic, full retry, walltime increase,
+  candidate publication or acceptance occurred.
+- **Boundary:** Owner review of the ledger/proposed repair is next. The original
+  executable, Stage 0–9 and frozen Stage 10 science remain unchanged; operating
+  budget UNSELECTED; HOLDOUT sealed; production/Pelias untouched; Stage 11
+  NOT STARTED; Stage 10 NOT ACCEPTED.
+
+### D070 — Owner authorizes consolidated Stage 10 remediation and one confirmation
+
+- The owner accepted the complete P01–P12 diagnostic ledger and authorized one
+  consolidated performance repair, unchanged science, comprehensive equivalence
+  and safe tests, then exactly one bounded first-shard performance confirmation.
+- The [repair record](stages/STAGE10_PERFORMANCE_REPAIR.md) binds the original
+  executable/evidence, bounded operational changes and exact 4424-context
+  population. The protected 16-context equality gate runs first inside that
+  same compute allocation; local tests use synthetic/public inputs only.
+- No full DEVELOPMENT retry, candidate publication, Stage 11, HOLDOUT,
+  production or Pelias. Operating budget UNSELECTED. Pending/running means
+  report once and stop; no automatic resubmission. Owner review of completed
+  confirmation evidence precedes any corrected full DEVELOPMENT execution.
+
+
+### D071 — Reconcile failed Stage 10 repair confirmation without resubmission
+
+- **Evidence, 2026-09-20:** Confirmation `1774012`, exact repaired executable
+  `808123bb145107d7b025471b3b02869cc95fb44a`, FAILED / 1:0 in 631 seconds.
+  Exact protected 16-context equivalence passed (96 decisions / 35 hypotheses).
+  The harness then hit a DuckDB indexed-table rename dependency before the
+  first-shard replay; zero checkpoint units completed. This is a
+  REVIEW_HARNESS / IMPLEMENTATION failure, not resource exhaustion or a
+  scientific mismatch.
+- **Review:** The [complete P01–P12 reconciliation and C01–C03 defects](stages/STAGE10_REPAIR_CONFIRMATION_1774012.md)
+  preserve all evidence. Public same-version reproduction confirms the index
+  dependency; the local helper test omitted that setup step. Mutable nested
+  timing snapshots also require a correction; reporting uses the separately
+  serialized gate receipt. No executable correction is made by this record.
+- **Boundary:** The one confirmation authorization is consumed. No replacement,
+  full DEVELOPMENT retry, resource increase or Stage 10 acceptance follows.
+  Owner review of the harness/observability failure is next. Original attempts,
+  accepted Stage 0–9, Stage 10 science and UNSELECTED operating budget remain
+  unchanged. HOLDOUT sealed; production/Pelias untouched; Stage 11 NOT STARTED.
+
+### D072 — Owner authorizes one Stage 10 harness repair and replacement confirmation
+
+- The owner classifies 1774012 as a confirmation harness/observability failure;
+  the repaired computation at `808123bb145107d7b025471b3b02869cc95fb44a` remains
+  unchanged. One harness-only correction and one replacement four-hour
+  confirmation are authorized; no full DEVELOPMENT retry or science change.
+- The [harness repair and complete review ledger](stages/STAGE10_CONFIRMATION_HARNESS_REPAIR.md)
+  resolve indexed-table setup, missing setup-path coverage and mutable timing
+  snapshots. One-time parser preparation is measured, not further optimized.
+  The exact protected 16/96/35 equality gate precedes the original 4424-context
+  first-shard replay, repartition and incomplete-unit resume checks.
+- Exact pushed detached code and runtime/input pins are required. Pending or
+  running: one observation and stop; no automatic cancellation or resubmission.
+  No candidate publication, HOLDOUT, production, Pelias or Stage 11. Operating
+  budget UNSELECTED; Stage 10 NOT ACCEPTED. Full-run authorization remains a
+  later owner decision after complete confirmation reconciliation.
+
+
+### D073 — Reconcile replacement confirmation timeout; retain remaining cost ledger
+
+- **Evidence, 2026-09-21:** Job `1774111` at harness
+  `68ce5fbd61c242fd44bdf9094a892d2d040cd628`, repaired computation
+  `808123bb145107d7b025471b3b02869cc95fb44a`, TIMEOUT after 14418 seconds;
+  batch CANCELLED / 0:15. The exact 16/96/35 old/new gate passed. Both complete
+  4424-context passes produced identical 9065/26544 hypothesis/decision rows,
+  with 70/139 validated units. Resume completed 31 reconciled units, not the
+  full 70; incomplete-tail regeneration and final resume validation are absent.
+- **Review:** The [complete performance/failure ledger](stages/STAGE10_REPAIR_CONFIRMATION_1774111.md)
+  narrows the prior certificate-repair claim: full-shard certificate work remains
+  about 95% of replay, with ~2.33 million SQL operations/pass. Resume rebuilds
+  those certificates; setup and final failure timers were not durably emitted.
+  Observed WAL clears at checkpoints and memory is bounded in preserved samples.
+  The original 24-hour causal mechanism remains unresolved. No claim of complete
+  performance validation or full old-shard scientific equality is made.
+- **Boundary:** The one replacement confirmation authorization is consumed.
+  No new repair or job, blind walltime increase, full DEVELOPMENT retry or
+  acceptance follows. Owner review of the complete ledger is next. Stage 0–9,
+  Stage 10 science and UNSELECTED operating budget unchanged; HOLDOUT sealed;
+  production/Pelias untouched; Stage 11 NOT STARTED; Stage 10 NOT ACCEPTED.
+
+### D074 — Owner authorizes final Stage 10 operational remediation and one confirmation
+
+- The owner accepted that 1774111 completed both full 4424-context scientific
+  partitions identically and did not reproduce monotonic lifetime collapse.
+  Certificate dominance, fine-grained SQL, resume reconstruction and missing
+  durable setup/terminal evidence require one final consolidated repair.
+- The [complete remediation plan, invariants and P01–P12 ledger](stages/STAGE10_FINAL_PERFORMANCE_REMEDIATION.md)
+  cover set-based immutable certificate material, sealed checkpoint adoption,
+  durable receipts and exact equivalence. Only operational behavior may change.
+- Exactly one final confirmation is authorized: preserved 16-context gate,
+  original 4424-context generation, full adoption and separate partial-tail
+  resume. No repeat full repartition experiment; at most four hours. Pending or
+  running requires reporting once and stopping. Full DEVELOPMENT still requires
+  a later owner decision. No candidate publication, HOLDOUT, production, Pelias,
+  Stage 11 or acceptance. Operating budget UNSELECTED; Stage 0–9 frozen.
+
+### D075 — Validate final Stage 10 performance confirmation; await full-run authority
+
+- **Evidence, 2026-09-21:** Job `1774301`, executable/harness
+  `63f3cd107e69c9ddc14b9b517b0c7ab3d5861e66`, COMPLETED / 0:0 in 2427 s.
+  Exact 16/96/35 gate and all 4424 historical contexts match; generation produces
+  26544 decisions / 9065 hypotheses / 70 checkpoints in 1339.761 s. Full adoption
+  takes 12.585 s with zero certificate/scientific regeneration; separate tail
+  resume adopts 69 units and regenerates only eight contexts, exactly equal.
+- **Review:** The [complete reconciliation and P01–P12 ledger](stages/STAGE10_FINAL_CONFIRMATION_1774301.md)
+  verify SQL complexity (10449 versus 2329428 calls), certificate reuse, stable
+  sustained throughput, bounded WAL/memory and all 379 durable receipt hashes.
+  Certificate work remains material (86.7% of replay) but its repeated SQL/encoding
+  defect is fixed. Historical 24h causality remains unresolved/informational.
+- **Planning, not new authorization:** Full DEVELOPMENT has 69747 contexts.
+  Generation plus the three unchanged scientific publication/reopen replays,
+  setup/input and explicit finalization allowances project to 24.3h central /
+  30.1h conservative. Recommend 4 CPUs / 32 GiB / 36h only if the owner authorizes
+  the corrected full run. No candidate publication was exercised here, and no
+  full run or extra job was submitted. No validation safeguard was weakened.
+- **Boundary:** NEXT: OWNER AUTHORIZATION FOR ONE CORRECTED STAGE 10 DEVELOPMENT
+  RUN. Stage 0–9 and Stage 10 science unchanged; operating budget UNSELECTED;
+  HOLDOUT sealed; production/Pelias untouched; Stage 11 NOT STARTED;
+  Stage 10 NOT ACCEPTED. Later independent candidate review remains required.

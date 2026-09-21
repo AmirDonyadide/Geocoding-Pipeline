@@ -22,6 +22,8 @@ from . import s10_query_families as families
 from . import s10_query_io as io
 from . import s10_query_publication as publication
 from . import s10_query_summary as summary
+from . import s10_query_checkpoints as units
+from . import s10_query_operations as ops
 
 SHARDS = tuple(f"{i:x}" for i in range(16))
 
@@ -63,8 +65,21 @@ def register_outputs(
 def checkpoint_binding(
     work: contexts.ContextWorkspace, executable: str
 ) -> dict[str, Any]:
+    from . import s10_query_execution as ex
+    from . import s10_query_input as inputs
+    from . import s10_query_transliteration as tr
+    from . import s09_reference_input as a8
+
     return {
-        "checkpoint_version": "stage10_context_shard_checkpoint_v1",
+        "contract_sha256": c.contract_fingerprint().hex(),
+        "profile_sha256": io.profile_fingerprint(work.science).hex(),
+        "schema_sha256": c.schema_bundle_fingerprint().hex(),
+        "transliteration_spec_sha256": tr.SPEC_SHA256,
+        "runtime_lock_sha256": ex.RUNTIME_LOCK_SHA,
+        "stage08_manifest_sha256": a8.STAGE08_MANIFEST_SHA256,
+        "stage09_manifest_sha256": inputs.STAGE09_MANIFEST,
+        "checkpoint_version": "stage10_context_shard_checkpoint_v3",
+        "context_binding_sha256": work.accepted.context_binding.hex(),
         "input_binding_sha256": work.accepted.identifier.hex(),
         "science_sha256": work.science.hex(),
         "budget_policy_sha256": c.budget_fingerprint().hex(),
@@ -75,32 +90,7 @@ def checkpoint_binding(
 def validate_checkpoint(
     root: Path, expected: Mapping[str, Any], prefix: str
 ) -> dict[str, Any]:
-    pack.regular_private(root, directory=True)
-    raw = publication.read_private(root / "checkpoint.json")
-    record = c.read_json(root / "checkpoint.json")
-    c.require(
-        raw == c.canonical(record)
-        and record["binding"] == expected
-        and record["prefix"] == prefix
-        and [r["name"] for r in record["relations"]] == list(c.RELATIONS),
-        "STAGE10_CHECKPOINT_BINDING_INVALID",
-    )
-    files = ["checkpoint.json"]
-    for relation in record["relations"]:
-        paths = io.validate_relation(root, relation)
-        for row in generic_io.parquet_rows(paths, batch_rows=1):
-            c.require(
-                row["query_context_id"].hex().startswith(prefix),
-                "STAGE10_CHECKPOINT_INTERVAL_INVALID",
-            )
-        if relation["name"] == "query_family_decision":
-            c.require(
-                relation["row_count"] == 6 * record["context_count"],
-                "STAGE10_CHECKPOINT_CONTEXT_COUNT_INVALID",
-            )
-        files.extend(f["relative_path"] for f in relation["files"])
-    generic_io.topology(root, files)
-    return record
+    return units.validate_prefix(root, expected, prefix)
 
 
 def generate_catalog(
@@ -110,65 +100,21 @@ def generate_catalog(
     *,
     resume: Path | None = None,
     order: Sequence[str] = SHARDS,
+    unit_contexts: int = ops.PAGE_CONTEXTS,
 ) -> list[dict[str, Any]]:
     c.require(sorted(order) == list(SHARDS), "STAGE10_SHARD_PARTITION_INVALID")
     shard_root = work.root / "shards"
     shard_root.mkdir(mode=0o700)
-    binding = checkpoint_binding(work, executable)
     records = {}
     for prefix in order:
-        root = shard_root / prefix
-        # A complete externally selected checkpoint may be reused, never an
-        # incomplete attempt. Generation is replayed again before publication.
-        prior = resume / prefix if resume is not None else None
-        if prior is not None and os.path.lexists(prior):
-            record = validate_checkpoint(prior, binding, prefix)
-            shutil.copytree(prior, root, copy_function=shutil.copyfile)
-            for directory, _, files in os.walk(root):
-                Path(directory).chmod(0o700)
-                for name in files:
-                    (Path(directory) / name).chmod(0o600)
-            validate_checkpoint(root, binding, prefix)
-            for _ in work.contexts(prefix):
-                pass
-        else:
-            root.mkdir(mode=0o700)
-            writers = {
-                name: io.RelationWriter(root / name, io.output_schema(name))
-                for name in c.RELATIONS
-            }
-            count = 0
-            for context in work.contexts(prefix):
-                generated = families.generate(context, runtime)
-                for (name, writer), rows in zip(
-                    writers.items(), generated, strict=True
-                ):
-                    for row in rows:
-                        io.validate_values(row, name)
-                        io.check_identity(
-                            row,
-                            name,
-                            work.accepted.context_binding,
-                            work.accepted.identifier,
-                            work.science,
-                        )
-                        writer.append(row)
-                count += 1
-            for writer in writers.values():
-                writer.close()
-            record = {
-                "binding": binding,
-                "prefix": prefix,
-                "context_count": count,
-                "relations": [
-                    relation_record(name, writer.paths, root, writer.rows)
-                    for name, writer in writers.items()
-                ],
-            }
-            io.write_json(root / "checkpoint.json", record)
-            generic_io.fsync_tree(root)
-            validate_checkpoint(root, binding, prefix)
-        records[prefix] = record
+        records[prefix] = units.generate_prefix(
+            work,
+            runtime,
+            executable,
+            prefix,
+            resume=resume / prefix if resume is not None else None,
+            unit_contexts=unit_contexts,
+        )
     combined = []
     for name in c.RELATIONS:
         paths: list[Path] = []
@@ -350,7 +296,8 @@ class CatalogArtifact:
             io.validate_relation(root, record)
         register_outputs(self.work, root, manifest["relations"])
         # Reconstruct every transformation, selector, membership, ID and byte.
-        replay(self.work, self.runtime)
+        with self.work.progress.measure("publication_scientific_replay"):
+            replay(self.work, self.runtime)
         recomputed = summary.build_summary(
             self.work.db, self.work.accepted.identifier, self.work.science
         )
