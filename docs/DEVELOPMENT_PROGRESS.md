@@ -154,3 +154,20 @@ The preserved 70/139 scientific equality remains evidence; the new confirmation
 will use one generation pass, full adoption and a separate incomplete-tail state.
 No new confirmation or full DEVELOPMENT retry has been submitted at this local
 implementation checkpoint. Stage 10 science remains frozen and unaccepted.
+
+The final repaired executable **`63f3cd107e69c9ddc14b9b517b0c7ab3d5861e66`**
+is pushed on `perf/stage10-query-generation`. Local validation passed **276
+focused Stage 10 tests**, **1050 safe repository tests**, mypy, Ruff and the
+frozen design/runtime/inventory/document/privacy gates. Self-review R01–R09 is
+resolved; full-shard performance/adoption measurements remain pending.
+
+Final performance confirmation **1774301** was submitted exactly once at
+**2026-09-21T09:55:52Z** from a verified clean detached Goethe checkout. Its sole
+initial observation was **PENDING / Priority**. Request: 4 CPUs, 32 GiB, one node,
+four hours, no dependency/requeue. The [sanitized submission receipt](scientific_assets/stage10_final_confirmation_submission_1774301.json)
+binds the exact original 4424-context shard, runtime, executable, output and
+preserved 1774111 reference. This is **not a candidate publication or full
+DEVELOPMENT retry**. No repeated poll, cancellation or resubmission occurred.
+**NEXT: owner continuation to reconcile job 1774301 once.** Stage 10 is NOT
+ACCEPTED; operating budget UNSELECTED; Stage 0–9 and Stage 10 science unchanged;
+HOLDOUT sealed; production/Pelias untouched; Stage 11 NOT STARTED.
