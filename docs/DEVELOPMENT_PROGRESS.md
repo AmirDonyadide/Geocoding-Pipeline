@@ -197,3 +197,27 @@ linked report. **NEXT: OWNER AUTHORIZATION FOR ONE CORRECTED STAGE 10 DEVELOPMEN
 RUN.** Stage 10 remains NOT ACCEPTED; operating budget UNSELECTED; Stage 0–9
 and Stage 10 science unchanged; HOLDOUT sealed; production/Pelias untouched;
 Stage 11 NOT STARTED.
+
+The owner approved confirmation 1774301 and authorized **one corrected full
+Stage 10 DEVELOPMENT run** (D076). Approved performance history was merged
+normally into main and pushed at **`8baf05be1bd7bac2f7cfa5c38f2ab994805b68db`**;
+the run uses a clean detached checkout of exact approved executable
+**`63f3cd107e69c9ddc14b9b517b0c7ab3d5861e66`**, not the integration/reporting SHA.
+
+Corrected DEVELOPMENT job **1774362** was submitted exactly once at
+**2026-09-21T11:26:41Z**. Its sole initial observation was **PENDING / Priority**:
+4 CPUs, 32 GiB, **36h**, general1 / footprint / normal, no dependency/requeue.
+Partition/account/QOS limits permit this request. Seventy-seven frozen code,
+runtime and accepted-manifest hashes, private PanFS publication topology and
+absent target/reservation passed preflight. No prior failed/confirmation attempt
+was treated as a candidate. The
+[submission receipt](scientific_assets/stage10_development_submission_1774362.json)
+records all exact bindings and the new publication key
+`stage10_development_20260921T112356Z_63f3cd107e69`.
+
+**STAGE10_DEVELOPMENT_RUN_IN_PROGRESS.** Zero checkpoints at this initial
+not-started observation; no repeated polling, cancellation or resubmission.
+**NEXT: owner types continue in this SAME session to reconcile job 1774362
+once.** No candidate is declared ready or accepted. Frozen science, Stage 0–9
+and UNSELECTED operating budget remain unchanged; HOLDOUT sealed;
+production/Pelias untouched; Stage 11 NOT STARTED.

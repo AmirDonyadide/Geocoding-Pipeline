@@ -2060,3 +2060,33 @@ that predicate/proof and dependent bounds; the other reviewed decisions stand.
   RUN. Stage 0–9 and Stage 10 science unchanged; operating budget UNSELECTED;
   HOLDOUT sealed; production/Pelias untouched; Stage 11 NOT STARTED;
   Stage 10 NOT ACCEPTED. Later independent candidate review remains required.
+
+### D076 — Owner authorizes one corrected full Stage 10 DEVELOPMENT run
+
+- The owner approved final confirmation 1774301 and authorized exactly one
+  corrected full DEVELOPMENT run, requesting **4 CPUs / 32 GiB / 36h**. No new
+  confirmation, science change, operating-budget selection or Stage 11 work.
+- Clean synchronized main at `ba03e17b406c5f9c953359e6efce9fbc4b8d2e74` merged
+  `perf/stage10-query-generation` using a normal non-squash merge, pushed as
+  **`8baf05be1bd7bac2f7cfa5c38f2ab994805b68db`**. Its tree equals approved
+  reporting commit `af4c95a0de5d99dfabe97ce8f9fac2d1a18f07e8`; no conflict or
+  scientific code edit. Execution remains pinned to the separate clean detached
+  **`63f3cd107e69c9ddc14b9b517b0c7ab3d5861e66`** checkout.
+- Preflight verified 77 code/public-runtime/accepted-manifest hashes, exact
+  locked ICU assets, private controlled PanFS topology, unchanged Stage 9
+  publication primitives and absent target/reservation/committed-candidate
+  conflict. `general1` permits 21 days; footprint/root associations and normal
+  QOS have no shorter MaxWall. The frozen launcher remains unchanged; explicit
+  `sbatch --time=36:00:00` supplies the approved resource override.
+- Exactly one job, **1774362**, was submitted at **2026-09-21T11:26:41Z**.
+  Its first scheduler observation is **PENDING / Priority**, with requested
+  resources confirmed, no dependency and no requeue. The
+  [sanitized submission receipt](scientific_assets/stage10_development_submission_1774362.json)
+  binds the inputs, science, runtime, target and integration/execution provenance.
+- Stop without repeated polling. Owner should type **continue** in this same
+  session for one state reconciliation. Failure preserves checkpoints/receipts
+  and requires owner review; no automatic resubmission. A successful job still
+  requires full candidate/publication validation and bounded self-review before
+  independent review. Stage 10 NOT ACCEPTED; no acceptance tag. Stage 0–9 and
+  Stage 10 science unchanged; operating budget UNSELECTED; HOLDOUT sealed;
+  production/Pelias untouched; Stage 11 NOT STARTED.
