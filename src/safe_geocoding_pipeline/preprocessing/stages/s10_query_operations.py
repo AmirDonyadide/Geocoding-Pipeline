@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import resource
 import re
 import signal
 import tempfile
 import time
-from collections.abc import Iterator, Mapping
+from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
@@ -18,6 +19,7 @@ import pyarrow as pa
 from . import s09_reference_io as base_io
 from . import s10_query_contract as c
 from . import s10_query_io as io
+from . import s10_query_receipts as receipts
 
 PAGE_CONTEXTS = 64
 PAGE_BYTES = 8 * 1024 * 1024
@@ -43,10 +45,12 @@ class Progress:
             0,
         )
         self.timings: dict[str, dict[str, int]] = {}
+        self.sql_categories: dict[str, dict[str, int]] = {}
         self.observations: dict[str, int] = {}
         self.wal_high_water_bytes = 0
         self.sequence = 0
         self.failed_phase: str | None = None
+        self.terminated = False
 
     @contextmanager
     def measure(self, name: str) -> Iterator[None]:
@@ -84,17 +88,27 @@ class Progress:
                 name: dict(value) for name, value in self.timings.items()
             },
             "observations": dict(self.observations),
+            "sql_categories": {
+                name: dict(value) for name, value in self.sql_categories.items()
+            },
             "wal_observed_high_water_bytes": self.wal_high_water_bytes,
             "max_rss_native": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss,
         }
 
-    def record(self, *, announce: bool = False) -> None:
+    def event(self, name: str, *, announce: bool = False) -> None:
+        self.record(announce=announce, event=name)
+
+    def record(self, *, announce: bool = False, event: str = "progress") -> None:
         if self.root is None:
             return
         if not self.root.exists():
             self.root.mkdir(mode=0o700)
         report = self.snapshot()
-        io.write_json(self.root / f"progress-{self.sequence:06}.json", report)
+        c.require(
+            re.fullmatch(r"[a-z_]+", event) is not None, "STAGE10_RECEIPT_EVENT_INVALID"
+        )
+        report["event"] = event
+        receipts.write(self.root / f"progress-{self.sequence:06}.json", report)
         self.sequence += 1
         if announce:
             print(c.canonical(report).decode("utf-8"), end="", flush=True)
@@ -107,6 +121,39 @@ INDEX_DEPENDENCIES = re.compile(
 MUTATION = re.compile(
     r"\b(?:CREATE|ALTER|DROP|INSERT|UPDATE|DELETE|TRUNCATE|REPLACE)\b", re.IGNORECASE
 )
+REFERENCE_MUTATION = re.compile(
+    r"\b(?:CREATE(?: OR REPLACE)?(?: TEMP(?:ORARY)?)? TABLE|INSERT INTO|UPDATE|DELETE FROM|DROP TABLE|ALTER TABLE)\s+stage10_(?:registry|capabilities|objects|members|source_reference)\b",
+    re.IGNORECASE,
+)
+
+
+def sql_category(query: str) -> str:
+    """Closed operation labels only; never record SQL/parameters or their repr."""
+    text = " ".join(query.upper().split())
+    if text.startswith("CHECKPOINT"):
+        return "CHECKPOINT"
+    if text in ("BEGIN TRANSACTION", "COMMIT", "ROLLBACK"):
+        return "TRANSACTION"
+    if text.startswith("SELECT"):
+        for table, name in (
+            ("STAGE10_REGISTRY", "REGISTRY_LOOKUP"),
+            ("STAGE10_CAPABILITIES", "CAPABILITY_LOOKUP"),
+            ("STAGE10_OBJECTS", "OBJECT_LOOKUP"),
+            ("STAGE10_MEMBERS", "MEMBER_STREAM"),
+            ("STAGE10_SOURCE_REFERENCE", "SOURCE_REFERENCE"),
+            ("STAGE10_PARSER_CERTIFICATES", "PARSER_CERTIFICATE"),
+            ("STAGE10_COMPONENTS", "COMPONENT_STREAM"),
+            ("STAGE10_GENERATION_CONTEXTS", "CONTEXT_PAGE"),
+            ("STAGE10_CONTEXT_KEYS", "CHECKPOINT_KEYS"),
+        ):
+            if "FROM " + table in text:
+                return name
+        if "SELECT DISTINCT SECTION,SORT_KEY,PAYLOAD" in text:
+            return "SELECTOR_SPILL_SORT"
+        return "VALIDATION_OR_OTHER_SELECT"
+    if "STAGE10_CONTEXT_DIAGNOSTICS" in text:
+        return "DIAGNOSTIC_WRITE_OR_REGISTER"
+    return "SETUP_OR_OTHER"
 
 
 class TimedConnection:
@@ -117,10 +164,16 @@ class TimedConnection:
     ) -> None:
         self.raw, self.progress = raw, progress
         self.revision = [0] if revision is None else revision
+        if len(self.revision) == 1:
+            self.revision.append(0)
 
     @property
     def source_revision(self) -> int:
         return self.revision[0]
+
+    @property
+    def reference_revision(self) -> int:
+        return self.revision[1]
 
     def __getattr__(self, name: str) -> Any:
         return getattr(self.raw, name)
@@ -130,16 +183,27 @@ class TimedConnection:
             return TimedConnection(self.raw.cursor(), self.progress, self.revision)
 
     def execute(self, query: str, parameters: Any = None) -> TimedConnection:
+        category = sql_category(query)
+        started = time.monotonic_ns()
         with self.progress.measure("database_execute"):
-            if parameters is None:
-                self.raw.execute(query)
-            else:
-                self.raw.execute(query, parameters)
+            try:
+                if parameters is None:
+                    self.raw.execute(query)
+                else:
+                    self.raw.execute(query, parameters)
+            finally:
+                entry = self.progress.sql_categories.setdefault(
+                    category, {"calls": 0, "wall_ns": 0}
+                )
+                entry["calls"] += 1
+                entry["wall_ns"] += time.monotonic_ns() - started
             # Invalidate a derivative join if its private inputs are explicitly
             # changed (fault injection/review setup). Normal generation writes
             # only diagnostics. Never use a stale index after such a mutation.
             if MUTATION.search(query) and INDEX_DEPENDENCIES.search(query):
                 self.revision[0] += 1
+            if REFERENCE_MUTATION.search(query):
+                self.revision[1] += 1
         return self
 
     def fetchone(self) -> Any:
@@ -152,10 +216,27 @@ class TimedConnection:
 
 
 @contextmanager
-def termination_guard() -> Iterator[None]:
-    """Let normal failure handling preserve aggregates on scheduler SIGTERM."""
+def termination_guard(
+    progress: Progress | Callable[[], Progress] | None = None,
+    *,
+    exit_process: bool = False,
+) -> Iterator[None]:
+    """Persist one bounded receipt; scheduled entrypoints exit without cleanup.
+
+    The non-exiting mode remains available for callers owning their cleanup.
+    Neither mode changes site/input guards or commits partial scientific work.
+    """
 
     def terminated(signum: int, frame: Any) -> None:
+        active = progress() if callable(progress) else progress
+        if active is not None:
+            active.terminated = True
+            try:
+                active.event("terminal_terminated")
+            except Exception:
+                pass  # Existing durable receipts remain; never imply success.
+        if exit_process:
+            os._exit(128 + signum)
         raise c.Stage10Error("STAGE10_TERMINATED")
 
     previous = signal.signal(signal.SIGTERM, terminated)

@@ -2020,3 +2020,19 @@ that predicate/proof and dependent bounds; the other reviewed decisions stand.
   acceptance follows. Owner review of the complete ledger is next. Stage 0–9,
   Stage 10 science and UNSELECTED operating budget unchanged; HOLDOUT sealed;
   production/Pelias untouched; Stage 11 NOT STARTED; Stage 10 NOT ACCEPTED.
+
+### D074 — Owner authorizes final Stage 10 operational remediation and one confirmation
+
+- The owner accepted that 1774111 completed both full 4424-context scientific
+  partitions identically and did not reproduce monotonic lifetime collapse.
+  Certificate dominance, fine-grained SQL, resume reconstruction and missing
+  durable setup/terminal evidence require one final consolidated repair.
+- The [complete remediation plan, invariants and P01–P12 ledger](stages/STAGE10_FINAL_PERFORMANCE_REMEDIATION.md)
+  cover set-based immutable certificate material, sealed checkpoint adoption,
+  durable receipts and exact equivalence. Only operational behavior may change.
+- Exactly one final confirmation is authorized: preserved 16-context gate,
+  original 4424-context generation, full adoption and separate partial-tail
+  resume. No repeat full repartition experiment; at most four hours. Pending or
+  running requires reporting once and stopping. Full DEVELOPMENT still requires
+  a later owner decision. No candidate publication, HOLDOUT, production, Pelias,
+  Stage 11 or acceptance. Operating budget UNSELECTED; Stage 0–9 frozen.

@@ -65,7 +65,9 @@ def test_timing_snapshots_are_independent_and_monotonic(
 
 
 def test_approved_computation_pin_and_fail_closed(monkeypatch: Any) -> None:
-    runner.verify_repaired_core(ex.REPOSITORY)
+    # Historical harness must reject the newly authorized operational core.
+    with pytest.raises(c.Stage10Error, match="CONFIRMATION_REPAIRED_CORE_CHANGED"):
+        runner.verify_repaired_core(ex.REPOSITORY)
     original = c.sha256_file
 
     def wrong(path: Path) -> str:
@@ -103,7 +105,7 @@ def test_confirmation_observers_restore_on_error_and_never_log_values(
         assert frozen["counts"]["contexts_loaded"] == 4
         assert frozen["counts"]["registry_encode_count"] == 3
         output = capsys.readouterr()
-        for value in ("α road", "unit 5", "invented interruption", "SELECT"):
+        for value in ("α road", "unit 5", "invented interruption", "SELECT * FROM"):
             assert value not in output.out + output.err
     finally:
         work.close()

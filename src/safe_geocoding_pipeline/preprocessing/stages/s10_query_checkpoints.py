@@ -15,6 +15,8 @@ from . import s10_query_contract as c
 from . import s10_query_families as families
 from . import s10_query_io as io
 from . import s10_query_operations as ops
+from . import s10_checkpoint_state as state
+from . import s10_query_receipts as receipts
 from . import s10_query_publication as publication
 
 
@@ -47,13 +49,16 @@ def validate_unit(
     binding: Mapping[str, Any],
     prefix: str,
     expected_keys: Sequence[bytes] | None = None,
+    *,
+    sealed: bool = True,
 ) -> dict[str, Any]:
     pack.regular_private(root, directory=True)
     raw = publication.read_private(root / "checkpoint.json")
     record = c.read_json(root / "checkpoint.json")
     c.require(
         raw == c.canonical(record)
-        and set(record) == {"binding", "prefix", "context_ids", "relations"}
+        and set(record)
+        == {"binding", "prefix", "context_ids", "relations", "diagnostics"}
         and record["binding"] == binding
         and record["prefix"] == prefix,
         "STAGE10_CHECKPOINT_BINDING_INVALID",
@@ -73,8 +78,18 @@ def validate_unit(
         [r["name"] for r in record["relations"]] == list(c.RELATIONS),
         "STAGE10_CHECKPOINT_RELATIONS_INVALID",
     )
+    if sealed:
+        state.validate_seal(root, record)
+        return record
+    diagnostic_paths = state.physical(
+        root, record["diagnostics"], state.diagnostic_schema()
+    )
+    diagnostic_rows = iter(base.parquet_rows(diagnostic_paths, batch_rows=1))
     readers = {}
-    files = ["checkpoint.json"]
+    files = [
+        "checkpoint.json",
+        *[f["relative_path"] for f in record["diagnostics"]["files"]],
+    ]
     for relation in record["relations"]:
         name = relation["name"]
         paths = io.validate_relation(root, relation)
@@ -111,6 +126,18 @@ def validate_unit(
                 "stage06_exact_candidate_id",
             )
             occurrence = tuple(ds["Q1"][k] for k in fields)
+            diagnostic = next(diagnostic_rows, None)
+            c.require(
+                diagnostic is not None
+                and diagnostic["query_context_id"] == key
+                and (
+                    diagnostic["stable_source_row_id_v1"],
+                    diagnostic["role"],
+                    diagnostic["stage06_exact_candidate_id"],
+                )
+                == occurrence,
+                "STAGE10_CHECKPOINT_DIAGNOSTICS_MAP_BACK",
+            )
             first: dict[bytes, int] = dict.fromkeys(hs, 0)
             for member in [*hs.values(), *ds.values()]:
                 c.require(
@@ -136,6 +163,9 @@ def validate_unit(
             close = getattr(reader, "close", None)
             if close is not None:
                 close()
+    c.require(
+        next(diagnostic_rows, None) is None, "STAGE10_CHECKPOINT_DIAGNOSTICS_KEYS"
+    )
     base.topology(root, files)
     return record
 
@@ -158,7 +188,7 @@ def index_rows(root: Path) -> Iterator[dict[str, Any]]:
 
 
 def validate_prefix(
-    root: Path, binding: Mapping[str, Any], prefix: str
+    root: Path, binding: Mapping[str, Any], prefix: str, *, sealed: bool = True
 ) -> dict[str, Any]:
     from . import s10_query_materializer as m
 
@@ -208,9 +238,28 @@ def validate_prefix(
         [r["name"] for r in record["relations"]] == list(c.RELATIONS),
         "STAGE10_CHECKPOINT_RELATIONS_INVALID",
     )
-    # Compare coalesced output with every immutable unit as complete streams.
+    if sealed:
+        pack.regular_private(root / state.SEAL)
+        c.require(
+            (root / state.SEAL).read_bytes()
+            == c.canonical(
+                {
+                    "version": "stage10_validated_unit_v3",
+                    "checkpoint_sha256": c.sha256_file(root / "checkpoint.json"),
+                }
+            ),
+            "STAGE10_CHECKPOINT_SEAL_INVALID",
+        )
+    # Initial validation compares streams; adoption verifies immutable bytes.
     for relation in record["relations"]:
         name = relation["name"]
+        if sealed:
+            c.require(
+                relation["schema_sha256"] == c.schema_fingerprint(name).hex(),
+                "STAGE10_CHECKPOINT_SCHEMA_INVALID",
+            )
+            state.physical(root, relation, io.output_schema(name))
+            continue
         paths = io.validate_relation(root, relation)
         observed = iter(base.parquet_rows(paths, batch_rows=1))
         for item in index_rows(root):
@@ -229,7 +278,8 @@ def validate_prefix(
     pack.regular_private(root, directory=True)
     c.require(
         {p.name for p in root.iterdir()}
-        == {"checkpoint.json", "units.jsonl", "units", "relations"},
+        == {"checkpoint.json", "units.jsonl", "units", "relations"}
+        | ({state.SEAL} if sealed else set()),
         "STAGE10_CHECKPOINT_TOPOLOGY_INVALID",
     )
     for folder in ("units", "relations"):
@@ -279,7 +329,7 @@ def generate_prefix(
         root / "units.jsonl", os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600
     )
     after: bytes | None = None
-    ordinal = total = 0
+    ordinal = total = adopted = 0
     try:
         with os.fdopen(index_fd, "wb") as index:
             while True:
@@ -292,24 +342,22 @@ def generate_prefix(
                 )
                 if prior is not None and os.path.lexists(prior):
                     pack.regular_private(prior, directory=True)
-                if prior is not None and (prior / "checkpoint.json").exists():
-                    validate_unit(prior, binding, prefix, keys)
-                    shutil.copytree(prior, unit)
-                    for directory, _, files in os.walk(unit):
-                        Path(directory).chmod(0o700)
-                        for name in files:
-                            (Path(directory) / name).chmod(0o600)
-                    record = validate_unit(unit, binding, prefix, keys)
-                    with work.progress.measure("resume_context_reconciliation"):
-                        seen = [
-                            ctx.identifier
-                            for ctx in work.contexts(
-                                prefix, after=after, until=keys[-1] if keys else None
-                            )
-                        ]
-                    c.require(
-                        seen == keys, "STAGE10_CHECKPOINT_RESUME_MAP_BACK_INVALID"
-                    )
+                if prior is not None and (prior / state.SEAL).exists():
+                    with work.progress.measure("resume_checkpoint_adoption"):
+                        record = validate_unit(prior, binding, prefix, keys)
+                        shutil.copytree(
+                            prior, unit, ignore=shutil.ignore_patterns(state.SEAL)
+                        )
+                        for directory, _, files in os.walk(unit):
+                            Path(directory).chmod(0o700)
+                            for name in files:
+                                (Path(directory) / name).chmod(0o600)
+                        state.validate_seal(unit, record, sealed=False)
+                        base.fsync_tree(unit)
+                        state.seal(unit)
+                        state.restore_diagnostics(work, unit, record)
+                    work.progress.event("resume_checkpoint_adopted")
+                    adopted += 1
                     work.progress.counts["checkpoints_reused"] += 1
                     work.progress.counts["contexts_completed"] += len(keys)
                     work.progress.counts["hypotheses_written"] += record["relations"][
@@ -366,15 +414,17 @@ def generate_prefix(
                             "binding": binding,
                             "prefix": prefix,
                             "context_ids": [k.hex() for k in keys],
+                            "diagnostics": state.save_diagnostics(work, unit, keys),
                             "relations": [
                                 m.relation_record(name, writer.paths, unit, writer.rows)
                                 for name, writer in writers.items()
                             ],
                         }
                         base.fsync_tree(unit)
-                        io.write_json(unit / "checkpoint.json", record)
+                        receipts.write(unit / "checkpoint.json", record)
                         base.fsync_directory(unit)
-                        validate_unit(unit, binding, prefix, keys)
+                        validate_unit(unit, binding, prefix, keys, sealed=False)
+                        state.seal(unit)
                 index.write(
                     c.canonical(
                         {
@@ -388,7 +438,7 @@ def generate_prefix(
                 index.flush()
                 os.fsync(index.fileno())
                 work.progress.counts["checkpoints_completed"] += 1
-                work.progress.record(announce=True)
+                work.progress.event("checkpoint_complete", announce=True)
                 total += len(keys)
                 ordinal += 1
                 if not keys:
@@ -397,6 +447,24 @@ def generate_prefix(
     except BaseException:
         work.progress.record(announce=True)
         raise
+    # A fully validated prior prefix needs only byte/inventory validation and
+    # copying. Do not deserialize/rewrite scientific rows merely to adopt them.
+    if resume is not None and adopted == ordinal and (resume / state.SEAL).exists():
+        with work.progress.measure("resume_prefix_adoption"):
+            prior_record = validate_prefix(resume, binding, prefix)
+            c.require(
+                prior_record["unit_count"] == ordinal
+                and prior_record["context_count"] == total
+                and prior_record["units_index"]
+                == m.file_record(root / "units.jsonl", root),
+                "STAGE10_CHECKPOINT_PREFIX_ADOPTION_INVALID",
+            )
+            shutil.copytree(resume / "relations", root / "relations")
+            receipts.write(root / "checkpoint.json", prior_record)
+            base.fsync_tree(root)
+            state.seal(root)
+            validate_prefix(root, binding, prefix)
+        return prior_record
     # Coalesce tiny restart units into ordinary bounded-size artifact files.
     # Only this stream enters a future candidate; unit files stay in work space.
     (root / "relations").mkdir(mode=0o700)
@@ -426,5 +494,6 @@ def generate_prefix(
         }
         io.write_json(root / "checkpoint.json", record)
         base.fsync_directory(root)
-        validate_prefix(root, binding, prefix)
+        validate_prefix(root, binding, prefix, sealed=False)
+        state.seal(root)
     return record

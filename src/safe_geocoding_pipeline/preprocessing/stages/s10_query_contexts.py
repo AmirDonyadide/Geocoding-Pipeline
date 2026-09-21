@@ -24,6 +24,7 @@ from . import s10_query_families as families
 from . import s10_query_input as inputs
 from . import s10_query_io as io
 from . import s10_query_operations as ops
+from . import s10_reference_store as store
 
 
 @cache
@@ -144,6 +145,7 @@ class ReferenceAccess:
         db: duckdb.DuckDBPyConnection,
         root: Path | None = None,
         progress: ops.Progress | None = None,
+        prepared: store.ReferenceStore | None = None,
     ) -> None:
         self.db = db
         self.root = root
@@ -152,22 +154,41 @@ class ReferenceAccess:
         self.certificates = ByteCache(1024 * 1024)
         self.member_cache = ByteCache(4 * 1024 * 1024)
         self.selection: ops.SelectorAccumulator | None = None
+        self.prepared = prepared
+        self.prepared_revision: int | None = None
+
+    def _ensure_prepared(self) -> None:
+        if self.prepared is not None:
+            self.prepared.progress = self.progress
+            self.prepared.prepare()
+            if self.prepared_revision != self.prepared.revision:
+                self.cache = ByteCache()
+                self.certificates = ByteCache(1024 * 1024)
+                self.member_cache = ByteCache(4 * 1024 * 1024)
+                self.prepared_revision = self.prepared.revision
 
     def _material(
         self, name: str, key: str, identifier: bytes
     ) -> tuple[Mapping[str, Any], bytes]:
+        self._ensure_prepared()
         cache_key = name.encode() + identifier
         material = self.cache.get(cache_key)
         if material is None:
-            record = one(
-                self.db, f"SELECT * FROM stage10_{name} WHERE {key}=?", [identifier]
-            )
-            relation = {
-                "capabilities": "reference_capability",
-                "objects": "reference_object",
-                "registry": "reference_registry",
-            }[name]
-            payload = encoded(c.ordered_values(record, reference_schema(relation)))
+            if self.prepared is not None:
+                record, payload = self.prepared.lookups[name].get(identifier)
+                self.progress.counts["reference_store_lookups"] = (
+                    self.progress.counts.get("reference_store_lookups", 0) + 1
+                )
+            else:
+                record = one(
+                    self.db, f"SELECT * FROM stage10_{name} WHERE {key}=?", [identifier]
+                )
+                relation = {
+                    "capabilities": "reference_capability",
+                    "objects": "reference_object",
+                    "registry": "reference_registry",
+                }[name]
+                payload = encoded(c.ordered_values(record, reference_schema(relation)))
             material = record, payload
             self.cache.put(cache_key, material, len(payload) * 2)
         return material[0], material[1]
@@ -184,7 +205,12 @@ class ReferenceAccess:
     def registry(self, identifier: bytes) -> Mapping[str, Any]:
         return self._record("registry", "reference_version_id", identifier)
 
-    def members(self, identifier: bytes) -> Iterator[dict[str, Any]]:
+    def members(self, identifier: bytes) -> Iterator[Mapping[str, Any]]:
+        self._ensure_prepared()
+        if self.prepared is not None:
+            for row, _ in self.prepared.lookups["members"].members(identifier):
+                yield row
+            return
         cached = self.member_cache.get(identifier)
         if cached is not None:
             yield from cached
@@ -274,6 +300,7 @@ class ReferenceAccess:
     def _cached_witness_certificate(
         self, rows: Sequence[Mapping[str, Any]]
     ) -> dict[str, Any]:
+        self._ensure_prepared()
         key = encoded(
             tuple(
                 (
@@ -324,14 +351,25 @@ class ReferenceAccess:
                 values = s9.witness_tuple(row["single_witness"])
                 self._select(0, encoded(values), values)
             if row["match_set_id"] is not None:
-                for member in self.members(row["match_set_id"]):
-                    self._select(
-                        1,
-                        encoded((member["match_set_id"], member["member_ordinal"])),
-                        c.ordered_values(
-                            member, reference_schema("reference_match_member")
-                        ),
-                    )
+                if self.prepared is not None:
+                    assert self.selection is not None
+                    for member, payload in self.prepared.lookups["members"].members(
+                        row["match_set_id"]
+                    ):
+                        self.selection.add(
+                            1,
+                            encoded((member["match_set_id"], member["member_ordinal"])),
+                            payload,
+                        )
+                else:
+                    for member in self.members(row["match_set_id"]):
+                        self._select(
+                            1,
+                            encoded((member["match_set_id"], member["member_ordinal"])),
+                            c.ordered_values(
+                                member, reference_schema("reference_match_member")
+                            ),
+                        )
             for witness in self.witnesses(row):
                 obj = self._select_object(witness["reference_object_id"], version)
                 c.require(
@@ -381,9 +419,13 @@ class ContextWorkspace:
         self.diagnostic_buffer: list[dict[str, Any]] = []
         self.diagnostic_bytes = 0
         self.context_index_revision: int | None = None
+        self.reference_store = store.ReferenceStore(self.db, root, self.progress)
 
     def close(self) -> None:
+        if self.progress.terminated:
+            return  # Scheduler termination: do not start database cleanup.
         self.flush_diagnostics()
+        self.reference_store.close()
         self.db.close()
 
     def _assert_zero(self, query: str, code: str) -> None:
@@ -483,10 +525,16 @@ class ContextWorkspace:
         self.db.execute(
             "CREATE TABLE stage10_context_diagnostics(query_context_id BLOB, stable_source_row_id_v1 BLOB, stage06_exact_candidate_id BLOB, role VARCHAR, country VARCHAR, boundary_fingerprint BLOB, boundary_value BLOB, country_state VARCHAR, q04_postcode_gate BOOLEAN, q08_postcode_gate BOOLEAN)"
         )
-        self.reference = ReferenceAccess(self.db, self.root, self.progress)
+        self.reference_store.prepare()
+        self.progress.event("reference_preparation_complete")
+        self.reference = ReferenceAccess(
+            self.db, self.root, self.progress, self.reference_store
+        )
         self.prepare_parser_certificates()
+        self.progress.event("parser_preparation_complete")
         self.prepare_context_index()
         self.checkpoint_database()
+        self.progress.event("context_index_preparation_complete")
 
     def prepare_context_index(self) -> None:
         """One external join; private derived index, never a new source map."""
@@ -769,7 +817,7 @@ WHERE {where} ORDER BY k.query_context_id LIMIT {limit}"""
                     context = self._context(joined, diagnostics)
                 yield context
         finally:
-            if diagnostics:
+            if diagnostics and not self.progress.terminated:
                 self.flush_diagnostics()
                 self.checkpoint_database()
 

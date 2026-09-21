@@ -12,7 +12,7 @@ import subprocess
 import tempfile
 import time
 from collections.abc import Iterator
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -28,6 +28,7 @@ from . import s10_query_input as inputs
 from . import s10_query_io as io
 from . import s10_query_materializer as materializer
 from . import s10_query_operations as ops
+from . import s10_query_receipts as receipts
 from . import s10_query_publication as pub
 from . import s10_query_transliteration as t
 
@@ -241,7 +242,7 @@ def _run(
     work = None
     published = False
     try:
-        with offline_network():
+        with offline_network(), ExitStack() as guards:
             parent = config.output_directory.parent / "work"
             if not parent.exists():
                 parent.mkdir(mode=0o700)
@@ -251,6 +252,13 @@ def _run(
                 tempfile.mkdtemp(prefix=config.output_directory.name + "_", dir=parent)
             )
             preparation = ops.Progress(root / "input_progress")
+            guards.enter_context(
+                ops.termination_guard(
+                    lambda: work.progress if work is not None else preparation,
+                    exit_process=True,
+                )
+            )
+            preparation.event("runtime_initialization_complete")
             preparation.phase = "input_validation"
             preparation.record(announce=True)
             try:
@@ -325,12 +333,14 @@ def _run(
                         not os.path.lexists(config.output_directory),
                         "STAGE10_DESTINATION_RESERVED_NO_AUTOMATIC_ADOPTION",
                     )
+                    work.progress.event("generation_start")
                     records = materializer.generate_catalog(
                         work,
                         runtime,
                         config.execution_git_sha,
                         resume=config.resume_work_root,
                     )
+                    work.progress.event("generation_complete")
                     provenance["generation_elapsed_seconds"] = int(
                         time.monotonic() - start
                     )
@@ -340,6 +350,7 @@ def _run(
                     artifact = materializer.CatalogArtifact(
                         work, runtime, records, provenance, runtime_identity
                     )
+                    work.progress.event("validation_start")
                     result = pub.publish(
                         config.output_directory, artifact.build, artifact.validate
                     )
@@ -351,7 +362,7 @@ def _run(
                     and re.fullmatch("[A-Z0-9_]+", str(error))
                     else "STAGE10_OPERATIONAL_FAILURE"
                 )
-                io.write_json(
+                receipts.write(
                     root / "failure.json",
                     {
                         "status": "FAILED_ATTEMPT_PRESERVED",
@@ -360,11 +371,14 @@ def _run(
                         "progress": work.progress.snapshot(),
                     },
                 )
+                work.progress.event("terminal_failure")
                 raise
+            published = True
             # Publication already succeeded; receipt/presentation must not turn
             # an adopted immutable artifact into a failed candidate.
             try:
-                io.write_json(
+                work.progress.event("validation_complete")
+                receipts.write(
                     root / "completed.json",
                     {
                         "manifest_sha256": result.manifest_sha256,
@@ -376,9 +390,9 @@ def _run(
                         "progress": work.progress.snapshot(),
                     },
                 )
+                work.progress.event("terminal_success")
             except OSError:
                 pass
-            published = True
             return result
     finally:
         try:

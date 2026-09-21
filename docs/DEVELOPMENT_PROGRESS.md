@@ -144,3 +144,13 @@ limitations and histories remain in the linked reports.
 
 Production Stage 2 onward, Stage 11 onward and geocoding remain unstarted.
 HOLDOUT remains sealed. Documentation maintenance does not authorize execution.
+
+The owner has now authorized **one final consolidated performance remediation**
+(D074), followed by **one final bounded confirmation**. The
+[operational plan and complete ledger](stages/STAGE10_FINAL_PERFORMANCE_REMEDIATION.md)
+replace fine-grained certificate SQL, make completed checkpoints adoptable
+without scientific regeneration, and persist setup/termination evidence.
+The preserved 70/139 scientific equality remains evidence; the new confirmation
+will use one generation pass, full adoption and a separate incomplete-tail state.
+No new confirmation or full DEVELOPMENT retry has been submitted at this local
+implementation checkpoint. Stage 10 science remains frozen and unaccepted.

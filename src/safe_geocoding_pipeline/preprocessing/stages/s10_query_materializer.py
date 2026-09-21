@@ -65,8 +65,20 @@ def register_outputs(
 def checkpoint_binding(
     work: contexts.ContextWorkspace, executable: str
 ) -> dict[str, Any]:
+    from . import s10_query_execution as ex
+    from . import s10_query_input as inputs
+    from . import s10_query_transliteration as tr
+    from . import s09_reference_input as a8
+
     return {
-        "checkpoint_version": "stage10_context_shard_checkpoint_v2",
+        "contract_sha256": c.contract_fingerprint().hex(),
+        "profile_sha256": io.profile_fingerprint(work.science).hex(),
+        "schema_sha256": c.schema_bundle_fingerprint().hex(),
+        "transliteration_spec_sha256": tr.SPEC_SHA256,
+        "runtime_lock_sha256": ex.RUNTIME_LOCK_SHA,
+        "stage08_manifest_sha256": a8.STAGE08_MANIFEST_SHA256,
+        "stage09_manifest_sha256": inputs.STAGE09_MANIFEST,
+        "checkpoint_version": "stage10_context_shard_checkpoint_v3",
         "context_binding_sha256": work.accepted.context_binding.hex(),
         "input_binding_sha256": work.accepted.identifier.hex(),
         "science_sha256": work.science.hex(),

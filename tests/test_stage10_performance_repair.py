@@ -191,8 +191,9 @@ def test_registry_encoded_once_and_no_selector_sql_writes(
     try:
         for _ in range(100):
             ref._select_registry(identifier)
-        assert calls == 1
-        assert work.progress.timings["database_execute"]["calls"] - before == 1
+        assert calls == 0  # Canonical bytes were prepared once, before contexts.
+        assert work.progress.timings["database_execute"]["calls"] - before == 0
+        assert work.progress.counts["reference_registry_encodes"] == 3
         assert ref.selection.certificate()["selected_count"] == 1
         assert work.progress.observe_wal(work.root / "context.duckdb") == 0
     finally:
