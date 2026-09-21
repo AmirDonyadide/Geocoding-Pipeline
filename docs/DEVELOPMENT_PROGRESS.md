@@ -119,6 +119,22 @@ in the resume test. No repeated poll, cancellation, extra submission, candidate
 publication or full DEVELOPMENT run occurred. **NEXT: OWNER CONTINUATION TO
 RECONCILE REPLACEMENT CONFIRMATION 1774111.**
 
+On owner continuation **2026-09-21**, one terminal accounting observation showed
+**1774111 TIMEOUT**, elapsed **04:00:18**, batch **CANCELLED / 0:15**. The exact
+16/96/35 gate passed. Both first-shard and repartition passes completed all
+**4424 contexts / 26544 decisions / 9065 hypotheses**, with equal logical hashes
+and **70 / 139 completed units**. Resume reached **31 reconciled units / 1984
+contexts** before timeout; the incomplete tail and final resume checks were not
+reached. Certificates still consumed about 95% of each ~93-minute full replay.
+WAL cleared at every observed checkpoint; its sampled maximum was 4.462 MiB.
+The [complete timeout reconciliation and P01–P12/T01–T05 ledger](stages/STAGE10_REPAIR_CONFIRMATION_1774111.md)
+preserve the positive equality/checkpoint evidence, remaining certificate/SQL
+and resume costs, and missing durable setup/final failure timings. This is
+**STAGE10_THROUGHPUT_REPAIR_CONFIRMATION_FAILED**, not validated remediation.
+No further repair, job, full DEVELOPMENT retry or candidate publication was
+performed. **NEXT: OWNER REVIEW OF THE REMAINING PERFORMANCE AND CONFIRMATION
+LEDGER.** Stage 10 remains NOT ACCEPTED; operating budget UNSELECTED.
+
 Stage 7 acceptance guarantees reproducible parser evidence, not semantic truth
 or trust from warning absence. Stage 8 acceptance preserves its lossless
 projection and all rejected publication attempts. Stage 9 acceptance is scoped

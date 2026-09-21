@@ -1997,3 +1997,26 @@ that predicate/proof and dependent bounds; the other reviewed decisions stand.
   No candidate publication, HOLDOUT, production, Pelias or Stage 11. Operating
   budget UNSELECTED; Stage 10 NOT ACCEPTED. Full-run authorization remains a
   later owner decision after complete confirmation reconciliation.
+
+
+### D073 — Reconcile replacement confirmation timeout; retain remaining cost ledger
+
+- **Evidence, 2026-09-21:** Job `1774111` at harness
+  `68ce5fbd61c242fd44bdf9094a892d2d040cd628`, repaired computation
+  `808123bb145107d7b025471b3b02869cc95fb44a`, TIMEOUT after 14418 seconds;
+  batch CANCELLED / 0:15. The exact 16/96/35 old/new gate passed. Both complete
+  4424-context passes produced identical 9065/26544 hypothesis/decision rows,
+  with 70/139 validated units. Resume completed 31 reconciled units, not the
+  full 70; incomplete-tail regeneration and final resume validation are absent.
+- **Review:** The [complete performance/failure ledger](stages/STAGE10_REPAIR_CONFIRMATION_1774111.md)
+  narrows the prior certificate-repair claim: full-shard certificate work remains
+  about 95% of replay, with ~2.33 million SQL operations/pass. Resume rebuilds
+  those certificates; setup and final failure timers were not durably emitted.
+  Observed WAL clears at checkpoints and memory is bounded in preserved samples.
+  The original 24-hour causal mechanism remains unresolved. No claim of complete
+  performance validation or full old-shard scientific equality is made.
+- **Boundary:** The one replacement confirmation authorization is consumed.
+  No new repair or job, blind walltime increase, full DEVELOPMENT retry or
+  acceptance follows. Owner review of the complete ledger is next. Stage 0–9,
+  Stage 10 science and UNSELECTED operating budget unchanged; HOLDOUT sealed;
+  production/Pelias untouched; Stage 11 NOT STARTED; Stage 10 NOT ACCEPTED.
