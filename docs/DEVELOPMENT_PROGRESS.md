@@ -15,7 +15,7 @@ scheduler observations. Contracts and evidence are linked below.
 | 7 | libpostal parsing/evidence | **`STAGE_7_ACCEPTED`** | Evidence-only job `1763516`; rereview job `1763656`; no semantic-trust claim; [report](../reports/development/stage07.md) | **NOT STARTED** |
 | 8 | Lossless address-evidence projection | **`STAGE_8_ACCEPTED`** | Candidate `231cdbf9…`; executable `c04cb972…`; jobs `1764273`/`1764376`; zero candidate defects; [report](../reports/development/stage08.md) | **NOT STARTED** |
 | 9 | Conservative offline reference evidence | **`STAGE_9_ACCEPTED`** | Executable `3e10ac7c…`; job `1771191`; independent review `a9ae443c…` / job `1772139`; zero candidate defects; [acceptance](../reports/development/stage09.md#owner-acceptance-and-freeze--2026-09-14) | **NOT STARTED** |
-| 10 | Bounded multi-hypothesis query generation | **DEVELOPMENT TIMEOUT — NOT ACCEPTED** | Executable `f83480d6…`; job `1772639` timed out; partial shard preserved, no committed candidate; [reconciliation](stages/STAGE10_IMPLEMENTATION.md#development-timeout-reconciliation--2026-09-19) | **NOT STARTED** |
+| 10 | Bounded multi-hypothesis query generation | **DEVELOPMENT CANDIDATE READY — NOT ACCEPTED** | Executable `63f3cd10…`; corrected job `1774362` completed; immutable publication and 3 scientific replays pass; [candidate report](stages/STAGE10_DEVELOPMENT_1774362.md); independent review next | **NOT STARTED** |
 | 11–14 proposed | Query QA → Pelias top-N → scoring → granularity/abstain | **PROPOSED — NOT STARTED** | Remaining compact replacement architecture; [pipeline specification](PIPELINE.md) | **NOT STARTED** |
 
 Benchmark V1 contains 35,000 DEVELOPMENT and 15,000 sealed HOLDOUT rows from
@@ -221,3 +221,29 @@ not-started observation; no repeated polling, cancellation or resubmission.
 once.** No candidate is declared ready or accepted. Frozen science, Stage 0–9
 and UNSELECTED operating budget remain unchanged; HOLDOUT sealed;
 production/Pelias untouched; Stage 11 NOT STARTED.
+
+On owner continuation **2026-09-23**, one terminal accounting check reported
+**1774362 COMPLETED / 0:0**, elapsed **22:54:28**. The
+[corrected DEVELOPMENT candidate](stages/STAGE10_DEVELOPMENT_1774362.md)
+fully published and passed the three required scientific replays, including
+committed reopen validation (**P11 VALIDATED**). Exact executable remains
+`63f3cd107e69c9ddc14b9b517b0c7ab3d5861e66`; performance integration remains
+`8baf05be1bd7bac2f7cfa5c38f2ab994805b68db`.
+
+Candidate: **35000 source rows / 69747 query contexts / 142677 hypotheses /
+418482 decisions**, **1099 unit checkpoints**, zero engineering overflows or
+unresolved technical failures. Maximum hypotheses: **4/context, 8/source row**.
+All six decisions/context and original source/occurrence map-back remain intact;
+Q7 rows are zero. Manifest
+`085b05f6201831de6aa908c599bb5541a85cc185a48022d2d93d1e0a9afcc3fa`;
+logical dataset
+`70abebdaeee44cf0eae09eb89e4ed68ef087f1596bfa86ea1bef6aef57ceed92`.
+
+The complete C01–C12 self-review resolves the aggregate anomalies and records
+timing/WAL limitations without modifying scientific output. All **1117 receipt
+hashes** and **1115 unit/prefix seals** reconcile. No repeat job or extra
+performance experiment occurred. **STAGE10_MULTI_HYPOTHESIS_QUERY_GENERATION_DEVELOPMENT_CANDIDATE_READY**.
+**NEXT: INDEPENDENT STAGE 10 DEVELOPMENT CANDIDATE REVIEW.** Stage 10 is
+**NOT YET ACCEPTED**, no acceptance tag created. Operating budget UNSELECTED;
+Stage 0–9 and Stage 10 science unchanged; HOLDOUT sealed; production/Pelias
+untouched; Stage 11 NOT STARTED.

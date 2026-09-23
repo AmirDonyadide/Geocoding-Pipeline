@@ -2090,3 +2090,31 @@ that predicate/proof and dependent bounds; the other reviewed decisions stand.
   independent review. Stage 10 NOT ACCEPTED; no acceptance tag. Stage 0–9 and
   Stage 10 science unchanged; operating budget UNSELECTED; HOLDOUT sealed;
   production/Pelias untouched; Stage 11 NOT STARTED.
+
+### D077 — Reconcile corrected Stage 10 candidate; independent review is next
+
+- **Evidence, 2026-09-23:** One terminal observation reports job **1774362
+  COMPLETED / 0:0**, elapsed **22:54:28**. Exact executable
+  `63f3cd107e69c9ddc14b9b517b0c7ab3d5861e66` produces **69747 contexts,
+  142677 hypotheses, 418482 decisions**, with **1099 completed unit checkpoints**.
+  All three required scientific publication replays and the complete immutable
+  publication/registration/exclusive seal/reopen path pass; **P11 VALIDATED**.
+- **Bindings:** Manifest
+  `085b05f6201831de6aa908c599bb5541a85cc185a48022d2d93d1e0a9afcc3fa`;
+  logical dataset
+  `70abebdaeee44cf0eae09eb89e4ed68ef087f1596bfa86ea1bef6aef57ceed92`.
+  The [sanitized candidate report and complete C01–C12 self-review](stages/STAGE10_DEVELOPMENT_1774362.md)
+  reconcile inputs, runtime, context/family/lineage counts, zero overflows/orphans,
+  reference authority, Q5/Q6 and all 1117 receipt hashes / 1115 checkpoint-prefix
+  seals. No unresolved candidate-output defect; independent review remains pending.
+- **Measured limits:** 1668 contexts / 845 rows abstain for unavailable country
+  context. Q5 emits 50; Q6 emits 2348, with one safe unsupported-output
+  suppression and zero runtime mismatches. Zero Q5/Q6 coeligibility is a
+  population observation, not a new exclusion. Generation takes 20294.549 s;
+  combined publication/validation 57759.832 s. Timing/WAL measurement scopes are
+  disclosed; no scientific artifact is modified to correct reporting labels.
+- **Boundary:** **STAGE10_MULTI_HYPOTHESIS_QUERY_GENERATION_DEVELOPMENT_CANDIDATE_READY**.
+  NEXT: INDEPENDENT STAGE 10 DEVELOPMENT CANDIDATE REVIEW. No new job, acceptance
+  tag, Stage 11 work, operating-budget tuning or geocoding claims. Stage 0–9 and
+  Stage 10 science unchanged; operating budget UNSELECTED; HOLDOUT sealed;
+  production/Pelias untouched; Stage 10 NOT YET ACCEPTED.
