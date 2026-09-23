@@ -41,6 +41,50 @@ class Checks(dict):
         self[name] = self.get(name, True) and bool(good)
 
 
+def test_separate_input_and_workspace_timer_scope():
+    workspace = {
+        "timings_inclusive": {"workspace_preparation": {}},
+        "sql_categories": {"SETUP_OR_OTHER": {}},
+    }
+    before = {
+        "phase": "input_validation",
+        "timings_inclusive": {},
+        "sql_categories": {},
+    }
+    after = {
+        "phase": "input_validation",
+        "timings_inclusive": {
+            "input_validation": {"calls": 1, "wall_ns": 7, "cpu_ns": 3}
+        },
+        "sql_categories": {},
+    }
+    assert operations.numeric_timers(before, workspace)
+    assert operations.numeric_timers(after, workspace)
+    assert not set(after["timings_inclusive"]) <= set(workspace["timings_inclusive"])
+    assert operations.numeric_timers(
+        {
+            "phase": "initialization",
+            "timings_inclusive": {"workspace_preparation": {"calls": 1}},
+            "sql_categories": {"SETUP_OR_OTHER": {"wall_ns": 2}},
+        },
+        workspace,
+    )
+    assert not operations.numeric_timers(
+        {**after, "phase": "initialization"}, workspace
+    )
+    assert not operations.numeric_timers(
+        {**after, "timings_inclusive": {"unknown": {"calls": 1}}}, workspace
+    )
+    assert not operations.numeric_timers(
+        {**after, "sql_categories": {"SETUP_OR_OTHER": {"calls": 1}}}, workspace
+    )
+    for value in (True, -1, "synthetic non-numeric", 1.5):
+        assert not operations.numeric_timers(
+            {**after, "timings_inclusive": {"input_validation": {"calls": value}}},
+            workspace,
+        )
+
+
 def test_portable_registration_and_frozen_bindings():
     assets = Path(__file__).resolve().parents[2] / "docs/scientific_assets"
     manifest_path = assets / "stage10_development_manifest_1774362.json"
@@ -58,6 +102,59 @@ def test_portable_registration_and_frozen_bindings():
         (assets / "stage10_development_registration_1774362.json").read_bytes()
     )
     assert observed == expected
+
+
+def test_log_audit_with_independent_input_progress(tmp_path):
+    assets = Path(__file__).resolve().parents[2] / "docs/scientific_assets"
+    manifest = json.loads(
+        (assets / "stage10_development_manifest_1774362.json").read_bytes()
+    )
+    completed = json.loads(
+        (assets / "stage10_development_completed_1774362.json").read_bytes()
+    )
+    progress = {
+        "operational_version": "stage10_progress_v2",
+        "phase": "input_validation",
+        "failed_phase": None,
+        "event": "progress",
+        "counts": {},
+        "observations": {},
+        "timings_inclusive": {
+            "input_validation": {"calls": 1, "wall_ns": 7, "cpu_ns": 3}
+        },
+        "sql_categories": {},
+    }
+    terminal = {
+        "status": "STAGE10_DEVELOPMENT_CANDIDATE_PUBLISHED_NOT_ACCEPTED",
+        "manifest_sha256": review.MANIFEST,
+        "logical_sha256": manifest["logical_sha256"],
+        "profile_sha256": manifest["profile_sha256"],
+        "publication_key": review.KEY,
+        "publication_disposition": "PASS",
+        "commit_record_id": "0" * 64,
+        "registration_sha256": "0" * 64,
+        "protocol": "exclusive_run_commit_seal_v2_candidate",
+        "relation_counts": {r["name"]: r["row_count"] for r in manifest["relations"]},
+        "operating_budget": None,
+        "pelias_calls": 0,
+        "external_address_calls": 0,
+    }
+    stdout, stderr = tmp_path / "stdout", tmp_path / "stderr"
+    stdout.write_bytes(common.canonical(progress) + common.canonical(terminal))
+    stderr.write_bytes(b"")
+    checks = Checks()
+    assert (
+        operations.audit_logs(stdout, stderr, manifest, completed, review.KEY, checks)
+        == 2
+    )
+    assert {k for k, v in checks.items() if not v} == {"operations_stdout_count"}
+    progress["timings_inclusive"]["input_validation"]["wall_ns"] = (
+        "synthetic malformed timer"
+    )
+    stdout.write_bytes(common.canonical(progress) + common.canonical(terminal))
+    checks = Checks()
+    operations.audit_logs(stdout, stderr, manifest, completed, review.KEY, checks)
+    assert not checks["operations_stdout_numeric_timers"]
 
 
 @pytest.mark.parametrize(
@@ -178,13 +275,14 @@ def test_whole_synthetic_scientific_review(synthetic_inputs, tmp_path):
         work.close()
 
 
-def test_entry_fails_closed_without_slurm():
+@pytest.mark.parametrize("entry", ["review.py", "review_logs.py"])
+def test_entry_fails_closed_without_slurm(entry):
     env = dict(os.environ)
     env.pop("SLURM_JOB_ID", None)
     env.pop("SAFE_EXECUTION_SITE", None)
     env["PYTHONPATH"] = str(Path(__file__).resolve().parents[2] / "src")
     result = subprocess.run(
-        [sys.executable, "-B", str(Path(__file__).with_name("review.py"))],
+        [sys.executable, "-B", str(Path(__file__).with_name(entry))],
         env=env,
         capture_output=True,
         text=True,

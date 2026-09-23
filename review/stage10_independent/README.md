@@ -1,8 +1,11 @@
 # Independent Stage 10 DEVELOPMENT review
 
-Status: harness validated locally; protected artifact review not yet executed.
+Status: protected review **1780706 completed**, with complete scientific evidence,
+two candidate defects and one log-timer scope defect in the review harness.
+The [reconciliation](RECONCILIATION_1780706.md) and [ledger](LEDGER.md) record the
+results. The harness-only R05 correction awaits guarded log-only verification.
 This is an independent review branch, not candidate implementation or acceptance.
-The owner's review request authorizes the harness and one guarded review job.
+The owner's REVIEW_HARNESS rule authorizes the necessary isolated correction.
 
 ## Identities and scope
 
@@ -58,7 +61,8 @@ hash, frozen wire names, private topology and before/after artifact hashes.
 
 ## Coverage matrix
 
-Protected results in this table remain pending until the job is reconciled.
+This is the original coverage plan; actual protected results are recorded in the
+[reconciliation](RECONCILIATION_1780706.md).
 
 | Area | Evidence and review method |
 |---|---|
@@ -146,12 +150,14 @@ next `continue` authorizes reconciliation, not duplicate submission.
 
 ## Local validation
 
-- Independent synthetic harness: **25 passed**. Includes source arguments,
+- Independent synthetic harness: **28 passed** after R05 correction (**25** at
+  original submission). Includes source arguments,
   same/cross-country occurrence lineage, all selector streams, Q04/Q08,
   NOT_FOUND/NOT_EVALUABLE, malformed country, Q5/Q6, unit-to-final equality,
   portable registration/hash bindings, missing-SLURM rejection,
   write/network rejection, process-allowance revocation,
-  and deliberate baseline corruption detection.
+  deliberate baseline corruption detection, separate input/workspace timer
+  scopes, corrected log audit and rejection of malformed timer values.
 - Candidate Stage 10 local suite: **252 passed, 24 skipped**. Exact public ICU
   build is unavailable locally; the skipped runtime tests do not establish the
   Goethe runtime. The guarded review checks the actual exact runtime.
@@ -163,5 +169,7 @@ next `continue` authorizes reconciliation, not duplicate submission.
 - Review files contain code, synthetic fixture construction and sanitized
   documentation only; generated caches are ignored and excluded from commits.
 
-The [ledger](LEDGER.md) is provisional until all protected evidence is reviewed.
-No candidate PASS/FAIL verdict or owner acceptance has been issued.
+The [ledger](LEDGER.md) records all first-job findings. R05 requires only a
+15-minute / 1 CPU / 2 GiB guarded log-check job, using `review_logs.sbatch`.
+No candidate PASS/FAIL verdict or owner acceptance has been issued while that
+review-only verification remains outstanding.

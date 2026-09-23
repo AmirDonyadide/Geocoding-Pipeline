@@ -511,8 +511,58 @@ def run(
         "operations_candidate_population",
         units == 1099 and seals == 1115 and total_contexts == 69747,
     )
+    stdout_records = audit_logs(
+        Path(report_inventory["_review_stdout_path"])
+        if "_review_stdout_path" in report_inventory
+        else None,
+        Path(report_inventory["_review_stderr_path"])
+        if "_review_stderr_path" in report_inventory
+        else None,
+        manifest,
+        completed,
+        artifact_root.name,
+        check,
+    )
+    return {
+        "unit_count": units,
+        "prefix_count": 16,
+        "seal_count": seals,
+        "context_count": total_contexts,
+        "receipt_count": len(seen_receipts),
+        "unit_final_hypothesis_differences": relation_differences[RELATIONS[0]],
+        "unit_final_decision_differences": relation_differences[RELATIONS[1]],
+        "diagnostic_mapback_differences": diagnostic_difference,
+        "checkpoint_size_histogram": {str(k): v for k, v in sorted(histogram.items())},
+        "reported_scientific_replays": timers["publication_scientific_replay"]["calls"],
+        "stdout_records": stdout_records,
+    }
+
+
+def numeric_timers(report, workspace_progress):
+    """Two distinct Progress instances exist: input preparation and workspace."""
+    for field in ("timings_inclusive", "sql_categories"):
+        values = report.get(field, {})
+        expected_names = (
+            ({"input_validation"} if field == "timings_inclusive" else set())
+            if report.get("phase") == "input_validation"
+            else set(workspace_progress[field])
+        )
+        if not isinstance(values, dict) or not set(values) <= expected_names:
+            return False
+        if not all(
+            isinstance(value, dict)
+            and set(value) <= {"calls", "wall_ns", "cpu_ns"}
+            and all(type(n) is int and n >= 0 for n in value.values())
+            for value in values.values()
+        ):
+            return False
+    return True
+
+
+def audit_logs(stdout, stderr, manifest, completed, publication_key, check):
+    """Fixed aggregate diagnostics only; no log value is returned or printed."""
     stdout_records = 0
-    if "_review_stdout_path" in report_inventory:
+    if stdout is not None:
         allowed = {
             "operational_version",
             "phase",
@@ -526,7 +576,7 @@ def run(
             "max_rss_native",
             "event",
         }
-        with Path(report_inventory["_review_stdout_path"]).open("rb") as stream:
+        with stdout.open("rb") as stream:
             for raw in stream:
                 report = json.loads(raw)
                 if "operational_version" in report:
@@ -548,15 +598,7 @@ def run(
                     )
                     check(
                         "operations_stdout_numeric_timers",
-                        all(
-                            set(report.get(k, {})) <= set(completed["progress"][k])
-                            and all(
-                                set(v) <= {"calls", "wall_ns", "cpu_ns"}
-                                and all(type(n) is int and n >= 0 for n in v.values())
-                                for v in report.get(k, {}).values()
-                            )
-                            for k in ("timings_inclusive", "sql_categories")
-                        ),
+                        numeric_timers(report, completed["progress"]),
                     )
                     check(
                         "operations_stdout_labels",
@@ -592,7 +634,7 @@ def run(
                         == completed["manifest_sha256"]
                         and report.get("logical_sha256") == manifest["logical_sha256"]
                         and report.get("profile_sha256") == manifest["profile_sha256"]
-                        and report.get("publication_key") == artifact_root.name
+                        and report.get("publication_key") == publication_key
                         and report.get("publication_disposition") == "PASS"
                         and report.get("relation_counts")
                         == {r["name"]: r["row_count"] for r in manifest["relations"]}
@@ -603,21 +645,9 @@ def run(
                     )
                 stdout_records += 1
         check("operations_stdout_count", stdout_records == 1103)
-    if "_review_stderr_path" in report_inventory:
+    if stderr is not None:
         check(
             "operations_stderr_empty",
-            Path(report_inventory["_review_stderr_path"]).stat().st_size == 0,
+            stderr.stat().st_size == 0,
         )
-    return {
-        "unit_count": units,
-        "prefix_count": 16,
-        "seal_count": seals,
-        "context_count": total_contexts,
-        "receipt_count": len(seen_receipts),
-        "unit_final_hypothesis_differences": relation_differences[RELATIONS[0]],
-        "unit_final_decision_differences": relation_differences[RELATIONS[1]],
-        "diagnostic_mapback_differences": diagnostic_difference,
-        "checkpoint_size_histogram": {str(k): v for k, v in sorted(histogram.items())},
-        "reported_scientific_replays": timers["publication_scientific_replay"]["calls"],
-        "stdout_records": stdout_records,
-    }
+    return stdout_records
