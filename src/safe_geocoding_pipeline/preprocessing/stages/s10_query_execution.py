@@ -9,6 +9,7 @@ import resource
 import shutil
 import socket
 import subprocess
+import sys
 import tempfile
 import time
 from collections.abc import Iterator
@@ -31,6 +32,7 @@ from . import s10_query_operations as ops
 from . import s10_query_receipts as receipts
 from . import s10_query_publication as pub
 from . import s10_query_transliteration as t
+from . import s10_publication_trace as trace
 
 RUNTIME_LOCK_SHA = "20bfe735dca8b35b0ea10f1e3d729f2007e4cf3333dd5d5b5cdd527ef638d2cd"
 READY_SHA = "7a1125109463d8e6ed10d905ed379f90c4b19025bfbcc4c1cc75f1b0b51700dc"
@@ -41,6 +43,31 @@ PUBLISH_RELATIVE = "derived/controlled/stage10/development"
 STAGE08_RELATIVE = "derived/controlled/stage08/development/stage08_development_20260902T132726Z_c04cb97214a9"
 STAGE09_RELATIVE = "derived/controlled/stage09/development/stage09_development_20260910T155542Z_3e10ac7c1309"
 REPOSITORY = Path(__file__).resolve().parents[4]
+
+
+def project_quota_available() -> int:
+    """PanFS project quota, distinct from filesystem-wide statvfs capacity."""
+    try:
+        result = subprocess.run(
+            ["pan_df", "-k", "/work/footprint"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=30,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        raise c.Stage10Error("STAGE10_PROJECT_QUOTA_UNVERIFIED") from None
+    rows = re.findall(
+        r"^\s*(?:\S+\s+)?(\d+)\s+(\d+)\s+(\d+)\s+(\d+)%\s+/work/footprint\s*$",
+        result.stdout,
+        re.MULTILINE,
+    )
+    c.require(
+        result.returncode == 0 and len(rows) == 1, "STAGE10_PROJECT_QUOTA_UNVERIFIED"
+    )
+    total, used, available, _ = map(int, rows[0])
+    c.require(used <= total and available <= total, "STAGE10_PROJECT_QUOTA_UNVERIFIED")
+    return available * 1024
 
 
 def verify_design(repository: Path) -> None:
@@ -204,6 +231,10 @@ class Stage10Config:
             shutil.disk_usage(output.parent).free >= 256 * 1024**3,
             "STAGE10_DISK_RESERVE_INSUFFICIENT",
         )
+        c.require(
+            project_quota_available() >= 256 * 1024**3,
+            "STAGE10_PROJECT_QUOTA_RESERVE_INSUFFICIENT",
+        )
         return stage08, stage09, runtime
 
 
@@ -241,6 +272,7 @@ def _run(
     runtime = runtime_ready(runtime_root, REPOSITORY)
     work = None
     published = False
+    publication_trace: trace.PublicationTrace | None = None
     try:
         with offline_network(), ExitStack() as guards:
             parent = config.output_directory.parent / "work"
@@ -251,15 +283,22 @@ def _run(
             root = Path(
                 tempfile.mkdtemp(prefix=config.output_directory.name + "_", dir=parent)
             )
+            publication_trace = trace.PublicationTrace(
+                root, config.output_directory, config.execution_git_sha
+            )
             preparation = ops.Progress(root / "input_progress")
             guards.enter_context(
                 ops.termination_guard(
                     lambda: work.progress if work is not None else preparation,
                     exit_process=True,
+                    on_termination=lambda: publication_trace.failure(
+                        c.Stage10Error("STAGE10_TERMINATED")
+                    ),
                 )
             )
             preparation.event("runtime_initialization_complete")
             preparation.phase = "input_validation"
+            publication_trace("input_validation")
             preparation.record(announce=True)
             try:
                 with preparation.measure("input_validation"):
@@ -272,6 +311,7 @@ def _run(
             work = contexts.ContextWorkspace(
                 accepted, workspace_root, c.science_fingerprint(runtime.asset_binding)
             )
+            publication_trace.counts = work.progress.counts
             io.write_json(
                 root / "attempt.json",
                 {
@@ -334,6 +374,7 @@ def _run(
                         "STAGE10_DESTINATION_RESERVED_NO_AUTOMATIC_ADOPTION",
                     )
                     work.progress.event("generation_start")
+                    publication_trace("generation")
                     records = materializer.generate_catalog(
                         work,
                         runtime,
@@ -352,26 +393,20 @@ def _run(
                     )
                     work.progress.event("validation_start")
                     result = pub.publish(
-                        config.output_directory, artifact.build, artifact.validate
+                        config.output_directory,
+                        artifact.build,
+                        artifact.validate,
+                        observer=publication_trace,
                     )
             except BaseException as error:
-                # Closed class/code; never serialize engine exception messages.
-                code = (
-                    str(error)
-                    if isinstance(error, c.Stage10Error)
-                    and re.fullmatch("[A-Z0-9_]+", str(error))
-                    else "STAGE10_OPERATIONAL_FAILURE"
-                )
-                receipts.write(
-                    root / "failure.json",
-                    {
-                        "status": "FAILED_ATTEMPT_PRESERVED",
-                        "code": code,
-                        "elapsed_seconds": int(time.monotonic() - start),
-                        "progress": work.progress.snapshot(),
-                    },
-                )
-                work.progress.event("terminal_failure")
+                try:
+                    publication_trace.failure(error)
+                except BaseException:
+                    pass  # Keep the primary exception if storage is unavailable.
+                try:
+                    work.progress.event("terminal_failure")
+                except BaseException:
+                    pass
                 raise
             published = True
             # Publication already succeeded; receipt/presentation must not turn
@@ -394,16 +429,24 @@ def _run(
             except OSError:
                 pass
             return result
+    except BaseException as error:
+        if publication_trace is not None:
+            try:
+                publication_trace.failure(error)
+            except BaseException:
+                pass
+        raise
     finally:
+        primary_error = sys.exc_info()[0] is not None
         try:
             if work is not None:
                 work.close()
         except Exception:
-            if not published:
+            if not published and not primary_error:
                 raise
         finally:
             try:
                 runtime.close()
             except Exception:
-                if not published:
+                if not published and not primary_error:
                     raise

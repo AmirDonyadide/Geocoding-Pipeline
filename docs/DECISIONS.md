@@ -2182,3 +2182,24 @@ that predicate/proof and dependent bounds; the other reviewed decisions stand.
   STAGE 10 DEVELOPMENT FAILURE. This is failure reporting, not a new execution
   authorization. Stage 0–9 unchanged; operating budget UNSELECTED; HOLDOUT sealed;
   production/Pelias untouched; Stage 11 NOT STARTED; Stage 10 NOT YET ACCEPTED.
+
+### D081 — Bounded Stage 10 publication forensics; preserve exact adoption rules
+
+- **Owner authorization, 2026-09-25:** Preserve failed job 1781277, investigate
+  F01/F02, repair sanitized observability, validate checkpoint/C01/content evidence,
+  and determine recovery from the frozen contract. No immediate full retry.
+- **Analysis:** [Forensic record and complete ledger](stages/STAGE10_PUBLICATION_FORENSICS.md).
+  Exact `execution_git_sha` is mandatory in checkpoint bindings and detached HEAD;
+  a publication-only repair cannot adopt old checkpoints under a new executable.
+  No exception or rewriting of bindings is introduced. The original reservation
+  lacks a commit seal and is not adopted or modified.
+- **Evidence limit:** Correct registration constructs from the retained sanitized
+  manifest. Current project quota is 100% used despite filesystem-wide capacity;
+  this does not reconstruct the historical exception. F01 remains unresolved.
+  Synthetic storage faults reproduce missing/masked receipts; operational repair
+  adds preallocated failure evidence and a project-aware full-run quota gate.
+- **Next:** Complete owner-authorized read-only preserved-generation/C01/equality
+  validation on Goethe, with no generation, adoption, replay or publication.
+  Then report path B and stop for owner authorization before any new full run.
+  Stage 0–9/science unchanged; budget UNSELECTED; HOLDOUT sealed;
+  production/Pelias untouched; Stage 11 NOT STARTED; Stage 10 NOT ACCEPTED.

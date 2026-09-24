@@ -305,3 +305,20 @@ resubmission or additional job occurred during reconciliation.
 STAGE 10 DEVELOPMENT FAILURE.** The prior candidate/review history remains
 unchanged; operating budget UNSELECTED; Stage 0–9 unchanged; HOLDOUT sealed;
 production/Pelias untouched; Stage 11 NOT STARTED; Stage 10 NOT YET ACCEPTED.
+
+### Publication forensics authorized — 2026-09-25
+
+The owner authorized bounded F01/F02 forensics, preserved-output/C01/content
+validation and recovery-contract analysis. The [forensic record](stages/STAGE10_PUBLICATION_FORENSICS.md)
+records the complete ledger and synthetic tests. Current project quota is
+100% used with about 1.562 GiB available; filesystem-wide capacity did not
+represent this effective limit. This is not proof of the historical errno.
+Correct registration constructs from the retained manifest; F01 remains open.
+
+Operational repairs add quota-aware preflight and reserved, sanitized failure
+receipts. The frozen checkpoint contract requires the exact executable SHA, so
+cross-executable adoption after these repairs is prohibited. A guarded read-only
+Goethe validator is prepared to finish the independently required checkpoint,
+C01 and old/new content checks. It performs no scientific generation, adoption,
+replay or publication. No full retry or recovery publisher is authorized or
+submitted at this preparation checkpoint. Stage 10 remains NOT ACCEPTED.
