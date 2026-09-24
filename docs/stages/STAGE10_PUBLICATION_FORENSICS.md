@@ -152,3 +152,21 @@ locally and no candidate/recovery run has been submitted.
 Stage 0–9 unchanged; Stage 10 scientific rules unchanged; operating budget
 UNSELECTED; HOLDOUT sealed; production/Pelias untouched; Stage 11 NOT STARTED;
 Stage 10 NOT YET ACCEPTED.
+
+## Read-only forensic submission — 2026-09-24T21:45:42Z
+
+Exact repair/validator executable `7353e3197adcb1b38cc821f48ee3d7da6d1f529c`
+is pushed on `fix/stage10-publication-forensics` and checked out cleanly and
+detached on Goethe. Manifest/runtime/inventory checks, private PanFS paths and
+scheduler preflight pass. Job **1781847** was submitted exactly once: initial
+state **PENDING / Priority**, 4 CPUs / 32 GiB / 1 h, general1 / footprint / normal,
+no dependency or requeue. The [sanitized submission receipt](../scientific_assets/stage10_publication_forensics_submission_1781847.json)
+binds its new report directory and fixed historical inputs. Available project
+quota at preflight was 1,616,213 KiB, above the bounded audit gate and below the
+full-run reserve. No cleanup or historical mutation was performed.
+
+**STAGE10_PUBLICATION_FORENSICS_IN_PROGRESS.** No repeated polling, cancellation
+or resubmission. This is preserved-output validation, not candidate recovery or
+publication. Checkpoint/C01/content reconciliation remains pending. The owner
+should later type `continue` in the same session. Cross-executable adoption
+remains prohibited; no full-generation retry has been authorized or submitted.

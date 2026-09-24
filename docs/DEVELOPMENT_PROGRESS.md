@@ -322,3 +322,21 @@ Goethe validator is prepared to finish the independently required checkpoint,
 C01 and old/new content checks. It performs no scientific generation, adoption,
 replay or publication. No full retry or recovery publisher is authorized or
 submitted at this preparation checkpoint. Stage 10 remains NOT ACCEPTED.
+
+### Read-only publication forensic validation submitted — 2026-09-24T21:45:42Z
+
+Repair/validator executable `7353e3197adcb1b38cc821f48ee3d7da6d1f529c` is pushed
+on `fix/stage10-publication-forensics`. Local validation: **1,152 safe-suite
+PASS / 24 pinned-ICU skips**, **316 Stage 10 PASS / 24 skips**, static/schema/lock/
+documentation checks PASS. One read-only job **1781847** is **PENDING / Priority**
+at initial observation; 4 CPUs / 32 GiB / 1 h, no dependency/requeue. See the
+[submission receipt](scientific_assets/stage10_publication_forensics_submission_1781847.json)
+and [complete forensic ledger](stages/STAGE10_PUBLICATION_FORENSICS.md).
+
+**STAGE10_PUBLICATION_FORENSICS_IN_PROGRESS.** The job validates preserved
+checkpoints, full C01 provenance and old/new scientific equality; it performs
+zero generation, adoption or publication. F01 historical exception remains
+unresolved. Frozen exact-executable bindings prohibit repaired cross-SHA
+adoption. Owner should later type **continue**; no repeated polling or full
+retry. Stage 0–9 unchanged; operating budget UNSELECTED; HOLDOUT sealed;
+production/Pelias untouched; Stage 11 NOT STARTED; Stage 10 NOT YET ACCEPTED.
