@@ -5,8 +5,12 @@ protected review phases completed. Original evidence is preserved unchanged in
 `evidence_1780706.json` (SHA-256
 `4ba802155b27390d8a33b88891abf0cbf19657c6fe9106ab145ae1a4627b0fcf`).
 Of 206 named checks, 202 passed. Three false checks establish C01/C02 below;
-the fourth is reviewer defect R05. Its guarded log-only correction is pending.
-Candidate code/artifact will not be repaired here.
+the fourth was reviewer defect R05. Guarded log-only verification **1781037
+COMPLETED / 0:0**, elapsed **11 seconds**, resolved R05 with all 20 checks passing.
+Combined evidence has **212 passing / 3 failing checks across 215 distinct
+names**; the three failures map exactly to **two candidate defects**. The review
+is complete and the candidate verdict is **FAIL**. Candidate code/artifact was
+not repaired or modified here.
 
 ## Candidate defects
 
@@ -49,7 +53,7 @@ Candidate code/artifact will not be repaired here.
 - Effect: a consumer of the frozen adapter cannot match the namespace or retrieve
   the required key. The input digest is present under the different key; this
   finding alone does not establish lost input binding, unsafe sealing, corruption,
-  or a stale reservation. Those checks continue independently.
+  or a stale reservation. Those checks passed independently.
 - Protected checks: `publication_frozen_namespace` and
   `publication_frozen_input_binding_key` both fail on the exact controlled
   registration. Independent registration hash, manifest/input bindings, private
@@ -62,7 +66,7 @@ Candidate code/artifact will not be repaired here.
 
 ## Informational ledger
 
-| ID | Observation / invariant | Evidence and remaining work | Severity; regeneration |
+| ID | Observation / invariant | Evidence / disposition | Severity; regeneration |
 |---|---|---|---|
 | I01 | Country abstention is structural, not invalidity | All 1668 contexts reconcile to the frozen row-local Q01 gate; all six slots are consistent; no country-eligible context lost and no emitted hypothesis lacks country context. | Informational; none |
 | I02 | Q5 and Q6 coexistence is permitted, not required | Zero observed coexistence is not a defect. Independent eligibility and synthetic safety checks retain both families. | Informational; none |
@@ -73,10 +77,11 @@ Candidate code/artifact will not be repaired here.
 | I07 | Bounded independent witness certificate review | Fixed selection produced 28 distinct contexts and 924 certificate comparisons, zero differences. Full-population identifiers, contents, source-line certificates, reference policies and checkpoint equality checked separately. No claim of exhaustive independent reference-certificate reconstruction. | Informational; none |
 | I08 | Reporting and budget interpretation | Report disclaims geocoding accuracy/validity/precision/recall; abstention and Stage 9 contradiction are not invalidity. Null budget, ALL_ELIGIBLE_CATALOG and zero budget suppression independently verified. | Informational; none |
 
-## Review-harness defects resolved before submission
+## Review-harness defects
 
-These are reviewer-created issues, never candidate defects. No protected job has
-failed from them; all corrections are confined to review files.
+These are reviewer-created issues, never candidate defects. R01–R04 were resolved
+before the first submission. R05 was found in its results and resolved by the
+isolated follow-up below. All corrections are confined to review files.
 
 | ID | Evidence / review invariant | Correction and validation | Severity; candidate regeneration |
 |---|---|---|---|
@@ -100,20 +105,32 @@ failed from them; all corrections are confined to review files.
 - Verification: synthetic tests reproduce the old false failure, accept the two
   proper scopes, and reject cross-scope/unknown names, nonnumeric, boolean and
   negative timer values. Full log audit is factored for reuse.
-- Remaining: a small guarded log-only job must reproduce the single old failure
-  against the hash-pinned input-progress receipt and pass the corrected full log
-  audit. It reads no protected relation and regenerates no query. The first job's
-  complete scientific evidence is preserved and reused.
-- Disposition: code correction complete; controlled verification pending.
+- Controlled verification: **1781037** reproduced exactly **one** legacy failure,
+  attributable solely to the hash-pinned input-validation receipt, and **zero**
+  other legacy failures. Corrected full audit passed all **1103** log records
+  (1102 progress records plus one terminal record); stderr is empty. All **20**
+  follow-up checks pass, with original logs, prior evidence and candidate terminal
+  state unchanged. It read no protected relation and regenerated no query.
+- Evidence: `evidence_1781037.json`, SHA-256
+  `197c8074c1f5187261f0fdb1ff1811f7955665b7539bbb2f315647feb9a9646f`.
+- Disposition: **resolved**, including controlled verification. Local harness
+  suite: **28 passed**. The first job's evidence remains unchanged.
 
-## Pending final disposition
+## Final disposition
 
-All 22 areas have scientific/static evidence; log-only R05 reconciliation remains
-before the final verdict. There are **two unresolved candidate defects**, no
-observed candidate scientific-content/data-integrity/privacy defect, and no
-unresolved harness exception. R05 is kept separate from C01/C02. No ordinary
-candidate defect stopped the full review. Candidate relations/artifact and all
-accepted inputs remain unchanged.
+All **22** areas are complete. There are **two unresolved candidate defects**:
+one CANDIDATE_IMPLEMENTATION and one CANDIDATE_PUBLICATION, both P2. No candidate
+scientific-content, data-integrity or privacy defect was found within the stated
+review scope. All **five REVIEW_HARNESS findings are resolved**; eight
+INFORMATIONAL findings require no candidate regeneration. No ordinary defect
+stopped the full review. Candidate relations/artifact and accepted inputs remain
+unchanged. C01 requires regenerated immutable decision output/artifact to conform
+to the frozen contract; C02 requires a conforming new publication. No remediation
+or scientific retuning is performed or authorized by this review verdict.
+
+**STAGE10_MULTI_HYPOTHESIS_QUERY_GENERATION_INDEPENDENT_REVIEW_FAIL**
+
+**NEXT: OWNER REVIEW OF COMPLETE STAGE 10 DEFECT LEDGER**
 
 HOLDOUT remains sealed; production/Pelias untouched; Stage 11 NOT STARTED;
 Stage 10 NOT YET OWNER ACCEPTED.

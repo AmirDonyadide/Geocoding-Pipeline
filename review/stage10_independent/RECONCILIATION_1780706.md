@@ -1,5 +1,9 @@
 # Independent review job 1780706
 
+Historical first-job reconciliation, 2026-09-23. The R05 verification described
+as pending below completed on 2026-09-24; see the [final review](FINAL_REVIEW.md).
+Original first-job evidence is preserved without modification.
+
 On owner continuation, one accounting check returned **COMPLETED / 0:0**,
 elapsed **01:12:43**. Request: general1 / footprint / normal, one node/task,
 4 CPUs, 32 GiB, 12 hours, no requeue. Submission UTC:

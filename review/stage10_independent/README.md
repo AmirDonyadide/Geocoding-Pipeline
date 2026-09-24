@@ -1,11 +1,11 @@
 # Independent Stage 10 DEVELOPMENT review
 
-Status: protected review **1780706 completed**, with complete scientific evidence,
-two candidate defects and one log-timer scope defect in the review harness.
-The [reconciliation](RECONCILIATION_1780706.md) and [ledger](LEDGER.md) record the
-results. The harness-only R05 correction awaits guarded log-only verification.
+Status: **independent review complete — FAIL**, with **two unresolved candidate
+defects**. Protected jobs **1780706** and **1781037** both completed successfully.
+All five harness findings are resolved; no candidate changes were made.
+The [final report](FINAL_REVIEW.md), [complete ledger](LEDGER.md), and
+[combined evidence](REVIEW_EVIDENCE.json) record the final disposition.
 This is an independent review branch, not candidate implementation or acceptance.
-The owner's REVIEW_HARNESS rule authorizes the necessary isolated correction.
 
 ## Identities and scope
 
@@ -89,7 +89,7 @@ This is the original coverage plan; actual protected results are recorded in the
 | 21 Interpretation | Candidate report explicitly limits claims to query generation and distinguishes abstention/contradiction from invalidity |
 | 22 Operating budget | Null/unselected budget and ALL_ELIGIBLE_CATALOG; no scientific-budget suppression |
 
-## Static operational conclusions to reconcile with the artifact
+## Static operational conclusions reconciled with the artifact
 
 Reference payload caches use immutable object IDs, capability IDs, registry IDs,
 or `(match_set_id, member_ordinal)`. A workspace reference revision invalidates
@@ -106,7 +106,7 @@ Checkpoint windows use ordered context IDs with strict exclusive continuation.
 Adoption requires identical complete binding and expected key window, valid
 sealed metadata, exact private file hashes/schema, and copied-byte revalidation.
 Incomplete units are regenerated only in a new attempt. The actual candidate
-must show zero reused units; the reviewer does not repeat the performance
+shows zero reused units; the reviewer did not repeat the performance
 confirmation. IDs do not contain partition or checkpoint coordinates.
 
 The unchanged accepted Stage 9 primitive is used for exclusive `_COMMITTED`
@@ -169,7 +169,7 @@ next `continue` authorizes reconciliation, not duplicate submission.
 - Review files contain code, synthetic fixture construction and sanitized
   documentation only; generated caches are ignored and excluded from commits.
 
-The [ledger](LEDGER.md) records all first-job findings. R05 requires only a
-15-minute / 1 CPU / 2 GiB guarded log-check job, using `review_logs.sbatch`.
-No candidate PASS/FAIL verdict or owner acceptance has been issued while that
-review-only verification remains outstanding.
+The [ledger](LEDGER.md) records every candidate, informational and reviewer
+finding. Job **1781037** resolved R05 in 11 seconds with the guarded log-only
+launcher; it preserved the first job's evidence and all candidate data. The
+candidate verdict is **FAIL**; Stage 10 is **NOT YET OWNER ACCEPTED**.
