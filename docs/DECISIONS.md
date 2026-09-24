@@ -2203,3 +2203,23 @@ that predicate/proof and dependent bounds; the other reviewed decisions stand.
   Then report path B and stop for owner authorization before any new full run.
   Stage 0–9/science unchanged; budget UNSELECTED; HOLDOUT sealed;
   production/Pelias untouched; Stage 11 NOT STARTED; Stage 10 NOT ACCEPTED.
+
+### D082 — Preserve validated Stage 10 generation; full regeneration requires new authorization
+
+- **Evidence, 2026-09-25:** Read-only job 1781847 completes 0:0; all 1,099 old
+  checkpoint units and the complete 69,747-context population validate. C01
+  required/actual exclusions are 237,263 with no missing/duplicate provenance
+  or source-anchor violations. Protected old/new hypothesis comparison is exact.
+- **Contract boundary:** Exact executable binding is mandatory. Repair executable
+  `7353e3197adcb1b38cc821f48ee3d7da6d1f529c` cannot adopt checkpoints bound to
+  `1b4c076c85ecb48c0a4e28668b69b99e0be128ad`. No cross-SHA exception, in-place
+  repair or new recovery publisher is introduced. Path B requires a newly
+  authorized full generation. Proposed resources: 4 CPUs / 32 GiB / 36 h.
+- **Limits:** F01 historical exception remains unknown. Receipt error masking
+  and quota-aware preflight defects are repaired; current quota is insufficient
+  for the 256 GiB full-run reserve. Registration construction/hash validation
+  and synthetic tests do not establish P11/replays for the failed artifact.
+- **Disposition:** [Complete final ledger and evidence](stages/STAGE10_PUBLICATION_FORENSICS.md#publication-evidence-and-final-ledger).
+  No further job submitted. Operating budget UNSELECTED; Stage 0–9/science
+  unchanged; HOLDOUT sealed; production/Pelias untouched; Stage 11 NOT STARTED;
+  Stage 10 NOT ACCEPTED.

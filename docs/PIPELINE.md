@@ -22,8 +22,10 @@ accepted: candidate `1774362` failed independent review on required Q4
 provenance and publication naming. The owner authorized a
 [consolidated remediation and one new candidate](stages/STAGE10_REVIEW_REMEDIATION.md).
 Remediated job `1781277` generated all contexts but failed before durable
-registration/commit; [failure reconciliation](stages/STAGE10_REMEDIATION_FAILURE_1781277.md)
-awaits owner review. The earlier timeout and performance-repair history remain
+registration/commit. [Read-only publication forensics](stages/STAGE10_PUBLICATION_FORENSICS.md)
+validate preserved generation/C01 and exact prior hypothesis equality; frozen
+executable bindings require owner-authorized full regeneration after the
+operational repair. The historical publication exception remains unresolved. The earlier timeout and performance-repair history remain
 preserved; no Stage 10 acceptance or later-stage execution is implied.
 Stages 11–14 remain proposed. Production Stages 0–1 are accepted for the
 1,411-file population; production Stage 2 onward has not started.

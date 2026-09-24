@@ -340,3 +340,26 @@ unresolved. Frozen exact-executable bindings prohibit repaired cross-SHA
 adoption. Owner should later type **continue**; no repeated polling or full
 retry. Stage 0–9 unchanged; operating budget UNSELECTED; HOLDOUT sealed;
 production/Pelias untouched; Stage 11 NOT STARTED; Stage 10 NOT YET ACCEPTED.
+
+### Publication forensics complete — 2026-09-25
+
+Read-only job **1781847 COMPLETED / 0:0**, **00:16:25**, MaxRSS **452,384 KiB**.
+All 1,099 checkpoints, 69,747 contexts, 418,482 decisions and 142,677 hypotheses
+validate. Full C01 reconciliation: **237,263** required/actual exclusions,
+**zero** missing/duplicate provenance or source-anchor violations. Old/new
+hypothesis relations are exactly equal; only required decision provenance
+changes. Actual-manifest registration construction/hash passes in memory; no
+registration, seal, adoption, generation or publication is performed.
+
+**STAGE10_REMEDIATION_FULL_REGENERATION_REQUIRED.** Frozen checkpoint
+`execution_git_sha` equality forbids adopting old units under repaired executable
+`7353e3197adcb1b38cc821f48ee3d7da6d1f529c`. See the [complete reconciliation and
+ledger](stages/STAGE10_PUBLICATION_FORENSICS.md#completed-forensic-reconciliation--2026-09-25).
+F01's historical exception remains unresolved; F02 receipt/primary-error defects
+and the project-quota preflight gap are repaired and tested. No full retry is
+authorized/submitted. Proposed 4 CPUs / 32 GiB / 36 h also requires sufficient
+project quota (256 GiB reserve; last observed about 1.54 GiB).
+
+NEXT: OWNER REVIEW AND AUTHORIZATION FOR FULL REGENERATION. Operating budget
+UNSELECTED; Stage 0–9 unchanged; HOLDOUT sealed; production/Pelias untouched;
+Stage 11 NOT STARTED; Stage 10 NOT YET ACCEPTED.

@@ -118,7 +118,7 @@ uses 4 CPUs / 32 GiB, the exact pushed detached checkout and pinned Goethe
 runtime. It is forensic validation only, not the conditional recovery run or
 a full-generation retry. No automatic retry is allowed.
 
-## Complete ledger and bounded self-review
+## Preparation ledger and bounded self-review
 
 | Item | Root cause / evidence | Fix and test | Output impact / regeneration |
 |---|---|---|---|
@@ -170,3 +170,124 @@ or resubmission. This is preserved-output validation, not candidate recovery or
 publication. Checkpoint/C01/content reconciliation remains pending. The owner
 should later type `continue` in the same session. Cross-executable adoption
 remains prohibited; no full-generation retry has been authorized or submitted.
+
+## Completed forensic reconciliation — 2026-09-25
+
+**STAGE10_REMEDIATION_FULL_REGENERATION_REQUIRED.** Read-only job **1781847**
+completed **0:0** in **00:16:25**; scheduler MaxRSS **452,384 KiB**. It requested
+4 CPUs / 32 GiB / 1 h; the exclusive partition allocated 80 CPUs. Accounting
+reports local start/end 23:45:57–00:02:22 (UTC 21:45:57–22:02:22 on September 24).
+The subsequent queue lookup found no active job; terminal accounting, the PASS
+result and empty stderr agree. No repeat submission or processing occurred.
+
+The byte-identical [sanitized compute result](../scientific_assets/stage10_publication_forensics_result_1781847.json)
+has SHA-256 `3ce57a172a4bd0a52b641006304d715e25132ab34cb7bbbed17af3f97def1ad3`.
+The [reconciliation receipt](../scientific_assets/stage10_publication_forensics_reconciliation_1781847.json)
+binds accounting, scope and the independently recomputed aggregate summary.
+The failed manifest remains `56496ce7e5b23d8ce35141204173cea1fe9ac3a98f0c03b4dcb6e222a99baf74`;
+registration and `_COMMITTED` remain absent. Historical inputs were read only.
+
+### Scientific validation and C01
+
+All **1,099 unit checkpoints** and 16 prefix inventories validate under their
+original executable binding. Hashes, seals, relation schemas, logical fingerprints
+and deterministic identities pass. The complete accepted population reconciles:
+**35,000 source rows, 69,747 contexts (34,822 STANDARD / 34,925 NATIVE), 418,482
+family decisions and 142,677 hypotheses**. Source rows have one/two contexts in
+253/34,747 cases; no row has more than two. Every context has exactly six Q1–Q6
+decisions; Q7 is absent. PK/FK, map-back, orphan, duplicate-context and engineering
+checks pass. No scientific contexts or certificates were regenerated; no
+checkpoints were adopted and no artifact was published.
+
+| C01 measure | Count |
+|---|---:|
+| Country-eligible contexts | 68,079 |
+| Eligible contexts carrying mapped parser geography | 21,773 |
+| All required Q4 field-slot decisions, including NOT_APPLICABLE | 418,482 |
+| Required/actual PARSER_ONLY_FIELD_EXCLUDED decisions | 237,263 / 237,263 |
+| Omitted slots with mapped parser geography | 19,043 |
+| Missing/incorrect required provenance | 0 |
+| Duplicate provenance violations | 0 |
+| Parser-geography omitted slots missing the exclusion | 0 |
+| Included source fields mislabeled parser-only | 0 |
+| Q4 payload source-anchor violations | 0 |
+
+The exclusion count is **field-slot policy provenance**, not a count of parser
+components or source values declared untrustworthy. It describes the excluded
+parser fallback for omitted slots while retaining the original source-gating
+reason. This is why exclusions can coexist with a present source value. The
+independent relational oracle reconstructs all expected decisions from the
+previously reviewed source-field decisions and reconciles them exactly. It does
+not call the repaired generator. Repeated parser components do not multiply the
+field-slot decisions.
+
+Exclusions by slot: country **68,079**, region **68,079**, locality **39,777**,
+postalcode **61,328**. Included source locality/postcode fields remain
+**28,302 / 6,751**; authorized postcode contradiction exclusions remain
+**17,529**. Source-presence/disposition details are retained in the compute result.
+
+### Exact content equivalence
+
+Protected `EXCEPT ALL` comparisons find **zero differences** in the complete
+old/new hypothesis relations and in decisions after removing only the newly
+required C01 reason. Context IDs, hypothesis IDs/content, Q1–Q6 decisions,
+convergence, Q4 payloads/Stage 9 gates and Q5/Q6 output remain unchanged.
+
+- Old/new hypothesis logical fingerprint:
+  `c61ba899dbe4f714e2879995261b7d3a943e3b830ca69b4656e2d286230982e1`.
+- Old decision fingerprint:
+  `227de0a64624eef84e7bf45664099ea6d7b5e52e53f16fc3ad361fa6e652c0a2`.
+- Repaired decision/provenance fingerprint:
+  `2c915039f6b8653fbfbd2acd3629cb7d1efd86190e3cb636c69542750c695420`.
+
+Emitted Q1–Q6 remain **33,977 / 34,102 / 38,644 / 33,556 / 50 / 2,348**.
+Q3 converges in **29,435** contexts. The hypotheses/context distribution for
+0–5 is **1,668 / 14,831 / 31,948 / 21,250 / 50 / 0**; maxima are **4/context**
+and **8/source row**, with zero engineering violations. These are structural
+query-generation results, not accuracy/validity evidence.
+
+### Publication evidence and final ledger
+
+Corrected `STAGE10_DEVELOPMENT_QUERY_PLAN` registration with
+`stage10_input_binding_sha256` constructs successfully from the actual retained
+manifest. The portable hash is independently verified using the frozen
+`SAFE:publication-commit:v2` domain and NUL separator. Nothing is persisted into
+the failed artifact. Synthetic tests reach all publication states and cover
+after-manifest, registration-write, before-seal, seal-collision and reopen faults.
+This does **not** establish P11 completion or required scientific replays for
+1781277; both remain incomplete. No historical first-failure operation/exception
+can be recovered from the retained generic log and missing receipt.
+
+| Item | Root cause / final disposition | Fix and test | Output impact / regeneration requirement |
+|---|---|---|---|
+| C01 | Original missing parser-fallback field-slot reasons; **preserved generation reconciliation PASS** | Existing frozen repair; independent full-population oracle, duplicate and source-anchor checks | Decision provenance only; hypothesis content/IDs equal; no content defect requires regeneration |
+| C02 | Original incorrect registration namespace/input key; **adapter/hash verification PASS**, real publication still pending | Correct adapter retained; actual-manifest construction/independent hash and synthetic full-transition tests | Metadata only; new committed candidate still required |
+| F01 | **OPEN: exact historical first exception unresolved**; no failure reproduced in registration construction | No speculative scientific/serialization fix; evidence limits documented, future phases instrumented | Cannot claim root cause fixed or authorize retry from this evidence alone |
+| F02 | New receipt allocation and cleanup could erase/mask the primary error; **operational repair tested**; historical trigger not proven | Reserved bounded receipt, immutable phase records, primary-error preservation, storage/SIGTERM fault tests | No scientific change; new executable forces full generation under exact-SHA adoption rule |
+| F03 | Stale pending/ambiguous failure reporting; **RESOLVED** | Historical failure report retained, terminal forensic result and recovery boundary recorded | Reporting only |
+| F04 | Filesystem-wide reserve ignored effective project quota; **FIXED in preflight**, capacity remains an external blocker | Fail-closed project-aware quota parsing and tests; existing 256 GiB threshold retained | Operational only; full run must wait for sufficient verified quota |
+| H01 | Synthetic forensic fixture used wrong root attribute; **RESOLVED** | Complete real-Parquet synthetic setup passes without historical mutation | Test only |
+| H02 | Initial local suite selected unpinned Python; **RESOLVED** | Existing pinned Python 3.14.3 used; runtime guards unchanged | Test environment only |
+
+Final bounded review covers all requested C01/C02/F01–F03 items plus directly
+found F04/H01/H02. No additional scientific-output defect or protected leakage
+was found in this scope. I01–I08 remain informational. The operational repair
+remains executable **7353e3197adcb1b38cc821f48ee3d7da6d1f529c**; this reconciliation
+changes documentation/sanitized evidence only. Pre-submission full safe/static
+validation remains recorded above; current report/hash/document checks pass.
+
+### Stop boundary
+
+Path **B** is mandatory: `checkpoint_binding.execution_git_sha` must equal the
+clean detached running HEAD. Validating old sealed bytes does not authorize
+changing that binding or reusing them under the repaired executable. There is
+no frozen publication-only executable exception. No recovery run, full retry,
+new candidate or acceptance tag is submitted/created. Proposed future resources
+remain **4 CPUs / 32 GiB / 36 h**, subject to owner authorization and project
+quota of at least **256 GiB available**. Last observed quota was only about
+**1.54 GiB**, not proof of the historical F01 cause.
+
+NEXT: OWNER REVIEW OF PUBLICATION FORENSICS AND AUTHORIZATION FOR FULL
+REGENERATION. Stage 10 science and Stage 0–9 unchanged; operating budget
+UNSELECTED; HOLDOUT sealed; production/Pelias untouched; Stage 11 NOT STARTED;
+Stage 10 NOT YET ACCEPTED.
