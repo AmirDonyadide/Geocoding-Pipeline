@@ -8,6 +8,7 @@ import signal
 import time
 from pathlib import Path
 from typing import Any
+from test_stage10_review_remediation import prior_scientific_projection
 
 import pytest
 import duckdb
@@ -279,7 +280,7 @@ def test_old_new_five_family_witness_and_cached_id(
 
     monkeypatch.setattr(c, "context_id", measured)
     actual = f.generate(ctx, SyntheticTransform())
-    assert expected == actual
+    assert expected == prior_scientific_projection(actual)
     assert calls == 1
     if country and role == "NATIVE":
         assert len(actual[0]) == 5
@@ -316,9 +317,16 @@ def test_historical_gate_repartition_and_full_resume(
                     writer.append(row)
                 writer.close()
         monkeypatch.setattr(runner, "GATE_COUNTS", (4, 24, 18))
-        gate = runner.compare_historical(
-            work, SyntheticTransform(), diagnostic, selected
-        )
+        # The historical gate must reject corrected provenance. Keep its exact
+        # comparison and scientific pin intact; exercise its original positive
+        # path with the original generator only inside this synthetic test.
+        with pytest.raises(c.Stage10Error, match="OLD_NEW_SCIENTIFIC_MISMATCH"):
+            runner.compare_historical(work, SyntheticTransform(), diagnostic, selected)
+        with monkeypatch.context() as historical_patch:
+            historical_patch.setattr(f, "generate", old_family.generate)
+            gate = runner.compare_historical(
+                work, SyntheticTransform(), diagnostic, selected
+            )
         assert gate["exact_rows_equal"] and gate["hypotheses"] == 18
         report: dict[str, Any] = {}
         identity_function = c.identity

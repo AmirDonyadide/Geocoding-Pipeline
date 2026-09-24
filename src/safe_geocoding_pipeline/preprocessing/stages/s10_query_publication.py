@@ -24,7 +24,7 @@ PROTOCOL = accepted.PROTOCOL
 SEAL = accepted.SEAL
 PROGRESS = accepted.PROGRESS
 State = accepted.State
-DEVELOPMENT = "STAGE10_DEVELOPMENT_QUERY_HYPOTHESES"
+DEVELOPMENT = "STAGE10_DEVELOPMENT_QUERY_PLAN"
 canonical = accepted.canonical
 check_parent = accepted.check_parent
 anchor = accepted.anchor
@@ -80,7 +80,7 @@ def bindings(
         "profile_sha256": manifest["profile_sha256"],
         "schema_bundle_sha256": manifest["schema_bundle_sha256"],
         "executable_sha": manifest["operational_provenance"]["execution_git_sha"],
-        "stage10_input_sha256": manifest["input_binding_sha256"],
+        "stage10_input_binding_sha256": manifest["input_binding_sha256"],
         "stage10_science_sha256": manifest["science_sha256"],
         "stage10_budget_sha256": manifest["budget_policy_sha256"],
         "runtime_build_lock_sha256": manifest["runtime"]["lock_sha256"],
@@ -132,6 +132,7 @@ def validate_terminal(
         parse_constant=c._not_integer,
     )
     c.require(isinstance(manifest, dict), "JSON_OBJECT_REQUIRED")
+    c.require(manifest["kind"] == DEVELOPMENT, "STAGE10_PUBLICATION_NAMESPACE_INVALID")
     items = inventory(manifest)
     generic_io.topology(
         root, [*terminal_files(state), *(item["path"] for item in items)]

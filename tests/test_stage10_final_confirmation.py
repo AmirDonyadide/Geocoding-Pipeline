@@ -76,7 +76,10 @@ def test_final_confirmation_sequence_adopts_all_then_rebuilds_only_tail(
 
 
 def test_scientific_core_pin_and_sql_bound_fail_closed(monkeypatch: Any) -> None:
-    runner.verify_repaired_core(ex.REPOSITORY)
+    # C01 intentionally changes provenance in the formerly pinned family file.
+    # Do not relax the historical confirmation's guard to accept a new run.
+    with pytest.raises(c.Stage10Error, match="SCIENTIFIC_CORE_CHANGED"):
+        runner.verify_repaired_core(ex.REPOSITORY)
     original = c.sha256_file
     monkeypatch.setattr(
         c,

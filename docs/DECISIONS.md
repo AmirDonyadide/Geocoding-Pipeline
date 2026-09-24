@@ -2118,3 +2118,25 @@ that predicate/proof and dependent bounds; the other reviewed decisions stand.
   tag, Stage 11 work, operating-budget tuning or geocoding claims. Stage 0–9 and
   Stage 10 science unchanged; operating budget UNSELECTED; HOLDOUT sealed;
   production/Pelias untouched; Stage 10 NOT YET ACCEPTED.
+
+### D078 — Remediate the complete Stage 10 independent-review ledger
+
+- **Owner authorization, 2026-09-24:** Accepted review evidence `bced5920…`
+  (jobs 1780706 / 1781037, 212 PASS / 3 FAIL across 22 areas) identifies only
+  C01 missing Q4 `PARSER_ONLY_FIELD_EXCLUDED` field provenance and C02 adapter
+  namespace/input-binding-key nonconformance. R01–R05 are resolved review-harness
+  findings; I01–I08 remain informational. Preserve the review branch and failed
+  immutable candidate 1774362.
+- **Scope:** One consolidated C01/C02 repair, complete local validation/self-review,
+  exact pushed executable and one new immutable DEVELOPMENT candidate with
+  4 CPUs / 32 GiB / 36 h. No performance diagnostic or confirmation. Frozen
+  science and validated operational architecture remain unchanged.
+- **Reconciliation:** The [repair record](stages/STAGE10_REVIEW_REMEDIATION.md)
+  defines the existing field-slot provenance, unchanged identity domains, corrected
+  publication contract, tests and same-allocation read-only population audit.
+  Required normal three publication replays remain unchanged. Unexpected query
+  content drift fails closed; no automatic retry.
+- **Stop boundary:** PENDING/RUNNING means report once and stop. A completed
+  candidate needs full C01/C02 and normal validation, then final independent
+  rereview. No Stage 10 acceptance/tag. Stage 0–9 unchanged; operating budget
+  UNSELECTED; HOLDOUT sealed; production/Pelias untouched; Stage 11 NOT STARTED.

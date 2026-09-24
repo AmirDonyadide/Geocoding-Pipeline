@@ -15,7 +15,7 @@ scheduler observations. Contracts and evidence are linked below.
 | 7 | libpostal parsing/evidence | **`STAGE_7_ACCEPTED`** | Evidence-only job `1763516`; rereview job `1763656`; no semantic-trust claim; [report](../reports/development/stage07.md) | **NOT STARTED** |
 | 8 | Lossless address-evidence projection | **`STAGE_8_ACCEPTED`** | Candidate `231cdbf9…`; executable `c04cb972…`; jobs `1764273`/`1764376`; zero candidate defects; [report](../reports/development/stage08.md) | **NOT STARTED** |
 | 9 | Conservative offline reference evidence | **`STAGE_9_ACCEPTED`** | Executable `3e10ac7c…`; job `1771191`; independent review `a9ae443c…` / job `1772139`; zero candidate defects; [acceptance](../reports/development/stage09.md#owner-acceptance-and-freeze--2026-09-14) | **NOT STARTED** |
-| 10 | Bounded multi-hypothesis query generation | **DEVELOPMENT CANDIDATE READY — NOT ACCEPTED** | Executable `63f3cd10…`; corrected job `1774362` completed; immutable publication and 3 scientific replays pass; [candidate report](stages/STAGE10_DEVELOPMENT_1774362.md); independent review next | **NOT STARTED** |
+| 10 | Bounded multi-hypothesis query generation | **INDEPENDENT REVIEW FAIL — REMEDIATION AUTHORIZED** | Review `bced5920…`: C01 provenance / C02 publication names; [consolidated repair](stages/STAGE10_REVIEW_REMEDIATION.md); one new candidate authorized | **NOT STARTED** |
 | 11–14 proposed | Query QA → Pelias top-N → scoring → granularity/abstain | **PROPOSED — NOT STARTED** | Remaining compact replacement architecture; [pipeline specification](PIPELINE.md) | **NOT STARTED** |
 
 Benchmark V1 contains 35,000 DEVELOPMENT and 15,000 sealed HOLDOUT rows from
@@ -247,3 +247,13 @@ performance experiment occurred. **STAGE10_MULTI_HYPOTHESIS_QUERY_GENERATION_DEV
 **NOT YET ACCEPTED**, no acceptance tag created. Operating budget UNSELECTED;
 Stage 0–9 and Stage 10 science unchanged; HOLDOUT sealed; production/Pelias
 untouched; Stage 11 NOT STARTED.
+
+## Independent-review remediation — 2026-09-24
+
+The owner accepted the complete 22-area independent review at `bced5920…`: two
+candidate defects, C01 missing visible Q4 parser-only exclusion provenance and
+C02 publication adapter names. Exactly one consolidated repair and one new
+immutable DEVELOPMENT candidate are authorized. The [remediation record](stages/STAGE10_REVIEW_REMEDIATION.md)
+preserves the failed-review candidate and review branch, scientific equivalence,
+full bounded ledger and same-allocation audit. No new run has been submitted at
+this pre-submission checkpoint. Stage 10 is not accepted.

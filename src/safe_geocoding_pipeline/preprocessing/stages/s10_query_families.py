@@ -235,6 +235,13 @@ def _structured(context: QueryContext) -> FamilyResult:
         ("country", None, ()),
         ("boundary_country", policy.country, ()),
     ):
+        # Field-slot policy, not a classification of source values or parser
+        # tokens. An omitted geographic slot cannot be filled by parser-only
+        # evidence, including when a source/reference gate rejected its source
+        # value. Retain that gate's reason separately. Never label an included
+        # source field parser-only, or enumerate repeated parser components.
+        if value is None and field in ("postalcode", "locality", "region", "country"):
+            reasons = (*reasons, "PARSER_ONLY_FIELD_EXCLUDED")
         decisions.append(
             {
                 "field": field,

@@ -1,0 +1,44 @@
+def _structured(context: QueryContext) -> FamilyResult:
+    policy = context.fields
+    assert policy.country is not None
+    decisions = []
+    for field, value, reasons in (
+        ("address", context.text, ()),
+        ("postalcode", policy.postcode, policy.postcode_reasons),
+        ("locality", policy.locality, policy.locality_reasons),
+        ("region", None, ("ADMIN_LEVEL_NOT_ESTABLISHED",)),
+        ("country", None, ()),
+        ("boundary_country", policy.country, ()),
+    ):
+        decisions.append(
+            {
+                "field": field,
+                "disposition": "INCLUDE" if value is not None else "OMIT",
+                "reason_codes": list(reasons),
+            }
+        )
+    if policy.postcode is None and policy.locality is None:
+        return FamilyResult(
+            None, ("INSUFFICIENT_TRUSTED_STRUCTURED_EVIDENCE",), fields=tuple(decisions)
+        )
+    intent = c.full_intent(context.text, policy.country)
+    intent.update(
+        endpoint="/v1/search/structured",
+        search_mode="STRUCTURED",
+        text=None,
+        address=context.text,
+        postalcode=policy.postcode,
+        locality=policy.locality,
+    )
+    trace = step(
+        0,
+        "SOURCE_STRUCTURED_FIELDS_V1",
+        (
+            context.text,
+            context.source_clean_postcode,
+            context.source_clean_locality,
+            policy.country,
+        ),
+        c.intent_values(intent),
+    )
+    return FamilyResult(intent, transformations=(trace,), fields=tuple(decisions))

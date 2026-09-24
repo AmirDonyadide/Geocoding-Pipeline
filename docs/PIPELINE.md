@@ -18,9 +18,9 @@ stage.
   No accepted design or implementation exists.
 
 Stages 0–9 are accepted on DEVELOPMENT. Stage 10 is implemented but not
-accepted: corrected DEVELOPMENT job `1774362` completed and its
-[published candidate](stages/STAGE10_DEVELOPMENT_1774362.md) is ready for
-independent review. The earlier timeout and performance-repair history remain
+accepted: candidate `1774362` failed independent review on required Q4
+provenance and publication naming. The owner authorized a
+[consolidated remediation and one new candidate](stages/STAGE10_REVIEW_REMEDIATION.md). The earlier timeout and performance-repair history remain
 preserved; no Stage 10 acceptance or later-stage execution is implied.
 Stages 11–14 remain proposed. Production Stages 0–1 are accepted for the
 1,411-file population; production Stage 2 onward has not started.

@@ -28,6 +28,7 @@ from safe_geocoding_pipeline.preprocessing.stages import s10_query_operations as
 from test_stage09_reference_evaluator import reference_view as reference_view
 from test_stage10_context_pipeline import synthetic_inputs as synthetic_inputs
 from test_stage10_query_families import SyntheticTransform
+from test_stage10_review_remediation import prior_scientific_projection
 
 ORIGINAL = "f83480d60449bcc904c0c622e394e12df3c3f2d9"
 
@@ -98,7 +99,8 @@ def test_original_and_repaired_complete_rows_are_identical(
         after.prepare()
         expected = [old_family.generate(ctx, runtime) for ctx in before.contexts()]
         observed = [
-            f.generate(ctx, runtime) for ctx in after.contexts(page_rows=page_rows)
+            prior_scientific_projection(f.generate(ctx, runtime))
+            for ctx in after.contexts(page_rows=page_rows)
         ]
         assert (
             observed == expected
