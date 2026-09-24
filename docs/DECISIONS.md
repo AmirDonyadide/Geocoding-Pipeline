@@ -2140,3 +2140,21 @@ that predicate/proof and dependent bounds; the other reviewed decisions stand.
   candidate needs full C01/C02 and normal validation, then final independent
   rereview. No Stage 10 acceptance/tag. Stage 0–9 unchanged; operating budget
   UNSELECTED; HOLDOUT sealed; production/Pelias untouched; Stage 11 NOT STARTED.
+
+### D079 — Submit the one C01/C02-remediated Stage 10 candidate
+
+- **2026-09-24:** Repair executable `1b4c076c85ecb48c0a4e28668b69b99e0be128ad`
+  committed, pushed and fast-forward integrated into canonical main. Review
+  branch `bced5920…` and old candidate remain untouched. Local remediation and
+  complete applicable checks pass; the seven-line provenance repair changes no
+  hypothesis content or ID. Corrected publication names and independent read-only
+  reconciliation run with the new immutable candidate.
+- **Submission:** One job **1781277**, UTC `2026-09-24T09:23:38Z`, initial
+  **PENDING / Resources**, 4 CPUs / 32 GiB / 36 h, no dependency/requeue.
+  Exact detached checkout, 89 hash checks, same private PanFS topology, absent
+  target and scheduler limits passed before submission.
+- **Boundary:** [Bound submission receipt](scientific_assets/stage10_remediation_submission_1781277.json).
+  Stop without repeated polling. Owner continuation permits one reconciliation;
+  no automatic retry or acceptance. Stage 0–9 unchanged; scientific operating
+  budget UNSELECTED; HOLDOUT sealed; production/Pelias untouched; Stage 11
+  NOT STARTED; Stage 10 NOT ACCEPTED.
