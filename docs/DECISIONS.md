@@ -2158,3 +2158,27 @@ that predicate/proof and dependent bounds; the other reviewed decisions stand.
   no automatic retry or acceptance. Stage 0–9 unchanged; scientific operating
   budget UNSELECTED; HOLDOUT sealed; production/Pelias untouched; Stage 11
   NOT STARTED; Stage 10 NOT ACCEPTED.
+
+### D080 — Preserve the failed Stage 10 remediation attempt; stop for owner review
+
+- **Evidence, 2026-09-24:** Job **1781277 FAILED / 1:0**, elapsed **09:51:40**,
+  scheduler MaxRSS **10,921,836 KiB**. Exact executable remains
+  `1b4c076c85ecb48c0a4e28668b69b99e0be128ad`. Generation completes **69,747
+  contexts, 142,677 hypotheses, 418,482 decisions and 1,099 unit checkpoints**.
+  Manifest exists, registration and `_COMMITTED` do not. Classification:
+  **PUBLICATION phase**, underlying exception unresolved; missing durable failure
+  receipt is a separate observability defect. No resource/scientific cause proven.
+- **Remediation limits:** C01 summary records 237,263 visible parser-only field
+  exclusions; hypothesis fingerprint equals the prior manifest declaration.
+  Independent protected provenance/content reconciliation did not run. C02's
+  corrected manifest kind is present, but registration/hash/seal/reopen did not
+  complete. Neither repair is declared fully candidate-validated.
+- **Preservation:** [Failure report and complete C01/C02/F01–F03 ledger](stages/STAGE10_REMEDIATION_FAILURE_1781277.md)
+  retain the new uncommitted target, generation-validated checkpoints, database,
+  logs and receipts without modifying them. Fresh adoption validation is not
+  performed. Prior candidate and independent-review evidence remain unchanged.
+- **Boundary:** **STAGE10_REMEDIATED_DEVELOPMENT_RUN_FAILED**. No repair, retry,
+  new diagnostic or protected validation job. NEXT: OWNER REVIEW OF REMEDIATED
+  STAGE 10 DEVELOPMENT FAILURE. This is failure reporting, not a new execution
+  authorization. Stage 0–9 unchanged; operating budget UNSELECTED; HOLDOUT sealed;
+  production/Pelias untouched; Stage 11 NOT STARTED; Stage 10 NOT YET ACCEPTED.

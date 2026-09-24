@@ -15,7 +15,7 @@ scheduler observations. Contracts and evidence are linked below.
 | 7 | libpostal parsing/evidence | **`STAGE_7_ACCEPTED`** | Evidence-only job `1763516`; rereview job `1763656`; no semantic-trust claim; [report](../reports/development/stage07.md) | **NOT STARTED** |
 | 8 | Lossless address-evidence projection | **`STAGE_8_ACCEPTED`** | Candidate `231cdbf9…`; executable `c04cb972…`; jobs `1764273`/`1764376`; zero candidate defects; [report](../reports/development/stage08.md) | **NOT STARTED** |
 | 9 | Conservative offline reference evidence | **`STAGE_9_ACCEPTED`** | Executable `3e10ac7c…`; job `1771191`; independent review `a9ae443c…` / job `1772139`; zero candidate defects; [acceptance](../reports/development/stage09.md#owner-acceptance-and-freeze--2026-09-14) | **NOT STARTED** |
-| 10 | Bounded multi-hypothesis query generation | **REMEDIATED DEVELOPMENT PENDING — NOT ACCEPTED** | C01/C02 repaired at `1b4c076c…`; one new job `1781277`, PENDING / Resources; [submission](scientific_assets/stage10_remediation_submission_1781277.json) | **NOT STARTED** |
+| 10 | Bounded multi-hypothesis query generation | **REMEDIATED DEVELOPMENT FAILED — NOT ACCEPTED** | Job `1781277`, FAILED / 1:0; all 69,747 contexts generated, 1,099 checkpoints; no registration/seal; [failure record](stages/STAGE10_REMEDIATION_FAILURE_1781277.md) | **NOT STARTED** |
 | 11–14 proposed | Query QA → Pelias top-N → scoring → granularity/abstain | **PROPOSED — NOT STARTED** | Remaining compact replacement architecture; [pipeline specification](PIPELINE.md) | **NOT STARTED** |
 
 Benchmark V1 contains 35,000 DEVELOPMENT and 15,000 sealed HOLDOUT rows from
@@ -280,3 +280,28 @@ scientific replays, same-allocation C01/C02 population comparison, publication
 validation and final independent rereview. Operating budget UNSELECTED; Stage
 0–9 unchanged; HOLDOUT sealed; production/Pelias untouched; Stage 11 NOT STARTED;
 Stage 10 NOT YET ACCEPTED.
+
+### Remediation failure reconciliation — 2026-09-24
+
+One terminal accounting reconciliation reports **1781277 FAILED / 1:0** after
+**09:51:40**, scheduler MaxRSS **10,921,836 KiB**. Generation completed all
+**69,747 contexts / 418,482 decisions / 142,677 hypotheses / 1,099 checkpoints**.
+The reserved target contains the relation files and manifest but no registration
+or `_COMMITTED` seal. The [complete failure record and ledger](stages/STAGE10_REMEDIATION_FAILURE_1781277.md)
+classify a **PUBLICATION-phase failure with unresolved underlying exception**
+and a separate missing-failure-receipt observability defect. No resource cause
+or scientific-content drift is established.
+
+C01 generation records **237,263 parser-only field exclusions**; the declared
+hypothesis fingerprint matches the prior manifest. These are partial evidence:
+the independent provenance/content audit did not run. C02's corrected manifest
+kind is present; registration hash/seal/reopen validation did not complete.
+Three required scientific replays are not established as completed. Preserved
+generation-validated checkpoints require exact binding/hash validation before
+any future authorized adoption. No protected payload processing, repair,
+resubmission or additional job occurred during reconciliation.
+
+**STAGE10_REMEDIATED_DEVELOPMENT_RUN_FAILED. NEXT: OWNER REVIEW OF REMEDIATED
+STAGE 10 DEVELOPMENT FAILURE.** The prior candidate/review history remains
+unchanged; operating budget UNSELECTED; Stage 0–9 unchanged; HOLDOUT sealed;
+production/Pelias untouched; Stage 11 NOT STARTED; Stage 10 NOT YET ACCEPTED.

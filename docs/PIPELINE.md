@@ -20,7 +20,10 @@ stage.
 Stages 0–9 are accepted on DEVELOPMENT. Stage 10 is implemented but not
 accepted: candidate `1774362` failed independent review on required Q4
 provenance and publication naming. The owner authorized a
-[consolidated remediation and one new candidate](stages/STAGE10_REVIEW_REMEDIATION.md). The earlier timeout and performance-repair history remain
+[consolidated remediation and one new candidate](stages/STAGE10_REVIEW_REMEDIATION.md).
+Remediated job `1781277` generated all contexts but failed before durable
+registration/commit; [failure reconciliation](stages/STAGE10_REMEDIATION_FAILURE_1781277.md)
+awaits owner review. The earlier timeout and performance-repair history remain
 preserved; no Stage 10 acceptance or later-stage execution is implied.
 Stages 11–14 remain proposed. Production Stages 0–1 are accepted for the
 1,411-file population; production Stage 2 onward has not started.
@@ -313,12 +316,13 @@ geocoder results and the final accepted match. Stages 8–9 are accepted, Stage
   Q6 requires the separately locked runtime; system ICU is not a substitute.
 - **Acceptance:** Explicit hypothesis identity/type/reason, complete map-back,
   no overwrite, multilingual review, and bounded query ladders.
-- **Status:** **DEVELOPMENT CANDIDATE READY — NOT YET ACCEPTED**.
-  Owner-authorized corrected job `1774362`, executable
-  `63f3cd107e69c9ddc14b9b517b0c7ab3d5861e66`, completed with full immutable
-  publication and three scientific replays. Its
-  [candidate report](stages/STAGE10_DEVELOPMENT_1774362.md) records exact
-  bindings, aggregate evidence and self-review; independent review is next.
+- **Status:** **REMEDIATED DEVELOPMENT FAILED — NOT YET ACCEPTED**.
+  Candidate `1774362` fully published but failed independent review on C01/C02.
+  Remediated job `1781277`, executable
+  `1b4c076c85ecb48c0a4e28668b69b99e0be128ad`, completed generation but failed
+  before durable registration/commit. Its [failure record](stages/STAGE10_REMEDIATION_FAILURE_1781277.md)
+  preserves checkpoints and partial evidence; owner review is next. The prior
+  [candidate report](stages/STAGE10_DEVELOPMENT_1774362.md) remains historical.
   Original timeout `1772639` and subsequent remediation evidence remain
   preserved. No additional run is authorized. The
   [frozen design](stages/STAGE10_MULTI_HYPOTHESIS_QUERY_GENERATION.md)
