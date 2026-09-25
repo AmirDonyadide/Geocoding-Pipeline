@@ -87,3 +87,151 @@ and diff checks passed. Synthetic helper checks passed readback/hash, fsync,
 exclusive-create collision and rejection by the shared guard without the
 required execution markers. No claim of Goethe local-storage success is made
 until the one scheduled probe completes.
+
+## Reconciliation of the one probe — 1784651
+
+Probe executable `e88ea392ddb9ef7d1787ba3ec65d97f251d81a55` was submitted once
+at 2026-09-25T11:04:04Z. It ran on `node26-015` and failed in one second,
+`FAILED / 1:0`. Scheduler accounting reports 1 CPU requested, 80 allocated
+(whole-node partition), 1 GiB memory and `MinTmpDiskNode=1G`.
+
+Observed before failure:
+
+- `/local/1784651` existed, owner donyadidegan/UID 60099, mode 0700.
+- Local filesystem `/dev/sda4`: 1,776,353,848 KiB total;
+  1,763,935,816 KiB available (1682.220 GiB). These are underlying filesystem
+  values, not proof of a per-job quota guarantee.
+- The Python entry point used system Python 3.9. Importing the shared guard first
+  imports the package initializer, which requires installed distribution metadata.
+  `importlib.metadata.PackageNotFoundError: safe-geocoding-pipeline` terminated
+  the process before any invented bytes or SQLite data were created.
+- The shell terminal receipt records exit 1. No synthetic result JSON or
+  cross-filesystem copy exists. Protected payload access was zero.
+
+This is a **probe launcher defect**, not evidence of local filesystem
+incompatibility. Write/read/SHA-256/fsync/SQLite remain **NOT TESTED on Goethe**.
+Post-job SSH to the node was denied; cleanup is documented policy, not directly
+observed. No further allocation or job was requested to bypass that restriction.
+
+The launcher correction selects the same installed Stage 6 Python environment
+already used by the Stage 10 executable, without modifying that runtime. An
+isolated local source checkout without installed metadata reproduced the import
+failure; the installed local environment imports the same guard successfully.
+A failing-then-passing launcher check requires the explicit installed interpreter.
+Ruff, mypy, shell syntax and diff validation pass. The correction is prepared,
+not cluster-validated. **A replacement probe requires fresh owner authorization;
+the one-job allowance has been used.**
+
+The [sanitized measurement record](../scientific_assets/stage10_local_storage_feasibility_1784651.json)
+binds the failed probe and separates measurements from estimates.
+
+## Component placement and checkpoint decision
+
+The following is a proposed operational split, not an implemented exception to
+the current executable's path/reserve guards.
+
+| Component | Classification | Requirement |
+|---|---|---|
+| Generation DuckDB, WAL and spill | LOCAL_TRANSIENT_ALLOWED | Rebuild from pinned inputs and retained checkpoints; no scientific authority |
+| Parser/reference certificates, reference index/payload store, context indexes/keys | LOCAL_TRANSIENT_ALLOWED | Exact deterministic derived work; source evidence stays on PanFS |
+| Intermediate SQL tables, alignment/selector spill | LOCAL_TRANSIENT_ALLOWED | Keep all scientific identities and algorithms unchanged |
+| Publication replay working state | LOCAL_TRANSIENT_ALLOWED | Existing three replays reuse the same workspace; no three full copied datasets |
+| Independent validation/audit database and spill | LOCAL_TRANSIENT_ALLOWED | Read authoritative PanFS inputs; persist sanitized result separately |
+| Unit relation payloads and diagnostics | PANFS_CHECKPOINT_REQUIRED | Inventories/hash validation and adopted output require actual bytes |
+| Unit manifests/seals, prefix indexes and coalesced prefix relation files | PANFS_CHECKPOINT_REQUIRED | Preserve full checkpoint-v3 topology and exact executable binding |
+| Phase/checkpoint/termination receipts and SLURM logs | PANFS_DURABLE_REQUIRED | Persist during execution, not just on graceful termination |
+| Final relations, summary, manifest, registration, `_COMMITTED` | PANFS_DURABLE_REQUIRED | Accepted publication protocol/topology unchanged |
+| Future unmeasured spill high-water | UNKNOWN | No historical peak trace establishes a hard upper bound |
+
+**Checkpoint answer: A.** Keeping only compact seals on PanFS is insufficient.
+The full existing checkpoint tree is included below, including coalesced prefix
+relations; no pruning/reconstruction exception is assumed. Moving it entirely to
+ephemeral local storage would lose the approved cross-job adoption capability.
+Any split implementation must accept explicit transient and durable roots;
+symlinks or bypassing `controlled_path` are not an acceptable shortcut.
+
+## PanFS capacity calculation
+
+Allocated bytes were measured read-only with `du -x -B1` and `stat/find` block
+counts. Parent totals include directory allocation. No protected relation rows
+were read or exported. All historical runs remain unchanged.
+
+| Component | Allocated bytes | GiB |
+|---|---:|---:|
+| Final artifact (committed 1774362) | 169463808 | 0.157825470 |
+| Full durable checkpoint tree (larger of 1774362/1781277) | 907564032 | 0.845234871 |
+| Durable receipts/logs (larger measured aggregate) | 29304320 | 0.027291775 |
+| Additional full publication staging tree | 0 | 0 |
+| Measured durable subtotal | 1106332160 | 1.030352116 |
+| Publication/operational safety margin | 77667328 | 0.072333336 |
+| **Minimum planning headroom** | **1183999488** | **1.102685452** |
+| **Recommended free PanFS capacity** | **2147483648** | **2.000000000** |
+
+The receipt/log aggregate is the larger historical progress/attempt metadata
+plus SLURM stdout/stderr allocation. Safety margin comprises one additional
+largest checkpoint unit (31,965,184 bytes), the largest checkpoint relation file
+(37,797,888), observed old/new checkpoint-tree allocation variation (7,891,968),
+and an extra in-progress marker allocation (12,288). This is an explicitly
+proposed engineering allowance grounded in measured objects, not a frozen science
+change or a proven upper bound on every possible failure. Recommended capacity
+rounds the resulting total up to the next whole GiB. Shared-user activity must
+still be checked immediately before a future run.
+
+Staging is not counted twice: current publication reserves the unique final
+directory first and streams exclusively created destination files into it.
+The incomplete bytes are already the final-artifact allocation. A design that
+introduced a second full PanFS staging copy would need to add that copy.
+No historical data is assumed deleted, overwritten or adopted under a new SHA.
+
+Fresh quota at **2026-09-25T11:40:56Z**: limit 122558593750 KiB, used
+122558531828 KiB, available **61922 KiB = 0.059053421 GiB**. The deficit is
+**1.043632030 GiB** to the minimum planning headroom, or **1.940946579 GiB**
+to the recommended 2 GiB free target. The final artifact alone is larger than
+current capacity. This proves that current free PanFS space is insufficient even
+before deciding the local-I/O question.
+
+The 2 GiB target applies only to a separately approved/validated split-workspace
+implementation. Exact executable 7353e319 still requires 256 GiB and writes its
+workspace to PanFS. It cannot be run unchanged with this smaller reserve.
+
+## Local request calculation — provisional, not a measured peak
+
+The latest historical non-checkpoint/progress files occupy 2,630,419,968 allocated
+bytes on PanFS but have **4,758,715,819 apparent bytes (4.431899 GiB)**. Use the
+larger apparent size when estimating local storage: PanFS allocation/compression
+must not be assumed on the local filesystem. Successful job 1774362 recorded a
+sampled WAL high-water of **29,679,390 bytes (0.027641 GiB)**. Terminal spill was
+empty; its earlier peak is unknown. The database alone has 3,776,720,896 apparent
+bytes. One forensic validation left only 294,912 allocated bytes of receipts and
+empty spill, but this does not establish every future audit's peak memory/spill.
+
+Provisional model: terminal transient bytes plus sampled WAL = **4.459541 GiB**.
+Allow a second full measured transient footprint for rewrite/temporary overlap,
+then round up: ceil((2 × 4758715819 + 29679390) / 2^30) = **9 GiB**.
+Proposed scheduler request **`#SBATCH --tmp=9216M`**, with **4.540459 GiB**
+headroom over that terminal-plus-WAL estimate. This is a planning allowance,
+not an experimentally validated full-run peak or a local quota guarantee.
+Unknown spill peak and the failed write probe prevent presenting it as final
+execution approval. No hundreds-of-GiB local request is supported by the measured
+DEVELOPMENT footprint.
+
+## Proposed publication flow and remaining gates
+
+PanFS accepted inputs → local DuckDB/certificates/indexes/spill → durably written
+PanFS checkpoint payloads/seals and receipts → exclusive copy into a new reserved
+PanFS final directory → fsync and SHA-256/logical checks → required scientific
+replays → corrected registration → exclusive `_COMMITTED` → PanFS reopen.
+
+No cross-filesystem rename is used. The existing builder already copies and
+verifies, but path routing, progress/checkpoint roots, local capacity checks,
+audit scratch routing and a measured PanFS reserve gate would require explicit
+operational implementation approval and validation. Frozen science, checkpoint
+bindings and publication commit ordering must remain unchanged.
+
+**Practical finding:** more available project space is required at today's quota.
+Request a target of at least 2 GiB free (about 1.941 GiB additional availability)
+for the proposed split, subject to its remaining gates. Local write capability
+has not yet been established; none of the three successful/incompatible final
+outcome markers can honestly be asserted from this failed probe. Stop for owner
+authorization of one corrected public-only probe. No full DEVELOPMENT run,
+second probe, cleanup, science change or Stage 11 work occurred.
