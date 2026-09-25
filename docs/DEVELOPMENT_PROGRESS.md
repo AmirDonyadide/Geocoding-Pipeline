@@ -25,6 +25,16 @@ fingerprint
 
 ## Current checkpoint
 
+Storage feasibility update, 2026-09-25: owner-authorized replacement synthetic
+probe **1784678 COMPLETED / 0:0 in five seconds**. Local file/SQLite/DuckDB
+WAL/checkpoint/reopen and tiny local-to-PanFS copy/hash/cleanup passed. Current
+shared PanFS free capacity is 0.053797 GiB; a proposed split needs 1.102685 GiB
+minimum planning headroom, 2 GiB recommended. See the
+[probe result and capacity limits](stages/STAGE10_LOCAL_STORAGE_FEASIBILITY.md#replacement-result--1784678).
+No split implementation or full DEVELOPMENT submission occurred. The exact
+scientific executable retains its 256 GiB quota gate. Next: owner review of
+split-workspace implementation; additional PanFS space is still required.
+
 D064–D066 record authorization for Stage 10 implementation and exactly one
 bounded DEVELOPMENT catalog, followed by independent review. Executable
 `f83480d60449bcc904c0c622e394e12df3c3f2d9` is pushed. The pinned Goethe ICU

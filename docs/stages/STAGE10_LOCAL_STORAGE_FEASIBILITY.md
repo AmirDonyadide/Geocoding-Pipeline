@@ -275,3 +275,65 @@ all seven. Launcher identity remains pinned to the corrected 44154e5 version.
 Submission still requires committed/pushed probe code, a clean detached Goethe
 checkout, private new test destinations, and one exclusive submission receipt.
 PENDING/RUNNING means report once and stop; no automatic retry after failure.
+
+## Replacement result — 1784678
+
+On owner continuation, one terminal accounting inspection reported **COMPLETED /
+0:0, five seconds**, on `node24-005`. The controller had already expired the job;
+the accounting record, durable JSON result and shell terminal receipt agree.
+The [sanitized result and capacity reconciliation](../scientific_assets/stage10_local_storage_replacement_1784678.json)
+bind probe executable `1dc03f99d0e53450d89b47b8fda92c9286a8c216` and the unchanged
+approved launcher from `44154e5aeced9863132095eb4821d2a303dd56f6`.
+Submission was 2026-09-25T11:54:32Z; execution ended at 12:17:27Z.
+
+The request was 1 CPU, 1 GiB memory, five minutes, `--tmp=9216M`, general1.
+The scheduler accepted `MinTmpDiskNode=9G`; its whole-node allocation used
+80 CPUs, though the probe requested and used one task/thread. Runtime checks
+confirmed Python 3.14.3 in the pinned SAFE venv, SAFE 0.2.0 loaded from the exact
+detached checkout, and DuckDB 1.5.5. No system-Python fallback occurred.
+
+Observed `/local/1784678`: donyadidegan/UID 60099, mode 0700; available capacity
+**1682.220284 GiB**, total **1694.063042 GiB**. These are filesystem capacity
+values, not a per-job reserved-capacity guarantee. All synthetic files were 0600.
+
+- 16 MiB deterministic file: write, fsync, close/reopen, SHA-256, local rename
+  and readback **PASS**; temporary-file removal **PASS**.
+- SQLite: 1,000 invented rows, integrity check, WAL/checkpoint and exact reopen
+  comparison **PASS**.
+- DuckDB: 2,048 invented rows, 32-row temporary table, transaction rollback,
+  checkpoint, close/fsync/reopen and ordered row/hash comparison **PASS**.
+  WAL was 76,072 bytes before checkpoint and zero after checkpoint.
+- Local-to-PanFS copy: 64 KiB synthetic payload, distinct filesystems, exclusive
+  destination creation, fsync and SHA-256 equality **PASS**. Allocated file space
+  used/released was **208,896 bytes (0.000194550 GiB)**. Only that verified-owned
+  synthetic object was removed. Read-only post-job verification confirms absence.
+  The in-job quota snapshots were equal before copy and after cleanup; this
+  tiny test does not measure delayed or shared quota accounting precisely.
+- In-job local cleanup **PASS**; free blocks/inodes returned to their starting
+  values. This does not independently establish scheduler epilog cleanup.
+  Sanitized evidence and the empty private PanFS probe parent remain preserved.
+
+Fresh `pan_df -k /work/footprint` at **2026-09-25T12:32:16Z** reports limit
+122558593750 KiB, used 122558537340 KiB, available **56410 KiB = 0.053796768 GiB**.
+The measured-object planning minimum remains **1.102685452 GiB**, recommended
+free capacity **2 GiB**. Current deficits are **1.048888683 GiB** to the minimum
+and **1.946203232 GiB** to the recommendation. Ask for enough additional shared
+project capacity to leave at least 2 GiB free immediately before a future split
+run; shared activity can change this requirement.
+
+The local terminal-plus-sampled-WAL estimate remains **4.459541 GiB**, with a
+provisional **9 GiB / `--tmp=9216M`** request and **4.540459 GiB** headroom. The
+small successful probe establishes filesystem/database primitives, not a peak
+measurement of the full scientific workload. Historical spill peak is unknown.
+
+**LOCAL STORAGE TECHNICALLY USABLE: YES.**
+**PANFS ADMIN/QUOTA SPACE STILL REQUIRED RIGHT NOW: YES.**
+
+No split-workspace implementation or full DEVELOPMENT run occurred. The existing
+scientific executable still requires 256 GiB and PanFS workspace routing; the
+smaller reserve applies only after separately approved operational changes and
+validation. Full checkpoint payloads/seals and final publication stay durable on
+PanFS. Stage 0–9/science unchanged; protected payload access zero; HOLDOUT sealed;
+production/Pelias untouched; Stage 11 NOT STARTED; Stage 10 NOT ACCEPTED.
+
+NEXT: OWNER REVIEW OF SPLIT-WORKSPACE IMPLEMENTATION.

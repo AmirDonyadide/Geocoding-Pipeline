@@ -1,0 +1,160 @@
+{
+  "additional_panfs_space_required": true,
+  "current_panfs": {
+    "available_kib": 56410,
+    "limit_kib": 122558593750,
+    "scope": "effective /work/footprint shared project capacity",
+    "timestamp_utc": "2026-09-25T12:32:16Z",
+    "used_kib": 122558537340
+  },
+  "deficit_bytes": {
+    "minimum_planning": 1126235648,
+    "recommended": 2089719808
+  },
+  "full_development_submitted": false,
+  "holdout_accessed": false,
+  "limits": [
+    "Synthetic I/O success is not full-workload capacity validation.",
+    "4.459541 GiB is terminal transient footprint plus sampled WAL, not a measured peak; historical spill peak is unknown.",
+    "9 GiB is a provisional local request with one additional measured transient footprint allowance.",
+    "2 GiB PanFS recommendation requires separately authorized and validated split-workspace implementation.",
+    "Current scientific executable retains its 256 GiB quota gate and PanFS workspace routing.",
+    "Full durable checkpoint payloads and metadata remain on PanFS.",
+    "In-job synthetic cleanup passed; scheduler epilog cleanup is documented, not independently observed.",
+    "PanFS capacity is shared and can change after measurement."
+  ],
+  "local_model_bytes": {
+    "measured_transient_terminal_allocated": 2630419968,
+    "measured_transient_terminal_apparent": 4758715819,
+    "provisional_request": 9663676416,
+    "sampled_validated_wal_high_water": 29679390,
+    "second_transient_footprint_allowance": 4758715819,
+    "terminal_plus_sampled_wal_estimate": 4788395209
+  },
+  "local_storage_technically_usable": true,
+  "panfs_model_bytes": {
+    "additional_publication_staging": 0,
+    "durable_checkpoints": 907564032,
+    "durable_receipts_logs": 29304320,
+    "final_artifact": 169463808,
+    "measured_component_subtotal": 1106332160,
+    "minimum_planning_free": 1183999488,
+    "publication_safety_margin": 77667328,
+    "recommended_free": 2147483648
+  },
+  "pelias_accessed": false,
+  "post_job_synthetic_panfs_object_absent": true,
+  "probe_result": {
+    "environment": {
+      "duckdb_location": "/panfs/vdura1/footprint/donyadidegan/safe_geocoding_pipeline/runtimes/stage06/stage06_development_20260828T223804Z_f39047cc825d/venv/lib/python3.14/site-packages/duckdb/__init__.py",
+      "duckdb_version": "1.5.5",
+      "python_binary_realpath": "/home/footprint/donyadidegan/spack/opt/spack/linux-x86_64/python-3.14.3-oqbfcdj7ndtmvowcbsdz3okbcfw6y6mf/bin/python3.14",
+      "python_executable": "/work/footprint/donyadidegan/safe_geocoding_pipeline/runtimes/stage06/stage06_development_20260828T223804Z_f39047cc825d/venv/bin/python",
+      "python_prefix": "/work/footprint/donyadidegan/safe_geocoding_pipeline/runtimes/stage06/stage06_development_20260828T223804Z_f39047cc825d/venv",
+      "python_version": "3.14.3 (main, Aug 12 2026, 13:30:23) [GCC 11.5.0 20240719 (Red Hat 11.5.0-11)]",
+      "safe_distribution_location": "/work/footprint/donyadidegan/safe_geocoding_pipeline/runtimes/stage06/stage06_development_20260828T223804Z_f39047cc825d/venv/lib/python3.14/site-packages",
+      "safe_package_location": "/home/footprint/donyadidegan/stage10-local-storage-replacement-20260925-1dc03f99d0e5/checkout/src/safe_geocoding_pipeline/__init__.py",
+      "safe_package_version": "0.2.0"
+    },
+    "execution_git_sha": "1dc03f99d0e53450d89b47b8fda92c9286a8c216",
+    "hostname": "node24-005",
+    "job_id": "1784678",
+    "kind": "STAGE10_PUBLIC_LOCAL_STORAGE_REPLACEMENT_PROBE",
+    "launcher_base_sha": "44154e5aeced9863132095eb4821d2a303dd56f6",
+    "local_after": {
+      "available_bytes": 1806270275584,
+      "available_inodes": 177722108,
+      "device": 2052,
+      "total_bytes": 1818986340352
+    },
+    "local_before": {
+      "available_bytes": 1806270275584,
+      "available_inodes": 177722108,
+      "device": 2052,
+      "total_bytes": 1818986340352
+    },
+    "local_cleanup": "PASS",
+    "local_io": {
+      "duckdb": {
+        "checkpoint": "PASS",
+        "close_reopen": "PASS",
+        "expected_hash": "ae5e9e2129fa62ddee77be3e0315a1c4a14e468804831b71820b17fa628de16d",
+        "fsync": "PASS",
+        "reopen_hash": "ae5e9e2129fa62ddee77be3e0315a1c4a14e468804831b71820b17fa628de16d",
+        "rollback_rows": 2048,
+        "rows": 2048,
+        "temporary_table_rows": 32,
+        "wal_after_checkpoint_bytes": 0,
+        "wal_before_checkpoint_bytes": 76072
+      },
+      "file_modes": {
+        "copy-source.bin": "0o600",
+        "synthetic-renamed.bin": "0o600",
+        "synthetic.duckdb": "0o600",
+        "synthetic.sqlite3": "0o600",
+        "synthetic.sqlite3-shm": "0o600",
+        "synthetic.sqlite3-wal": "0o600"
+      },
+      "rename": "PASS",
+      "sqlite_integrity_checkpoint_reopen": "PASS",
+      "sqlite_rows": 1000,
+      "synthetic_bytes": 16777216,
+      "synthetic_sha256": "a2757cd0f07cfd4c56d2bd6070cda8c54cc603c5deb5d9d05a825cc257786acf",
+      "temporary_file_cleanup": "PASS",
+      "write_read_fsync_close_reopen_hash": "PASS"
+    },
+    "local_root": "/local/1784678",
+    "local_root_mode": "0o700",
+    "local_root_uid": 60099,
+    "panfs_copy": {
+      "allocated_bytes_released": 208896,
+      "allocated_bytes_used": 208896,
+      "bytes": 65536,
+      "cleanup": "PASS",
+      "fsync": "PASS",
+      "mode": "0o600",
+      "sha256": "ae5e9e2129fa62ddee77be3e0315a1c4a14e468804831b71820b17fa628de16d",
+      "sha256_equal": true,
+      "uid": 60099
+    },
+    "panfs_quota_after_cleanup": {
+      "available_kib": 56438,
+      "limit_kib": 122558593750,
+      "used_kib": 122558537312
+    },
+    "panfs_quota_before_copy": {
+      "available_kib": 56438,
+      "limit_kib": 122558593750,
+      "used_kib": 122558537312
+    },
+    "phase": "complete",
+    "protected_payloads_accessed": 0,
+    "requested_tmp_mib": 9216,
+    "scheduler_tmp_bytes": 9663676416,
+    "scientific_candidate_publication": false,
+    "status": "PASS"
+  },
+  "probe_result_sha256": "08e5cad8f2e6308e54b876e9c44a3de8b54a575076dc9611dbce23e8bf08bf71",
+  "production_accessed": false,
+  "record_version": "stage10_local_storage_replacement_reconciliation_v1",
+  "scheduler": {
+    "allocated_cpus": 80,
+    "elapsed_seconds": 5,
+    "exit_code": "0:0",
+    "job_id": "1784678",
+    "node": "node24-005",
+    "partition": "general1",
+    "reported_maxrss": "0; not a useful peak measurement",
+    "requested_cpus": 1,
+    "requested_memory_gib": 1,
+    "scontrol_after_completion": "job expired from controller; sacct terminal record and durable receipts agree",
+    "start_utc": "2026-09-25T12:17:22Z",
+    "state": "COMPLETED",
+    "submission_utc": "2026-09-25T11:54:32Z",
+    "terminal_receipt_utc": "2026-09-25T12:17:27Z",
+    "walltime_seconds": 300
+  },
+  "scientific_executable": "7353e3197adcb1b38cc821f48ee3d7da6d1f529c",
+  "split_workspace_implemented": false,
+  "stage11_started": false
+}
