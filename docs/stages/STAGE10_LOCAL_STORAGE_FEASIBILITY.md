@@ -235,3 +235,43 @@ has not yet been established; none of the three successful/incompatible final
 outcome markers can honestly be asserted from this failed probe. Stop for owner
 authorization of one corrected public-only probe. No full DEVELOPMENT run,
 second probe, cleanup, science change or Stage 11 work occurred.
+
+## Owner-authorized replacement probe
+
+The owner subsequently authorized exactly one replacement PUBLIC/SYNTHETIC
+probe, with `--tmp=9216M`. No full DEVELOPMENT run or split-workspace
+implementation is authorized. Historical job 1784651 and its receipts remain
+unchanged. The launcher bytes from `44154e5aeced9863132095eb4821d2a303dd56f6`
+remain unchanged; the submission command overrides only its `--tmp` directive.
+The expanded probe script and tests are bound to a new descendant executable.
+
+Before submission, read-only venv configuration/distribution metadata identifies
+Python 3.14.3, SAFE 0.2.0 and DuckDB 1.5.5. The script checks the exact expected
+Python executable and venv prefix, SAFE source location in the detached checkout,
+installed package metadata and DuckDB version before I/O. It records those
+identities and checks the live scheduler's `MinTmpDiskNode` equals 9 GiB.
+
+The added public-only DuckDB test performs one bounded insert transaction,
+observes a nonempty WAL, uses a temporary table, verifies rollback, checkpoints,
+closes, fsyncs and reopens the database, and compares the ordered invented rows
+and SHA-256 digest. The existing 16 MiB local file and SQLite checks remain.
+The local-to-PanFS test streams only 64 KiB into a new exclusively created file,
+fsyncs, reopens and hashes it. After checking the exact owning UID, inode/device,
+regular-file type and link count, it removes that same synthetic file and
+records allocated bytes used/released and before/after project-quota snapshots.
+It never removes its parent, historical evidence or scientific files.
+
+In-job cleanup validates a closed allowlist of invented files and an empty
+DuckDB spill directory, removes only owned synthetic objects, then removes its
+own empty local child directory. This tests in-job cleanup; it does not claim
+to observe the scheduler epilog from inside the job. Sanitized success/failure
+receipts and stdout/stderr remain in a new private home-directory test area.
+
+Seven focused synthetic tests cover runtime rejection/identity, real DuckDB
+WAL/transaction/checkpoint/reopen, copy/hash/cleanup, refusal of wrong ownership
+or symlinks, exclusive destination collision, and complete local I/O/cleanup.
+The initial missing helpers failed all seven tests; the implementation passes
+all seven. Launcher identity remains pinned to the corrected 44154e5 version.
+Submission still requires committed/pushed probe code, a clean detached Goethe
+checkout, private new test destinations, and one exclusive submission receipt.
+PENDING/RUNNING means report once and stop; no automatic retry after failure.
