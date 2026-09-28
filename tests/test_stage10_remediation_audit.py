@@ -11,6 +11,7 @@ import pyarrow.parquet as pq
 import pytest
 
 from safe_geocoding_pipeline.preprocessing import stage10_remediation_audit as audit
+from safe_geocoding_pipeline.preprocessing.stages import s10_query_storage as storage
 from safe_geocoding_pipeline.preprocessing.stages import s10_query_contract as c
 from safe_geocoding_pipeline.preprocessing.stages import s10_query_execution as ex
 from safe_geocoding_pipeline.preprocessing.stages import s10_query_families as f
@@ -26,7 +27,14 @@ def artifact_fixture(
     tmp_path: Path, monkeypatch: Any, fault: str | None = None
 ) -> ex.Stage10Config:
     monkeypatch.setattr(audit, "require_goethe_nhr_slurm", lambda *a: None)
-    monkeypatch.setattr(ex.Stage10Config, "preflight", lambda self: None)
+    monkeypatch.setattr(ex.Stage10Config, "preflight", lambda self, **kw: None)
+
+    def synthetic_local(*args: Any, **kwargs: Any) -> Path:
+        local = tmp_path / "synthetic-audit-local"
+        local.mkdir(mode=0o700)
+        return local
+
+    monkeypatch.setattr(storage, "create_transient", synthetic_local)
     monkeypatch.setattr(inputs, "PROJECT_ALIAS", tmp_path)
     monkeypatch.setenv("SLURM_JOB_ID", "SYNTHETIC_ONLY")
     parent = tmp_path / "development"

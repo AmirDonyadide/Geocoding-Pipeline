@@ -25,6 +25,16 @@ fingerprint
 
 ## Current checkpoint
 
+Storage feasibility update, 2026-09-25: owner-authorized replacement synthetic
+probe **1784678 COMPLETED / 0:0 in five seconds**. Local file/SQLite/DuckDB
+WAL/checkpoint/reopen and tiny local-to-PanFS copy/hash/cleanup passed. Current
+shared PanFS free capacity is 0.053797 GiB; a proposed split needs 1.102685 GiB
+minimum planning headroom, 2 GiB recommended. See the
+[probe result and capacity limits](stages/STAGE10_LOCAL_STORAGE_FEASIBILITY.md#replacement-result--1784678).
+No split implementation or full DEVELOPMENT submission occurred. The exact
+scientific executable retains its 256 GiB quota gate. Next: owner review of
+split-workspace implementation; additional PanFS space is still required.
+
 D064–D066 record authorization for Stage 10 implementation and exactly one
 bounded DEVELOPMENT catalog, followed by independent review. Executable
 `f83480d60449bcc904c0c622e394e12df3c3f2d9` is pushed. The pinned Goethe ICU
@@ -305,3 +315,61 @@ resubmission or additional job occurred during reconciliation.
 STAGE 10 DEVELOPMENT FAILURE.** The prior candidate/review history remains
 unchanged; operating budget UNSELECTED; Stage 0–9 unchanged; HOLDOUT sealed;
 production/Pelias untouched; Stage 11 NOT STARTED; Stage 10 NOT YET ACCEPTED.
+
+### Publication forensics authorized — 2026-09-25
+
+The owner authorized bounded F01/F02 forensics, preserved-output/C01/content
+validation and recovery-contract analysis. The [forensic record](stages/STAGE10_PUBLICATION_FORENSICS.md)
+records the complete ledger and synthetic tests. Current project quota is
+100% used with about 1.562 GiB available; filesystem-wide capacity did not
+represent this effective limit. This is not proof of the historical errno.
+Correct registration constructs from the retained manifest; F01 remains open.
+
+Operational repairs add quota-aware preflight and reserved, sanitized failure
+receipts. The frozen checkpoint contract requires the exact executable SHA, so
+cross-executable adoption after these repairs is prohibited. A guarded read-only
+Goethe validator is prepared to finish the independently required checkpoint,
+C01 and old/new content checks. It performs no scientific generation, adoption,
+replay or publication. No full retry or recovery publisher is authorized or
+submitted at this preparation checkpoint. Stage 10 remains NOT ACCEPTED.
+
+### Read-only publication forensic validation submitted — 2026-09-24T21:45:42Z
+
+Repair/validator executable `7353e3197adcb1b38cc821f48ee3d7da6d1f529c` is pushed
+on `fix/stage10-publication-forensics`. Local validation: **1,152 safe-suite
+PASS / 24 pinned-ICU skips**, **316 Stage 10 PASS / 24 skips**, static/schema/lock/
+documentation checks PASS. One read-only job **1781847** is **PENDING / Priority**
+at initial observation; 4 CPUs / 32 GiB / 1 h, no dependency/requeue. See the
+[submission receipt](scientific_assets/stage10_publication_forensics_submission_1781847.json)
+and [complete forensic ledger](stages/STAGE10_PUBLICATION_FORENSICS.md).
+
+**STAGE10_PUBLICATION_FORENSICS_IN_PROGRESS.** The job validates preserved
+checkpoints, full C01 provenance and old/new scientific equality; it performs
+zero generation, adoption or publication. F01 historical exception remains
+unresolved. Frozen exact-executable bindings prohibit repaired cross-SHA
+adoption. Owner should later type **continue**; no repeated polling or full
+retry. Stage 0–9 unchanged; operating budget UNSELECTED; HOLDOUT sealed;
+production/Pelias untouched; Stage 11 NOT STARTED; Stage 10 NOT YET ACCEPTED.
+
+### Publication forensics complete — 2026-09-25
+
+Read-only job **1781847 COMPLETED / 0:0**, **00:16:25**, MaxRSS **452,384 KiB**.
+All 1,099 checkpoints, 69,747 contexts, 418,482 decisions and 142,677 hypotheses
+validate. Full C01 reconciliation: **237,263** required/actual exclusions,
+**zero** missing/duplicate provenance or source-anchor violations. Old/new
+hypothesis relations are exactly equal; only required decision provenance
+changes. Actual-manifest registration construction/hash passes in memory; no
+registration, seal, adoption, generation or publication is performed.
+
+**STAGE10_REMEDIATION_FULL_REGENERATION_REQUIRED.** Frozen checkpoint
+`execution_git_sha` equality forbids adopting old units under repaired executable
+`7353e3197adcb1b38cc821f48ee3d7da6d1f529c`. See the [complete reconciliation and
+ledger](stages/STAGE10_PUBLICATION_FORENSICS.md#completed-forensic-reconciliation--2026-09-25).
+F01's historical exception remains unresolved; F02 receipt/primary-error defects
+and the project-quota preflight gap are repaired and tested. No full retry is
+authorized/submitted. Proposed 4 CPUs / 32 GiB / 36 h also requires sufficient
+project quota (256 GiB reserve; last observed about 1.54 GiB).
+
+NEXT: OWNER REVIEW AND AUTHORIZATION FOR FULL REGENERATION. Operating budget
+UNSELECTED; Stage 0–9 unchanged; HOLDOUT sealed; production/Pelias untouched;
+Stage 11 NOT STARTED; Stage 10 NOT YET ACCEPTED.

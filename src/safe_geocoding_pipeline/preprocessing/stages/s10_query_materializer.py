@@ -103,7 +103,7 @@ def generate_catalog(
     unit_contexts: int = ops.PAGE_CONTEXTS,
 ) -> list[dict[str, Any]]:
     c.require(sorted(order) == list(SHARDS), "STAGE10_SHARD_PARTITION_INVALID")
-    shard_root = work.root / "shards"
+    shard_root = work.durable_root / "shards"
     shard_root.mkdir(mode=0o700)
     records = {}
     for prefix in order:
@@ -125,8 +125,8 @@ def generate_catalog(
             paths.extend(
                 shard_root / prefix / f["relative_path"] for f in record["files"]
             )
-        combined.append(relation_record(name, paths, work.root, count))
-    register_outputs(work, work.root, combined)
+        combined.append(relation_record(name, paths, work.durable_root, count))
+    register_outputs(work, work.durable_root, combined)
     summary.validate_integrity(work.db)
     return combined
 
@@ -190,7 +190,7 @@ class CatalogArtifact:
             target.mkdir(mode=0o700)
             paths: list[Path] = []
             for ordinal, item in enumerate(record["files"]):
-                source = pack.confined(self.work.root, item["relative_path"])
+                source = pack.confined(self.work.durable_root, item["relative_path"])
                 destination = target / f"part-{ordinal:06}.parquet"
                 # Exclusive destination; never hard-link mutable work to final.
                 with source.open("rb") as src:

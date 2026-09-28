@@ -2182,3 +2182,44 @@ that predicate/proof and dependent bounds; the other reviewed decisions stand.
   STAGE 10 DEVELOPMENT FAILURE. This is failure reporting, not a new execution
   authorization. Stage 0–9 unchanged; operating budget UNSELECTED; HOLDOUT sealed;
   production/Pelias untouched; Stage 11 NOT STARTED; Stage 10 NOT YET ACCEPTED.
+
+### D081 — Bounded Stage 10 publication forensics; preserve exact adoption rules
+
+- **Owner authorization, 2026-09-25:** Preserve failed job 1781277, investigate
+  F01/F02, repair sanitized observability, validate checkpoint/C01/content evidence,
+  and determine recovery from the frozen contract. No immediate full retry.
+- **Analysis:** [Forensic record and complete ledger](stages/STAGE10_PUBLICATION_FORENSICS.md).
+  Exact `execution_git_sha` is mandatory in checkpoint bindings and detached HEAD;
+  a publication-only repair cannot adopt old checkpoints under a new executable.
+  No exception or rewriting of bindings is introduced. The original reservation
+  lacks a commit seal and is not adopted or modified.
+- **Evidence limit:** Correct registration constructs from the retained sanitized
+  manifest. Current project quota is 100% used despite filesystem-wide capacity;
+  this does not reconstruct the historical exception. F01 remains unresolved.
+  Synthetic storage faults reproduce missing/masked receipts; operational repair
+  adds preallocated failure evidence and a project-aware full-run quota gate.
+- **Next:** Complete owner-authorized read-only preserved-generation/C01/equality
+  validation on Goethe, with no generation, adoption, replay or publication.
+  Then report path B and stop for owner authorization before any new full run.
+  Stage 0–9/science unchanged; budget UNSELECTED; HOLDOUT sealed;
+  production/Pelias untouched; Stage 11 NOT STARTED; Stage 10 NOT ACCEPTED.
+
+### D082 — Preserve validated Stage 10 generation; full regeneration requires new authorization
+
+- **Evidence, 2026-09-25:** Read-only job 1781847 completes 0:0; all 1,099 old
+  checkpoint units and the complete 69,747-context population validate. C01
+  required/actual exclusions are 237,263 with no missing/duplicate provenance
+  or source-anchor violations. Protected old/new hypothesis comparison is exact.
+- **Contract boundary:** Exact executable binding is mandatory. Repair executable
+  `7353e3197adcb1b38cc821f48ee3d7da6d1f529c` cannot adopt checkpoints bound to
+  `1b4c076c85ecb48c0a4e28668b69b99e0be128ad`. No cross-SHA exception, in-place
+  repair or new recovery publisher is introduced. Path B requires a newly
+  authorized full generation. Proposed resources: 4 CPUs / 32 GiB / 36 h.
+- **Limits:** F01 historical exception remains unknown. Receipt error masking
+  and quota-aware preflight defects are repaired; current quota is insufficient
+  for the 256 GiB full-run reserve. Registration construction/hash validation
+  and synthetic tests do not establish P11/replays for the failed artifact.
+- **Disposition:** [Complete final ledger and evidence](stages/STAGE10_PUBLICATION_FORENSICS.md#publication-evidence-and-final-ledger).
+  No further job submitted. Operating budget UNSELECTED; Stage 0–9/science
+  unchanged; HOLDOUT sealed; production/Pelias untouched; Stage 11 NOT STARTED;
+  Stage 10 NOT ACCEPTED.
