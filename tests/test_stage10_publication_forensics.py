@@ -10,6 +10,7 @@ from typing import Any
 
 import pytest
 
+from safe_geocoding_pipeline.preprocessing.stages import s10_query_storage as storage
 from safe_geocoding_pipeline.preprocessing.stages import s10_query_contract as c
 from safe_geocoding_pipeline.preprocessing.stages import s10_query_execution as ex
 from safe_geocoding_pipeline.preprocessing.stages import s10_query_io as io
@@ -187,8 +188,15 @@ def test_actual_execution_handler_preserves_publication_failure(
     config = ex.Stage10Config(tmp_path, parent / "candidate", "a" * 40)
     monkeypatch.setenv("SLURM_JOB_ID", "SYNTHETIC_ONLY")
     monkeypatch.setattr(
-        ex.Stage10Config, "preflight", lambda self: (tmp_path, tmp_path, tmp_path)
+        ex.Stage10Config, "preflight", lambda self, **kw: (tmp_path, tmp_path, tmp_path)
     )
+
+    def synthetic_local(*args: Any, **kwargs: Any) -> Path:
+        path = tmp_path / "local"
+        path.mkdir(mode=0o700)
+        return path
+
+    monkeypatch.setattr(storage, "create_transient", synthetic_local)
     monkeypatch.setattr(
         ex,
         "runtime_ready",

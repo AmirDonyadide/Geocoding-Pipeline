@@ -21,6 +21,9 @@ from .stages import s10_query_input as inputs
 from .stages import s10_query_io as io
 from .stages import s10_query_publication as pub
 from .stages import s10_query_receipts as receipts
+from .stages import s10_query_storage as storage
+from .stages import s10_publication_trace as trace
+from .stages import s10_query_operations as ops
 
 PRIOR_KEY = "stage10_development_20260921T112356Z_63f3cd107e69"
 PRIOR_MANIFEST = "085b05f6201831de6aa908c599bb5541a85cc185a48022d2d93d1e0a9afcc3fa"
@@ -180,7 +183,35 @@ def files(root: Path, records: list[dict[str, Any]]) -> list[Path]:
 
 def audit(config: execution.Stage10Config) -> dict[str, Any]:
     require_goethe_nhr_slurm("stage10-remediation-audit")
-    config.preflight()
+    config.preflight(new_generation=False)
+    new = inputs.controlled_path(config.output_directory)
+    parent = new.parent / "work"
+    pub.check_parent(parent / "reserved")
+    root = parent / (new.name + "_remediation_audit")
+    root.mkdir(mode=0o700)
+    observer = trace.PublicationTrace(root, new, config.execution_git_sha)
+    try:
+        with ops.termination_guard(
+            on_termination=lambda: observer.failure(
+                c.Stage10Error("STAGE10_TERMINATED")
+            )
+        ):
+            scratch = storage.create_transient("remediation_audit", reserve=0)
+            observer.local_workspace = scratch
+            observer("remediation_audit")
+            report = _audit(config, scratch)
+            receipts.write(new.with_name(new.name + "_remediation_audit.json"), report)
+            receipts.write(root / "completed.json", report)
+            return report
+    except BaseException as error:
+        try:
+            observer.failure(error)
+        except BaseException:
+            pass  # Preserve primary failure even if the receipt cannot be persisted.
+        raise
+
+
+def _audit(config: execution.Stage10Config, scratch: Path) -> dict[str, Any]:
     new = inputs.controlled_path(config.output_directory)
     old = inputs.controlled_path(new.parent / PRIOR_KEY)
     c.require(old != new, "STAGE10_REMEDIATION_NEW_ARTIFACT_REQUIRED")
@@ -223,8 +254,6 @@ def audit(config: execution.Stage10Config) -> dict[str, Any]:
         "execution_git_sha": config.execution_git_sha,
         "job_id": os.environ["SLURM_JOB_ID"],
     }
-    scratch = new.parent / "work" / (new.name + "_remediation_audit")
-    scratch.mkdir(mode=0o700)
     with (
         execution.offline_network(),
         generic.bounded_connection(
@@ -298,13 +327,7 @@ def main() -> int:
         args.stage06_root, args.output_directory, args.execution_git_sha
     )
     try:
-        report = audit(config)
-        receipts.write(
-            args.output_directory.with_name(
-                args.output_directory.name + "_remediation_audit.json"
-            ),
-            report,
-        )
+        audit(config)
     except Exception:
         # Never print engine diagnostics or arbitrary path/value contents.
         print("STAGE10_REMEDIATION_AUDIT_FAILED")

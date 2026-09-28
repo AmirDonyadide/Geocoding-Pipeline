@@ -33,6 +33,7 @@ from . import s10_query_receipts as receipts
 from . import s10_query_publication as pub
 from . import s10_query_transliteration as t
 from . import s10_publication_trace as trace
+from . import s10_query_storage as storage
 
 RUNTIME_LOCK_SHA = "20bfe735dca8b35b0ea10f1e3d729f2007e4cf3333dd5d5b5cdd527ef638d2cd"
 READY_SHA = "7a1125109463d8e6ed10d905ed379f90c4b19025bfbcc4c1cc75f1b0b51700dc"
@@ -68,6 +69,23 @@ def project_quota_available() -> int:
     total, used, available, _ = map(int, rows[0])
     c.require(used <= total and available <= total, "STAGE10_PROJECT_QUOTA_UNVERIFIED")
     return available * 1024
+
+
+def storage_preflight(parent: Path, *, new_generation: bool) -> None:
+    local = storage.local_root(reserve=storage.LOCAL_RESERVE if new_generation else 0)
+    c.require(
+        local.stat().st_dev != parent.stat().st_dev,
+        "STAGE10_LOCAL_FILESYSTEM_NOT_DISTINCT",
+    )
+    if new_generation:
+        c.require(
+            shutil.disk_usage(parent).free >= storage.PANFS_RESERVE,
+            "STAGE10_DISK_RESERVE_INSUFFICIENT",
+        )
+        c.require(
+            project_quota_available() >= storage.PANFS_RESERVE,
+            "STAGE10_PROJECT_QUOTA_RESERVE_INSUFFICIENT",
+        )
 
 
 def verify_design(repository: Path) -> None:
@@ -167,7 +185,7 @@ class Stage10Config:
     expected_manifest_sha256: str | None = None
     resume_work_root: Path | None = None
 
-    def preflight(self) -> tuple[Path, Path, Path]:
+    def preflight(self, *, new_generation: bool = True) -> tuple[Path, Path, Path]:
         require_goethe_nhr_slurm("stage10-query-execution")
         c.require_runtime()
         c.require(
@@ -219,6 +237,7 @@ class Stage10Config:
             "STAGE10_DEVELOPMENT_SCOPE_REQUIRED",
         )
         publication_environment(output, stage09)
+        storage_preflight(output.parent, new_generation=new_generation)
         inputs.controlled_path(self.stage06_root)
         if self.resume_work_root is not None:
             selected = inputs.controlled_path(self.resume_work_root)
@@ -227,14 +246,6 @@ class Stage10Config:
                 and selected.name == "shards",
                 "STAGE10_RESUME_SCOPE_INVALID",
             )
-        c.require(
-            shutil.disk_usage(output.parent).free >= 256 * 1024**3,
-            "STAGE10_DISK_RESERVE_INSUFFICIENT",
-        )
-        c.require(
-            project_quota_available() >= 256 * 1024**3,
-            "STAGE10_PROJECT_QUOTA_RESERVE_INSUFFICIENT",
-        )
         return stage08, stage09, runtime
 
 
@@ -262,7 +273,7 @@ def run(
 def _run(
     config: Stage10Config, *, validate_only: bool = False
 ) -> generic_io.PublicationResult:
-    stage08, stage09, runtime_root = config.preflight()
+    stage08, stage09, runtime_root = config.preflight(new_generation=not validate_only)
     if not validate_only:
         c.require(
             not os.path.lexists(config.output_directory),
@@ -286,6 +297,11 @@ def _run(
             publication_trace = trace.PublicationTrace(
                 root, config.output_directory, config.execution_git_sha
             )
+            transient = storage.create_transient(
+                "validation" if validate_only else "generation",
+                reserve=0 if validate_only else storage.LOCAL_RESERVE,
+            )
+            publication_trace.local_workspace = transient
             preparation = ops.Progress(root / "input_progress")
             guards.enter_context(
                 ops.termination_guard(
@@ -307,9 +323,12 @@ def _run(
                     )
             finally:
                 preparation.record(announce=True)
-            workspace_root = root / "workspace"
+            workspace_root = transient / "workspace"
             work = contexts.ContextWorkspace(
-                accepted, workspace_root, c.science_fingerprint(runtime.asset_binding)
+                accepted,
+                workspace_root,
+                c.science_fingerprint(runtime.asset_binding),
+                durable_root=root / "workspace",
             )
             publication_trace.counts = work.progress.counts
             io.write_json(
@@ -321,6 +340,9 @@ def _run(
                     "runtime_build_lock_sha256": runtime.lock_sha256,
                     "started_utc": datetime.now(timezone.utc).isoformat(),
                     "validate_only": validate_only,
+                    "storage_class": "SPLIT_LOCAL_TRANSIENT_PANFS_DURABLE",
+                    "transient_workspace": str(workspace_root),
+                    "durable_workspace": str(work.durable_root),
                 },
             )
             provenance = {
@@ -328,6 +350,8 @@ def _run(
                 "job_id": os.environ["SLURM_JOB_ID"],
                 "started_utc": datetime.now(timezone.utc).isoformat(),
                 "workspace": str(root),
+                "transient_workspace": str(workspace_root),
+                "storage_class": "SPLIT_LOCAL_TRANSIENT_PANFS_DURABLE",
                 "shard_count": len(materializer.SHARDS),
                 "runtime_versions": list(c.RUNTIME),
                 "cpus_requested": int(os.environ.get("SLURM_CPUS_PER_TASK", "4")),
@@ -343,6 +367,7 @@ def _run(
                 "preparation_job_id": "1772341",
             }
             try:
+                publication_trace("workspace_preparation")
                 with work.progress.measure("workspace_preparation"):
                     work.prepare()
                 work.progress.record(announce=True)

@@ -401,11 +401,24 @@ class ContextWorkspace:
     """Bounded-memory external joins; source maps remain upstream authorities."""
 
     def __init__(
-        self, accepted: inputs.AcceptedInputs, root: Path, science: bytes
+        self,
+        accepted: inputs.AcceptedInputs,
+        root: Path,
+        science: bytes,
+        *,
+        durable_root: Path | None = None,
     ) -> None:
         self.accepted, self.root, self.science = accepted, root, science
         root.mkdir(mode=0o700)
-        self.progress = ops.Progress(root / "progress")
+        self.durable_root = root if durable_root is None else durable_root
+        if self.durable_root != root:
+            c.require(
+                not self.durable_root.is_relative_to(root)
+                and not root.is_relative_to(self.durable_root),
+                "STAGE10_WORKSPACE_ROOT_OVERLAP",
+            )
+            self.durable_root.mkdir(mode=0o700)
+        self.progress = ops.Progress(self.durable_root / "progress")
         raw = upstream_io.bounded_connection(
             root / "spill", database=root / "context.duckdb", memory="8GB", threads=4
         )

@@ -18,7 +18,8 @@ RESERVE_BYTES = 64 * 1024
 PHASES = frozenset(
     "reservation build manifest manifest_fsync initial_validation registration_build "
     "registration_write registration_fsync prepared_validation seal_validation "
-    "seal_create reopen final_check initialization input_validation generation".split()
+    "seal_create reopen final_check initialization input_validation generation "
+    "workspace_preparation remediation_audit".split()
 )
 
 
@@ -74,6 +75,7 @@ class PublicationTrace:
         self.root, self.artifact, self.executable = root, artifact, executable
         self.phase, self.sequence = "initialization", 0
         self.counts: dict[str, int] = {}
+        self.local_workspace: Path | None = None
         self.reserve = root / "failure.json.partial"
         io.write_exclusive(self.reserve, b" " * RESERVE_BYTES)
         allocated = self.reserve.lstat()
@@ -81,6 +83,16 @@ class PublicationTrace:
         io.fsync_directory(root)
 
     def state(self) -> dict[str, Any]:
+        # Local storage can be unavailable while PanFS remains healthy. Never
+        # let a best-effort local stat prevent durable primary-error recording.
+        local_present: bool | None = False
+        local_status = "NOT_ALLOCATED"
+        if self.local_workspace is not None:
+            try:
+                local_present = self.local_workspace.is_dir()
+                local_status = "PRESENT" if local_present else "ABSENT"
+            except OSError:
+                local_present, local_status = None, "UNAVAILABLE"
         return {
             "record_version": "stage10_publication_trace_v1",
             "phase": self.phase,
@@ -91,6 +103,14 @@ class PublicationTrace:
             "registration_present": os.path.lexists(self.artifact / io.SUCCESS_NAME),
             "seal_present": os.path.lexists(self.artifact / "_COMMITTED"),
             "counts": dict(self.counts),
+            "local_workspace_class": "JOB_LOCAL_EPHEMERAL"
+            if self.local_workspace is not None
+            else "NOT_ALLOCATED",
+            "local_workspace": str(self.local_workspace)
+            if self.local_workspace is not None
+            else None,
+            "local_workspace_present": local_present,
+            "local_workspace_status": local_status,
         }
 
     def __call__(self, phase: str, error: BaseException | None = None) -> None:
