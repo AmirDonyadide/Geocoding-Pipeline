@@ -2223,3 +2223,26 @@ that predicate/proof and dependent bounds; the other reviewed decisions stand.
   No further job submitted. Operating budget UNSELECTED; Stage 0–9/science
   unchanged; HOLDOUT sealed; production/Pelias untouched; Stage 11 NOT STARTED;
   Stage 10 NOT ACCEPTED.
+
+### D083 — Approved split workspace; one quota-gated final DEVELOPMENT regeneration
+
+- **Owner authorization, 2026-09-28:** Reconcile the existing state, complete the
+  previously approved storage implementation, preserve frozen science/C01/C02,
+  and submit exactly one new immutable candidate after a fresh quota gate.
+- **Implementation:** `cf9e0fe4c12eb85f78051904c636ad084d87a541`, normal integration
+  `186d4220cbdede6556ce81d16504949215a6f034`. Local transient storage has a fail-closed
+  private-root/owner/capacity guard and no PanFS fallback. Checkpoint payloads,
+  seals, receipts and final publication stay on controlled PanFS. Exact executable
+  adoption bindings remain unchanged. [Review and storage model](stages/STAGE10_SPLIT_WORKSPACE.md).
+- **Validation:** 1,185 safe tests pass, 24 exact-ICU local skips; 26 split tests,
+  scientific equivalence, static/document/hash/privacy gates pass. Historical F01
+  remains unresolved; no new historical cause is asserted.
+- **Submission:** Job **1785683**, exactly once at **2026-09-28T08:15:04Z**;
+  initial **PENDING / Priority**, no dependencies or requeue. 4 CPUs / 32 GiB /
+  36 h / 9 GiB local request. Fresh available PanFS **669.782907 GiB** exceeds
+  the **2 GiB** gate; planning minimum **1.103021 GiB**. [Exact submission and
+  bindings](scientific_assets/stage10_split_workspace_submission_1785683.json).
+- **Boundary:** No repeated polling, cancellation or resubmission. Owner must
+  continue this session for one status reconciliation. No success/acceptance tag.
+  Budget UNSELECTED; Stage 0–9 unchanged; HOLDOUT sealed; production/Pelias
+  untouched; Stage 11 NOT STARTED; Stage 10 NOT YET ACCEPTED.

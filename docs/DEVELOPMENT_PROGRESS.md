@@ -15,7 +15,7 @@ scheduler observations. Contracts and evidence are linked below.
 | 7 | libpostal parsing/evidence | **`STAGE_7_ACCEPTED`** | Evidence-only job `1763516`; rereview job `1763656`; no semantic-trust claim; [report](../reports/development/stage07.md) | **NOT STARTED** |
 | 8 | Lossless address-evidence projection | **`STAGE_8_ACCEPTED`** | Candidate `231cdbf9…`; executable `c04cb972…`; jobs `1764273`/`1764376`; zero candidate defects; [report](../reports/development/stage08.md) | **NOT STARTED** |
 | 9 | Conservative offline reference evidence | **`STAGE_9_ACCEPTED`** | Executable `3e10ac7c…`; job `1771191`; independent review `a9ae443c…` / job `1772139`; zero candidate defects; [acceptance](../reports/development/stage09.md#owner-acceptance-and-freeze--2026-09-14) | **NOT STARTED** |
-| 10 | Bounded multi-hypothesis query generation | **REMEDIATED DEVELOPMENT FAILED — NOT ACCEPTED** | Job `1781277`, FAILED / 1:0; all 69,747 contexts generated, 1,099 checkpoints; no registration/seal; [failure record](stages/STAGE10_REMEDIATION_FAILURE_1781277.md) | **NOT STARTED** |
+| 10 | Bounded multi-hypothesis query generation | **FINAL REMEDIATED DEVELOPMENT SUBMITTED — NOT ACCEPTED** | Job `1785683`, PENDING / Priority at 2026-09-28T08:15:04Z; split executable `cf9e0fe4…`; [submission receipt](scientific_assets/stage10_split_workspace_submission_1785683.json) | **NOT STARTED** |
 | 11–14 proposed | Query QA → Pelias top-N → scoring → granularity/abstain | **PROPOSED — NOT STARTED** | Remaining compact replacement architecture; [pipeline specification](PIPELINE.md) | **NOT STARTED** |
 
 Benchmark V1 contains 35,000 DEVELOPMENT and 15,000 sealed HOLDOUT rows from
@@ -25,15 +25,41 @@ fingerprint
 
 ## Current checkpoint
 
-Storage feasibility update, 2026-09-25: owner-authorized replacement synthetic
-probe **1784678 COMPLETED / 0:0 in five seconds**. Local file/SQLite/DuckDB
-WAL/checkpoint/reopen and tiny local-to-PanFS copy/hash/cleanup passed. Current
-shared PanFS free capacity is 0.053797 GiB; a proposed split needs 1.102685 GiB
-minimum planning headroom, 2 GiB recommended. See the
-[probe result and capacity limits](stages/STAGE10_LOCAL_STORAGE_FEASIBILITY.md#replacement-result--1784678).
-No split implementation or full DEVELOPMENT submission occurred. The exact
-scientific executable retains its 256 GiB quota gate. Next: owner review of
-split-workspace implementation; additional PanFS space is still required.
+Split-workspace continuation, 2026-09-28: owner authorized completion of the
+storage implementation and **one final full DEVELOPMENT regeneration**, gated
+by fresh shared project capacity. Implementation/executable
+`cf9e0fe4c12eb85f78051904c636ad084d87a541` is pushed and merged normally into
+`main` at `186d4220cbdede6556ce81d16504949215a6f034`. The
+[implementation and bounded review](stages/STAGE10_SPLIT_WORKSPACE.md) passed
+1,185 safe-suite tests (24 local exact-ICU skips), including 26 split tests.
+Pre/post-split synthetic scientific relations agree exactly. Transient
+DuckDB/certificates/replay state is job-local; checkpoint payloads, receipts and
+publication remain durable on PanFS. C01/C02 and exact-executable adoption rules
+are unchanged.
+
+Job **1785683** was submitted exactly once at **2026-09-28T08:15:04Z** using a
+clean detached checkout. Its sole initial observation was **PENDING / Priority**,
+without dependencies. Request: **4 CPUs, 32 GiB, 36 h, `--tmp=9216M`**, no requeue.
+Immediate pre-submission `pan_df` measured **669.782907 GiB** available, above the
+**2 GiB** gate; revised planning minimum is **1.103021 GiB**. Inode figures were
+not supplied by `pan_df -i`. The assigned job's local capacity is not yet observed;
+the public probe verified 1682.220284 GiB and runtime startup fails closed unless
+its own private local root has at least 9 GiB. All 96 metadata/input/runtime hash
+checks and scheduler/topology checks passed. See the
+[immutable submission record](scientific_assets/stage10_split_workspace_submission_1785683.json)
+for exact bindings, target and quota values.
+
+No candidate success is claimed. Stop without polling, cancellation or duplicate
+submission. On owner `continue`, inspect this job once, then reconcile failure or
+perform the complete candidate/C01/C02/publication validation as appropriate.
+Operating budget UNSELECTED; Stage 0–9 unchanged; HOLDOUT sealed;
+production/Pelias untouched; Stage 11 NOT STARTED; Stage 10 NOT YET ACCEPTED.
+
+Historical storage checkpoint, 2026-09-25: replacement public probe 1784678
+completed 0:0 in five seconds; local I/O, SQLite/DuckDB and local-to-PanFS
+copy/hash/cleanup passed. At that time shared space was only 0.053797 GiB and no
+split implementation/full submission had occurred. The supervisor subsequently
+freed capacity. [Preserved probe evidence](stages/STAGE10_LOCAL_STORAGE_FEASIBILITY.md#replacement-result--1784678).
 
 D064–D066 record authorization for Stage 10 implementation and exactly one
 bounded DEVELOPMENT catalog, followed by independent review. Executable
