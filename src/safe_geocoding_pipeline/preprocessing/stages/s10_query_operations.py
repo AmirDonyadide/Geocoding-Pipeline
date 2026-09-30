@@ -220,6 +220,7 @@ def termination_guard(
     progress: Progress | Callable[[], Progress] | None = None,
     *,
     exit_process: bool = False,
+    on_termination: Callable[[], None] | None = None,
 ) -> Iterator[None]:
     """Persist one bounded receipt; scheduled entrypoints exit without cleanup.
 
@@ -228,6 +229,11 @@ def termination_guard(
     """
 
     def terminated(signum: int, frame: Any) -> None:
+        if on_termination is not None:
+            try:
+                on_termination()
+            except BaseException:
+                pass
         active = progress() if callable(progress) else progress
         if active is not None:
             active.terminated = True

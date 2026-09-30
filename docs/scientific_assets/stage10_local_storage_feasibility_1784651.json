@@ -1,0 +1,68 @@
+{
+  "allocated_cpus": 80,
+  "current_panfs": {
+    "available_kib": 61922,
+    "limit_kib": 122558593750,
+    "timestamp_utc": "2026-09-25T11:40:56Z",
+    "used_kib": 122558531828
+  },
+  "elapsed_seconds": 1,
+  "exit_code": "1:0",
+  "failure": "system Python 3.9 importlib.metadata.PackageNotFoundError: safe-geocoding-pipeline before synthetic operations",
+  "failure_class": "PROBE_HARNESS",
+  "full_development_submitted": false,
+  "holdout_accessed": false,
+  "job_id": "1784651",
+  "limits": [
+    "Terminal disk allocation is not a measured peak.",
+    "Local filesystem allocation cannot be inferred from PanFS compression; use apparent bytes for provisional local model.",
+    "Unknown historical spill peak prevents a proven upper bound.",
+    "Operational path/quota changes and their validation are not implemented/authorized here.",
+    "Exact scientific executable still requires 256 GiB; no bypass introduced."
+  ],
+  "local_available_kib_observed": 1763935816,
+  "local_model_bytes": {
+    "measured_transient_terminal_allocated": 2630419968,
+    "measured_transient_terminal_apparent": 4758715819,
+    "provisional_request": 9663676416,
+    "sampled_validated_wal_high_water": 29679390,
+    "second_transient_footprint_allowance": 4758715819,
+    "terminal_plus_sampled_wal_estimate": 4788395209
+  },
+  "local_root_mode": "0700",
+  "local_root_uid": 60099,
+  "local_total_kib_observed": 1776353848,
+  "margin_components_bytes": {
+    "extra_in_progress_allocation": 12288,
+    "largest_checkpoint_relation_file": 37797888,
+    "largest_checkpoint_unit": 31965184,
+    "observed_shard_allocation_variation": 7891968
+  },
+  "node": "node26-015",
+  "panfs_model_bytes": {
+    "additional_publication_staging": 0,
+    "durable_checkpoints": 907564032,
+    "durable_receipts_logs": 29304320,
+    "final_artifact": 169463808,
+    "measured_component_subtotal": 1106332160,
+    "minimum_planning_free": 1183999488,
+    "publication_safety_margin": 77667328,
+    "recommended_free": 2147483648
+  },
+  "partition": "general1",
+  "pelias_accessed": false,
+  "post_job_cleanup": "DOCUMENTED_NOT_OBSERVED; post-job SSH denied",
+  "probe_executable": "e88ea392ddb9ef7d1787ba3ec65d97f251d81a55",
+  "production_accessed": false,
+  "protected_payloads_accessed": 0,
+  "record_version": "stage10_local_storage_feasibility_v1",
+  "replacement_submitted": false,
+  "requested_cpus": 1,
+  "requested_memory_gib": 1,
+  "requested_tmp_mib": 1024,
+  "scientific_executable": "7353e3197adcb1b38cc821f48ee3d7da6d1f529c",
+  "stage11_started": false,
+  "state": "FAILED",
+  "status": "PROBE_HARNESS_FAILED_LOCAL_IO_NOT_ESTABLISHED",
+  "write_read_hash_fsync_sqlite": "NOT_REACHED"
+}

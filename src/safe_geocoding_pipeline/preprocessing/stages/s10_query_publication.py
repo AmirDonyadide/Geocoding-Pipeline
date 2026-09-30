@@ -12,7 +12,7 @@ import os
 import re
 import stat
 import unicodedata
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any
 from . import s09_reference_publication as accepted
@@ -24,7 +24,7 @@ PROTOCOL = accepted.PROTOCOL
 SEAL = accepted.SEAL
 PROGRESS = accepted.PROGRESS
 State = accepted.State
-DEVELOPMENT = "STAGE10_DEVELOPMENT_QUERY_HYPOTHESES"
+DEVELOPMENT = "STAGE10_DEVELOPMENT_QUERY_PLAN"
 canonical = accepted.canonical
 check_parent = accepted.check_parent
 anchor = accepted.anchor
@@ -80,7 +80,7 @@ def bindings(
         "profile_sha256": manifest["profile_sha256"],
         "schema_bundle_sha256": manifest["schema_bundle_sha256"],
         "executable_sha": manifest["operational_provenance"]["execution_git_sha"],
-        "stage10_input_sha256": manifest["input_binding_sha256"],
+        "stage10_input_binding_sha256": manifest["input_binding_sha256"],
         "stage10_science_sha256": manifest["science_sha256"],
         "stage10_budget_sha256": manifest["budget_policy_sha256"],
         "runtime_build_lock_sha256": manifest["runtime"]["lock_sha256"],
@@ -132,6 +132,7 @@ def validate_terminal(
         parse_constant=c._not_integer,
     )
     c.require(isinstance(manifest, dict), "JSON_OBJECT_REQUIRED")
+    c.require(manifest["kind"] == DEVELOPMENT, "STAGE10_PUBLICATION_NAMESPACE_INVALID")
     items = inventory(manifest)
     generic_io.topology(
         root, [*terminal_files(state), *(item["path"] for item in items)]
@@ -245,13 +246,29 @@ def publish(
     validate: generic_io.Validate,
     *,
     expected_manifest: str | None = None,
+    observer: Callable[[str, BaseException | None], None] | None = None,
 ) -> generic_io.PublicationResult:
     # No umask mutation: every publication object has explicit owner-only mode.
     commit_attempted = False
     reserved = False
     digest = ""
     owned = None
+    phase = "reservation"
+
+    def enter(name: str) -> None:
+        nonlocal phase
+        phase = name
+        if observer is not None:
+            if commit_attempted:
+                try:
+                    observer(name, None)
+                except Exception:
+                    pass  # Post-seal telemetry cannot demote a validated commit.
+            else:
+                observer(name, None)
+
     try:
+        enter("reservation")
         with anchor(final) as parent_fd:
             try:
                 os.mkdir(final.name, 0o700, dir_fd=parent_fd)
@@ -274,32 +291,44 @@ def publish(
                 fault("reserved", final)
                 ownership(final, parent_fd, run_fd)
                 io.write_exclusive(final / PROGRESS, b"in_progress\n")
+                enter("build")
                 manifest = build(final)
                 fault("data", final)
+                enter("manifest")
                 io.write_json(final / io.MANIFEST_NAME, manifest)
                 digest = c.sha256_file(final / io.MANIFEST_NAME)
                 if expected_manifest is not None:
                     c.require(digest == expected_manifest, "EXPECTED_MANIFEST_MISMATCH")
                 fault("manifest", final)
+                enter("manifest_fsync")
                 generic_io.fsync_tree(final)
+                enter("initial_validation")
                 validate(final, digest, False)
+                enter("registration_build")
                 record = registration(bindings(final, manifest, digest))
+                enter("registration_write")
                 io.write_exclusive(final / io.SUCCESS_NAME, canonical(record))
                 fault("prepared_record", final)
                 ownership(final, parent_fd, run_fd)
                 os.unlink(PROGRESS, dir_fd=run_fd)
+                enter("registration_fsync")
                 generic_io.fsync_tree(final)
                 os.fsync(parent_fd)
+                enter("prepared_validation")
                 validate(final, digest, "prepared")
                 fault("before_commit", final)
+                enter("seal_validation")
                 validate_terminal(final, digest, "prepared")
                 ownership(final, parent_fd, run_fd)
+                enter("seal_create")
                 commit_attempted = True
                 create_seal(final, run_fd)
                 fault("after_commit", final)
+                enter("reopen")
                 result = finish(final, digest, validate, parent_fd, run_fd, "PASS")
             finally:
                 os.close(run_fd)
+        enter("final_check")
         last_check(result, owned)
         return result
     except _ReservationExists:
@@ -309,7 +338,14 @@ def publish(
         )
         assert expected_manifest is not None
         return adopt(final, expected_manifest, validate)
-    except Exception:
+    except BaseException as error:
+        if observer is not None:
+            try:
+                observer(phase, error)
+            except BaseException:
+                pass  # A failed receipt must not erase the original exception.
+        if not isinstance(error, Exception):
+            raise
         if commit_attempted:
             try:
                 assert owned is not None

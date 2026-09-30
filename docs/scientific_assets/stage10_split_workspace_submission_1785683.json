@@ -1,0 +1,74 @@
+{
+  "bindings": {
+    "runtime_build_lock_sha256": "20bfe735dca8b35b0ea10f1e3d729f2007e4cf3333dd5d5b5cdd527ef638d2cd",
+    "runtime_semantic_fingerprint": "8b0a2232c28898f1dfd581e88fcbdbe8b7e7bebd458abcc852fab4cbfe225a8b",
+    "stage08_manifest_sha256": "2a50bd8c066552c9cb7505ed2d6071f1ee36161b9a2cc07f3ed364cf00237827",
+    "stage09_manifest_sha256": "321c9d8352fac5b78612a7c8e52f6f810f92bddb1e91f7cfe348398a6d707240"
+  },
+  "checkout": "/panfs/vdura1/footprint/donyadidegan/safe_geocoding_pipeline/integration_stage10/stage10_development_20260928T081247Z_cf9e0fe4c12e",
+  "dependencies": [],
+  "execution_git_sha": "cf9e0fe4c12eb85f78051904c636ad084d87a541",
+  "integration_git_sha": "186d4220cbdede6556ce81d16504949215a6f034",
+  "job_id": "1785683",
+  "kind": "STAGE10_SPLIT_WORKSPACE_DEVELOPMENT_SUBMISSION",
+  "local_storage": {
+    "current_job_capacity_observed": false,
+    "estimate_is_measured_peak": false,
+    "fail_closed_startup_gate_bytes": 9663676416,
+    "historical_transient_estimate_bytes": 4788395209,
+    "prior_probe_available_gib": 1682.220284,
+    "prior_public_probe_job": "1784678"
+  },
+  "next_action": "OWNER_CONTINUE_THEN_INSPECT_JOB_ONCE_NO_DUPLICATE_SUBMISSION",
+  "observation_utc": "2026-09-28T08:15:04Z",
+  "observed_reason": "Priority",
+  "observed_state": "PENDING",
+  "preflight": {
+    "clean_detached_checkout": true,
+    "new_destination_absent": true,
+    "same_accepted_panfs_topology": true,
+    "scheduler_request_test": "PASS_NO_JOB_SUBMITTED",
+    "script_sha256": "a31106b3ada74050df3e72cb6ba91dab4a738121163dc9f4136eb72340a50db9",
+    "verified_hashes": 96
+  },
+  "protected_values_in_record": 0,
+  "publication_key": "stage10_development_20260928T081247Z_cf9e0fe4c12e",
+  "quota": {
+    "available_gib": 669.7829065322876,
+    "available_kib": 702318281,
+    "command": "pan_df -k /work/footprint",
+    "inode_figures": "NOT_SUPPLIED_BY_PAN_DF",
+    "limit_kib": 122558593750,
+    "minimum_bytes": 1184359936,
+    "scope": "shared footprint PanFS project",
+    "submission_gate_bytes": 2147483648,
+    "used_kib": 121856275469
+  },
+  "request": {
+    "account": "footprint",
+    "cpus": 4,
+    "memory_gib": 32,
+    "partition": "general1",
+    "qos": "normal",
+    "requeue": false,
+    "tmp_mib": 9216,
+    "walltime_hours": 36
+  },
+  "scientific_operating_budget": "UNSELECTED",
+  "stage10_accepted": false,
+  "stage11_started": false,
+  "submission_receipts": "/panfs/vdura1/footprint/donyadidegan/safe_geocoding_pipeline/integration_stage10/stage10_development_20260928T081247Z_cf9e0fe4c12e_submission",
+  "target_artifact": "/panfs/vdura1/footprint/donyadidegan/safe_geocoding_pipeline/derived/controlled/stage10/development/stage10_development_20260928T081247Z_cf9e0fe4c12e",
+  "validation": {
+    "diff_check": "PASS",
+    "implementation_inventory": "PASS",
+    "mypy": "PASS_148_FILES",
+    "pre_split_post_split_public_fixture_equality": "PASS",
+    "report_validation": "PASS",
+    "ruff_lint_format": "PASS",
+    "safe_suite_passed": 1185,
+    "safe_suite_skipped_exact_icu": 24,
+    "shell_syntax": "PASS",
+    "split_tests_passed": 26
+  }
+}

@@ -322,7 +322,7 @@ def generate_prefix(
         1 <= unit_contexts <= ops.PAGE_CONTEXTS, "STAGE10_CHECKPOINT_SIZE_INVALID"
     )
     binding = m.checkpoint_binding(work, executable)
-    root = (output_parent or work.root / "shards") / prefix
+    root = (output_parent or work.durable_root / "shards") / prefix
     root.mkdir(mode=0o700)
     (root / "units").mkdir(mode=0o700)
     index_fd = os.open(

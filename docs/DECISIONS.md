@@ -2118,3 +2118,154 @@ that predicate/proof and dependent bounds; the other reviewed decisions stand.
   tag, Stage 11 work, operating-budget tuning or geocoding claims. Stage 0–9 and
   Stage 10 science unchanged; operating budget UNSELECTED; HOLDOUT sealed;
   production/Pelias untouched; Stage 10 NOT YET ACCEPTED.
+
+### D078 — Remediate the complete Stage 10 independent-review ledger
+
+- **Owner authorization, 2026-09-24:** Accepted review evidence `bced5920…`
+  (jobs 1780706 / 1781037, 212 PASS / 3 FAIL across 22 areas) identifies only
+  C01 missing Q4 `PARSER_ONLY_FIELD_EXCLUDED` field provenance and C02 adapter
+  namespace/input-binding-key nonconformance. R01–R05 are resolved review-harness
+  findings; I01–I08 remain informational. Preserve the review branch and failed
+  immutable candidate 1774362.
+- **Scope:** One consolidated C01/C02 repair, complete local validation/self-review,
+  exact pushed executable and one new immutable DEVELOPMENT candidate with
+  4 CPUs / 32 GiB / 36 h. No performance diagnostic or confirmation. Frozen
+  science and validated operational architecture remain unchanged.
+- **Reconciliation:** The [repair record](stages/STAGE10_REVIEW_REMEDIATION.md)
+  defines the existing field-slot provenance, unchanged identity domains, corrected
+  publication contract, tests and same-allocation read-only population audit.
+  Required normal three publication replays remain unchanged. Unexpected query
+  content drift fails closed; no automatic retry.
+- **Stop boundary:** PENDING/RUNNING means report once and stop. A completed
+  candidate needs full C01/C02 and normal validation, then final independent
+  rereview. No Stage 10 acceptance/tag. Stage 0–9 unchanged; operating budget
+  UNSELECTED; HOLDOUT sealed; production/Pelias untouched; Stage 11 NOT STARTED.
+
+### D079 — Submit the one C01/C02-remediated Stage 10 candidate
+
+- **2026-09-24:** Repair executable `1b4c076c85ecb48c0a4e28668b69b99e0be128ad`
+  committed, pushed and fast-forward integrated into canonical main. Review
+  branch `bced5920…` and old candidate remain untouched. Local remediation and
+  complete applicable checks pass; the seven-line provenance repair changes no
+  hypothesis content or ID. Corrected publication names and independent read-only
+  reconciliation run with the new immutable candidate.
+- **Submission:** One job **1781277**, UTC `2026-09-24T09:23:38Z`, initial
+  **PENDING / Resources**, 4 CPUs / 32 GiB / 36 h, no dependency/requeue.
+  Exact detached checkout, 89 hash checks, same private PanFS topology, absent
+  target and scheduler limits passed before submission.
+- **Boundary:** [Bound submission receipt](scientific_assets/stage10_remediation_submission_1781277.json).
+  Stop without repeated polling. Owner continuation permits one reconciliation;
+  no automatic retry or acceptance. Stage 0–9 unchanged; scientific operating
+  budget UNSELECTED; HOLDOUT sealed; production/Pelias untouched; Stage 11
+  NOT STARTED; Stage 10 NOT ACCEPTED.
+
+### D080 — Preserve the failed Stage 10 remediation attempt; stop for owner review
+
+- **Evidence, 2026-09-24:** Job **1781277 FAILED / 1:0**, elapsed **09:51:40**,
+  scheduler MaxRSS **10,921,836 KiB**. Exact executable remains
+  `1b4c076c85ecb48c0a4e28668b69b99e0be128ad`. Generation completes **69,747
+  contexts, 142,677 hypotheses, 418,482 decisions and 1,099 unit checkpoints**.
+  Manifest exists, registration and `_COMMITTED` do not. Classification:
+  **PUBLICATION phase**, underlying exception unresolved; missing durable failure
+  receipt is a separate observability defect. No resource/scientific cause proven.
+- **Remediation limits:** C01 summary records 237,263 visible parser-only field
+  exclusions; hypothesis fingerprint equals the prior manifest declaration.
+  Independent protected provenance/content reconciliation did not run. C02's
+  corrected manifest kind is present, but registration/hash/seal/reopen did not
+  complete. Neither repair is declared fully candidate-validated.
+- **Preservation:** [Failure report and complete C01/C02/F01–F03 ledger](stages/STAGE10_REMEDIATION_FAILURE_1781277.md)
+  retain the new uncommitted target, generation-validated checkpoints, database,
+  logs and receipts without modifying them. Fresh adoption validation is not
+  performed. Prior candidate and independent-review evidence remain unchanged.
+- **Boundary:** **STAGE10_REMEDIATED_DEVELOPMENT_RUN_FAILED**. No repair, retry,
+  new diagnostic or protected validation job. NEXT: OWNER REVIEW OF REMEDIATED
+  STAGE 10 DEVELOPMENT FAILURE. This is failure reporting, not a new execution
+  authorization. Stage 0–9 unchanged; operating budget UNSELECTED; HOLDOUT sealed;
+  production/Pelias untouched; Stage 11 NOT STARTED; Stage 10 NOT YET ACCEPTED.
+
+### D081 — Bounded Stage 10 publication forensics; preserve exact adoption rules
+
+- **Owner authorization, 2026-09-25:** Preserve failed job 1781277, investigate
+  F01/F02, repair sanitized observability, validate checkpoint/C01/content evidence,
+  and determine recovery from the frozen contract. No immediate full retry.
+- **Analysis:** [Forensic record and complete ledger](stages/STAGE10_PUBLICATION_FORENSICS.md).
+  Exact `execution_git_sha` is mandatory in checkpoint bindings and detached HEAD;
+  a publication-only repair cannot adopt old checkpoints under a new executable.
+  No exception or rewriting of bindings is introduced. The original reservation
+  lacks a commit seal and is not adopted or modified.
+- **Evidence limit:** Correct registration constructs from the retained sanitized
+  manifest. Current project quota is 100% used despite filesystem-wide capacity;
+  this does not reconstruct the historical exception. F01 remains unresolved.
+  Synthetic storage faults reproduce missing/masked receipts; operational repair
+  adds preallocated failure evidence and a project-aware full-run quota gate.
+- **Next:** Complete owner-authorized read-only preserved-generation/C01/equality
+  validation on Goethe, with no generation, adoption, replay or publication.
+  Then report path B and stop for owner authorization before any new full run.
+  Stage 0–9/science unchanged; budget UNSELECTED; HOLDOUT sealed;
+  production/Pelias untouched; Stage 11 NOT STARTED; Stage 10 NOT ACCEPTED.
+
+### D082 — Preserve validated Stage 10 generation; full regeneration requires new authorization
+
+- **Evidence, 2026-09-25:** Read-only job 1781847 completes 0:0; all 1,099 old
+  checkpoint units and the complete 69,747-context population validate. C01
+  required/actual exclusions are 237,263 with no missing/duplicate provenance
+  or source-anchor violations. Protected old/new hypothesis comparison is exact.
+- **Contract boundary:** Exact executable binding is mandatory. Repair executable
+  `7353e3197adcb1b38cc821f48ee3d7da6d1f529c` cannot adopt checkpoints bound to
+  `1b4c076c85ecb48c0a4e28668b69b99e0be128ad`. No cross-SHA exception, in-place
+  repair or new recovery publisher is introduced. Path B requires a newly
+  authorized full generation. Proposed resources: 4 CPUs / 32 GiB / 36 h.
+- **Limits:** F01 historical exception remains unknown. Receipt error masking
+  and quota-aware preflight defects are repaired; current quota is insufficient
+  for the 256 GiB full-run reserve. Registration construction/hash validation
+  and synthetic tests do not establish P11/replays for the failed artifact.
+- **Disposition:** [Complete final ledger and evidence](stages/STAGE10_PUBLICATION_FORENSICS.md#publication-evidence-and-final-ledger).
+  No further job submitted. Operating budget UNSELECTED; Stage 0–9/science
+  unchanged; HOLDOUT sealed; production/Pelias untouched; Stage 11 NOT STARTED;
+  Stage 10 NOT ACCEPTED.
+
+### D083 — Approved split workspace; one quota-gated final DEVELOPMENT regeneration
+
+- **Owner authorization, 2026-09-28:** Reconcile the existing state, complete the
+  previously approved storage implementation, preserve frozen science/C01/C02,
+  and submit exactly one new immutable candidate after a fresh quota gate.
+- **Implementation:** `cf9e0fe4c12eb85f78051904c636ad084d87a541`, normal integration
+  `186d4220cbdede6556ce81d16504949215a6f034`. Local transient storage has a fail-closed
+  private-root/owner/capacity guard and no PanFS fallback. Checkpoint payloads,
+  seals, receipts and final publication stay on controlled PanFS. Exact executable
+  adoption bindings remain unchanged. [Review and storage model](stages/STAGE10_SPLIT_WORKSPACE.md).
+- **Validation:** 1,185 safe tests pass, 24 exact-ICU local skips; 26 split tests,
+  scientific equivalence, static/document/hash/privacy gates pass. Historical F01
+  remains unresolved; no new historical cause is asserted.
+- **Submission:** Job **1785683**, exactly once at **2026-09-28T08:15:04Z**;
+  initial **PENDING / Priority**, no dependencies or requeue. 4 CPUs / 32 GiB /
+  36 h / 9 GiB local request. Fresh available PanFS **669.782907 GiB** exceeds
+  the **2 GiB** gate; planning minimum **1.103021 GiB**. [Exact submission and
+  bindings](scientific_assets/stage10_split_workspace_submission_1785683.json).
+- **Boundary:** No repeated polling, cancellation or resubmission. Owner must
+  continue this session for one status reconciliation. No success/acceptance tag.
+  Budget UNSELECTED; Stage 0–9 unchanged; HOLDOUT sealed; production/Pelias
+  untouched; Stage 11 NOT STARTED; Stage 10 NOT YET ACCEPTED.
+
+### D084 — Remediated Stage 10 candidate validated; final independent rereview next
+
+- **Evidence, 2026-09-30:** Owner continuation reconciles job **1785683 COMPLETED /
+  0:0**, 22:49:36. Exact executable `cf9e0fe4c12eb85f78051904c636ad084d87a541`;
+  generation/publication and same-job C01/C02 audit pass. No additional job.
+- **Science:** 35,000 source rows, 69,747 contexts, 418,482 decisions, 142,677
+  hypotheses. Prior hypothesis relation is exactly equal; family decisions differ
+  only by required C01 provenance. 237,263 required/actual parser-only exclusions,
+  zero missing/duplicate/source-anchor/parser-payload violations. Science unchanged.
+- **Publication:** Correct namespace/key/hash, permanent reservation, immutable
+  artifact, exclusive seal, full reopen and all three frozen scientific replays
+  pass. 1,099 unit plus 16 prefix checkpoint seals validate. C01/C02/F02/F03 are
+  exercised; historical F01 remains unresolved, with no invented retrospective cause.
+- **Storage and limits:** Actual retained scientific/audit state is 1.037455 GiB
+  PanFS. Large transient databases remained local; actual local peak was not
+  persisted. No new performance experiment, budget selection or production-scale
+  claim. [Complete candidate report and 20-item ledger](stages/STAGE10_REMEDIATED_DEVELOPMENT_1785683.md)
+  and [72-check reconciliation](scientific_assets/stage10_remediated_review_1785683.json)
+  retain identities, evidence and measurement scopes.
+- **Boundary:** Remediated DEVELOPMENT candidate READY, **NOT ACCEPTED**. Final
+  independent rereview is next; no acceptance tag. Stage 0–9 unchanged; budget
+  UNSELECTED; HOLDOUT sealed; production/Pelias untouched; Stage 11 NOT STARTED.
