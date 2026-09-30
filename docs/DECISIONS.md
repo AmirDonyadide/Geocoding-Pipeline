@@ -2246,3 +2246,26 @@ that predicate/proof and dependent bounds; the other reviewed decisions stand.
   continue this session for one status reconciliation. No success/acceptance tag.
   Budget UNSELECTED; Stage 0–9 unchanged; HOLDOUT sealed; production/Pelias
   untouched; Stage 11 NOT STARTED; Stage 10 NOT YET ACCEPTED.
+
+### D084 — Remediated Stage 10 candidate validated; final independent rereview next
+
+- **Evidence, 2026-09-30:** Owner continuation reconciles job **1785683 COMPLETED /
+  0:0**, 22:49:36. Exact executable `cf9e0fe4c12eb85f78051904c636ad084d87a541`;
+  generation/publication and same-job C01/C02 audit pass. No additional job.
+- **Science:** 35,000 source rows, 69,747 contexts, 418,482 decisions, 142,677
+  hypotheses. Prior hypothesis relation is exactly equal; family decisions differ
+  only by required C01 provenance. 237,263 required/actual parser-only exclusions,
+  zero missing/duplicate/source-anchor/parser-payload violations. Science unchanged.
+- **Publication:** Correct namespace/key/hash, permanent reservation, immutable
+  artifact, exclusive seal, full reopen and all three frozen scientific replays
+  pass. 1,099 unit plus 16 prefix checkpoint seals validate. C01/C02/F02/F03 are
+  exercised; historical F01 remains unresolved, with no invented retrospective cause.
+- **Storage and limits:** Actual retained scientific/audit state is 1.037455 GiB
+  PanFS. Large transient databases remained local; actual local peak was not
+  persisted. No new performance experiment, budget selection or production-scale
+  claim. [Complete candidate report and 20-item ledger](stages/STAGE10_REMEDIATED_DEVELOPMENT_1785683.md)
+  and [72-check reconciliation](scientific_assets/stage10_remediated_review_1785683.json)
+  retain identities, evidence and measurement scopes.
+- **Boundary:** Remediated DEVELOPMENT candidate READY, **NOT ACCEPTED**. Final
+  independent rereview is next; no acceptance tag. Stage 0–9 unchanged; budget
+  UNSELECTED; HOLDOUT sealed; production/Pelias untouched; Stage 11 NOT STARTED.

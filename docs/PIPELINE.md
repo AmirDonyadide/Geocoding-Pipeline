@@ -27,6 +27,10 @@ validate preserved generation/C01 and exact prior hypothesis equality; frozen
 executable bindings require owner-authorized full regeneration after the
 operational repair. The historical publication exception remains unresolved. The earlier timeout and performance-repair history remain
 preserved; no Stage 10 acceptance or later-stage execution is implied.
+Final split-workspace regeneration **1785683** completed and its
+[remediated candidate](stages/STAGE10_REMEDIATED_DEVELOPMENT_1785683.md) validates
+C01/C02, full publication and three scientific replays. Final independent
+rereview is next; Stage 10 remains unaccepted.
 Stages 11–14 remain proposed. Production Stages 0–1 are accepted for the
 1,411-file population; production Stage 2 onward has not started.
 

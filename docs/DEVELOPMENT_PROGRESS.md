@@ -15,7 +15,7 @@ scheduler observations. Contracts and evidence are linked below.
 | 7 | libpostal parsing/evidence | **`STAGE_7_ACCEPTED`** | Evidence-only job `1763516`; rereview job `1763656`; no semantic-trust claim; [report](../reports/development/stage07.md) | **NOT STARTED** |
 | 8 | Lossless address-evidence projection | **`STAGE_8_ACCEPTED`** | Candidate `231cdbf9…`; executable `c04cb972…`; jobs `1764273`/`1764376`; zero candidate defects; [report](../reports/development/stage08.md) | **NOT STARTED** |
 | 9 | Conservative offline reference evidence | **`STAGE_9_ACCEPTED`** | Executable `3e10ac7c…`; job `1771191`; independent review `a9ae443c…` / job `1772139`; zero candidate defects; [acceptance](../reports/development/stage09.md#owner-acceptance-and-freeze--2026-09-14) | **NOT STARTED** |
-| 10 | Bounded multi-hypothesis query generation | **FINAL REMEDIATED DEVELOPMENT SUBMITTED — NOT ACCEPTED** | Job `1785683`, PENDING / Priority at 2026-09-28T08:15:04Z; split executable `cf9e0fe4…`; [submission receipt](scientific_assets/stage10_split_workspace_submission_1785683.json) | **NOT STARTED** |
+| 10 | Bounded multi-hypothesis query generation | **REMEDIATED CANDIDATE READY — NOT ACCEPTED** | Job `1785683`, COMPLETED / 0:0, 22:49:36; C01/C02, P11 and three replays PASS; [candidate and complete ledger](stages/STAGE10_REMEDIATED_DEVELOPMENT_1785683.md) | **NOT STARTED** |
 | 11–14 proposed | Query QA → Pelias top-N → scoring → granularity/abstain | **PROPOSED — NOT STARTED** | Remaining compact replacement architecture; [pipeline specification](PIPELINE.md) | **NOT STARTED** |
 
 Benchmark V1 contains 35,000 DEVELOPMENT and 15,000 sealed HOLDOUT rows from
@@ -24,6 +24,27 @@ fingerprint
 `014f7c1373380b265f34e2ecb76614161b320e2bb972befb8f53994cc5a1dd52`.
 
 ## Current checkpoint
+
+Final remediated candidate reconciliation, **2026-09-30**: job **1785683 COMPLETED /
+0:0 in 22:49:36**, scheduler MaxRSS **12.457726 GiB**. All 69,747 contexts,
+418,482 decisions and 142,677 hypotheses validate. **C01: 237,263 required/actual
+exclusions, zero missing/duplicate/source-anchor/parser-payload violations**.
+The same-job relational oracle proves exact prior hypothesis equality and only
+the required decision-provenance change. **C02/P11 pass** corrected registration,
+portable hash, exclusive seal and full reopen. All **three required full replays**
+pass. 1,099 durable unit checkpoints plus 16 prefix seals remain validated.
+
+[Complete candidate report and bounded ledger](stages/STAGE10_REMEDIATED_DEVELOPMENT_1785683.md):
+72 receipt/identity/storage checks pass; zero unresolved candidate-output defects.
+Retained scientific/audit storage **1.037455 GiB PanFS**; local transient work
+completed with the approved 9 GiB request, but actual local peak was not persisted.
+Historical F01 remains unresolved. No new execution, code repair or acceptance tag.
+**NEXT: FINAL INDEPENDENT REREVIEW OF REMEDIATED STAGE 10 CANDIDATE.**
+
+The following paragraphs preserve the earlier submission checkpoint; their
+pending observation and continuation instruction are superseded by this terminal
+reconciliation. Operating budget UNSELECTED; HOLDOUT sealed; production/Pelias
+untouched; Stage 11 NOT STARTED; Stage 10 NOT YET ACCEPTED.
 
 Split-workspace continuation, 2026-09-28: owner authorized completion of the
 storage implementation and **one final full DEVELOPMENT regeneration**, gated
