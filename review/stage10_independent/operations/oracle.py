@@ -457,7 +457,9 @@ def run(
         )
     check(
         "operations_receipt_count",
-        len(seen_receipts) == report_inventory["receipt_count"] == 1117,
+        len(seen_receipts)
+        == report_inventory["receipt_count"]
+        == report_inventory.get("expected_receipt_count", 1117),
     )
     completed = load(workspace / "completed.json")
     counts, timers = (
@@ -511,6 +513,12 @@ def run(
         "operations_candidate_population",
         units == 1099 and seals == 1115 and total_contexts == 69747,
     )
+    if "stdout_sha256" in report_inventory:
+        check(
+            "operations_stdout_hash",
+            sha(Path(report_inventory["_review_stdout_path"]))
+            == report_inventory["stdout_sha256"],
+        )
     stdout_records = audit_logs(
         Path(report_inventory["_review_stdout_path"])
         if "_review_stdout_path" in report_inventory
@@ -522,6 +530,7 @@ def run(
         completed,
         artifact_root.name,
         check,
+        terminal_marker=report_inventory.get("terminal_marker"),
     )
     return {
         "unit_count": units,
@@ -559,9 +568,12 @@ def numeric_timers(report, workspace_progress):
     return True
 
 
-def audit_logs(stdout, stderr, manifest, completed, publication_key, check):
+def audit_logs(
+    stdout, stderr, manifest, completed, publication_key, check, *, terminal_marker=None
+):
     """Fixed aggregate diagnostics only; no log value is returned or printed."""
     stdout_records = 0
+    markers = 0
     if stdout is not None:
         allowed = {
             "operational_version",
@@ -578,6 +590,13 @@ def audit_logs(stdout, stderr, manifest, completed, publication_key, check):
         }
         with stdout.open("rb") as stream:
             for raw in stream:
+                if (
+                    terminal_marker is not None
+                    and raw == terminal_marker.encode("ascii") + b"\n"
+                ):
+                    markers += 1
+                    continue
+                check("operations_stdout_marker_is_last", markers == 0)
                 report = json.loads(raw)
                 if "operational_version" in report:
                     check(
@@ -645,6 +664,10 @@ def audit_logs(stdout, stderr, manifest, completed, publication_key, check):
                     )
                 stdout_records += 1
         check("operations_stdout_count", stdout_records == 1103)
+        check(
+            "operations_stdout_audit_marker",
+            markers == int(terminal_marker is not None),
+        )
     if stderr is not None:
         check(
             "operations_stderr_empty",

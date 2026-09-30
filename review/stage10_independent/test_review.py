@@ -217,7 +217,7 @@ def test_whole_synthetic_scientific_review(synthetic_inputs, tmp_path):
         relations.derive_contexts(work.db, synthetic_inputs.context_binding, checks)
         aggregate = structured.run(work.db, checks)
         assert aggregate["country_available_contexts"] == 4
-        assert aggregate["q4_missing_visible_parser_geography_exclusion"] == 4
+        assert aggregate["q4_missing_visible_parser_geography_exclusion"] == 0
         result = relations.baselines_and_boundaries(work.db, checks)
         assert not any(result["defect_counts"].values())
         result = safety.run(work.db, SyntheticTransform(), checks)
@@ -275,7 +275,7 @@ def test_whole_synthetic_scientific_review(synthetic_inputs, tmp_path):
         work.close()
 
 
-@pytest.mark.parametrize("entry", ["review.py", "review_logs.py"])
+@pytest.mark.parametrize("entry", ["review.py", "review_logs.py", "rereview.py"])
 def test_entry_fails_closed_without_slurm(entry):
     env = dict(os.environ)
     env.pop("SLURM_JOB_ID", None)
