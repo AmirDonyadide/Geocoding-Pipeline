@@ -15,7 +15,7 @@ scheduler observations. Contracts and evidence are linked below.
 | 7 | libpostal parsing/evidence | **`STAGE_7_ACCEPTED`** | Evidence-only job `1763516`; rereview job `1763656`; no semantic-trust claim; [report](../reports/development/stage07.md) | **NOT STARTED** |
 | 8 | Lossless address-evidence projection | **`STAGE_8_ACCEPTED`** | Candidate `231cdbf9…`; executable `c04cb972…`; jobs `1764273`/`1764376`; zero candidate defects; [report](../reports/development/stage08.md) | **NOT STARTED** |
 | 9 | Conservative offline reference evidence | **`STAGE_9_ACCEPTED`** | Executable `3e10ac7c…`; job `1771191`; independent review `a9ae443c…` / job `1772139`; zero candidate defects; [acceptance](../reports/development/stage09.md#owner-acceptance-and-freeze--2026-09-14) | **NOT STARTED** |
-| 10 | Bounded multi-hypothesis query generation | **REMEDIATED CANDIDATE READY — NOT ACCEPTED** | Job `1785683`, COMPLETED / 0:0, 22:49:36; C01/C02, P11 and three replays PASS; [candidate and complete ledger](stages/STAGE10_REMEDIATED_DEVELOPMENT_1785683.md) | **NOT STARTED** |
+| 10 | Bounded multi-hypothesis query generation | **`STAGE_10_ACCEPTED`** | Job `1785683`; final independent rereview `1786959`, 281 checks PASS, zero defects; [owner acceptance and freeze](../reports/development/stage10.md) | **NOT STARTED** |
 | 11–14 proposed | Query QA → Pelias top-N → scoring → granularity/abstain | **PROPOSED — NOT STARTED** | Remaining compact replacement architecture; [pipeline specification](PIPELINE.md) | **NOT STARTED** |
 
 Benchmark V1 contains 35,000 DEVELOPMENT and 15,000 sealed HOLDOUT rows from
@@ -24,6 +24,32 @@ fingerprint
 `014f7c1373380b265f34e2ecb76614161b320e2bb972befb8f53994cc5a1dd52`.
 
 ## Current checkpoint
+
+Owner acceptance and freeze, **2026-10-03**: **STAGE_10_ACCEPTED**. Accepted
+executable `cf9e0fe4c12eb85f78051904c636ad084d87a541`, authoritative reporting
+`b29b230dece88404712105fc485c41411e12ba5d`, DEVELOPMENT job **1785683**. Final
+independent rereview `c9c8813b53bb6603c3e3e159b04e0729c4240b40`, job **1786959**,
+completed **281 checks PASS, 0 FAIL, 0 protected-run harness failures**.
+C01/C02 are closed; candidate defects = **0**. Review history is integrated by
+non-squash merge `baa9acad5e2f9cd334cba7c4d4923dbc035b92c5`.
+
+The [owner acceptance record](../reports/development/stage10.md) binds all exact
+fingerprints, accepted split workspace, durable checkpoints, P11 and three
+scientific replays. Annotated tag
+`stage10-multi-hypothesis-query-generation-v1` identifies the final accepted main
+state. Reporting-SHA provenance reconciles exactly; no repository mismatch.
+Historical failures and informational limits remain preserved. Acceptance uses
+only repository/document checks: no scientific change, protected access, rerun
+or SLURM submission. Budget **UNSELECTED**; Stage 0–9 unchanged; HOLDOUT sealed;
+production/Pelias untouched; Stage 11 **NOT STARTED**.
+
+**NEXT: STAGE 11 COMPLETE SEMANTIC REQUEST DEDUPLICATION DESIGN**, only in a
+separately authorized session. No Stage 11 work begins during this freeze.
+
+## Historical Stage 10 execution checkpoints
+
+The dated checkpoints below retain their original authorization and status;
+their pending/stop statements are superseded by the owner acceptance above.
 
 Final remediated candidate reconciliation, **2026-09-30**: job **1785683 COMPLETED /
 0:0 in 22:49:36**, scheduler MaxRSS **12.457726 GiB**. All 69,747 contexts,

@@ -17,20 +17,16 @@ stage.
 - **PLANNED — NOT STARTED:** conceptual placement and likely technology only.
   No accepted design or implementation exists.
 
-Stages 0–9 are accepted on DEVELOPMENT. Stage 10 is implemented but not
-accepted: candidate `1774362` failed independent review on required Q4
-provenance and publication naming. The owner authorized a
-[consolidated remediation and one new candidate](stages/STAGE10_REVIEW_REMEDIATION.md).
-Remediated job `1781277` generated all contexts but failed before durable
-registration/commit. [Read-only publication forensics](stages/STAGE10_PUBLICATION_FORENSICS.md)
-validate preserved generation/C01 and exact prior hypothesis equality; frozen
-executable bindings require owner-authorized full regeneration after the
-operational repair. The historical publication exception remains unresolved. The earlier timeout and performance-repair history remain
-preserved; no Stage 10 acceptance or later-stage execution is implied.
-Final split-workspace regeneration **1785683** completed and its
-[remediated candidate](stages/STAGE10_REMEDIATED_DEVELOPMENT_1785683.md) validates
-C01/C02, full publication and three scientific replays. Final independent
-rereview is next; Stage 10 remains unaccepted.
+Stages 0–10 are accepted and frozen on DEVELOPMENT. Stage 10
+[owner acceptance](../reports/development/stage10.md), 2026-10-03, binds final
+split-workspace candidate **1785683** after independent rereview **1786959**:
+281 checks PASS, zero candidate defects. C01/C02, full publication, durable
+checkpoints and three scientific replays pass. Operating budget remains
+**UNSELECTED**. Historical candidate `1774362` failed review on Q4 provenance
+and publication naming; remediation `1781277` failed before registration/commit.
+Their [remediation](stages/STAGE10_REVIEW_REMEDIATION.md),
+[forensic](stages/STAGE10_PUBLICATION_FORENSICS.md) and earlier timeout/performance
+evidence remain preserved. Historical F01's exception remains unresolved.
 Stages 11–14 remain proposed. Production Stages 0–1 are accepted for the
 1,411-file population; production Stage 2 onward has not started.
 
@@ -72,7 +68,7 @@ scientific bytes.
 11 query identity/QA -> 12 Pelias top-N -> 13 scoring -> 14 granularity/abstain
 ```
 
-Stages 8–9 are accepted; Stage 10 is implemented but unaccepted. Stages 11–14
+Stages 8–10 are accepted and frozen. Stages 11–14
 are a proposed sequence. Each stage still requires its own approved design,
 authorized execution, DEVELOPMENT evidence, independent review and owner
 acceptance, then stops. The [current geocoding gate](#current-safe-pelias-boundary)
@@ -237,8 +233,8 @@ remains in force.
 ## Replacement Stages 8–14
 
 These stages separate source truth, parser/reference evidence, hypotheses,
-geocoder results and the final accepted match. Stages 8–9 are accepted, Stage
-10 is implemented but unaccepted, and Stages 11–14 remain proposed.
+geocoder results and the final accepted match. Stages 8–10 are accepted and
+frozen, and Stages 11–14 remain proposed.
 
 ### Stage 8 — Lossless address-evidence projection
 
@@ -322,15 +318,14 @@ geocoder results and the final accepted match. Stages 8–9 are accepted, Stage
   Q6 requires the separately locked runtime; system ICU is not a substitute.
 - **Acceptance:** Explicit hypothesis identity/type/reason, complete map-back,
   no overwrite, multilingual review, and bounded query ladders.
-- **Status:** **REMEDIATED DEVELOPMENT FAILED — NOT YET ACCEPTED**.
-  Candidate `1774362` fully published but failed independent review on C01/C02.
-  Remediated job `1781277`, executable
-  `1b4c076c85ecb48c0a4e28668b69b99e0be128ad`, completed generation but failed
-  before durable registration/commit. Its [failure record](stages/STAGE10_REMEDIATION_FAILURE_1781277.md)
-  preserves checkpoints and partial evidence; owner review is next. The prior
-  [candidate report](stages/STAGE10_DEVELOPMENT_1774362.md) remains historical.
-  Original timeout `1772639` and subsequent remediation evidence remain
-  preserved. No additional run is authorized. The
+- **Status:** **ACCEPTED / FROZEN** on DEVELOPMENT, owner decision 2026-10-03.
+  The [acceptance record](../reports/development/stage10.md) binds executable
+  `cf9e0fe4c12eb85f78051904c636ad084d87a541`, job `1785683` and final independent
+  rereview `1786959`. C01/C02 are closed; scientific query contents are unchanged.
+  Job-local transient storage and durable PanFS checkpoints/publication are
+  accepted. Operating budget remains UNSELECTED. Historical candidate `1774362`,
+  failed remediation `1781277`, original timeout `1772639` and their evidence
+  remain unchanged. No new execution is authorized. The
   [frozen design](stages/STAGE10_MULTI_HYPOTHESIS_QUERY_GENERATION.md)
   and [implementation record](stages/STAGE10_IMPLEMENTATION.md) distinguish
   scientific rules, local evidence and execution status. Stage 11 and geocoding

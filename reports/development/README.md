@@ -12,9 +12,9 @@ These are the human-readable, sanitized, authoritative DEVELOPMENT reports.
 - [Stage 07 — libpostal parsing and parser evidence](stage07.md)
 - [Stage 08 — Lossless address-evidence projection](stage08.md)
 - [Stage 09 — Accepted conservative offline reference evidence](stage09.md#owner-acceptance-and-freeze--2026-09-14)
-- [Stage 10 — Query-generation DEVELOPMENT candidate; independent review pending, not accepted](../../docs/stages/STAGE10_DEVELOPMENT_1774362.md)
+- [Stage 10 — Accepted bounded multi-hypothesis query generation](stage10.md)
 
 Exact machine evidence for Stages 0–8 is indexed in
-[`../generated/`](../generated/README.md). Stage 9's accepted identities and
-preserved independent-review evidence are linked from its report; no historical
+[`../generated/`](../generated/README.md). Stage 9/10 accepted identities and
+preserved independent-review evidence are linked from their reports; no historical
 artifact or acceptance summary is rewritten.

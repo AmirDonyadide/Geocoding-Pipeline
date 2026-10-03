@@ -2269,3 +2269,32 @@ that predicate/proof and dependent bounds; the other reviewed decisions stand.
 - **Boundary:** Remediated DEVELOPMENT candidate READY, **NOT ACCEPTED**. Final
   independent rereview is next; no acceptance tag. Stage 0–9 unchanged; budget
   UNSELECTED; HOLDOUT sealed; production/Pelias untouched; Stage 11 NOT STARTED.
+
+### D085 — Owner accepts and freezes remediated Stage 10 DEVELOPMENT
+
+- **Owner decision, 2026-10-03:** ACCEPT Stage 10 after final independent
+  rereview PASS. Exact executable `cf9e0fe4c12eb85f78051904c636ad084d87a541`,
+  DEVELOPMENT job `1785683`, final review evidence
+  `c9c8813b53bb6603c3e3e159b04e0729c4240b40`, review job `1786959`.
+  All 281 checks pass, no protected-run harness failures, candidate defects = 0.
+- **Provenance resolution:** Git history, candidate report introduction and both
+  independent-review evidence records agree on authoritative reporting commit
+  `b29b230dece88404712105fc485c41411e12ba5d` (exact 40-character SHA).
+  The questioned reporting string creates no repository/provenance mismatch.
+- **Integration:** Preserve the review branch with non-squash merge
+  `baa9acad5e2f9cd334cba7c4d4923dbc035b92c5`; add only acceptance/status
+  documentation. Annotated tag `stage10-multi-hypothesis-query-generation-v1`
+  resolves the final owner-accepted main state. No scientific regeneration,
+  candidate mutation, protected input access or SLURM job.
+- **Accepted result:** 35,000 sources, 69,747 contexts, 418,482 decisions,
+  142,677 hypotheses. C01 required/actual 237,263, all provenance/payload
+  violation counts zero; old/new scientific hypotheses exactly equal. C02
+  corrected registration namespace/key and portable hash pass. Accepted split
+  workspace, 1,099 durable units, 16 prefix seals, P11 and three replays pass.
+- **Record and limits:** [Complete owner acceptance](../reports/development/stage10.md)
+  binds exact fingerprints, upstream/runtime identities and the complete retained
+  informational ledger. Historical F01 remains unexplained; actual local peak
+  was not persisted; no production-capacity claim. Operating budget UNSELECTED.
+- **Boundary:** Stage 0–9 unchanged; Stage 10 ACCEPTED/FROZEN; HOLDOUT sealed;
+  production/Pelias untouched; Stage 11 NOT STARTED. Next is separately
+  authorized Stage 11 complete semantic request deduplication design. Stop here.
