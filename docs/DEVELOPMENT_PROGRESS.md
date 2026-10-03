@@ -16,7 +16,8 @@ scheduler observations. Contracts and evidence are linked below.
 | 8 | Lossless address-evidence projection | **`STAGE_8_ACCEPTED`** | Candidate `231cdbf9…`; executable `c04cb972…`; jobs `1764273`/`1764376`; zero candidate defects; [report](../reports/development/stage08.md) | **NOT STARTED** |
 | 9 | Conservative offline reference evidence | **`STAGE_9_ACCEPTED`** | Executable `3e10ac7c…`; job `1771191`; independent review `a9ae443c…` / job `1772139`; zero candidate defects; [acceptance](../reports/development/stage09.md#owner-acceptance-and-freeze--2026-09-14) | **NOT STARTED** |
 | 10 | Bounded multi-hypothesis query generation | **`STAGE_10_ACCEPTED`** | Job `1785683`; final independent rereview `1786959`, 281 checks PASS, zero defects; [owner acceptance and freeze](../reports/development/stage10.md) | **NOT STARTED** |
-| 11–14 proposed | Query QA → Pelias top-N → scoring → granularity/abstain | **PROPOSED — NOT STARTED** | Remaining compact replacement architecture; [pipeline specification](PIPELINE.md) | **NOT STARTED** |
+| 11 | Global semantic request deduplication | **OWNER REVIEW INCORPORATED — READY TO FREEZE** | [Final design/contract](stages/STAGE11_SEMANTIC_REQUEST_DEDUPLICATION.md), D087; no merge, implementation or execution | **NOT STARTED** |
+| 12–14 proposed | Pelias top-N → scoring → granularity/abstain | **PROPOSED — NOT STARTED** | Remaining compact replacement architecture; [pipeline specification](PIPELINE.md) | **NOT STARTED** |
 
 Benchmark V1 contains 35,000 DEVELOPMENT and 15,000 sealed HOLDOUT rows from
 the permanent 1,405-file population. The fixed 500-row qualitative subset has
@@ -24,6 +25,23 @@ fingerprint
 `014f7c1373380b265f34e2ecb76614161b320e2bb972befb8f53994cc5a1dd52`.
 
 ## Current checkpoint
+
+Stage 11 **owner review and final design clarification**: complete
+[design](stages/STAGE11_SEMANTIC_REQUEST_DEDUPLICATION.md),
+[data/identity contract](stages/STAGE11_DATA_CONTRACT.md),
+[evaluation plan](stages/STAGE11_DEVELOPMENT_EVALUATION.md) and
+[48-item ledger / 16 owner directions / 14 final checks](stages/STAGE11_DESIGN_REVIEW.md)
+are ready for owner freeze/merge on `design/stage11-semantic-request-deduplication`.
+Prior design SHA: `63f070643a2f877536cd2777ec381a49498553ed`.
+Accepted baseline main remains `d027da6c504a8fe864a7821a3e786c390ec05add`.
+Architecture A is owner-approved: the final 19-field core excludes retrieval
+and generic header fields; Stage 12 binds explicit result limit, deployment/
+index and effective no-override language behavior. Unresolved owner design
+decisions = 0. No N or Stage 10 budget selected; no main merge.
+No implementation, protected reads, SLURM, HOLDOUT, production or Pelias access.
+Stage 12 NOT STARTED. **NEXT: OWNER FREEZE/MERGE OF STAGE 11 DESIGN.**
+
+## Accepted Stage 10 checkpoint
 
 Owner acceptance and freeze, **2026-10-03**: **STAGE_10_ACCEPTED**. Accepted
 executable `cf9e0fe4c12eb85f78051904c636ad084d87a541`, authoritative reporting
