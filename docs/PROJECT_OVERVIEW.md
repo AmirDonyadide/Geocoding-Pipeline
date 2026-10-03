@@ -93,7 +93,9 @@ DEVELOPMENT evaluation, independent review and owner acceptance, then stops.
 Rejected runs remain immutable. HOLDOUT is reserved for one separately
 authorized final evaluation after the governing pipeline is frozen.
 
-Stages 0–10 are accepted and frozen on DEVELOPMENT; Stage 11 is NOT STARTED.
+Stages 0–10 are accepted and frozen on DEVELOPMENT. Stage 11's
+[design proposal](stages/STAGE11_SEMANTIC_REQUEST_DEDUPLICATION.md) awaits owner
+review; implementation and execution are NOT STARTED.
 The [Stage 10 acceptance](../reports/development/stage10.md) preserves the exact
 candidate, final independent rereview and UNSELECTED operating budget.
 Production Stages 0–1 are accepted. The [progress index](DEVELOPMENT_PROGRESS.md)

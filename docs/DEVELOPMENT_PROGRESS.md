@@ -16,7 +16,8 @@ scheduler observations. Contracts and evidence are linked below.
 | 8 | Lossless address-evidence projection | **`STAGE_8_ACCEPTED`** | Candidate `231cdbf9…`; executable `c04cb972…`; jobs `1764273`/`1764376`; zero candidate defects; [report](../reports/development/stage08.md) | **NOT STARTED** |
 | 9 | Conservative offline reference evidence | **`STAGE_9_ACCEPTED`** | Executable `3e10ac7c…`; job `1771191`; independent review `a9ae443c…` / job `1772139`; zero candidate defects; [acceptance](../reports/development/stage09.md#owner-acceptance-and-freeze--2026-09-14) | **NOT STARTED** |
 | 10 | Bounded multi-hypothesis query generation | **`STAGE_10_ACCEPTED`** | Job `1785683`; final independent rereview `1786959`, 281 checks PASS, zero defects; [owner acceptance and freeze](../reports/development/stage10.md) | **NOT STARTED** |
-| 11–14 proposed | Query QA → Pelias top-N → scoring → granularity/abstain | **PROPOSED — NOT STARTED** | Remaining compact replacement architecture; [pipeline specification](PIPELINE.md) | **NOT STARTED** |
+| 11 | Global semantic request deduplication | **DESIGN READY FOR OWNER REVIEW** | [Proposal/contract](stages/STAGE11_SEMANTIC_REQUEST_DEDUPLICATION.md), D086; no implementation or execution | **NOT STARTED** |
+| 12–14 proposed | Pelias top-N → scoring → granularity/abstain | **PROPOSED — NOT STARTED** | Remaining compact replacement architecture; [pipeline specification](PIPELINE.md) | **NOT STARTED** |
 
 Benchmark V1 contains 35,000 DEVELOPMENT and 15,000 sealed HOLDOUT rows from
 the permanent 1,405-file population. The fixed 500-row qualitative subset has
@@ -24,6 +25,20 @@ fingerprint
 `014f7c1373380b265f34e2ecb76614161b320e2bb972befb8f53994cc5a1dd52`.
 
 ## Current checkpoint
+
+Stage 11 **design only**, 2026-10-03: complete
+[proposal](stages/STAGE11_SEMANTIC_REQUEST_DEDUPLICATION.md),
+[data/identity contract](stages/STAGE11_DATA_CONTRACT.md),
+[evaluation plan](stages/STAGE11_DEVELOPMENT_EVALUATION.md) and
+[48-item ledger / 16 owner decisions](stages/STAGE11_DESIGN_REVIEW.md) await
+owner approval on `design/stage11-semantic-request-deduplication`.
+Accepted baseline main remains `d027da6c504a8fe864a7821a3e786c390ec05add`.
+Proposed Stage 11 cores are non-executable; Stage 12 would bind explicit result
+limit and deployment/index identity. No N or Stage 10 budget selected.
+No implementation, protected reads, SLURM, HOLDOUT, production or Pelias access.
+Stage 12 NOT STARTED. **NEXT: OWNER REVIEW OF STAGE 11 DESIGN.**
+
+## Accepted Stage 10 checkpoint
 
 Owner acceptance and freeze, **2026-10-03**: **STAGE_10_ACCEPTED**. Accepted
 executable `cf9e0fe4c12eb85f78051904c636ad084d87a541`, authoritative reporting

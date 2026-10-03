@@ -2298,3 +2298,41 @@ that predicate/proof and dependent bounds; the other reviewed decisions stand.
 - **Boundary:** Stage 0–9 unchanged; Stage 10 ACCEPTED/FROZEN; HOLDOUT sealed;
   production/Pelias untouched; Stage 11 NOT STARTED. Next is separately
   authorized Stage 11 complete semantic request deduplication design. Stop here.
+
+## Stage 11 design proposal
+
+### D086 — Propose global semantic-core deduplication for owner review
+
+- **Date/authority:** 2026-10-03. Owner authorizes Stage 11 design/contract/
+  bounded review, dedicated branch commit and push only. Fetch verified clean
+  main = origin/main = `d027da6c504a8fe864a7821a3e786c390ec05add`; the local
+  and remote Stage 10 acceptance tag peel to that baseline. No main merge.
+- **Proposal:** [Complete design package](stages/STAGE11_SEMANTIC_REQUEST_DEDUPLICATION.md),
+  `stage11_semantic_request_contract_v1`, profile
+  `stage11_semantic_request_profile_v1`, schema
+  `stage11_semantic_request_schema_v1`. Exact typed core, global SHA-256/full-byte
+  equality, one core relation and a total hypothesis-to-core map; no copied
+  source/context/family relations. All 142,677 accepted Stage 10 hypotheses;
+  operating budget remains UNSELECTED. No new normalization or Q7.
+- **Owner-review boundary:** Propose architecture A: Stage 11 is a complete
+  semantic query core, explicitly **non-executable**. Stage 12 must bind a
+  concrete retrieval policy with explicit size plus deployment/index/config and
+  execution/transport identity. No N chosen, no prefix-stability assumption.
+  This prospectively refines Stage 10's request-completion handoff without
+  editing its frozen design or scientific artifact. The Stage 19 gate remains.
+- **Parameters/defaults:** Exact endpoint/mode/text/structured slots and country
+  boundary; deliberate omitted API layer/source selection and dataset-default
+  language without lang/header overrides. No omitted/default equivalence, list
+  canonicalization or extra parameters. Stage 12 must verify no hidden
+  default injection and bind actual API behavior; public source is evidence,
+  not a verified SAFE deployment.
+- **Operations:** Propose byte-bounded Arrow/DuckDB external global reduction,
+  exact FK map-back, local transient/PanFS durable restart and conditional
+  accepted publication-protocol reuse with a Stage 11 registration adapter.
+  No storage probe, protected read or execution occurs.
+- **Review/status:** [48 resolved design-ledger items and 16 owner decisions](stages/STAGE11_DESIGN_REVIEW.md).
+  **DESIGN READY FOR OWNER REVIEW — NOT APPROVED, NOT IMPLEMENTED, NOT EXECUTED.**
+  Proposal freeze is the exact design-branch Git revision, not accepted science.
+  Stage 0–10 code/contracts/reports/artifacts/history unchanged; HOLDOUT sealed
+  by accepted authority and not accessed; production/Pelias untouched; no SLURM.
+  Stage 12 NOT STARTED. **NEXT: OWNER REVIEW OF STAGE 11 DESIGN.**

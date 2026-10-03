@@ -333,12 +333,19 @@ frozen, and Stages 11–14 remain proposed.
 
 ### Stage 11 — Global query identity, deduplication, and workload QA
 
-- **Purpose:** Execute identical endpoint/parameter queries once, retain every
-  hypothesis/source map-back, and freeze a separately authorizable workload.
+- **Purpose:** Globally deduplicate complete typed semantic search cores from
+  all accepted Stage 10 hypotheses, retaining every hypothesis/source map-back.
+  This is offline deduplication; Stage 11 executes no query.
 - **Primary tools:** DuckDB, PyArrow/Parquet, hashing; Polars optional.
 - **Acceptance:** Canonical key/collision contract, exact totality/map-back,
   privacy, bounded resources/concurrency, and explicit pre-geocoding approval.
-- **Status:** **PROPOSED — NOT STARTED**.
+- **Design proposal:** [Stage 11 contract and review package](stages/STAGE11_SEMANTIC_REQUEST_DEDUPLICATION.md),
+  D086. Architecture A puts explicit result limit/retrieval policy and concrete
+  deployment/index identity in Stage 12. Stage 11's core catalog is not an
+  executable HTTP workload. This handoff refinement requires owner approval;
+  no N, operating budget or Stage 19 gate change is selected here.
+- **Status:** **DESIGN READY FOR OWNER REVIEW — NOT APPROVED, NOT IMPLEMENTED,
+  NOT EXECUTED**. Stage 12 remains NOT STARTED.
 
 ### Stage 12 — Self-hosted SAFE Pelias top-N retrieval
 

@@ -17,6 +17,7 @@ status is summarized in [progress](../DEVELOPMENT_PROGRESS.md).
 | 8 | [Lossless address-evidence projection](STAGE08_ADDRESS_EVIDENCE_PROJECTION.md) | `STAGE_8_ACCEPTED`; candidate `231cdbf9…`, executable `c04cb972…`, job `1764273`, independent job `1764376` | NOT STARTED |
 | 9 | [Conservative offline geographic reference evidence](STAGE09_OFFLINE_REFERENCE_EVIDENCE.md) | `STAGE_9_ACCEPTED`; executable `3e10ac7c…`, job `1771191`, independent job `1772139`; [owner acceptance](../../reports/development/stage09.md#owner-acceptance-and-freeze--2026-09-14) | NOT STARTED |
 | 10 | [Bounded multi-hypothesis query generation](STAGE10_MULTI_HYPOTHESIS_QUERY_GENERATION.md) | **STAGE_10_ACCEPTED**; job `1785683`, independent rereview `1786959`, zero candidate defects; [owner acceptance](../../reports/development/stage10.md) | NOT STARTED |
+| 11 | [Complete semantic request deduplication design](STAGE11_SEMANTIC_REQUEST_DEDUPLICATION.md) | **DESIGN READY FOR OWNER REVIEW**; not approved, implemented or executed; [contract](STAGE11_DATA_CONTRACT.md), [evaluation plan](STAGE11_DEVELOPMENT_EVALUATION.md), [ledger/decisions](STAGE11_DESIGN_REVIEW.md) | NOT STARTED |
 
 ## Reading frozen records
 
