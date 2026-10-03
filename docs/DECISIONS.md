@@ -2336,3 +2336,49 @@ that predicate/proof and dependent bounds; the other reviewed decisions stand.
   Stage 0–10 code/contracts/reports/artifacts/history unchanged; HOLDOUT sealed
   by accepted authority and not accessed; production/Pelias untouched; no SLURM.
   Stage 12 NOT STARTED. **NEXT: OWNER REVIEW OF STAGE 11 DESIGN.**
+
+### D087 — Incorporate Stage 11 owner review and prepare the final design freeze
+
+- **Authority:** Owner review of design
+  `63f070643a2f877536cd2777ec381a49498553ed` approves the architecture in
+  principle and architecture A explicitly, and authorizes final clarification,
+  one bounded critical design review, commit and normal branch push only.
+  No merge, implementation, protected read, SLURM, HOLDOUT, production,
+  Pelias or Stage 12 start. Fresh fetch verifies the exact prior design SHA
+  and unchanged accepted main `d027da6c504a8fe864a7821a3e786c390ec05add`.
+- **Final core:** [Single exact 19-field contract](stages/STAGE11_DATA_CONTRACT.md#exact-typed-core-and-field-order).
+  Remove `retrieval_policy_binding` and generic `header_policy`. Stage 12 owns
+  concrete size/retrieval, transport, deployment/index and execution identity;
+  N=1/3/5/10 cannot change an unchanged Stage 11 core's ID. No N is selected.
+- **Language/header clarification:** Accepted Stage 10 has no language field;
+  the repository provides no verified SAFE effective-language guarantee.
+  Replace the ambiguous dataset-default label with
+  `NO_REQUEST_LANGUAGE_OVERRIDE`. Per-request lang/Accept-Language is forbidden;
+  Stage 12 must explicitly bind actual no-override resolver/fallback/naming/data
+  behavior as result-affecting unless proven otherwise. Unknown behavior blocks
+  materialization; explicit language preference requires a new Stage 11 contract.
+  Authentication/protocol headers are execution-only; semantic header meaning
+  must have an explicit named core policy, never a generic header bag.
+- **Closed semantics:** Exact paired endpoint/mode enums, exact strings and
+  separately typed structured fields; country address component and filter never
+  alias. Layers/sources remain explicit OMITTED_API_SELECTION, no equivalence to
+  explicit defaults/lists. Spatial policy NONE; additional-parameter policy
+  REJECT_UNLISTED. Exhaustive absent/null/empty/value constraints fail rather
+  than coerce. Named/versioned typed binary framing and full collision-guarded
+  SHA-256 remain; no paths/order/shards/deployment/secrets enter semantic ID.
+- **Preserved approved model:** All 142,677 hypotheses, exactly 142,677 map rows,
+  zero missing/multiple maps, orphan cores or collisions. Two protected relations
+  and one sanitized aggregate object; full upstream lineage and workload-only
+  interpretation. Bounded global hash/group processing, deterministic durable
+  resume, privacy and DEVELOPMENT diagnostics retained. Publication reuse is
+  conditionally approved with a Stage 11 adapter and later topology preflight.
+- **Review/status:** [OD01–OD16 and final F01–F14 review](stages/STAGE11_DESIGN_REVIEW.md)
+  reconcile the complete L01–L48 ledger. Unresolved owner design decisions = 0;
+  unresolved bounded design defects = 0. **OWNER REVIEW INCORPORATED — READY
+  TO FREEZE; NOT IMPLEMENTED, NOT EXECUTED.** Names remain initial v1 because
+  the old 21-field draft was never implemented, scientifically frozen or used
+  for an artifact. Prior design/D086 history remains preserved without rewriting.
+- **Stop:** Stage 0–10 unchanged; operating budget UNSELECTED; HOLDOUT sealed
+  by accepted records and not accessed; production/Pelias untouched; no SLURM.
+  Stage 12 NOT STARTED. Final owner freeze/merge and any subsequent implementation
+  authorization are separate actions. **NEXT: OWNER FREEZE/MERGE OF STAGE 11 DESIGN.**

@@ -1,8 +1,10 @@
 # Stage 11 — semantic core, canonical bytes and lossless map-back
 
-Normative proposal within the [Stage 11 design](STAGE11_SEMANTIC_REQUEST_DEDUPLICATION.md).
-**OWNER REVIEW REQUIRED.** This is prose/schema notation only: no materializer,
-executable schema, request client or scientific output exists.
+Final owner-directed contract within the [Stage 11 design](STAGE11_SEMANTIC_REQUEST_DEDUPLICATION.md).
+**OWNER REVIEW INCORPORATED — READY TO FREEZE; NOT IMPLEMENTED.** The owner
+approved architecture A and directed the clarifications below. Final Git
+freeze/merge remains a separate owner action. This is prose/schema notation
+only: no materializer, executable schema, client or scientific output exists.
 
 ## Supported interface and public evidence
 
@@ -18,7 +20,7 @@ Public evidence was inspected on 2026-10-03, without querying a geocoder:
 |---|---|
 | [Pelias search documentation](https://github.com/pelias/documentation/blob/b720f5fca86b04b18af68903d1b95c2a9aad7e2f/search.md) | Text search, country filters, size, optional layers/sources and spatial inputs; generic capabilities do not authorize extra project parameters |
 | [Structured geocoding](https://github.com/pelias/documentation/blob/b720f5fca86b04b18af68903d1b95c2a9aad7e2f/structured-geocoding.md) | Distinct structured path and named fields; shared search filters |
-| [Language behavior](https://github.com/pelias/documentation/blob/b720f5fca86b04b18af68903d1b95c2a9aad7e2f/language-codes.md) | `lang` and `Accept-Language` can affect returned names; absent override uses dataset default locale |
+| [Language behavior](https://github.com/pelias/documentation/blob/b720f5fca86b04b18af68903d1b95c2a9aad7e2f/language-codes.md) | Documents `lang`/`Accept-Language` and dataset-default naming; not a verified effective-language guarantee for SAFE |
 | [Default injection](https://github.com/pelias/api/blob/1e08f147d6ed00ffaac6f8442fdfc42a7e56580d/sanitizer/_default_parameters.js), [search wiring](https://github.com/pelias/api/blob/1e08f147d6ed00ffaac6f8442fdfc42a7e56580d/sanitizer/search.js) | Configured defaults can fill omitted groups; omission is unsafe without a compatibility constraint |
 | [Target handling](https://github.com/pelias/api/blob/1e08f147d6ed00ffaac6f8442fdfc42a7e56580d/sanitizer/_targets.js), [address-layer behavior](https://github.com/pelias/api/blob/1e08f147d6ed00ffaac6f8442fdfc42a7e56580d/sanitizer/_address_layer_filter.js) | Explicit positive layer filters can bypass behavior that applies when layers are omitted; an explicit list is not proven equivalent to omission |
 | [Country sanitizer](https://github.com/pelias/api/blob/1e08f147d6ed00ffaac6f8442fdfc42a7e56580d/sanitizer/_boundary_country.js) | Public API accepts ISO alpha-2/alpha-3, but its actual code vocabulary must be verified for the future SAFE deployment |
@@ -32,7 +34,7 @@ is taken from public examples.
 ## Meaning of semantic equivalence
 
 A semantic core is a closed, typed description of the exact search input,
-country restriction, and intentional request-side parameter/header policy.
+country restriction, and intentional request-side semantic parameter policy.
 Equality means exact equality of every field below under one versioned domain.
 For any **one compatible fixed Stage 12 retrieval policy and deployment**, equal
 cores must materialize identical semantic parameter values and omission states.
@@ -52,14 +54,14 @@ Every named field is required to exist. Null is legal only at the marked slots,
 where it means **omit that HTTP parameter**. It is not an explicit wire null.
 All enums are exact case-sensitive strings. There is no arbitrary parameter map.
 
-| Ordinal | Field | Type | Frozen v1 value / source |
+| Ordinal | Field | Type | Final v1 value / source |
 |---:|---|---|---|
 | 1 | `contract_version` | T | `stage11_semantic_request_contract_v1` |
 | 2 | `schema_version` | T | `stage11_semantic_request_schema_v1` |
 | 3 | `encoding_version` | T | `stage11_semantic_request_encoding_v1` |
 | 4 | `semantic_policy_version` | T | `stage11_semantic_request_profile_v1` |
-| 5 | `endpoint` | T | Exact Stage 10 `/v1/search` or `/v1/search/structured` |
-| 6 | `search_mode` | T | Exact Stage 10 `FULL_TEXT` or `STRUCTURED` |
+| 5 | `endpoint` | EndpointPath | Closed enum: `/v1/search` or `/v1/search/structured`, exactly matching Stage 10 |
+| 6 | `search_mode` | SearchMode | Closed enum: `FULL_TEXT` or `STRUCTURED`, exactly matching Stage 10 |
 | 7 | `text` | T? | Exact Stage 10 value/null |
 | 8 | `address` | T? | Exact Stage 10 value/null |
 | 9 | `postalcode` | T? | Exact Stage 10 string/null; never integer |
@@ -68,21 +70,45 @@ All enums are exact case-sensitive strings. There is no arbitrary parameter map.
 | 12 | `country` | T? | Null structured country slot; distinct from boundary |
 | 13 | `boundary_country_namespace` | T | `STAGE10_RECOGNIZED_ISO_ALPHA2_V1` |
 | 14 | `boundary_country` | T | Exact accepted Stage 10 uppercase ASCII alpha-2 |
-| 15 | `language_policy` | T | `DATASET_DEFAULT_NO_OVERRIDE` |
+| 15 | `language_policy` | T | `NO_REQUEST_LANGUAGE_OVERRIDE` |
 | 16 | `layers_policy` | T | `OMITTED_API_SELECTION` |
 | 17 | `sources_policy` | T | `OMITTED_API_SELECTION` |
-| 18 | `spatial_policy` | T | `NO_ADDITIONAL_SPATIAL_PARAMETERS` |
+| 18 | `spatial_policy` | T | `NONE` |
 | 19 | `additional_parameter_policy` | T | `REJECT_UNLISTED` |
-| 20 | `header_policy` | T | `NO_LANGUAGE_OR_SEARCH_OVERRIDES` |
-| 21 | `retrieval_policy_binding` | T | `STAGE12_REQUIRED` |
 
-`SemanticRequestCore` is the ordered struct of these 21 fields. The profile
+**This is the single final field list:** `semantic_request` contains exactly
+`query_semantic_id` and `core`; `core` contains exactly the 19 fields above,
+in that order. `hypothesis_request_map` contains exactly `hypothesis_id` and
+`query_semantic_id`. Their grains and storage types are specified below.
+
+EndpointPath and SearchMode are closed string enums encoded with the string
+tag, not arbitrary URL/string extension points. Only the paired combinations
+below are legal; scheme, hostname, port, query suffix and fragment are forbidden
+in EndpointPath. No deployment appears in either enum.
+Their Arrow storage is `large_string` with mandatory closed-domain validation;
+an implementation-dependent enum ordinal/dictionary code is never hashed.
+
+`retrieval_policy_binding` is **removed**, with no replacement per-core sentinel.
+Architecture A already requires Stage 12 binding at contract level; a repeated
+sentinel supplies no extra validation benefit. Concrete N/retrieval-policy IDs
+are forbidden core fields, including values for N=1/3/5/10. Their future change
+must leave the Stage 11 core and query_semantic_id unchanged.
+
+Generic `header_policy` is **removed**. Header classification is a contract rule
+below; the only supported header-carried semantic concept, language, is governed
+by the explicit `language_policy`. Transport/authentication state is not hashed.
+
+`SemanticRequestCore` is the ordered struct of these 19 fields. The profile
 fixes the constants and `ALL_ACCEPTED_HYPOTHESES` input policy, with no threshold,
 family budget, family-specific parameter, language inference or geographic
 inference. Implementation fingerprints must bind these exact types, order,
 nullability, enums, validation rules and the approved design bytes. Altering
 any semantic rule requires a new contract domain; never reuse a v1 name for
 different rules. A changed physical Parquet layout alone does not change IDs.
+The former 21-field model exists only in unimplemented design revision
+`63f070643a2f877536cd2777ec381a49498553ed`. No artifact or frozen identity domain
+used it. These owner-directed changes finalize the initial v1 before freeze;
+the previous draft remains reachable in Git, without claiming ID compatibility.
 
 Mode validation is exhaustive:
 
@@ -103,6 +129,14 @@ upstream version/slot; and adds only the specified constants. No source field
 is re-derived. Family membership, generation rank, representation fingerprint,
 candidate/source/context IDs and operating budget do not enter the core.
 
+`spatial_policy=NONE` means no spatial semantics beyond the separately required
+country boundary: focus point/viewport, circles, rectangles and other biases
+are unsupported. This is one fixed enum value, not an extensible object.
+`additional_parameter_policy=REJECT_UNLISTED` is likewise a singleton assertion
+of the closed allowlist, not a key/value bag or parameter slot. An unknown
+result-affecting parameter or new policy value fails validation and requires
+a future contract version; Stage 12 cannot pass it through under v1.
+
 ## Country, language, layers, sources and default policy
 
 The boundary namespace means the exact code recognized under accepted Stage 10
@@ -116,6 +150,11 @@ If the actual service cannot represent an accepted code, Stage 12 must stop
 compatibility/materialization or record an explicit technical unschedulable
 outcome under its approved contract; it cannot broaden the query or drop its map.
 
+Structured `country` is an address-component slot, whereas `boundary_country`
+is a retrieval filter. They never alias, substitute for one another or collapse
+because codes look alike. The component is always null in accepted Stage 10 v1;
+future component support would require a new contract preserving both roles.
+
 The exact request policy for every supported/considered parameter is:
 
 | Parameter or behavior | Stage 11 policy | Omitted versus explicit value/default |
@@ -124,13 +163,14 @@ The exact request policy for every supported/considered parameter is:
 | `postalcode`, `locality` | Exact optional values in structured mode, at least one present | Null means omit; empty/default/inferred substitutes forbidden |
 | Structured `region`, `country` | Always omit | Explicit value, even matching boundary, is forbidden |
 | `boundary.country` | Always explicit, single exact alpha-2 | Omission/default not legal or equivalent |
-| `lang`, `Accept-Language` | Both absent: dataset-default response naming, no requested language | Explicit language, including any purported default, forbidden; never infer from native script, country, machine locale or user agent |
+| `lang`, `Accept-Language` | Both absent under NO_REQUEST_LANGUAGE_OVERRIDE | No requested language, including any purported default; effective no-override language/naming behavior must be explicit and execution-bound in Stage 12 |
 | `layers` | Absent: use API's unfiltered-request selection behavior | Not an explicit “all” list and not a promise every layer is searched; do not substitute address-only, coarse or all layers |
 | `sources` | Absent: use API's unfiltered-request selection behavior | No explicit source/alias/default list, no dataset exclusion; actual available sources are deployment/index evidence |
-| `focus.point.*`, other focus, `boundary.rect.*`, `boundary.circle.*`, `boundary.gid`, viewbox | All absent and prohibited | No implicit IP/location focus, no zero coordinates, radius default or context-derived boundary |
+| `focus.point.*`, `focus.viewport`, other focus, `boundary.rect.*`, `boundary.circle.*`, `boundary.gid`, viewbox | All absent and prohibited under spatial_policy=NONE | No implicit IP/location focus, no zero coordinates, radius default or context-derived boundary |
 | `size` | Required future Stage 12 policy; absent from this core schema | Neither absent/default wire size nor an arbitrary N is allowed in an executable request |
 | Parser flags, categories, custom boosts, fuzziness, autocomplete, reverse, other parameters | Unsupported; reject if supplied | No arbitrary pass-through or “ignore unknown” behavior |
-| Result-affecting headers/routing | No client overrides except reviewed execution binding | No locale/IP/tenant-dependent silent override; secrets are never semantic values |
+| Result-affecting semantic headers | Express their meaning in a named core semantic field or reject | Language uses language_policy; other search overrides require a new contract; execution binding alone cannot legalize them |
+| Transport/authentication headers and deployment routing | Stage 12 only, excluded from the core | Access credentials/protocol metadata are not query semantics; nonsecret deployment/data-view identity is execution-bound |
 | Service internal parsing, scoring, fallback, interpolation and built-in selection | Behavior of the pinned execution engine | Stage 11 does not add toggle parameters or claim these algorithms are invariant across releases |
 
 **No omitted-to-explicit-default equivalence is used anywhere in v1.** There
@@ -155,11 +195,87 @@ optimization seen in public source; v1 intentionally preserves that invocation
 state rather than disabling it through an invented filter. The future service
 compatibility record must document its actual behavior and bind its code,
 configuration and data. No “all layers equal omission” claim is made. Similarly,
-dataset-default names are explicitly intended; which names and sources exist
-is index/data identity, not an unstated preferred language. This choice is
-subject to owner decisions O05/O06 and is not a quality claim.
+which names and sources exist is execution data, not an inferred language
+preference. The following language rule replaces the draft's ambiguous default.
+
+### Final language rule and evidence limit
+
+The actual accepted project input contract has **no language field** and a
+single common request-policy slot for all families. Repository inspection found
+no SAFE client/configuration guarantee of dataset-local, English or any other
+effective no-override language. Public documentation is not such a guarantee.
+Accordingly the old `DATASET_DEFAULT_NO_OVERRIDE` label is **not frozen as a
+promise of dataset-local naming**. The final `NO_REQUEST_LANGUAGE_OVERRIDE`
+freezes the absence of a *requested* language; it does not claim that language
+cannot affect results or that the installed service needs no compatibility work.
+
+This resolves owner decision 7 through explicit **Stage 12 execution binding
+of effective no-override behavior**, rather than claiming an unavailable SAFE
+runtime guarantee. Stage 11 neither needs nor derives a per-hypothesis language
+choice from its accepted input. The final project v1 interface prohibits such
+a choice; Stage 12 must conform to that interface, not silently add one.
+
+Before materialization, Stage 12 must freeze an
+`effective_no_override_language_behavior_id` identifying the actual API language
+resolver/version, configured global no-override language behavior (including
+any fixed fallback), dataset default-name/translation selection rules and data
+identity. Its specification must distinguish effects on retrieval/ranking from
+response labels; absent proof of label-only behavior, bind it as result-affecting.
+Do not use an unspecified literal “default”, ambient machine locale, browser
+headers, IP language inference or unbound proxy negotiation. Unknown behavior
+blocks materialization. No per-request `lang` or `Accept-Language` is added.
+
+Any fixed engine no-override fallback is disclosed and execution-bound, not
+mistaken for a Stage 11 per-request preference. Changed engine/data behavior
+requires a new Stage 12 execution identity. An explicit client language choice
+or a requirement for per-request override requires a **new Stage 11 semantic
+contract**, even if some current outputs happen to match. Execution binding
+cannot conceal that semantic change. Thus no unresolved Stage 11 language
+choice or hidden result-affecting language default remains in the design;
+actual deployment verification remains future Stage 12 evidence, not performed
+or assumed here.
+Stage 12 may not switch global fallback per hypothesis, family, source, country
+or representation to simulate a forbidden per-request language choice. Any
+engine configuration is fixed for its bound execution environment.
+
+### Header classification rule
+
+| Class | Examples / exact treatment |
+|---|---|
+| `SEMANTIC_RESULT_AFFECTING` | `Accept-Language` has language meaning, represented only by language_policy; v1 forbids sending it. A header changing query interpretation, geographic scope, bias or requested language needs an explicit core field/policy under a new version if not already represented; unknown such headers fail closed. |
+| `TRANSPORT_EXECUTION_ONLY` | Authentication/API-key headers used only for access and ordinary protocol metadata such as representation/compression negotiation belong to Stage 12. Neither their names/values nor credential hashes enter query_semantic_id. Host/backend selection is deployment identity, not a semantic endpoint URL. |
+
+Classification follows effective behavior, not a header's familiar name.
+Stage 12 must verify protocol/representation headers preserve the returned
+scientific content after decoding; if they change the search semantics they
+cannot be accepted as transport-only. A credential-dependent data view must
+have an explicit **nonsecret deployment/access-scope identity** bound to Stage
+12, with no secret hashed/logged. Query-semantic overrides through auth,
+tenant, locale or other headers remain forbidden without a named semantic
+contract. A general execution-policy field is not an escape hatch for them.
 
 ## Absence, null, types, lists and Unicode
+
+ABSENT below means missing from the typed schema, not HTTP omission. Every
+field/column must exist. These constraints apply before encoding or grouping:
+
+| Fields | ABSENT | NULL | EMPTY STRING | VALUE |
+|---|---|---|---|---|
+| All version/policy fields, boundary_country_namespace | Invalid | Invalid | Invalid | Only exact table constant |
+| endpoint, search_mode | Invalid | Invalid | Invalid | Only one legal enum pair |
+| text | Invalid | Required for STRUCTURED; invalid for FULL_TEXT | Invalid | Nonempty exact string only for FULL_TEXT |
+| address | Invalid | Required for FULL_TEXT; invalid for STRUCTURED | Invalid | Nonempty exact string only for STRUCTURED |
+| postalcode, locality | Invalid | Required for FULL_TEXT; optional for STRUCTURED subject to at least one present | Invalid | Nonempty exact string only for STRUCTURED |
+| region, country | Invalid | Required in both modes | Invalid | Invalid in v1 |
+| boundary_country | Invalid | Invalid | Invalid | Exact accepted uppercase ASCII alpha-2 |
+| semantic_request.core | Invalid | Invalid | Invalid type | Complete valid 19-field struct |
+| query_semantic_id, hypothesis_id | Invalid | Invalid | Invalid type | Exactly 32 binary bytes in their respective relation columns |
+
+No invalid state is repaired into a valid one. Nullable slots are the unique
+internal representation of legal HTTP omission, never an instruction to send
+an empty value or wire null. Schema constraints include the cross-field mode
+and at-least-one-of-postalcode/locality requirements; permissive Arrow physical
+types alone do not authorize invalid rows.
 
 | Value/state | Canonical treatment |
 |---|---|
@@ -211,7 +327,7 @@ Type dispatch must not treat Boolean as integer. Strings have no BOM added and
 no terminator; lengths count bytes, not code points. Exact Unicode U+FEFF or LF
 already inside a legal string is content. No normalization library participates.
 
-Let `NamedCore` be a sequence of exactly 21 two-element ordered records
+Let `NamedCore` be a sequence of exactly 19 two-element ordered records
 `(field_name, typed_field_value)` in the table's ordinal order. Every field name
 is encoded as its exact ASCII string; the value uses its specified type/null.
 This explicitly binds names, types, version and values without delimiter
@@ -255,7 +371,7 @@ hypothesis_request_map(
 ```
 
 `semantic_request` has one row per globally distinct core. Its nested `core`
-contains all 21 required named fields with the types/nullability above; mode,
+contains all 19 required named fields with the types/nullability above; mode,
 contract and exact protected payload are available there. Canonical bytes are
 uniquely reproducible from that struct, so no redundant authoritative URL,
 byte-blob, payload hash, membership list or duplicated mode column is needed.
@@ -307,7 +423,7 @@ and this object's own digest). Profile fingerprint is SHA256 of canonical JSON
 containing `profile_version`, `contract_sha256`, `input_policy` equal to
 `ALL_ACCEPTED_HYPOTHESES`, `stage10_policy_slot` equal to
 `SAFE_PELIAS_COMMON_RETRIEVAL_V1`, and `core_constants`: the exact constant
-field/value pairs from the 21-field table. Digest values in metadata JSON use
+field/value pairs from the 19-field table. Digest values in metadata JSON use
 lowercase 64-hex strings. These bind the approved design without a self-hash
 cycle. They do not replace the core's explicit semantic versions or enter its
 ID as extra document-byte dependencies.
@@ -346,6 +462,12 @@ requires all checks, not merely plausible counts:
    1,668 without hypotheses. They remain upstream explicit abstentions, not
    dropped Stage 11 rows or fabricated unbounded requests. Source-grain later
    joins start from all 35,000 Stage 8 source rows and LEFT JOIN the chain.
+
+For this DEVELOPMENT candidate the required values are explicit:
+input hypotheses = map rows = **142,677**; hypotheses with zero request = **0**;
+hypotheses with more than one request = **0**; cores with zero hypotheses = **0**;
+ID/payload collisions = **0**. One contract-impossible hypothesis fails the
+whole candidate, even if the remaining rows could be deduplicated successfully.
 
 ```text
 Stage 8 source row and representation occurrence
@@ -421,6 +543,7 @@ Stage 12: request_execution_id = domain-separated typed hash of
            concrete Pelias deployment/configuration identity,
            immutable index/data/import identity,
            API/parser/search-engine/source/layer configuration identity,
+           effective_no_override_language_behavior_id,
            execution contract and transport/materialization contract versions,
            any other proven result-affecting execution setting)
 ```
@@ -432,11 +555,17 @@ verifiable snapshot cannot support reproducible cache reuse. Attempts/retries
 have separate attempt IDs and timestamps; a retry against changed data is a
 different execution, not an invisible retry of the same experiment. Response
 reuse is keyed by complete execution identity with retained results/errors.
+For one unchanged Stage 11 core, later N=1, N=3, N=5 and N=10 experiments leave
+query_semantic_id unchanged and require four distinct retrieval policies and
+execution identities. This is an identity obligation, not selection of N or
+authorization of those experiments.
 
 **Stage 12 owns HTTP serialization.** Stage 11 freezes the typed-to-parameter
-meaning: use the exact endpoint with GET; map non-null field names unchanged;
+meaning: resolve the closed endpoint enum to its exact path with GET; map only
+non-null text/address/postalcode/locality/region/country payload slots unchanged;
 map `boundary_country` to the single `boundary.country`; omit nulls and all
 policy-prohibited parameters/headers; add only the concrete Stage 12 `size`.
+Version and policy fields are internal schema semantics, never wire parameters.
 Any further result-affecting request parameter requires revisiting this contract.
 Deployment-specific source/layer *availability/configuration* is execution
 identity; silently adding a `sources` or `layers` filter is a semantic change.
@@ -450,6 +579,14 @@ port, TLS/authentication and retries are execution/transport concerns, with
 nonsecret routing bound if it changes the service and secrets kept runtime-only.
 Wire parameter order/percent-encoding cannot change a core ID; a serializer
 that alters decoded values fails, rather than changing the core to suit it.
+
+Given a validated core plus frozen Stage 12 retrieval, transport, deployment,
+index/configuration and effective language bindings, materialization is single-
+valued: select the enum path, emit the legal payload/filter slots and explicit
+size, preserve every decoded value and omission, and apply the pinned transport
+rules. No context/family lookup, arbitrary header, language guess or new source
+address derivation may fill a gap. Missing execution bindings yield an explicit
+unmaterialized/technical outcome; they never authorize server-default requests.
 
 No retrieval, candidate generation, scoring, N calibration or concurrency
 tuning is performed here. Normal future concurrency remains 2–4 across the

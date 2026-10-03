@@ -339,13 +339,14 @@ frozen, and Stages 11–14 remain proposed.
 - **Primary tools:** DuckDB, PyArrow/Parquet, hashing; Polars optional.
 - **Acceptance:** Canonical key/collision contract, exact totality/map-back,
   privacy, bounded resources/concurrency, and explicit pre-geocoding approval.
-- **Design proposal:** [Stage 11 contract and review package](stages/STAGE11_SEMANTIC_REQUEST_DEDUPLICATION.md),
-  D086. Architecture A puts explicit result limit/retrieval policy and concrete
-  deployment/index identity in Stage 12. Stage 11's core catalog is not an
-  executable HTTP workload. This handoff refinement requires owner approval;
-  no N, operating budget or Stage 19 gate change is selected here.
-- **Status:** **DESIGN READY FOR OWNER REVIEW — NOT APPROVED, NOT IMPLEMENTED,
-  NOT EXECUTED**. Stage 12 remains NOT STARTED.
+- **Final design:** [Stage 11 contract and review package](stages/STAGE11_SEMANTIC_REQUEST_DEDUPLICATION.md),
+  D087. Owner-approved architecture A puts result limit/retrieval policy,
+  transport, concrete deployment/index and execution identity in Stage 12.
+  The final 19-field core excludes retrieval and generic header fields;
+  NO_REQUEST_LANGUAGE_OVERRIDE requires explicit Stage 12 binding of effective
+  no-override behavior. No N, operating budget or Stage 19 gate change selected.
+- **Status:** **OWNER REVIEW INCORPORATED — READY TO FREEZE; NOT IMPLEMENTED,
+  NOT EXECUTED**. Final owner freeze/merge pending; Stage 12 remains NOT STARTED.
 
 ### Stage 12 — Self-hosted SAFE Pelias top-N retrieval
 

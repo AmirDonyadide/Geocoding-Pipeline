@@ -2,30 +2,46 @@
 
 ## Status and authority
 
-**DESIGN READY FOR OWNER REVIEW — NOT APPROVED, NOT IMPLEMENTED, NOT EXECUTED.**
-The owner authorized this new session on 2026-10-03 for design, contract,
-bounded critical review, commit and branch push only. Stage 10 is accepted and
-frozen. This proposal grants no implementation, protected read, SLURM,
-HOLDOUT, production, Pelias, Stage 12 retrieval or scientific tuning authority.
-No acceptance tag is created for this unapproved design.
+**OWNER REVIEW INCORPORATED — READY TO FREEZE; NOT IMPLEMENTED, NOT EXECUTED.**
+After reviewing design `63f070643a2f877536cd2777ec381a49498553ed`, the owner
+approved the architecture in principle, explicitly approved architecture A,
+and authorized final clarification, one bounded design review, commit and
+branch push. All sixteen owner directions are incorporated; unresolved owner
+design decisions = **0**. Final freeze/merge of the exact revised design is
+the next owner action, not performed here. Stage 10 is accepted/frozen.
+No implementation, protected read, SLURM, HOLDOUT, production, Pelias,
+Stage 12 start or scientific tuning is authorized. No acceptance tag is created.
 
-The complete normative proposal is:
+The complete final design package is:
 
 - this scope, input, scale, restart and publication contract;
 - [request/data/identity contract](STAGE11_DATA_CONTRACT.md);
 - [DEVELOPMENT validation and report plan](STAGE11_DEVELOPMENT_EVALUATION.md);
 - [complete defect ledger and owner decisions](STAGE11_DESIGN_REVIEW.md).
 
-Proposed names are `stage11_semantic_request_contract_v1`,
+Final v1 names are `stage11_semantic_request_contract_v1`,
 `stage11_semantic_request_profile_v1`, `stage11_semantic_request_schema_v1`,
 `stage11_semantic_request_encoding_v1`, `stage11_semantic_request_validation_v1`,
 `stage11_semantic_request_manifest_v1`, `stage11_semantic_request_summary_v1`
 and `stage11_publication_record_v1`. These are specifications, not installed
-assets or executable fingerprints. Owner approval must identify an exact
-design Git SHA; later implementation must bind that approved package's bytes.
-Changes during review remain proposals; no owner acceptance is inferred.
+assets or executable fingerprints. Final owner freeze/merge must identify an
+exact design Git SHA; later implementation must bind that package's bytes.
+Architecture approval does not grant implementation or execution authority.
+
+The final core has **19 fields**. The
+[single exact field list](STAGE11_DATA_CONTRACT.md#exact-typed-core-and-field-order)
+removes per-core `retrieval_policy_binding` and `header_policy`, defines
+`language_policy=NO_REQUEST_LANGUAGE_OVERRIDE`, preserves explicit omitted
+layer/source policies, fixes `spatial_policy=NONE`, and retains the singleton
+`additional_parameter_policy=REJECT_UNLISTED` with no parameter bag.
 
 ## Baseline verification and evidence limits
+
+Owner-review continuation: a fresh `git fetch --prune origin` verified clean
+design HEAD = origin/design branch = `63f070643a2f877536cd2777ec381a49498553ed`,
+with main = origin/main still at the accepted baseline below and unchanged
+local/remote Stage 10 acceptance tag. The following original baseline evidence
+remains valid; the previous draft is preserved as the new commit's ancestor.
 
 `git fetch --prune origin` succeeded before design. The working tree was clean;
 HEAD = main = origin/main = **`d027da6c504a8fe864a7821a3e786c390ec05add`**.
@@ -99,7 +115,7 @@ Neither count is independent evidence that the address is correct.
 
 ## TOP-N decision and the prospective handoff amendment
 
-**Propose architecture A: SEMANTIC QUERY CORE. Owner decision O11 is required.**
+**OWNER-APPROVED architecture A: NON-EXECUTABLE SEMANTIC QUERY CORE.**
 Stage 11 fixes the complete meaning of the *search input and its request-side
 constraints*, independent of how many results an execution asks to observe.
 `semantic_request` is explicitly a **non-executable semantic core**, not a
@@ -120,12 +136,19 @@ an explicitly transmitted positive integer result limit, plus retention and
 execution bindings. Until then, executable workload status is
 `NOT_MATERIALIZED_RETRIEVAL_POLICY_REQUIRED`. Stage 11 can publish and validate
 a complete offline core catalog without claiming any executable requests.
+Following the owner's preferred option A, remove the draft's redundant
+retrieval sentinel: neither `retrieval_policy_binding` nor a
+replacement is a core field. The contract-level Stage 12 requirement is enough.
+N=1/3/5/10 leave a given core's ID unchanged; distinct retrieval policies have
+distinct execution identities. No N is selected here.
 
 This **prospectively refines** the frozen Stage 10
 [complete-request handoff](STAGE10_DATA_CONTRACT.md#stage-11-complete-request-boundary):
 its requirement to resolve size in Stage 11 becomes a required Stage 12 binding.
 The old wording, artifacts, intent slot and scientific history remain unchanged.
-The owner's approval of this explicit boundary is necessary before implementation.
+The owner has approved this explicit boundary. Implementation remains separately
+unauthorized. Repository inspection found no direct interface contradiction;
+no actual SAFE deployment or live API conformance is claimed.
 This design neither activates the `size=1` preference nor waives the current
 Stage 19 acceptance/exact-workload gate. Before Stage 12 execution, the owner
 must separately reconcile that gate with the compact architecture and approve
@@ -138,7 +161,8 @@ actual upstream PK is **`hypothesis_id`**; “query_hypothesis_id” is descript
 terminology, not a new upstream column. Its exact `intent` is the sole source
 of query strings, structured values, endpoint/mode and country boundary.
 The frozen `SAFE_PELIAS_COMMON_RETRIEVAL_V1` slot maps uniformly to this Stage 11
-profile and the required future Stage 12 retrieval binding. No family-specific
+profile; the contract requires future Stage 12 retrieval binding without a
+per-core retrieval field. No family-specific
 or context-specific runtime override is legal.
 
 Future guarded validation reads the full accepted hypothesis relation to verify
@@ -165,7 +189,7 @@ FK joins and upstream binding, without rerunning Stage 10 generation or opening
 Stage 8 source payloads. Complete source identity, file/logical-record lineage,
 and absent-context outcomes remain accessible through the bound accepted chain.
 
-## Scale and deterministic processing proposal
+## Approved scale and deterministic processing design
 
 Use pinned PyArrow/Parquet for the two protected relations and disk-backed
 DuckDB for joins, external sorting, integrity and aggregate diagnostics. No
@@ -202,7 +226,7 @@ The accepted upstream giant-value history must inform future capacity tests.
 
 ## Split workspace, durable restart and failure model
 
-Propose Goethe `/local/$SLURM_JOB_ID` for transient databases, external-sort runs,
+Use Goethe `/local/$SLURM_JOB_ID` for future transient databases, external-sort runs,
 spill and rebuildable caches; controlled PanFS for all authoritative checkpoint
 payloads, seals, manifests, audit receipts and final relations. Paths/job IDs
 never enter semantic IDs. No storage probe occurs in this design session.
@@ -239,10 +263,10 @@ bound values. A failed attempt produces no valid scientific partial catalog.
 No automatic replacement job: submit an approved long job once and reuse its
 immutable artifact after completion; pending is not grounds for duplication.
 
-## Publication proposal
+## Conditionally approved publication plan
 
-Propose the accepted Stage 9/10 state machine **unchanged**, through a separate
-Stage 11 adapter, conditional on later verification of the same controlled
+The owner approves the accepted Stage 9/10 state machine **unchanged**, through
+a separate Stage 11 adapter, conditional on later verification of the same controlled
 PanFS assumptions. Intended root is
 `/panfs/vdura1/footprint/donyadidegan/safe_geocoding_pipeline/derived/controlled/stage11/development/<unique-run-key>`.
 The intended sibling/root topology is a proposal, not measured capability.
@@ -294,9 +318,10 @@ map-back, Stage 12 boundary and publication protocol at an immutable design/
 implementation revision. Freeze Stage 12 retrieval and execution policy before
 HOLDOUT too; this design selects neither. HOLDOUT is not opened now.
 
-The [review ledger](STAGE11_DESIGN_REVIEW.md) resolves the bounded design risks
-and enumerates owner choices. Proposed resolutions await owner approval;
-implementation conformance and controlled evaluation are future evidence.
+The [review ledger](STAGE11_DESIGN_REVIEW.md) records all sixteen owner directions,
+the complete 48-item design ledger and final 14-item critical review, with zero
+unresolved design defects or owner decisions. Final freeze/merge is pending;
+implementation conformance and controlled evaluation remain future evidence.
 Stage 0–10 science, code, frozen records and artifacts are unchanged.
 
-**NEXT: OWNER REVIEW OF STAGE 11 DESIGN**
+**NEXT: OWNER FREEZE/MERGE OF STAGE 11 DESIGN**

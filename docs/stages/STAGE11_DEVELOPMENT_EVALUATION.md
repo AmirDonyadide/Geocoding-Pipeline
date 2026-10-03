@@ -1,6 +1,6 @@
 # Stage 11 — future DEVELOPMENT validation and reporting
 
-Normative proposal within the [Stage 11 design](STAGE11_SEMANTIC_REQUEST_DEDUPLICATION.md).
+Owner-reviewed plan within the [Stage 11 design](STAGE11_SEMANTIC_REQUEST_DEDUPLICATION.md).
 **PLAN ONLY. No output counts, tests of an implementation, protected inspection
 or job results are claimed.** The approved input has 142,677 hypotheses;
 Stage 11's unique-core count and reduction remain unmeasured.
@@ -33,6 +33,8 @@ vectors and projection, rather than merely invoking the materializer twice.
 | Text preservation | LF versus literal backslash+n, space, repeated whitespace, case, punctuation, composed/decomposed Unicode, astral characters, combining marks, RTL and leading-zero postcodes |
 | Field/type rules | Missing schema column, null, empty, literal `null`, bool/int/string confusion, empty list, wrong mode/endpoint, unknown key, duplicate serialized key, lone surrogate/invalid UTF-8 |
 | Policy/defaults | Reject explicit layers/sources/lang, spatial extras and unknown slot; show omission never collapses with an explicit default; reject unbounded/Q7 input |
+| Stage boundary | Core rejects retrieval_policy_binding, header_policy, hostname and concrete size/policy inputs; conceptual variation of Stage 12 N=1/3/5/10 changes no core bytes or ID; separate execution identities are required |
+| Language/header boundary | NO_REQUEST_LANGUAGE_OVERRIDE forbids lang/Accept-Language; authentication/protocol metadata is absent from identity; unknown semantic header is rejected; Stage 12 must bind actual no-override behavior |
 | Canonical bytes | Independent exact hex-byte vectors for invented cores, named field order, lengths, null/string distinctions and full digest; reject trailing bytes and malformed/overflow framing |
 | Collision guard | Controlled synthetic hash collision with distinct canonical bytes aborts before seal; equal bytes with incorrect claimed ID fail recomputation |
 | Map integrity | Missing, extra, duplicate edge, orphan core, dangling FK, swapped edges with equal counts, cross-context family join and many-to-many inflation all fail |
@@ -102,7 +104,7 @@ only. The following table defines its closed scientific metric content:
 | Cross-source | Count of cores with distinct source rows >1; denominator U; report separately from cross-context |
 | Cross-family | Count of cores with distinct eligible families >1; denominator U; family-union cardinality histogram 1–6, with no request examples |
 | STANDARD/NATIVE | Core counts STANDARD-only, NATIVE-only, both; count with at least one same-source STANDARD/NATIVE pair; latter uses distinct (core, source, role) incidence |
-| Parameter combinations | Counts by endpoint/mode, structured presence mask for address/postalcode/locality/region/country, boundary present/unbounded, and fixed language/layers/sources/spatial/header/retrieval policy enums; both core and hypothesis denominators |
+| Parameter combinations | Counts by endpoint/mode, structured presence mask for address/postalcode/locality/region/country, boundary present/unbounded, and fixed language/layers/sources/spatial/additional-parameter policy enums; both core and hypothesis denominators; no header or retrieval-policy dimension in Stage 11 |
 | Integrity | Input duplicate/missing IDs, invalid intents/boundaries/policies/encodings, ID collisions/recompute mismatches, missing/extra/duplicate map edges, orphan cores/FKs, projection mismatches, lineage mismatches, multiplicity-sum mismatch; all zero for publication |
 | Interpretation | Fixed labels: WORKLOAD_CONVERGENCE_ONLY, NO_ACCURACY_ESTIMATE, OPERATING_BUDGET_UNSELECTED, NON_EXECUTABLE_CORE_CATALOG, STAGE12_NOT_STARTED |
 
