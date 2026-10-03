@@ -1,5 +1,11 @@
 # Independent Stage 10 DEVELOPMENT review
 
+Current candidate **1785683 passes final independent rereview**, with C01/C02
+resolved and zero candidate defects. See the [final rereview](FINAL_REREVIEW.md),
+[current ledger](REREVIEW_LEDGER.md) and [bound evidence](REREVIEW_EVIDENCE.json).
+Stage 10 remains **NOT YET OWNER ACCEPTED**. The remainder of this document
+preserves the completed historical review of candidate **1774362**.
+
 Status: **independent review complete — FAIL**, with **two unresolved candidate
 defects**. Protected jobs **1780706** and **1781037** both completed successfully.
 All five harness findings are resolved; no candidate changes were made.

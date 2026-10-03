@@ -1,10 +1,12 @@
 # Stage 10 final independent rereview
 
-Status: prepared for protected execution; no final verdict. This continues the
-existing independent review of Stage 10, with complete applicable artifact
-checks against remediated candidate 1785683. The historical failed review,
-evidence and ledger remain unchanged. Candidate code and artifacts are not
-modified. No Stage 11 work, HOLDOUT, production or Pelias access is authorized.
+Status: **independent rereview complete — PASS**. Job **1786959 COMPLETED / 0:0**
+in **01:17:08**; all **281** named checks passed, with no protected-run harness
+failure. C01 and C02 are independently verified as resolved in candidate 1785683.
+The [final rereview](FINAL_REREVIEW.md), [complete ledger](REREVIEW_LEDGER.md)
+and [evidence](REREVIEW_EVIDENCE.json) record the disposition across all A–T areas.
+The historical failed review, evidence and ledger remain unchanged. Candidate
+code and artifacts were not modified. Stage 10 is NOT YET OWNER ACCEPTED.
 
 ## Exact review and candidate identities
 
@@ -123,12 +125,15 @@ R05's separate input/workspace timer scopes and accepts exactly one final
 `STAGE10_REMEDIATION_AUDIT_PASS` marker, while rejecting unknown or misplaced
 markers. The 16 new trace receipts explain 1,133 rather than 1,117 receipt hashes.
 
-No new candidate defect is established by static/synthetic checks. C01 and C02
-remain pending independent protected confirmation. The
-[rereview ledger](REREVIEW_LEDGER.md) records that distinction and R06 separately.
+Protected execution confirms the static/synthetic findings: no candidate defect
+remains. C01 expected/actual exclusions are 237,263 with every violation category
+zero; old/new scientific hypotheses and projected decisions are exactly equal.
+C02's actual durable registration/hash and full terminal reopen pass. The
+[rereview ledger](REREVIEW_LEDGER.md) retains R06 separately as resolved.
 
 ## Protected execution and continuation
 
+The following execution protocol was completed without resubmission.
 Commit/push first; use a clean detached checkout of that exact pushed SHA.
 `rereview.sbatch` requests general1/footprint, one node/task, 4 CPUs, 32 GiB,
 12 hours, no requeue. It imports candidate format/input/runtime validators from
@@ -144,3 +149,13 @@ Submit once. If the one scheduler observation is PENDING or RUNNING, return
 the required final-rereview in-progress receipt and stop. On owner continuation,
 reconcile every phase and check, resolve review-only defects if necessary, and
 complete the whole ledger before any verdict. Stage 10 remains unaccepted.
+
+Harness `6c0a93edbd85fb45f5bd3472c08d65a7c045223d` was submitted at
+`2026-09-30T19:36:36Z`; the single initial observation was PENDING / Priority.
+On owner continuation, 2026-10-03, terminal accounting showed COMPLETED / 0:0.
+Evidence target: the preceding template with `6c0a93edbd85` and `1786959`.
+All 11 processing phases finished; final terminal reopen and all after-read
+candidate hashes passed. The raw sanitized evidence SHA-256 is
+`a5832ab87ac417c5c550c980f7a47526f9a14ca3d7f5f28db931c710340d6103`.
+No follow-up protected job, regeneration, repair or performance experiment was
+needed. The next action is owner acceptance of Stage 10.
