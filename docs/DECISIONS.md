@@ -2382,3 +2382,25 @@ that predicate/proof and dependent bounds; the other reviewed decisions stand.
   by accepted records and not accessed; production/Pelias untouched; no SLURM.
   Stage 12 NOT STARTED. Final owner freeze/merge and any subsequent implementation
   authorization are separate actions. **NEXT: OWNER FREEZE/MERGE OF STAGE 11 DESIGN.**
+
+
+### D088 — Owner authorizes frozen Stage 11 implementation and one DEVELOPMENT candidate
+
+- **Authority, 2026-10-03/04:** Implement the owner-frozen design at
+  `ac96b033e2ba7201fbb99ea38cd363d13410c7c4`, integrated without squash at
+  `125b3684a000ea79523f77049ae1a290b0da8109`; comprehensive synthetic validation,
+  exact branch push and one guarded complete DEVELOPMENT execution are authorized.
+- **Continuation:** Initial precheck found historical dependency-blocked Stage 1
+  jobs 1759120/1759121 with zero runtime. Owner `continue` was taken as direction
+  to proceed with Stage 11 while leaving those jobs unchanged. No production
+  data access, cancellation or retrospective history repair occurred.
+- **Implementation:** [Exact assets, bounded processing, durable restart,
+  Stage 11 publication adapter and complete review](stages/STAGE11_IMPLEMENTATION.md).
+  Preserve the two relations, 19-field core, exact strings, full SHA-256/byte
+  equality and all 142,677 hypothesis edges. No scientific redesign.
+- **Execution:** Exact pushed dedicated-branch SHA; no integration required.
+  Goethe only, local transient/PanFS durable; measured resource request.
+  Pending/running means one report and stop. No duplicate or automatic retry.
+- **Boundary:** Stage 11 design frozen; Stage 11 not owner accepted. Stage 0–10
+  science/history unchanged; budget UNSELECTED; no top-N, HOLDOUT, production,
+  Pelias or Stage 12. Candidate completion precedes fresh independent review.

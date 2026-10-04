@@ -345,8 +345,9 @@ frozen, and Stages 11–14 remain proposed.
   The final 19-field core excludes retrieval and generic header fields;
   NO_REQUEST_LANGUAGE_OVERRIDE requires explicit Stage 12 binding of effective
   no-override behavior. No N, operating budget or Stage 19 gate change selected.
-- **Status:** **OWNER REVIEW INCORPORATED — READY TO FREEZE; NOT IMPLEMENTED,
-  NOT EXECUTED**. Final owner freeze/merge pending; Stage 12 remains NOT STARTED.
+- **Status:** **DESIGN FROZEN; IMPLEMENTATION VALIDATED; DEVELOPMENT AUTHORIZED,
+  NOT SUBMITTED**. [Implementation and complete self-review](stages/STAGE11_IMPLEMENTATION.md),
+  D088. Stage 11 is not owner accepted; Stage 12 remains NOT STARTED.
 
 ### Stage 12 — Self-hosted SAFE Pelias top-N retrieval
 
