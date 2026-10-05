@@ -16,7 +16,7 @@ scheduler observations. Contracts and evidence are linked below.
 | 8 | Lossless address-evidence projection | **`STAGE_8_ACCEPTED`** | Candidate `231cdbf9…`; executable `c04cb972…`; jobs `1764273`/`1764376`; zero candidate defects; [report](../reports/development/stage08.md) | **NOT STARTED** |
 | 9 | Conservative offline reference evidence | **`STAGE_9_ACCEPTED`** | Executable `3e10ac7c…`; job `1771191`; independent review `a9ae443c…` / job `1772139`; zero candidate defects; [acceptance](../reports/development/stage09.md#owner-acceptance-and-freeze--2026-09-14) | **NOT STARTED** |
 | 10 | Bounded multi-hypothesis query generation | **`STAGE_10_ACCEPTED`** | Job `1785683`; final independent rereview `1786959`, 281 checks PASS, zero defects; [owner acceptance and freeze](../reports/development/stage10.md) | **NOT STARTED** |
-| 11 | Global semantic request deduplication | **IMPLEMENTATION VALIDATED — DEVELOPMENT AUTHORIZED, NOT SUBMITTED** | [Implementation and complete review](stages/STAGE11_IMPLEMENTATION.md), D088; frozen design unchanged; not accepted | **NOT STARTED** |
+| 11 | Global semantic request deduplication | **DEVELOPMENT CANDIDATE READY — NOT OWNER ACCEPTED** | Job 1788751; 142,677 hypotheses → 105,805 requests; [candidate and complete review](../reports/development/stage11.md); D088/D089 | **NOT STARTED** |
 | 12–14 proposed | Pelias top-N → scoring → granularity/abstain | **PROPOSED — NOT STARTED** | Remaining compact replacement architecture; [pipeline specification](PIPELINE.md) | **NOT STARTED** |
 
 Benchmark V1 contains 35,000 DEVELOPMENT and 15,000 sealed HOLDOUT rows from
@@ -26,12 +26,19 @@ fingerprint
 
 ## Current checkpoint
 
-Stage 11 implementation and synthetic validation are complete on the dedicated
-implementation branch. The owner authorized one DEVELOPMENT run after exact
-pushed-executable and resource gates. [Implementation, bindings, validation and
-complete self-review](stages/STAGE11_IMPLEMENTATION.md) record the current state.
-No Stage 11 job has yet been submitted. No operating budget or top-N selected;
-Stage 0–10 science unchanged; HOLDOUT/production/Pelias untouched; Stage 12 unstarted.
+On the owner's **2026-10-05** continuation, the single scheduler observation
+confirmed Stage 11 job **1788751 COMPLETED / 0:0**, elapsed **00:10:52**,
+MaxRSS **1,956,968 KiB**. Exact executable remains
+`8dce0e1078e123748ae692fa824200fc3e646aa4`; no main integration.
+The [immutable candidate and complete self-review](../reports/development/stage11.md)
+record **142,677 input/map rows → 105,805 requests**, reduction **36,872
+(25.842988%)**, zero integrity or job technical failures, 274 validated checkpoints,
+and successful full publication/reopen checks. No additional job was submitted.
+
+**NEXT: FRESH INDEPENDENT REVIEW OF STAGE 11 DEVELOPMENT CANDIDATE.**
+Stage 11 is **NOT YET OWNER ACCEPTED**. No operating budget or top-N selected;
+Stage 0–10 science and frozen Stage 11 design unchanged; HOLDOUT sealed;
+production/Pelias untouched; Stage 12 NOT STARTED.
 
 ## Historical Stage 11 design checkpoint
 

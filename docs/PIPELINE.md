@@ -27,7 +27,8 @@ and publication naming; remediation `1781277` failed before registration/commit.
 Their [remediation](stages/STAGE10_REVIEW_REMEDIATION.md),
 [forensic](stages/STAGE10_PUBLICATION_FORENSICS.md) and earlier timeout/performance
 evidence remain preserved. Historical F01's exception remains unresolved.
-Stages 11–14 remain proposed. Production Stages 0–1 are accepted for the
+Stage 11 has an unaccepted [DEVELOPMENT candidate](../reports/development/stage11.md);
+Stages 12–14 remain proposed. Production Stages 0–1 are accepted for the
 1,411-file population; production Stage 2 onward has not started.
 
 Use [current progress](DEVELOPMENT_PROGRESS.md) for status and the
@@ -68,8 +69,9 @@ scientific bytes.
 11 query identity/QA -> 12 Pelias top-N -> 13 scoring -> 14 granularity/abstain
 ```
 
-Stages 8–10 are accepted and frozen. Stages 11–14
-are a proposed sequence. Each stage still requires its own approved design,
+Stages 8–10 are accepted and frozen. Stage 11 is implemented with a DEVELOPMENT
+candidate awaiting independent review; Stages 12–14 remain proposed.
+Each stage requires its own approved design,
 authorized execution, DEVELOPMENT evidence, independent review and owner
 acceptance, then stops. The [current geocoding gate](#current-safe-pelias-boundary)
 remains in force.
@@ -328,8 +330,9 @@ frozen, and Stages 11–14 remain proposed.
   remain unchanged. No new execution is authorized. The
   [frozen design](stages/STAGE10_MULTI_HYPOTHESIS_QUERY_GENERATION.md)
   and [implementation record](stages/STAGE10_IMPLEMENTATION.md) distinguish
-  scientific rules, local evidence and execution status. Stage 11 and geocoding
-  remain unauthorized.
+  scientific rules, local evidence and execution status. Stage 10 acceptance
+  itself grants no Stage 11 or geocoding authorization; D088 separately
+  authorized Stage 11. Geocoding remains unauthorized.
 
 ### Stage 11 — Global query identity, deduplication, and workload QA
 
@@ -345,9 +348,9 @@ frozen, and Stages 11–14 remain proposed.
   The final 19-field core excludes retrieval and generic header fields;
   NO_REQUEST_LANGUAGE_OVERRIDE requires explicit Stage 12 binding of effective
   no-override behavior. No N, operating budget or Stage 19 gate change selected.
-- **Status:** **DESIGN FROZEN; IMPLEMENTATION VALIDATED; DEVELOPMENT AUTHORIZED,
-  NOT SUBMITTED**. [Implementation and complete self-review](stages/STAGE11_IMPLEMENTATION.md),
-  D088. Stage 11 is not owner accepted; Stage 12 remains NOT STARTED.
+- **Status:** **DESIGN FROZEN; DEVELOPMENT CANDIDATE READY; NOT OWNER ACCEPTED**.
+  [Candidate, job 1788751 and complete self-review](../reports/development/stage11.md),
+  D088/D089. Fresh independent review is next; Stage 12 remains NOT STARTED.
 
 ### Stage 12 — Self-hosted SAFE Pelias top-N retrieval
 

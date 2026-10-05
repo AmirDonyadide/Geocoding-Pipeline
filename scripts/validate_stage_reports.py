@@ -120,6 +120,7 @@ def _expected_report_paths() -> set[Path]:
         # JSON summary. All Stage 0–8 acceptance checks remain unchanged.
         REPORTS / "development" / "stage09.md",
         REPORTS / "development" / "stage10.md",
+        REPORTS / "development" / "stage11.md",
     }
     for stage in STAGES:
         paths.add(REPORTS / "development" / f"stage{stage:02d}.md")

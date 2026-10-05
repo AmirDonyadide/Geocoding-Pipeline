@@ -8,8 +8,9 @@ judge whether an eventual coordinate is suitable for point-level research.
 DEVELOPMENT Stages 0–10 are accepted and frozen. Stage 10 owner acceptance binds
 remediated job `1785683` after final independent rereview passed with zero
 candidate defects; see the [acceptance record](reports/development/stage10.md).
-Stage 11's [owner-directed design is ready for freeze/merge](docs/stages/STAGE11_SEMANTIC_REQUEST_DEDUPLICATION.md);
-implementation and execution are not started. Production Stages 0–1 are
+Stage 11's [design is frozen](docs/stages/STAGE11_SEMANTIC_REQUEST_DEDUPLICATION.md)
+and its [DEVELOPMENT candidate](reports/development/stage11.md) is ready for fresh
+independent review; Stage 11 is not owner accepted. Production Stages 0–1 are
 accepted; production Stage 2 onward has not started. See
 [current progress](docs/DEVELOPMENT_PROGRESS.md).
 
