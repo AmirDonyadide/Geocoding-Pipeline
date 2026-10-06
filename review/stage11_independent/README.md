@@ -32,8 +32,8 @@ utilities are not its oracle.
 
 After the independent checks, the unchanged candidate's full reopen is an
 additional conformance check. It is explicitly labelled supplemental.
-Python audit hooks prohibit opening any former `/local/1788751` object during
-the entire job, then prohibit all `/local` opens during supplemental reopen.
+Python audit hooks prohibit all `/local` opens during the entire review,
+including the former `/local/1788751` workspace and supplemental reopen.
 The reopened DuckDB path has spilling disabled and uses only manifest-listed
 PanFS inputs. Audit hooks are not claimed to intercept native-library syscalls;
 static SQL/path review and exact registered input paths cover that boundary.
@@ -42,7 +42,8 @@ No former local existence probe is made.
 Protected reads occur only after the shared Goethe/SLURM guard. Python writes
 and mutation operations against candidate, attempt and Stage 10 input trees
 are denied; before/after hashes check immutable candidate and checkpoint trees.
-Independent DuckDB scratch lives under the review job's own `/local` directory.
+The independent DuckDB connection is memory-capped with spilling disabled;
+it creates no scratch directory, database file or spill file.
 Only static check labels, aggregate counts, whole-artifact hashes and code-line
 locations are exported. Exceptions never export messages, SQL, row IDs or values.
 No network library is used for science; Python socket operations and DuckDB
@@ -67,7 +68,10 @@ changes, collision/contract/manifest/registration failures, durable first-error
 preservation and review guard/reporting safety. Candidate test fixtures supply
 invented accepted-format Stage 10 rows; candidate scientific outputs are checked
 by the new oracle. No protected fixture is imported.
-The complete independent suite passes **493 tests** (1.12 s); no skips.
+The initial independent suite passed **493 tests** (1.12 s); no skips.
+The R06 follow-up additionally tests the actual spill-disabled review connection,
+safe OS-error classification and full synthetic reconciliation through that
+connection. See [LOCAL_VALIDATION_R06.json](LOCAL_VALIDATION_R06.json).
 
 Candidate safe regression: **1,340 passed, 27 skipped**, Python 3.14.3,
 PyArrow 25.0.0, DuckDB 1.5.5 (44.65 s). Three skipped public-reference tests
@@ -80,7 +84,7 @@ See [LEDGER.md](LEDGER.md) for review-environment/harness corrections.
 
 ## Protected execution
 
-`review.sbatch` requests 2 CPUs, 8 GiB RAM, 2 GiB job-local space and one hour,
+`review.sbatch` requests 2 CPUs, 8 GiB RAM and one hour, without job-local storage,
 without requeue. Candidate evidence measured about 2 GiB process RSS and
 647 seconds for generation plus multiple validations. The review streams
 rows, uses a 2 GB DuckDB memory cap and performs no generation. These justify
@@ -95,6 +99,28 @@ checkout is also verified clean. Output is a new directory:
 Submit once. Observe the scheduler once. If pending/running, report the required
 in-progress record and stop until the owner says `continue` in this session.
 No cancellation, duplicate submission, automatic retry or replacement candidate.
+A failed review harness may be repaired within the owner's explicit review
+authorization; any necessary follow-up uses a newly reviewed, exact pushed SHA.
+
+## First review attempt and R06 repair
+
+Job **1789589**, harness `be2b8881dad43793ca9221d37f47a84c8fb6ae7b`,
+was submitted once at **2026-10-05T20:34:32Z**. On the owner's next `continue`,
+one accounting observation found **FAILED / 1:0**, elapsed **25 seconds**.
+The [sanitized immutable evidence](evidence_1789589.json) records **35 checks
+passing, zero failed checks**, and an exception at `scratch.mkdir` before any
+relation scan. Frozen provenance, manifests, complete input binding and private
+candidate/checkpoint inventories had passed. The original receipt retained code
+locations but no OS exception class/errno; the underlying filesystem cause is
+not established. This is a review-harness failure, not a candidate verdict.
+
+R06 removes the unnecessary scratch dependency for this bounded DEVELOPMENT
+review. Both the independent connection and supplemental candidate reopen use
+a 2 GB memory cap and disabled spilling; insufficient memory fails closed.
+No PanFS spill fallback is introduced. Safe exception class and numeric errno
+are now recorded without messages/paths/values. Original job and evidence remain
+preserved; candidate code and artifacts are unchanged. A separately submitted,
+necessary follow-up review still must complete every protected check.
 
 Stage 0–10 remain unchanged, Stage 11 design frozen, operating budget
 **UNSELECTED**, Stage 11 **NOT YET OWNER ACCEPTED**, HOLDOUT sealed by accepted

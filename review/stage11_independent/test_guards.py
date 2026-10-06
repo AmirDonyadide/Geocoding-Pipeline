@@ -77,3 +77,38 @@ def test_failure_reporting_has_no_message():
         result = review.portable_failure(error, "synthetic")
     assert "POISON" not in str(result)
     assert result["locations"]
+    assert result["exception_kind"] == "ValueError"
+    assert result["errno"] is None
+
+
+def test_os_failure_reporting_retains_only_safe_class_and_errno():
+    result = review.portable_failure(
+        OSError(28, "SYNTHETIC_SECRET_POISON"), "synthetic"
+    )
+    assert result["exception_kind"] == "OSError" and result["errno"] == 28
+    assert "POISON" not in str(result)
+
+
+def test_review_connection_requires_no_scratch_directory(monkeypatch):
+    def forbidden(*args, **kwargs):
+        pytest.fail("review connection attempted scratch directory creation")
+
+    monkeypatch.setattr(Path, "mkdir", forbidden)
+    with review.review_connection() as db:
+        assert db.execute(
+            "SELECT current_setting('temp_directory'), current_setting('threads')"
+        ).fetchone() == ("", 2)
+        assert db.execute(
+            "SELECT name,value FROM duckdb_settings() WHERE name IN ('autoinstall_known_extensions','autoload_known_extensions') ORDER BY name"
+        ).fetchall() == [
+            ("autoinstall_known_extensions", "false"),
+            ("autoload_known_extensions", "false"),
+        ]
+        assert db.execute(
+            "SELECT path FROM duckdb_databases() WHERE database_name='memory'"
+        ).fetchone() == (None,)
+        db.execute("CREATE TEMP TABLE test AS SELECT range AS key FROM range(128)")
+        assert db.execute("SELECT count(*),sum(key) FROM test").fetchone() == (
+            128,
+            8128,
+        )

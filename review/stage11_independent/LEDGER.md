@@ -50,8 +50,12 @@ This is not a claim that the final candidate defect count is zero.
 | R03 | Negative contract fixture used null in a non-nullable Parquet field, so Arrow rejected it before the intended application check. | RESOLVED: inject an empty country string, legal to the storage type and forbidden by the scientific contract. Candidate rejects and no seal appears. |
 | R04 | Draft independent registration oracle initially named the reused protocol incorrectly. | RESOLVED during static construction: use the actual frozen `exclusive_run_commit_seal_v2_candidate` protocol and `SAFE:publication-commit:v2` hash domain; independent synthetic registration comparison passes. |
 | R05 | New multi-defect collection test used SQL equality in a named struct-update argument. | RESOLVED: use DuckDB named assignment syntax; the synthetic test now verifies that multiple defects are recorded and aggregate review continues. |
+| R06 | Job 1789589 failed at review-only `scratch.mkdir` before relation scans. Its 35 completed checks passed. Original sanitized receipt omitted OS exception class/errno, so the underlying filesystem cause is unknown. | HARNESS REPAIRED / protected follow-up pending: remove review scratch dependency and use a 2 GB memory-capped, spill-disabled connection. New tests cover actual connection settings, no directory creation, synthetic full reconciliation and safe OS-error classification. Candidate objects remain unchanged; original job/evidence preserved. |
 
-No protected review-harness execution has yet occurred.
+First protected review job **1789589** ended **FAILED / 1:0** after 25 seconds.
+See [immutable sanitized evidence](evidence_1789589.json). Provenance and private
+inventories passed, but protected scientific/operational reconciliation remains
+incomplete. R06 is not a candidate defect or a reason to issue a verdict.
 
 ## Informational ledger
 

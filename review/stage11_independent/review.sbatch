@@ -6,7 +6,6 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=2
 #SBATCH --mem=8G
-#SBATCH --tmp=2048M
 #SBATCH --time=01:00:00
 #SBATCH --no-requeue
 #SBATCH --output=/work/footprint/donyadidegan/safe_geocoding_pipeline/logs/slurm/%x_%j.out

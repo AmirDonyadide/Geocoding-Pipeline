@@ -10,6 +10,7 @@ import pyarrow.parquet as pq
 import oracle as o
 import operations as ops
 import reconcile as r
+import review
 from stage11_synthetic import fixture
 from safe_geocoding_pipeline.preprocessing.stages import s10_query_io as upstream
 from safe_geocoding_pipeline.preprocessing.stages import s11_semantic_assets as assets
@@ -46,7 +47,7 @@ def review_synthetic(root, inputs, result):
     def check(name, ok):
         checks[name] = checks.get(name, True) and bool(ok)
 
-    with duckdb.connect() as db:
+    with review.review_connection() as db:
         inputs.register(db)
         for rel, view in zip(result.manifest["relations"], ("s", "m")):
             paths = [result.path / f["relative_path"] for f in rel["files"]]

@@ -67,7 +67,7 @@ REPORT = {
     "review_harness_failures": [],
     "aggregates": {},
 }
-DENY_ALL_LOCAL = False
+DENY_ALL_LOCAL = True
 
 
 def check(name, passed):
@@ -103,10 +103,18 @@ def portable_failure(error, phase):
         )
         tb = tb.tb_next
     # No arbitrary exception message, class name, traceback text, locals or SQL.
+    label = "OTHER_EXCEPTION"
+    for kind in (OSError, MemoryError, ValueError, TypeError, RuntimeError):
+        if isinstance(error, kind):
+            label = kind.__name__
+            break
+    number = error.errno if isinstance(error, OSError) else None
     return {
         "phase": phase,
         "classification": "REVIEW_HARNESS_UNCLASSIFIED_PENDING_REVIEW",
         "locations": locations,
+        "exception_kind": label,
+        "errno": number if type(number) is int else None,
     }
 
 
@@ -163,6 +171,22 @@ def audit(event, args):
 
 def offline(*args, **kwargs):
     raise PermissionError("REVIEW_NETWORK_PROHIBITED")
+
+
+def review_connection():
+    """Bounded DEVELOPMENT review only; no database or spill files anywhere."""
+    db = duckdb.connect(":memory:")
+    try:
+        db.execute("SET memory_limit='2GB'")
+        db.execute("SET threads=2")
+        db.execute("SET temp_directory=''")
+        db.execute("SET autoinstall_known_extensions=false")
+        db.execute("SET autoload_known_extensions=false")
+        db.execute("SET disabled_filesystems='HTTPFileSystem'")
+    except BaseException:
+        db.close()
+        raise
+    return db
 
 
 def provenance(candidate, review):
@@ -405,18 +429,13 @@ def main():
             *(f["relative_path"] for f in manifest["metadata_inventory"]),
         }
         require("R_exact_artifact_inventory", set(before_artifact) == listed)
-        # Review scratch is separate from all candidate and checkpoint objects.
-        scratch = (
-            Path("/local") / os.environ["SLURM_JOB_ID"] / "stage11-independent-review"
+        # Reviewed bounded alternative to the failed harness scratch setup.
+        # No local or PanFS spill fallback; insufficient memory fails closed.
+        db = review_connection()
+        check(
+            "S_independent_review_no_local_or_spill",
+            db.execute("SELECT current_setting('temp_directory')").fetchone() == ("",),
         )
-        scratch.mkdir(mode=0o700)
-        db = duckdb.connect(str(scratch / "review.duckdb"))
-        db.execute("SET memory_limit='2GB'")
-        db.execute("SET threads=2")
-        db.execute("SET temp_directory='" + str(scratch / "spill") + "'")
-        db.execute("SET autoinstall_known_extensions=false")
-        db.execute("SET autoload_known_extensions=false")
-        db.execute("SET disabled_filesystems='HTTPFileSystem'")
         decision_columns = "query_context_id,hypothesis_id,family,eligibility_state,membership_state,stable_source_row_id_v1,stage08_representation,stage06_exact_candidate_id"
         for rel, view in zip(upstream["relations"], ("h", "d"), strict=True):
             paths = ops.files(UPSTREAM, rel["files"], check, "A_upstream")
