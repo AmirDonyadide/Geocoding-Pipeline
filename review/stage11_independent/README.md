@@ -1,6 +1,11 @@
 # Fresh independent Stage 11 review
 
-Status: **protected reconciliation pending; no verdict or owner acceptance**.
+Status: **independent review complete — PASS; NOT YET OWNER ACCEPTED**.
+Complete protected review job **1790315** passed all **124 checks / 609,517
+evaluations** with zero candidate defects and no harness errors. See the
+[final report](FINAL_REVIEW.md), [complete ledger](LEDGER.md), and
+[combined evidence](REVIEW_EVIDENCE.json). Review-harness job 1789589 remains
+preserved as failed; R06 is resolved by the successful follow-up.
 This review session starts from frozen main
 `125b3684a000ea79523f77049ae1a290b0da8109` on
 `review/stage11-independent-20261005`. Candidate executable
@@ -119,9 +124,14 @@ review. Both the independent connection and supplemental candidate reopen use
 a 2 GB memory cap and disabled spilling; insufficient memory fails closed.
 No PanFS spill fallback is introduced. Safe exception class and numeric errno
 are now recorded without messages/paths/values. Original job and evidence remain
-preserved; candidate code and artifacts are unchanged. A separately submitted,
-necessary follow-up review still must complete every protected check.
+preserved; candidate code and artifacts are unchanged. Follow-up job **1790315**,
+using exact harness `c4f1fac1596e89adf825786dce7d238e5adef34f`, completed
+**0:0** in **00:04:56**. All protected checks, supplemental full reopen and
+before/after immutability checks pass. Its [unaltered evidence](evidence_1790315.json)
+has SHA-256 `ac43d1af51d0395fdde469b5bfb26d0560868facc1b519d164d2461c5fd2b32e`.
 
 Stage 0–10 remain unchanged, Stage 11 design frozen, operating budget
 **UNSELECTED**, Stage 11 **NOT YET OWNER ACCEPTED**, HOLDOUT sealed by accepted
 authority and non-access, production/Pelias untouched, Stage 12 **NOT STARTED**.
+
+**NEXT: OWNER ACCEPTANCE OF STAGE 11**

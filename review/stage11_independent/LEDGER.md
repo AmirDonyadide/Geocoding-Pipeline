@@ -1,45 +1,55 @@
 # Independent review coverage and defect ledger
 
-Status: **in progress; protected evidence pending**. A passing local test is
-not a final scientific verdict. All areas A–X must be reconciled before PASS
-or FAIL. Candidate defects are recorded without modifying candidate objects.
+Status: **complete — PASS**, reconciled 2026-10-08. All areas A–X were reviewed.
+Job **1790315** completed **0:0**, with **124 checks / 609,517 evaluations PASS**,
+zero failed checks and zero harness errors. The [complete report](FINAL_REVIEW.md)
+and [unaltered protected-job evidence](evidence_1790315.json) bind the verdict.
+Candidate code and artifacts were not modified. Stage 11 is not owner accepted.
 
 ## Candidate defect ledger
 
-No confirmed candidate defect at the pre-submission checkpoint. All five
-classes remain open for full-population evidence:
-`CANDIDATE_SCIENTIFIC`, `CANDIDATE_IMPLEMENTATION`,
-`CANDIDATE_DATA_INTEGRITY`, `CANDIDATE_PUBLICATION`, `CANDIDATE_PRIVACY`.
-This is not a claim that the final candidate defect count is zero.
+**Complete candidate defect ledger: candidate defects = 0.**
+
+| Classification | Confirmed defects | Unresolved defects |
+|---|---:|---:|
+| CANDIDATE_SCIENTIFIC | 0 | 0 |
+| CANDIDATE_IMPLEMENTATION | 0 | 0 |
+| CANDIDATE_DATA_INTEGRITY | 0 | 0 |
+| CANDIDATE_PUBLICATION | 0 | 0 |
+| CANDIDATE_PRIVACY | 0 | 0 |
+
+No frozen invariant is violated; no candidate severity or remediation applies.
+Candidate regeneration is **not required**. Review-harness and informational
+findings below remain separate from candidate defects.
 
 ## Full coverage matrix
 
-| Area | Independent review evidence / pending protected check |
+| Area | Final result and independent evidence |
 |---|---|
-| A Provenance | Fetch/tag/ancestry/design bytes verified locally; contract/profile independently reconstructed. Job pins exact executable/reporting, accepted Stage 10 inventory/fingerprint, complete input binding, population, artifact and manifest. Mismatch fails closed. |
-| B Input totality | Full bidirectional H/M key sets, count/unique-PK/null checks; every accepted hypothesis inspected. No sampling, budget or filtering in candidate path. Protected results pending. |
-| C Request integrity | Independently specified Arrow types/nullability/order, exact metadata, unique/full request IDs, both FK directions and no orphan requests. Two relations only. Protected results pending. |
-| D Serialization | Read complete implementation against frozen framing. Independent vectors cover ASCII, shortest strings, null, whitespace, U+0000/U+FEFF, RTL, multibyte/astral and combining text, BE lengths, explicit type tags and malformed framing. Local tests pass. |
-| E IDs | Full independent SHA-256 on every candidate core and mapped upstream projection; synthetic same-ID/different-payload collision abort and claimed-ID rejection pass. Protected results pending. |
-| F Global equality | Candidate uses full-ID external ordering and complete byte comparison. Independent every-edge bytes plus unique request keys establishes complete-core equality globally; no text-only/fuzzy/normalized equivalence. Protected results pending. |
-| G Modes/endpoints | Closed paired enums and incompatible payload rejection independently challenged. Full mode counts pending. |
-| H Exact preservation | Direct projection contains no transformation. Unicode/whitespace/case/punctuation synthetic distinctions pass; full protected byte equality pending, no payload export. |
-| I Country | Required separate alpha-2 boundary and namespace; country component remains null. Distinct country IDs and malformed/missing/empty rejection pass; full bound/unbounded counts pending. |
-| J Policies | Five exact singleton policies and complete field set independently checked. No generic headers, retrieval binding or parameter bag; full protected policy count pending. |
-| K Stage 11/12 | Encoder consumes only frozen schema values. Input slot is validated then excluded. Retrieval/size/transport/host/index/auth/job/path extras rejected; execution provenance lives outside the core. No top-N selected. |
-| L Validity states | Independent mode-by-field matrix tests null, empty, missing, defaults, bool/int/float/bytes/list/object and invalid Unicode. Valid whitespace is preserved. Tests pass. |
-| M Dedup aggregates | Independent exact multiplicity count histogram, arithmetic and complete summary reconstruction; protected 142,677/105,805/36,872 and 25.842988% assertions pending. |
-| N Lineage | Independent H/M/D joins use hypothesis AND context plus accepted source/role/candidate FKs; complete family/role/source/context incidences and all upstream contexts computed without a new lineage relation. Protected counts pending. |
-| O Interpretation | Read complete candidate report and implementation record. Reduction and cross-representation/family diagnostics are consistently workload-only, without accuracy/confidence claims. Summary fixed labels checked. |
-| P Fingerprints | New encoder/hash oracle covers both relations and dataset. Synthetic physical order/shard/codec/path and generation partition/thread/resume changes preserve hashes. Protected exact hashes pending. |
-| Q Checkpoints | Independent unit/seal/physical/logical hashes, exact bindings/key ranges/contributors/prefixes, full input-to-H and reduction-to-S/mapping equality; no omitted checkpoint. Synthetic interrupted/resumed oracle passes. Protected 18+256 seals pending. |
-| R Publication | Complete adapter reviewed against unchanged accepted primitives; independent registration-domain/hash construction and fault tests pass. Actual private inventory, phase order, reservation/seal/registration and immutable before/after hashes pending. |
-| S Local independence | Candidate reopen registers durable paths only and disables spill. Synthetic complete local loss passes. Job forbids former local opens throughout and all local opens during supplemental full reopen. Protected result pending. |
-| T Failure safety | Candidate first-error reserve, closed error identities and guarded secondary reporting reviewed. Independent injected collision, contract, manifest and registration faults prohibit seal; primary static failure survives a secondary receipt error. Candidate post-seal failures require exact reconciliation. Local tests pass; actual phase/receipt observations pending. |
-| U Privacy | Only code/synthetic fixtures/aggregate metadata tracked. Candidate CLI prints closed sanitized receipt; job compares stdout exactly to that receipt and requires empty stderr. Shared guard precedes protected stat/read; job disallows source-tree mutations and external sockets. No HOLDOUT/production/Pelias access. Protected log/tree checks pending. |
-| V Architecture | Candidate uses capped DuckDB sort/group/joins and single-row readers with byte-bounded writers; full hashes and streamed memberships, deterministic partitions and exact-bound resume. No pandas or pairwise quadratic path. Fixed-memory reopen fails on insufficient resources; no production envelope is inferred. |
-| W Tests | Pinned safe regression plus already-local public-only tests reproduces 1,343 passing tests; 24 unchanged optional ICU skips unrelated to Stage 11. All candidate Stage 11 tests and new independent checks pass; self-tests are supplemental evidence. |
-| X Ledger | Candidate, harness and informational findings kept separately. Complete protected review and final ledger reconciliation remain required. |
+| A Provenance | PASS: frozen tag/ancestry/design bytes, independently reconstructed contract/profile/schema bundle, exact executable/reporting, accepted Stage 10 physical inventory and independently recomputed hypothesis fingerprint, complete input binding, population, artifact and manifest. |
+| B Input totality | PASS: 142,677 hypotheses and map rows/unique map keys; full bidirectional H/M sets; zero missing, extra or multiple mappings. Every accepted hypothesis inspected, with no sampling, budget or filtering. |
+| C Request integrity | PASS: 105,805 unique full request IDs; exact Arrow types/nullability/order and metadata on all 257 relation files; both FK directions and zero orphan requests. Two relations only. |
+| D Serialization | PASS: read complete implementation against frozen framing. Independent vectors cover ASCII, shortest strings, null, whitespace, U+0000/U+FEFF, RTL, multibyte/astral and combining text, BE lengths, explicit type tags and malformed framing. |
+| E IDs | PASS: full independent SHA-256 on all 105,805 cores and 142,677 upstream projections; zero mismatches/collisions. Synthetic same-ID/different-payload collision abort and claimed-ID rejection pass. |
+| F Global equality | PASS: every mapped hypothesis has exactly the published complete canonical bytes and independently recomputed ID. Unique request keys and totality establish global exact equivalence; no text-only/fuzzy/normalized collapse. |
+| G Modes/endpoints | PASS: only `/v1/search` + FULL_TEXT (81,773 requests / 109,121 hypotheses) and `/v1/search/structured` + STRUCTURED (24,032 / 33,556). Invalid combinations fail synthetic challenges. |
+| H Exact preservation | PASS: complete upstream-to-core bytes match on every edge. Unicode/whitespace/case/punctuation distinctions and direct-copy code review confirm no new normalization; no protected values exported. |
+| I Country | PASS: 105,805 requests / 142,677 hypotheses country-bound, zero unbounded. Exact alpha-2 boundary/namespace participate in identity separately from the always-null structured country. Synthetic country changes cannot alias. No Q7/fallback/inference. |
+| J Policies | PASS: every request uses the five exact frozen singleton policies. Complete schema excludes generic headers, retrieval binding and arbitrary parameter bags. |
+| K Stage 11/12 | PASS: encoder consumes only frozen schema values. Input slot is validated then excluded. Retrieval/size/transport/host/index/auth/job/path extras rejected; execution provenance lives outside the core. No top-N selected. |
+| L Validity states | PASS: independent mode-by-field matrix tests null, empty, missing, defaults, bool/int/float/bytes/list/object and invalid Unicode. Valid whitespace is preserved. |
+| M Dedup aggregates | PASS: 142,677 hypotheses → 105,805 requests; reduction 36,872 (25.842988%); 36,822 multi-hypothesis requests; max 8. All seven frozen histogram bins and sums independently match. |
+| N Lineage | PASS: independent hypothesis/context/source/role/candidate FK reconciliation and same-context family joins. Cross-context/source/family = 36,822 / 33 / 31,244; STANDARD-only/NATIVE-only/both = 33,240 / 35,759 / 36,806; same-source both = 36,806; family cardinalities = 74,561 / 23,145 / 8,099 / 0 / 0 / 0. All upstream population/abstention counts reconcile without a new lineage relation. |
+| O Interpretation | PASS: read complete candidate report and implementation record. Reduction and cross-representation/family diagnostics are consistently workload-only, without accuracy/confidence claims. Summary fixed labels checked. |
+| P Fingerprints | PASS: independent hypothesis, semantic-request, map and complete dataset fingerprints equal every pinned value. Complete independently rebuilt summary also matches exact canonical bytes/SHA. Synthetic physical order/shard/codec/path and partition/thread/resume changes preserve logical hashes. |
+| Q Checkpoints | PASS: all 18 input + 256 reduction units / 274 seals; zero incomplete units. Independent payload hashes and exact bindings, ranges, contributors, prefixes, complete input-to-H and reduction/map-to-final equality pass. Synthetic interrupted/resumed equivalence passes. |
+| R Publication | PASS: actual durable private inventory, 15 ordered phases, no premature seal, exact Stage 11 registration/domain/hash, zero-byte exclusive `_COMMITTED`, full reopen and unchanged before/after artifact hashes. Complete adapter and fault tests reviewed against accepted primitives. |
+| S Local independence | PASS: complete independent review and supplemental candidate reopen succeeded with all Python `/local` opens prohibited and spill disabled. Native-library inputs are explicitly durable PanFS paths. All authoritative objects remain durable; synthetic full local loss also passes. |
+| T Failure safety | PASS: first-error reserve and guarded secondary reporting reviewed and fault-tested. Collision/contract/manifest/registration failures prevent seal; primary static failure survives secondary reporting error. Actual completed candidate has no failure receipt, no premature seal, and validated final publication. |
+| U Privacy | PASS: complete candidate stdout equals its sanitized completion receipt, stderr empty; private topology and before/after hashes pass for all 261 artifact and 842 attempt files. Shared guard precedes protected reads. Only code/synthetic fixtures/aggregate evidence exported; no protected values sent to external services/LLMs, no HOLDOUT/production/Pelias access. |
+| V Architecture | PASS: candidate uses capped DuckDB sort/group/joins and single-row readers with byte-bounded writers; full hashes and streamed memberships, deterministic partitions and exact-bound resume. No pandas or pairwise quadratic path. Fixed-memory reopen fails on insufficient resources; no production envelope is inferred. |
+| W Tests | PASS: pinned safe regression plus already-local public-only tests reproduces 1,343 passing tests; 24 unchanged optional ICU skips unrelated to Stage 11. All 158 candidate Stage 11 and 495 independent tests pass; self-tests are supplemental evidence. |
+| X Ledger | PASS: all areas A–X complete; zero candidate defects in every class. R01–R06 resolved separately, with the historical R06 cause limit preserved. All informational items retained. No candidate regeneration, acceptance or next-stage work. |
 
 ## Review-harness findings
 
@@ -50,12 +60,13 @@ This is not a claim that the final candidate defect count is zero.
 | R03 | Negative contract fixture used null in a non-nullable Parquet field, so Arrow rejected it before the intended application check. | RESOLVED: inject an empty country string, legal to the storage type and forbidden by the scientific contract. Candidate rejects and no seal appears. |
 | R04 | Draft independent registration oracle initially named the reused protocol incorrectly. | RESOLVED during static construction: use the actual frozen `exclusive_run_commit_seal_v2_candidate` protocol and `SAFE:publication-commit:v2` hash domain; independent synthetic registration comparison passes. |
 | R05 | New multi-defect collection test used SQL equality in a named struct-update argument. | RESOLVED: use DuckDB named assignment syntax; the synthetic test now verifies that multiple defects are recorded and aggregate review continues. |
-| R06 | Job 1789589 failed at review-only `scratch.mkdir` before relation scans. Its 35 completed checks passed. Original sanitized receipt omitted OS exception class/errno, so the underlying filesystem cause is unknown. | HARNESS REPAIRED / protected follow-up pending: remove review scratch dependency and use a 2 GB memory-capped, spill-disabled connection. New tests cover actual connection settings, no directory creation, synthetic full reconciliation and safe OS-error classification. Candidate objects remain unchanged; original job/evidence preserved. |
+| R06 | Job 1789589 failed at review-only `scratch.mkdir` before relation scans. Its 35 completed checks passed. Original sanitized receipt omitted OS exception class/errno, so the underlying filesystem cause is unknown. | RESOLVED / VERIFIED by job 1790315: remove the unnecessary review scratch dependency and use a 2 GB memory-capped, spill-disabled connection. All 124 protected checks pass with zero harness errors. Tests cover actual settings, no directory creation, full synthetic reconciliation and safe error classification. Candidate objects unchanged; original evidence/cause limit preserved. |
 
 First protected review job **1789589** ended **FAILED / 1:0** after 25 seconds.
 See [immutable sanitized evidence](evidence_1789589.json). Provenance and private
-inventories passed, but protected scientific/operational reconciliation remains
-incomplete. R06 is not a candidate defect or a reason to issue a verdict.
+inventories passed; it supplied no completed scientific verdict. Follow-up job
+**1790315 COMPLETED / 0:0** independently completed the entire review. The earlier
+failure is not relabeled as a passing run and is not a candidate defect.
 
 ## Informational ledger
 
@@ -68,5 +79,11 @@ incomplete. R06 is not a candidate defect or a reason to issue a verdict.
 | I05 | Durable phase evidence and code establish publication behavior; review does not experimentally corrupt, race or interrupt the immutable protected artifact. Failure tests use invented objects only. |
 | I06 | Audit hooks cover Python opens/mutations; they are not an operating-system sandbox for native libraries. Exact manifest paths, explicit DuckDB file registration, disabled network extensions, spill-disabled reopen and before/after hashes supply complementary evidence. |
 | I07 | This fresh session verifies HOLDOUT sealed by accepted authority and non-access. It does not inspect HOLDOUT storage or attest to activity outside this session. |
+| I08 | Historical review job 1789589's scratch-directory filesystem failure has no retained errno or established root cause. The failing dependency was removed and the complete follow-up succeeded. This unresolved historical explanation neither changes candidate science nor requires candidate regeneration. |
 
-Regeneration decision: **not made; full candidate review pending**.
+Regeneration decision: **NOT REQUIRED**. Review-harness findings R01–R06 are
+resolved; informational I01–I08 remain explicitly retained. Operating budget
+UNSELECTED; Stage 0–10 unchanged; Stage 11 design frozen; Stage 11 NOT YET OWNER
+ACCEPTED; HOLDOUT sealed; production/Pelias untouched; Stage 12 NOT STARTED.
+
+**NEXT: OWNER ACCEPTANCE OF STAGE 11**
