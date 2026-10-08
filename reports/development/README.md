@@ -13,9 +13,11 @@ These are the human-readable, sanitized, authoritative DEVELOPMENT reports.
 - [Stage 08 — Lossless address-evidence projection](stage08.md)
 - [Stage 09 — Accepted conservative offline reference evidence](stage09.md#owner-acceptance-and-freeze--2026-09-14)
 - [Stage 10 — Accepted bounded multi-hypothesis query generation](stage10.md)
-- [Stage 11 — Semantic request deduplication DEVELOPMENT candidate, not owner accepted](stage11.md)
+- [Stage 11 — Accepted complete semantic request deduplication](../../docs/stages/STAGE11_OWNER_ACCEPTANCE.md); [unchanged candidate report](stage11.md)
 
 Exact machine evidence for Stages 0–8 is indexed in
 [`../generated/`](../generated/README.md). Stage 9/10 accepted identities and
 preserved independent-review evidence are linked from their reports; no historical
 artifact or acceptance summary is rewritten.
+Stage 11's separate acceptance record links its preserved candidate and fresh
+independent-review evidence; their candidate-era status wording remains historical.

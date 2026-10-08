@@ -16,7 +16,7 @@ scheduler observations. Contracts and evidence are linked below.
 | 8 | Lossless address-evidence projection | **`STAGE_8_ACCEPTED`** | Candidate `231cdbf9…`; executable `c04cb972…`; jobs `1764273`/`1764376`; zero candidate defects; [report](../reports/development/stage08.md) | **NOT STARTED** |
 | 9 | Conservative offline reference evidence | **`STAGE_9_ACCEPTED`** | Executable `3e10ac7c…`; job `1771191`; independent review `a9ae443c…` / job `1772139`; zero candidate defects; [acceptance](../reports/development/stage09.md#owner-acceptance-and-freeze--2026-09-14) | **NOT STARTED** |
 | 10 | Bounded multi-hypothesis query generation | **`STAGE_10_ACCEPTED`** | Job `1785683`; final independent rereview `1786959`, 281 checks PASS, zero defects; [owner acceptance and freeze](../reports/development/stage10.md) | **NOT STARTED** |
-| 11 | Global semantic request deduplication | **DEVELOPMENT CANDIDATE READY — NOT OWNER ACCEPTED** | Job 1788751; 142,677 hypotheses → 105,805 requests; [candidate and complete review](../reports/development/stage11.md); D088/D089 | **NOT STARTED** |
+| 11 | Global semantic request deduplication | **STAGE_11_ACCEPTED — FROZEN** | Job 1788751; review 1790315, 124 checks PASS, zero candidate defects; [owner acceptance](stages/STAGE11_OWNER_ACCEPTANCE.md), D090 | **NOT STARTED** |
 | 12–14 proposed | Pelias top-N → scoring → granularity/abstain | **PROPOSED — NOT STARTED** | Remaining compact replacement architecture; [pipeline specification](PIPELINE.md) | **NOT STARTED** |
 
 Benchmark V1 contains 35,000 DEVELOPMENT and 15,000 sealed HOLDOUT rows from
@@ -25,6 +25,27 @@ fingerprint
 `014f7c1373380b265f34e2ecb76614161b320e2bb972befb8f53994cc5a1dd52`.
 
 ## Current checkpoint
+
+The owner **accepts and freezes Stage 11**, **2026-10-08**, after the fresh
+independent review passed: **124 protected checks**, **495 independent tests**,
+**1,343 candidate tests**, **24 pre-existing optional ICU skips**, candidate
+defects **0**, regeneration **not required**. The [acceptance record](stages/STAGE11_OWNER_ACCEPTANCE.md)
+binds implementation `8dce0e1078e123748ae692fa824200fc3e646aa4`, reporting
+`d49e9340ef3ae9cb3caaec65d5ccf0c490ecf366`, review evidence
+`4284f97bb29c8aa4319202d75fd9e96223584fcc` and both non-squash main merges.
+Final main is frozen by annotated tag `stage11-semantic-request-deduplication-v1`.
+
+Accepted totals remain **142,677 hypotheses/map rows → 105,805 requests**,
+reduction **36,872 (25.842988%)**, maximum multiplicity **8**, all integrity
+failures **0**, all **274 checkpoints** and full publication/reopen PASS.
+Failed review-harness job **1789589** and all informational limits remain
+preserved; they are not candidate defects. No new run occurred during acceptance.
+
+Operating budget **UNSELECTED**; Stage 0–10 unchanged; Stage 11 **ACCEPTED/FROZEN**;
+HOLDOUT sealed; production/Pelias untouched; Stage 12 **NOT STARTED**.
+**NEXT: FRESH STAGE 12 PELIAS TOP-N RETRIEVAL DESIGN.** This session stops here.
+
+## Historical Stage 11 candidate checkpoint — 2026-10-05
 
 On the owner's **2026-10-05** continuation, the single scheduler observation
 confirmed Stage 11 job **1788751 COMPLETED / 0:0**, elapsed **00:10:52**,

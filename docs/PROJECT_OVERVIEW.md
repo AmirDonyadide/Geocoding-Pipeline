@@ -93,13 +93,16 @@ DEVELOPMENT evaluation, independent review and owner acceptance, then stops.
 Rejected runs remain immutable. HOLDOUT is reserved for one separately
 authorized final evaluation after the governing pipeline is frozen.
 
-Stages 0–10 are accepted and frozen on DEVELOPMENT. Stage 11's
+Stages 0–11 are accepted and frozen on DEVELOPMENT. Stage 11's
 [owner-approved design](stages/STAGE11_SEMANTIC_REQUEST_DEDUPLICATION.md) is frozen;
 [implementation and synthetic validation](stages/STAGE11_IMPLEMENTATION.md) are
-complete on the dedicated branch. Job 1788751 produced the
+complete, with implementation and independent-review histories merged into main.
+Job 1788751 produced the
 [DEVELOPMENT candidate](../reports/development/stage11.md): 142,677 hypotheses
 map exactly to 105,805 semantic requests. Publication and full reopen checks pass.
-Fresh independent review is next; Stage 11 is not owner accepted.
+The [owner accepts and freezes Stage 11](stages/STAGE11_OWNER_ACCEPTANCE.md)
+on 2026-10-08 after independent job 1790315 passed all 124 checks with zero
+candidate defects. Stage 12 is not started; its fresh design is the next task.
 The [Stage 10 acceptance](../reports/development/stage10.md) preserves the exact
 candidate, final independent rereview and UNSELECTED operating budget.
 Production Stages 0–1 are accepted. The [progress index](DEVELOPMENT_PROGRESS.md)

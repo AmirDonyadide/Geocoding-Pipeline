@@ -5,12 +5,12 @@ for SAFE's self-hosted Pelias service. It preserves source records, derives
 standard and native address candidates, and records the evidence needed to
 judge whether an eventual coordinate is suitable for point-level research.
 
-DEVELOPMENT Stages 0–10 are accepted and frozen. Stage 10 owner acceptance binds
+DEVELOPMENT Stages 0–11 are accepted and frozen. Stage 10 owner acceptance binds
 remediated job `1785683` after final independent rereview passed with zero
 candidate defects; see the [acceptance record](reports/development/stage10.md).
-Stage 11's [design is frozen](docs/stages/STAGE11_SEMANTIC_REQUEST_DEDUPLICATION.md)
-and its [DEVELOPMENT candidate](reports/development/stage11.md) is ready for fresh
-independent review; Stage 11 is not owner accepted. Production Stages 0–1 are
+Stage 11 [owner acceptance](docs/stages/STAGE11_OWNER_ACCEPTANCE.md) freezes
+job `1788751` after independent review `1790315` passed with zero candidate
+defects. Stage 12 is not started. Production Stages 0–1 are
 accepted; production Stage 2 onward has not started. See
 [current progress](docs/DEVELOPMENT_PROGRESS.md).
 
@@ -23,7 +23,8 @@ accepted; production Stage 2 onward has not started. See
 | 6–8 | Exact candidate deduplication with complete map-back, parser evidence, lossless evidence index |
 | 9 | Conservative offline country, postal-code, locality and administrative reference evidence |
 | 10 | Accepted bounded query hypotheses; operating budget UNSELECTED |
-| 11–14 | Proposed request deduplication/QA, Pelias retrieval, scoring and granularity/abstention |
+| 11 | Accepted exact semantic request deduplication with complete hypothesis map-back |
+| 12–14 | Proposed Pelias retrieval, scoring and granularity/abstention |
 
 Parser labels and reference matches are evidence, not verified address truth.
 A returned geocoder feature is not automatically a usable research location.

@@ -17,7 +17,7 @@ stage.
 - **PLANNED — NOT STARTED:** conceptual placement and likely technology only.
   No accepted design or implementation exists.
 
-Stages 0–10 are accepted and frozen on DEVELOPMENT. Stage 10
+Stages 0–11 are accepted and frozen on DEVELOPMENT. Stage 10
 [owner acceptance](../reports/development/stage10.md), 2026-10-03, binds final
 split-workspace candidate **1785683** after independent rereview **1786959**:
 281 checks PASS, zero candidate defects. C01/C02, full publication, durable
@@ -27,7 +27,8 @@ and publication naming; remediation `1781277` failed before registration/commit.
 Their [remediation](stages/STAGE10_REVIEW_REMEDIATION.md),
 [forensic](stages/STAGE10_PUBLICATION_FORENSICS.md) and earlier timeout/performance
 evidence remain preserved. Historical F01's exception remains unresolved.
-Stage 11 has an unaccepted [DEVELOPMENT candidate](../reports/development/stage11.md);
+Stage 11 [owner acceptance](stages/STAGE11_OWNER_ACCEPTANCE.md), 2026-10-08,
+freezes job 1788751 after independent review 1790315: 124 checks PASS, zero defects.
 Stages 12–14 remain proposed. Production Stages 0–1 are accepted for the
 1,411-file population; production Stage 2 onward has not started.
 
@@ -69,8 +70,7 @@ scientific bytes.
 11 query identity/QA -> 12 Pelias top-N -> 13 scoring -> 14 granularity/abstain
 ```
 
-Stages 8–10 are accepted and frozen. Stage 11 is implemented with a DEVELOPMENT
-candidate awaiting independent review; Stages 12–14 remain proposed.
+Stages 8–11 are accepted and frozen; Stages 12–14 remain proposed.
 Each stage requires its own approved design,
 authorized execution, DEVELOPMENT evidence, independent review and owner
 acceptance, then stops. The [current geocoding gate](#current-safe-pelias-boundary)
@@ -348,9 +348,11 @@ frozen, and Stages 11–14 remain proposed.
   The final 19-field core excludes retrieval and generic header fields;
   NO_REQUEST_LANGUAGE_OVERRIDE requires explicit Stage 12 binding of effective
   no-override behavior. No N, operating budget or Stage 19 gate change selected.
-- **Status:** **DESIGN FROZEN; DEVELOPMENT CANDIDATE READY; NOT OWNER ACCEPTED**.
-  [Candidate, job 1788751 and complete self-review](../reports/development/stage11.md),
-  D088/D089. Fresh independent review is next; Stage 12 remains NOT STARTED.
+- **Status:** **STAGE_11_ACCEPTED — FROZEN**.
+  [Owner acceptance and exact identities](stages/STAGE11_OWNER_ACCEPTANCE.md),
+  D090; job 1788751, independent review 1790315, zero candidate defects.
+  The historical [candidate report](../reports/development/stage11.md) is unchanged.
+  Stage 12 remains NOT STARTED; fresh Stage 12 design is next.
 
 ### Stage 12 — Self-hosted SAFE Pelias top-N retrieval
 

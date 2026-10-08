@@ -2425,3 +2425,34 @@ that predicate/proof and dependent bounds; the other reviewed decisions stand.
   **NEXT: FRESH INDEPENDENT REVIEW OF STAGE 11 DEVELOPMENT CANDIDATE.**
   Operating budget UNSELECTED; Stage 0–10 science and frozen Stage 11 design
   unchanged; HOLDOUT sealed; production/Pelias untouched; Stage 12 NOT STARTED.
+
+### D090 — Owner accepts and freezes complete Stage 11 semantic request deduplication
+
+- **Date/authority:** 2026-10-08, explicit final owner acceptance after fresh
+  independent review PASS. [Acceptance record](stages/STAGE11_OWNER_ACCEPTANCE.md)
+  is separate from preserved candidate/review reports and all frozen assets.
+- **Exact history:** Implementation `8dce0e1078e123748ae692fa824200fc3e646aa4`,
+  reporting `d49e9340ef3ae9cb3caaec65d5ccf0c490ecf366`, normal implementation merge
+  `ea806670a558254ec6a944bee7c7d22908d5d372`; independent review evidence
+  `4284f97bb29c8aa4319202d75fd9e96223584fcc`, normal review merge
+  `d598b4cea80163e4df8b725a3d1facd5ea8b0417`. Annotated acceptance tag
+  `stage11-semantic-request-deduplication-v1` freezes final accepted main after
+  owner documentation. The earlier design tag is unchanged.
+- **Accepted candidate:** Job 1788751 COMPLETED / 0:0; 142,677 hypotheses and
+  map rows, 105,805 semantic requests, reduction 36,872 (25.842988%), max
+  multiplicity 8. All integrity/contract failures zero; 274 checkpoints,
+  exact resume, Stage 11 publication/registration/reopen and local independence PASS.
+- **Review:** Job 1790315 COMPLETED / 0:0; 124 protected checks and 495 independent
+  tests PASS; candidate suite 1,343 PASS / 24 pre-existing optional ICU skips.
+  Candidate defects 0, regeneration NO. Failed harness job 1789589 and its unknown
+  original scratch-error cause remain historical review evidence only; all
+  informational limits are retained without reopening them.
+- **Science/boundary:** Full SHA-256 over frozen canonical semantic bytes,
+  complete-core global exact equality, exact strings and lossless map-back.
+  Stage 11 is non-executable; top-N/retrieval/transport/deployment/index/execution
+  remain Stage 12. No operating budget or top-N selected. No rerun, SLURM,
+  HOLDOUT, production or Pelias access during acceptance.
+- **Status/stop:** **STAGE11_COMPLETE_SEMANTIC_REQUEST_DEDUPLICATION_ACCEPTED**.
+  Stage 0–10 unchanged; Stage 11 ACCEPTED/FROZEN; budget UNSELECTED; HOLDOUT sealed;
+  production/Pelias untouched; Stage 12 NOT STARTED. **NEXT: FRESH STAGE 12 PELIAS
+  TOP-N RETRIEVAL DESIGN**, in a fresh session after this acceptance completes.

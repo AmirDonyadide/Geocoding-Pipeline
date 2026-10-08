@@ -17,23 +17,26 @@ status is summarized in [progress](../DEVELOPMENT_PROGRESS.md).
 | 8 | [Lossless address-evidence projection](STAGE08_ADDRESS_EVIDENCE_PROJECTION.md) | `STAGE_8_ACCEPTED`; candidate `231cdbf9…`, executable `c04cb972…`, job `1764273`, independent job `1764376` | NOT STARTED |
 | 9 | [Conservative offline geographic reference evidence](STAGE09_OFFLINE_REFERENCE_EVIDENCE.md) | `STAGE_9_ACCEPTED`; executable `3e10ac7c…`, job `1771191`, independent job `1772139`; [owner acceptance](../../reports/development/stage09.md#owner-acceptance-and-freeze--2026-09-14) | NOT STARTED |
 | 10 | [Bounded multi-hypothesis query generation](STAGE10_MULTI_HYPOTHESIS_QUERY_GENERATION.md) | **STAGE_10_ACCEPTED**; job `1785683`, independent rereview `1786959`, zero candidate defects; [owner acceptance](../../reports/development/stage10.md) | NOT STARTED |
-| 11 | [Complete semantic request deduplication design](STAGE11_SEMANTIC_REQUEST_DEDUPLICATION.md) | **DESIGN FROZEN; DEVELOPMENT CANDIDATE READY — NOT OWNER ACCEPTED**; job 1788751; [candidate and complete self-review](../../reports/development/stage11.md); [contract](STAGE11_DATA_CONTRACT.md), [evaluation plan](STAGE11_DEVELOPMENT_EVALUATION.md), [design ledger/decisions](STAGE11_DESIGN_REVIEW.md) | NOT STARTED |
+| 11 | [Complete semantic request deduplication design](STAGE11_SEMANTIC_REQUEST_DEDUPLICATION.md) | **STAGE_11_ACCEPTED — FROZEN**; job 1788751, review 1790315, zero defects; [owner acceptance](STAGE11_OWNER_ACCEPTANCE.md); [contract](STAGE11_DATA_CONTRACT.md), [evaluation plan](STAGE11_DEVELOPMENT_EVALUATION.md), [design ledger/decisions](STAGE11_DESIGN_REVIEW.md) | NOT STARTED |
 
 ## Reading frozen records
 
 Design-time status and stop instructions describe the authorization at that
 checkpoint. Stage 9's scientific design/reference freeze and Stage 10's five
 normative design documents are preserved byte-for-byte; later implementation
-and acceptance do not rewrite them. Use the separate
+and acceptance do not rewrite them. Stage 11's four normative design documents
+and its candidate/independent-review reports likewise retain their dated status.
+Use the separate
 [Stage 9 implementation](STAGE09_IMPLEMENTATION.md),
 [Stage 9 acceptance](../../reports/development/stage09.md#owner-acceptance-and-freeze--2026-09-14)
 and [Stage 10 implementation](STAGE10_IMPLEMENTATION.md) and
 [owner acceptance](../../reports/development/stage10.md) records for subsequent
-authority and execution evidence.
+authority and execution evidence. [Stage 11 owner acceptance](STAGE11_OWNER_ACCEPTANCE.md)
+records its final accepted state without rewriting those historical reports.
 
 Stage 0–8 records also retain historical later-stage stop statements. Their
 accepted science and failed attempts remain unchanged. The
 [reports index](../../reports/README.md) links exact execution/review identities;
 [DECISIONS.md](../DECISIONS.md) preserves the decision sequence. Proposed Stages
-11–14 and the superseded, unstarted Stage 8–19 plan are in
+12–14 and the superseded, unstarted Stage 8–19 plan are in
 [PIPELINE.md](../PIPELINE.md).
