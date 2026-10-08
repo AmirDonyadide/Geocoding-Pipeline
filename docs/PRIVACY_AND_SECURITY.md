@@ -79,7 +79,9 @@ tests, small diagnostics, and explicitly controlled small DEVELOPMENT review.
 
 HOLDOUT-aware interfaces reject HOLDOUT-named paths and non-DEVELOPMENT split
 values before reading row data. HOLDOUT remains sealed until a separately
-approved final evaluation after Stages 2–19 freeze.
+approved final evaluation after the governing compact pipeline and all
+calibration/scoring/granularity rules freeze. Legacy Stage 19 numbering is
+superseded by D092; this does not authorize HOLDOUT or advance its opening.
 
 ## Reporting boundary
 

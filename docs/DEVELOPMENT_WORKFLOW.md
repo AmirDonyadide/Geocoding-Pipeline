@@ -83,8 +83,10 @@ scientific equality was proved, and v2 received a new independent review.
 
 ## HOLDOUT
 
-The 15,000-row HOLDOUT remains sealed while Stages 2–19 are designed, tuned,
-and frozen. It is used once only under a separately approved final-evaluation
+The 15,000-row HOLDOUT remains sealed while the governing compact pipeline,
+including retrieval, scoring and granularity rules, is designed, tuned and
+frozen. D092 reconciles legacy Stage 19 numbering without opening HOLDOUT.
+It is used once only under a separately approved final-evaluation
 protocol. No stage workflow may inspect HOLDOUT for debugging, examples,
 documentation, profiling, review selection, or threshold tuning.
 

@@ -143,11 +143,16 @@ documentation test pass.
 ## Current authorization boundary
 
 Production Stages 0–1 are accepted; production Stage 2 onward has not started.
-DEVELOPMENT Stages 0–9 are accepted. Stage 10 is implemented but unaccepted;
-its [execution record](stages/STAGE10_IMPLEMENTATION.md) preserves the separately
-authorized single-run scope and latest preflight blocker. See
+DEVELOPMENT Stages 0–11 are accepted and frozen. Stage 12 has owner review
+incorporated in its design, but is not frozen, implemented or executed. See
 [current progress](DEVELOPMENT_PROGRESS.md) for the status index.
 
-The governing geocoding gate remains Stage 19 acceptance plus separate exact
-workload authorization. Proposed stage renumbering does not waive it. This
-policy itself grants no stage, rerun, HOLDOUT or production authority.
+Under owner-directed D092, the old Stage 19 query-deduplication/QA reference is
+replaced by accepted Stage 11 plus Stage 12 execution QA. It is stale numbering,
+not an additional future stage dependency. Pelias access requires owner-frozen
+Stage 12, validated implementation and separate phase-specific exact-workload
+authorization. Public probing is separately authorized; protected calibration
+also requires the post-probe owner deployment/operations/C/T freeze and exact
+workload approval described in the [state machine](stages/STAGE12_DEVELOPMENT_CALIBRATION.md#future-state-machine).
+No implementation, probe, protected retrieval, rerun, HOLDOUT or production
+authority is granted by this documentation correction.

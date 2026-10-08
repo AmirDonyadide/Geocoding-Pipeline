@@ -2,6 +2,9 @@
 
 Normative part of the [design proposal](STAGE12_PELIAS_TOPN_RETRIEVAL.md).
 Prose/schema notation only; no executable schema, client or fixture is created.
+Initial v1 names are retained because the previous draft was never frozen,
+implemented or used to issue scientific artifacts/IDs; its exact prior wording
+remains in Git. After owner freeze, changing a rule requires version review.
 
 ## Identity domains and canonical bytes
 
@@ -26,7 +29,7 @@ The exact ordered fields are:
 | Field | Type | Value |
 |---|---|---|
 | policy_version | string | stage12_retrieval_policy_v1 |
-| result_limit | uint64 | A concrete approved positive integer; calibration 10, final UNSELECTED until owner freeze |
+| result_limit | uint64 | Concrete approved positive integer; full calibration C and tail audit T frozen after public capability probe; final N UNSELECTED |
 | retention | string | ALL_RETURNED_IN_ORDER |
 | result_options | ordered list | Empty, exactly; size is the only Stage 12 result option |
 
@@ -65,8 +68,12 @@ pelias_deployment_fingerprint =
      ("effective_behavior_id", effective_behavior_id as bytes)])
 ~~~
 
-Manifest signatures, lease times, operator audit and storage locators sit
-outside these cores. Raw configuration files containing secrets must never be
+Only canonical result-affecting manifest **content** enters these cores.
+Signatures, signing keys/key IDs, signature encodings, re-signing timestamps,
+verification receipts, maintenance leases and operator audit sit outside them.
+Re-signing identical content or rotating an approved signing key changes
+authenticity evidence, not deployment fingerprint or execution ID. Failed
+authenticity verification still blocks use. Raw configuration containing secrets must never be
 hashed into these objects. The reviewed result-affecting configuration
 projection contains **no credential value, secret-derived hash or secret name
 whose value affects a hidden data view**. Bind the nonsecret authorized data-view
@@ -81,24 +88,26 @@ ordered fields):
 2. query_semantic_id: 32 bytes, FK to the accepted Stage 11 catalog;
 3. retrieval_policy_id: 32 bytes;
 4. materialization_contract_sha256: 32 bytes;
-5. response_extraction_contract_sha256: 32 bytes;
-6. result_behavior_implementation_sha256: 32 bytes;
-7. pelias_deployment_fingerprint: 32 bytes;
-8. index_data_identity: 32 bytes;
-9. effective_behavior_id: 32 bytes.
+5. pelias_deployment_fingerprint: 32 bytes;
+6. index_data_identity: 32 bytes;
+7. effective_behavior_id: 32 bytes.
 
 The materialization descriptor binds method, paths, parameter and header rules,
 UTF-8/percent encoding and allowed service routing/data-view semantics.
-The result-behavior inventory binds exact client materialization/response
-validation code and result-affecting dependency versions. Keep its module
-inventory separate from scheduling/retry/report code. Changes to result behavior
-cannot hide behind a reused v1 label. Full executable SHA and runtime inventory
-are also required in publication and checkpoint adoption, outside this ID.
+This descriptor contains request rules and their semantic version, **not**
+implementation file hashes, response validation or extraction rules. A changed
+request rule requires a new materialization version/content hash. A refactor
+that obeys the same rules leaves execution ID unchanged. A client bug that
+actually sent different values is nonconformance, not reusable evidence under
+the claimed ID; it requires review and, if necessary, an authorized new request.
+Actual client Git SHA, runtime inventory and operational configuration are
+strongly bound in campaign provenance and checkpoint validation, outside this ID.
 The overall five-document design hash includes operations and review prose;
 it is publication provenance, **not** an extra execution-ID argument.
 
-No API secret, secret hash, SLURM job, filesystem path, timestamp, retry count,
-worker, latency, campaign ID or physical response packaging enters this ID.
+No client executable/reporting SHA, response-extraction contract/schema,
+API secret, secret hash, SLURM job, filesystem path, timestamp, retry count,
+concurrency, worker, latency, campaign ID or physical packaging enters this ID.
 Effective index/configuration/ranking defaults and backend services enter
 transitively through the deployment objects, never an opaque unknown sentinel.
 An operational policy change alone does not change scientific execution ID.
@@ -109,20 +118,92 @@ promise that arbitrary live requests are deterministic. Repeated same-size
 probe disagreements are a reproducibility gate failure. Stored raw evidence
 remains authoritative even if future software cannot reproduce it.
 
+### Campaign provenance and offline response projection
+
+The campaign manifest is an audit object, not a fifth relation. It binds a
+persisted random campaign_id (32 bytes), exact client executable Git SHA,
+runtime/dependency inventory, operations-policy hash, authorized workload,
+input/materialization/policy/deployment bindings, authenticity and drift-control
+receipts, and the append-only authorized job/segment/attempt inventory.
+Campaign identity stays stable across authorized jobs; per-job receipts change.
+Network checkpoint adoption requires exact client SHA/runtime/operations and
+remaining attempt budgets. An immutable campaign-start object precedes dispatch;
+the completed campaign manifest seals its start hash and append-only segment
+chain. Attempts bind the start object, so no future-manifest/self-hash cycle
+exists. Reporting revisions cannot redefine retrieval.
+
+Define raw_response_set_sha256 by the response-set framing below. Then:
+
+~~~
+response_projection_id =
+  H("SAFE:stage12-response-projection:v1",
+    [("projection_version", "stage12_response_projection_v1"),
+     ("raw_response_set_sha256", raw_response_set_sha256 as bytes),
+     ("capture_context_sha256", capture_context_sha256 as bytes),
+     ("response_validation_contract_sha256", validation descriptor hash as bytes),
+     ("response_extraction_contract_sha256", extraction descriptor hash as bytes),
+     ("candidate_schema_sha256", candidate descriptor hash as bytes)])
+~~~
+
+This is a **dataset-level** binding in the immutable manifest, not a per-row
+column or new relation. Each artifact has exactly one projection. Candidate
+keys (execution ID, rank) are scoped by that artifact/projection; cross-version
+joins must also bind response_projection_id. Final dataset digest includes the
+projection ID and actual output relation hashes. Extractor executable/runtime,
+parent projection, reason/approval and validation evidence are recorded as
+projection provenance, separately from network campaign provenance.
+
+capture_context_sha256 streams ASCII("SAFE:stage12-capture-context:v1") || 00,
+E([captured count U]) and sorted E([execution ID, actual request-target hash,
+HTTP status U, sanitized content_type T, sanitized content_encoding T,
+payload_complete Boolean]) for the same captured rows as the raw set.
+All these values are required for a captured complete payload; unknown header
+values use the audit enum OTHER rather than copied text. This binds the small
+original response envelope needed for validation without code/signature/time
+or another relation. Payload hash alone cannot prove a successful HTTP status.
+Its full SHA-256 is the capture_context_sha256 binding above.
+
+Projection is deterministic and offline:
+preserved payload bytes + immutable capture context + frozen
+validation/extraction/schema -> all-or-nothing
+outcome and candidate rows. Verify payload hashes before parsing; same bytes/
+contracts must yield the same logical rows irrespective of storage compression,
+job or layout. A bug fix that corrects implementation under unchanged intended
+rules records new extractor provenance and output dataset hash; changed
+contract/schema gives a new response_projection_id. Neither requires another
+Pelias call if raw evidence and original request/deployment provenance suffice.
+Insufficient raw evidence stops replay; it never silently authorizes a call.
+
+Never mutate an accepted candidate relation, response outcome or old manifest.
+Publish a separately reviewed immutable projection/dataset version, preserving
+the original and an exact parent binding. Its request_execution outcomes are
+validated under the new artifact-level contract; original network attempt
+receipts (including an earlier validation failure) remain unchanged. Any changed
+classification is explicit replay evidence, not a new HTTP success. Replay may
+use a new extractor executable without claiming network checkpoint adoption.
+
 ### Attempts and observed responses
 
 attempt_id = H("SAFE:stage12-request-attempt:v1", ordered fields
 receipt_version="stage12_attempt_receipt_v1", request_execution_id bytes,
 campaign_id bytes, attempt_number uint64). campaign_id is a newly allocated
 32-byte audit nonce persisted before dispatch, shared across that campaign's
-authorized resumes. attempt_number is cumulative 1..5 for an execution.
+authorized resumes. attempt_number is cumulative 1..max_attempts for an
+execution, with max_attempts<=5 from the owner-frozen operations profile.
 A new campaign cannot silently reset an exhausted budget; it needs a separately
 authorized workload. Times/latencies remain audit metadata, outside even this ID.
 
-response_sha256 = SHA256(exact complete uncompressed HTTP entity body bytes).
-Transfer chunk framing and headers are not body bytes. Request
-Accept-Encoding=identity and reject unsolicited content coding in v1. Raw
-bytes are hashed before UTF-8/JSON parsing and before at-rest compression.
+response_sha256 = SHA256(exact uncompressed **application payload bytes delivered
+to the response parser after transport and content decoding, before any UTF-8/
+JSON parsing or transformation**). This is not a capture of pre-decoding wire
+bytes: transfer framing, TLS records and compressed transfer representation
+are outside the scientific object. v1 requests Accept-Encoding=identity and
+accepts identity/absent Content-Encoding only; supporting another content
+decoder later requires a reviewed transport profile and decoder provenance.
+The definition always hashes the decoded application bytes, never a compressed
+representation. At-rest compression is storage-only and cannot change this hash.
+Byte length is measured on this same payload. Those exact bytes reproduce
+every JSON token/feature slice needed for independent deterministic extraction.
 raw_feature_sha256 = SHA256(exact contiguous JSON feature-object byte slice
 within that body). Offset is zero-based byte start and length; its hash is not
 a JSON reserialization or a GID-derived identity.
@@ -187,7 +268,7 @@ REQUEST_TARGET_TOO_LARGE, full map retained, no POST fallback or truncation.
 
 ## Strict response contract and evidence preservation
 
-Choose **both exact raw successful response bytes and an extracted candidate
+Choose **both exact raw successful application payload bytes and an extracted candidate
 relation**. Preserve every field/duplicate feature and all response metadata
 through raw bytes; normalized columns serve bounded Stage 13 access. A hash
 alone cannot reconstruct discarded evidence. Canonical reserialized JSON
@@ -230,16 +311,23 @@ Validate the complete response before creating any candidate rows:
   boundary/size/mode are compared using the pinned deployment echo adapter;
   contradictory echoes fail. The deployment manifest must specify explicit
   absence or an exact echo-field mapping; no guessed normalization of text.
-- The separate per-response deployment attestation must match before success
-  acceptance. Payload attribution or engine strings cannot replace it.
+- Deployment verification must pass the approved per-response or controlled
+  campaign mechanism in the execution contract. Payload attribution or engine
+  strings cannot replace that evidence.
 
 Unknown additional JSON fields are retained in raw evidence and counted;
 they neither extend the extracted model nor become score inputs silently.
 Missing optional fields and explicit null both extract as null, while raw
 bytes preserve their difference. A malformed expected field fails the entire
 response. There is no skip-invalid-feature mode and no compressed/recomputed
-rank. Future additional extraction is a versioned downstream derivation from
-these raw bytes, not mutation of the frozen Stage 12 relation.
+rank. A malformed top-N feature makes the **whole execution response**
+CONTRACT_FAILURE; retain the complete decoded payload for controlled audit,
+with hash, attempt and failed-validation contract binding, and publish no
+candidate rows. It is not a valid zero. The secret-echo and resource guards
+still control persistence; a suspected secret payload is quarantined under
+the privacy protocol, never put in ordinary candidate storage or logs.
+Future additional extraction is an offline, separately versioned projection,
+not a new network identity or mutation of the frozen Stage 12 relation.
 
 Coordinate order is **longitude, latitude**, WGS84 geographic degrees
 (GeoJSON/CRS84 order, not EPSG axis-order latitude first). longitude in [-180,180],
@@ -270,27 +358,32 @@ calibration role stored here.
 
 ### request_execution — one complete execution identity and selected outcome
 
-PK request_execution_id D; unique (query_semantic_id, retrieval_policy_id,
-deployment fingerprint, materialization/extraction/implementation bindings).
+PK request_execution_id D; uniqueness is the complete seven-field identity
+preimage. One row per network identity **within this immutable observation/
+projection artifact**; intentional repeat probes use separate artifacts.
 Fields, in order:
 
 ~~~
 request_execution_id D, query_semantic_id D, retrieval_policy_id D,
-materialization_contract_sha256 D, response_extraction_contract_sha256 D,
-result_behavior_implementation_sha256 D, pelias_deployment_fingerprint D,
+materialization_contract_sha256 D, pelias_deployment_fingerprint D,
 index_data_identity D, effective_behavior_id D,
 request_target_sha256 D?, terminal_state T, reason_code T,
-selected_attempt_id D?, candidate_count U?,
+terminal_attempt_id D?, candidate_count U?,
 response_sha256 D?, response_bytes U?,
 raw_pack_key T?, raw_frame_offset U?, raw_frame_length U?,
 response_completed_utc Z?
 ~~~
 
 FKs: semantic ID to bound Stage 11; policy to local retrieval_policy; deployment/
-index/effective hashes to the single manifest-bound objects; selected attempt
-to request_attempt with the same execution. Scientific authority covers the ID,
-terminal state and selected response; time/locator are audit/physical fields.
-All selected-response fields are required for success, null for failure;
+index/effective hashes to the single manifest-bound objects; terminal attempt
+to request_attempt with the same execution. Scientific authority covers network
+identity, captured response and contract-relative terminal state; time/locator
+are audit/physical fields. The manifest binds the one response_projection_id
+and validation contract governing these outcomes. All response fields are
+required for success. For CONTRACT_FAILURE they also remain populated when a
+complete payload is captured for audit; failures without a complete safely
+retained payload have null response fields. Terminal attempt can identify a
+failed dispatched request; it is null only when no dispatch exists.
 candidate_count=0 for successful zero, 1..N for successful nonzero, **null on
 failure**. request_target_sha256 is null only if materialization never completed.
 reason_code is OK for either success, otherwise a closed static failure code.
@@ -308,23 +401,39 @@ FK request_execution_id to request_execution. Ordered fields:
 
 ~~~
 attempt_id D, request_execution_id D, campaign_id D, attempt_number U,
-operations_policy_sha256 D, started_utc Z, finished_utc Z?,
+campaign_start_sha256 D, operations_policy_sha256 D, started_utc Z, finished_utc Z?,
 elapsed_ms U?, http_status U?, outcome T, reason_code T,
-received_body_bytes U, retry_delay_ms U?, retry_after_seconds U?,
-observed_deployment_fingerprint D?, lease_receipt_sha256 D,
-response_sha256 D?
+received_body_bytes U, application_payload_bytes U?,
+content_type T?, content_encoding T?,
+retry_delay_ms U?, retry_after_seconds U?,
+observed_deployment_fingerprint D?, identity_verification_receipt_sha256 D,
+response_validation_contract_sha256 D, response_sha256 D?
 ~~~
 
 Audit-only controlled relation. Null status means no trustworthy HTTP status;
 null finish/latency with outcome UNKNOWN_DELIVERY means a persisted begin
 receipt lacks a trustworthy finish. No fake finish time. response_sha256 exists
-only for a complete retained valid response. failed/partial/error bodies are
-not retained as raw-response science; received_body_bytes is only accounting.
+for a complete safely retained application payload, including a contract-failed
+2xx payload; it is not evidence of valid retrieval by itself. Partial/network/
+auth-error bodies have no candidate authority. received_body_bytes is transfer
+accounting; application_payload_bytes is after decoding. Content-Type is stored
+as the validated media-type/charset enum or OTHER/ABSENT, Content-Encoding as
+identity/absent/OTHER; raw untrusted header text is not persisted. The strict
+header audit allowlist is these values, parsed Retry-After, status and approved
+nonsecret identity fields; no cookies, URLs, arbitrary headers or auth values.
+The identity receipt FK resolves to the campaign provenance inventory even
+when no per-response fingerprint exists under the minimum campaign mechanism.
+campaign_start_sha256 resolves to the sealed campaign-start provenance
+object; later job/finish receipts form its separately sealed append-only chain.
 A run-level failure before dispatch has no invented attempt. Begin/finish
 journal events are durable operational records used to derive this final
 relation, not additional scientific relations.
 
-Success has exactly one selected attempt. No retry after a valid durable success.
+On initial retrieval, success has exactly one terminal successful attempt.
+On authorized offline replay, the terminal attempt must still be an actual
+HTTP 200 capture; its original validation outcome may be CONTRACT_FAILURE,
+with explicit new validation/reclassification provenance. Do not rewrite that
+attempt to claim a new HTTP success. No retry after a valid durable success.
 Every dispatch, including uncertain delivery and a later failed retry, consumes
 one of five attempts across jobs. Attempt outcomes include the six states in
 the execution contract plus UNKNOWN_DELIVERY; RETRYABLE is an intermediate
@@ -332,7 +441,9 @@ attempt state, never a final accepted execution state.
 
 ### request_candidate — one response feature at its original position
 
-PK (request_execution_id D, rank U); FK execution to successful request_execution.
+PK (request_execution_id D, rank U), scoped by the manifest's response_projection_id;
+FK execution to successful request_execution in the same artifact. No copied
+upstream lineage or fifth projection relation.
 Ordered fields:
 
 ~~~
@@ -375,9 +486,13 @@ For each successful execution: response features count = candidate_count =
 candidate rows; 0 <= count <= result_limit; rank set exactly 1..count; PK
 unique; candidate response hash equals execution hash; each feature slice parses
 to precisely its indexed feature and regenerates the extracted row. Zero has
-zero rows. Failure has zero rows, null count and no selected response.
-No unresolved attempt, dangling FK, duplicate success selection or shared-ID
-different preimage is publishable. All upstream and manifest bindings match.
+zero rows. Failure has zero rows and null count; a safely captured complete
+contract-failed payload remains auditable but is never a successful response.
+No missing/unaccounted attempt receipt, dangling FK, duplicate success selection
+or shared-ID different preimage is publishable. UNKNOWN_DELIVERY may remain in
+audit history only when its budget charge/recovery is reconciled and that
+execution has a later valid terminal success; it is never a valid zero or
+unresolved final execution. All upstream and manifest bindings match.
 
 Descriptors freeze field order/type/nullability/enum/key/constraint definitions.
 Logical row encoding is E over fields in the order above; add tag 06 only for
@@ -388,7 +503,7 @@ streams ASCII("SAFE:stage12-relation:v1") || 00, E([relation name,
 descriptor SHA bytes, row count U]), then every row in order.
 
 Distinguish scientific and audit fingerprints. request_execution scientific
-projection excludes physical raw locators, selected_attempt_id and completion
+projection excludes physical raw locators, terminal_attempt_id and completion
 time; request_attempt is audit-only. Candidate scientific projection excludes
 byte offset/length but retains exact raw feature/response hashes and all other
 columns. retrieval_policy is entirely scientific. Record both full relation
@@ -397,10 +512,13 @@ can differ across observations because Pelias emits time metadata; do not
 claim identical outputs merely because execution ID matches.
 
 Dataset scientific digest domain SAFE:stage12-dataset:v1 binds input-binding
-digest, contract/profile/schema/extraction digests, policy/deployment/index/
+digest, contract/profile/schema digests, response_projection_id, policy/deployment/index/
 effective behavior IDs, ordered scientific relation digests and counts,
 raw response-set digest and sanitized scientific summary digest. Response-set
-digest domain SAFE:stage12-response-set:v1 streams sorted E([execution ID,
-response hash, uncompressed length]) for successful rows. Operational aggregate
+digest streams ASCII("SAFE:stage12-response-set:v1") || 00, E([captured count U]),
+then sorted E([execution ID, response hash, application payload length]) for
+every complete retained payload, including controlled contract-failure audit.
+The capture inventory binds absent payloads and their original outcomes
+separately; no failure is dropped from execution totality. Operational aggregate
 timings, file layout, receipts, full row digests and executable/runtime go in
 the manifest/audit digest. Public displays never expose row-level digests.

@@ -8,7 +8,8 @@
 - Design and obtain explicit review/approval before implementing a stage. Stop
   after every stage; evidence is not permission to continue.
 - Stages 0–11 are accepted and frozen on DEVELOPMENT; Stage 11 owner acceptance
-  is in `docs/stages/STAGE11_OWNER_ACCEPTANCE.md`. Stage 12 is not started.
+  is in `docs/stages/STAGE11_OWNER_ACCEPTANCE.md`. Stage 12 design has owner
+  review incorporated; it is not frozen, implemented or executed.
   Production Stage 2 is not started. New stage work and runs require explicit
   authorization; documentation maintenance grants none.
 - Preserve accepted/rejected scientific history. Do not rebase, squash, or
@@ -76,15 +77,21 @@
 
 ## SAFE Pelias
 
-- Prefer `/v1/search/structured`, normally with `size=1`.
+- Preserve the accepted Stage 11 endpoint/mode and omitted parameter policies.
+  Stage 12 result limits require explicit frozen retrieval policies; the
+  historical `size=1` preference does not select operational N.
 - Normal concurrency is 2–4 requests total across the complete process, not per
   worker, shard, node, or job.
 - A returned feature is not automatically a scientifically successful geocode.
   Use layer, match type, component/geographic agreement, and contradictions.
 - Street, venue, locality, localadmin, region, country, fallback, and other
   coarse results are not usable for point-level research.
-- Do not geocode until Stage 19 is accepted and an exact workload is separately
-  authorized.
+- Pelias access requires accepted Stages 0–11, an owner-frozen Stage 12 design,
+  validated implementation and separate phase-specific exact-workload
+  authorization. Protected calibration additionally requires post-public-probe
+  owner freeze of deployment/operations/calibration/tail policies and workload
+  preflight approval. Legacy Stage 19 is stale numbering, not a dependency;
+  see D092 and the Stage 12 design. No current execution is authorized.
 
 ## Source-control hygiene
 

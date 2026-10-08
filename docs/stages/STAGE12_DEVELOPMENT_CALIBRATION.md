@@ -1,171 +1,227 @@
-# Stage 12 — DEVELOPMENT top-N calibration and phase gates
+# Stage 12 — DEVELOPMENT calibration, deep-tail audit and final N
 
-Normative part of the [design proposal](STAGE12_PELIAS_TOPN_RETRIEVAL.md).
-No measured retrieval, prefix-equivalence, service capacity or selected N is
-claimed. HOLDOUT remains sealed. Stage 10 operating budget stays UNSELECTED.
+Normative part of the owner-revised [design](STAGE12_PELIAS_TOPN_RETRIEVAL.md).
+The process is specified now; actual safe protected depths are frozen at the
+pre-DEVELOPMENT gate below. No protected outcomes, probe results or scientific
+N are claimed. HOLDOUT remains sealed; Stage 10 operating budget UNSELECTED.
 
-## Design choice and finite grid
+## Three different depths and the pre-DEVELOPMENT gate
 
-Propose calibration **Nmax=10** across **all 105,805** accepted semantic requests,
-with primary policy grid **1, 3, 5, 10** and descriptive adjacent-rank curves for
-every rank 1..10. This is a bounded engineering experiment, not a scientifically
-chosen final depth. One is the repository's current preference; 3/5 test small
-alternative sets, and 10 doubles the upper small set while bounding DEVELOPMENT
-at 1,058,050 candidate positions. Stage 11 explicitly anticipated these distinct
-execution identities, but supplies no empirical reason to prefer one. No prior
-project decision selected a different grid or a final N.
+- **N: final operational depth = UNSELECTED.** DEVELOPMENT evidence selects it.
+- **C: full-DEVELOPMENT calibration ceiling.** Proposed planning value 10, not
+  a frozen protected workload or claim of tail saturation. Owner freezes exact
+  C after public deployment/capacity evidence, before protected retrieval.
+- **T: deep-tail audit depth = UNSELECTED_PENDING_PUBLIC_CAPABILITY_PROBE.**
+  Require T > max(C,10). Do not guess a large size or run all requests at T.
 
-Use a global depth in v1; no opportunistic per-request depth, early stopping
-on confidence, family pruning or reference-coverage-dependent depth. Only the
-separately frozen paired-size diagnostic is a deterministic subset. Stage 12
-does not resolve the Stage 10 family budget by using a smaller catalog.
+A public probe establishes supported/safe sizes, not scientific quality or N.
+Before any protected calibration request, the owner must review and freeze a
+calibration authorization object with: exact C and T; finite primary grid
+G = sorted unique values in {1,3,5,C} not exceeding C (C >= 5); exact deployment/
+index/materialization/content binding; verified auth and drift mechanism;
+operations/timeouts/attempt/rate profile; response caps; tail selection protocol,
+capacity/coverage checks and controlled subset hashes; evidence/projection
+versions; zero-loss/stop rules; bounded request/control/segment/storage budgets;
+and the disclosure plan. C and T must be sizes actually supported by the probe.
+A C other than 10 must be justified in that pre-outcome record, not chosen after
+examining protected results. No dynamic per-request depth or family pruning.
 
-At size=10, offline prefixes describe **the size=10 candidate list**. They do
-not establish what a size=1/3/5 server request would return. Calibration
-retrieval depth and final operational retrieval depth are separate declarations
-in the artifact profile and owner freeze record. Every direct size request
-has its own policy and complete execution identity.
+Use two ordered gates: (1) post-public-probe owner freezes all depth/selection/
+witness rules and authorizes a guarded **offline-only** DEVELOPMENT preflight;
+(2) preflight materializes exact subsets from accepted input, reports coverage/
+GET sizes/quota and fingerprints without a Pelias call; owner verifies those
+objects and authorizes the exact protected network workload. Selection failure
+or insufficient capacity stops before calls. No opportunistic changes after
+seeing results. These gates do not permit HOLDOUT or production.
 
-## Future phases and minimum valid order
+## Future state machine
 
-| Phase | Required work and explicit stop/gate |
-|---|---|
-| A — implementation | After owner design approval: implement the exact contracts, generated machine assets, synthetic fixtures and fault tests; independent implementation review; exact pushed SHA. No protected/network activity follows automatically. |
-| B — deployment compatibility | After owner gate reconciliation and exact public-workload approval: operator manifest/immutable serving mechanism, public/synthetic probe below, frozen response/transport/identity evidence. Stop on unsupported contract or nondeterminism; review changes before protected inputs. |
-| C — calibration workload freeze | Authorized scheduled preflight fully reopens Stage 11 and accepted upstream metadata, checks all request target sizes without emitting payloads, materializes the deterministic paired subset and controlled workload hashes. Owner approves exact catalog/subset/deployment/attempt/rate/storage budgets before network dispatch. |
-| D — calibration retrieval | One authorized complete size=10 campaign, plus the bounded paired-size/repeat diagnostic. Reuse sealed successes across authorized resumes. Persist separate calibration artifacts, never label a partial campaign final. |
-| E — analysis and owner freeze | Controlled offline diagnostics, stratified marginal-value report, independent calibration review; owner chooses N or rejects sufficiency. No HOLDOUT or final scoring. Freeze explicit retrieval policy ID and deployment binding. |
-| F — final DEVELOPMENT | If N=10 and all reuse conditions hold, register the same complete immutable response evidence for final use without another network run. Otherwise authorize one complete final campaign at frozen N with new policy/execution identities. Validate and report all 105,805 outcomes. |
-| G — independent review and acceptance | Fresh review of complete final evidence, raw reconstruction, identity continuity, map-back and publication. Owner accepts/rejects Stage 12. Stop before Stage 13. |
+~~~
+OWNER DESIGN FREEZE (not performed in this revision)
+ -> separately authorized implementation + synthetic tests + review
+ -> separately authorized PUBLIC/SYNTHETIC SAFE probe
+ -> OWNER REVIEW: deployment/auth/drift mechanism, safe rate and C/T
+ -> freeze protected calibration rules; authorize offline preflight
+ -> verify exact subset/workload/coverage; authorize protected calibration
+ -> complete DEVELOPMENT at C + bounded deep-tail at T + paired-size diagnostic
+ -> offline DEVELOPMENT witness/adequacy analysis + review
+ -> if INSUFFICIENT CALIBRATION DEPTH or COVERAGE: STOP for redesigned calibration
+ -> otherwise OWNER FREEZE OF FINAL N and retrieval_policy_id
+ -> N == C: validate reuse gates
+    N != C: separately authorize complete direct-N DEVELOPMENT retrieval
+ -> complete artifact/projection validation + independent review
+ -> OWNER ACCEPTANCE; STOP before Stage 13
+~~~
 
-The full size=10 calibration is **one network workload**, possibly resumed in
-separate authorized jobs. If final N differs, **a second complete DEVELOPMENT
-network workload is required**, even when probes show prefix agreement. Never
-relabel a size=10 prefix as a size=3 execution. The paired-size probe adds
-explicitly budgeted small diagnostic calls; it is not a hidden replacement for
-the second full workload.
+No state transition is authorized merely by passing the previous one. An
+insufficient tail cannot be waived into N=T or N=C by cost/owner preference
+within this protocol; it needs a new reviewed bounded calibration design.
+Revised calibration may use existing immutable responses where bindings match,
+but cannot retroactively relabel the first audit as a successful saturation test.
 
-If final N=10, reuse requires exact input/policy/materialization/extraction/
-implementation/deployment/index bindings, complete valid responses, reviewed
-calibration and no drift/ambiguity. Preserve the original calibration artifact;
-the final registration references or verified-copies its complete immutable
-evidence and binds the owner freeze. No in-place mutation or recapture. If
-identity/executable/contract changed, automatic reuse is forbidden and a new
-reviewed campaign is required. Different deployment means recalibration, not
-only replaying the previously selected N without review.
+If N=C, qualifying complete calibration raw observations can become final
+retrieval evidence without another network workload. Bind owner N freeze, exact
+input/materialization/policy/deployment/index and capture provenance. Validate
+the final projection and preserve the original calibration publication.
+A revised extractor may replay those same raw observations under a new approved
+projection without a new call. This is different from relaxing executable
+matching for a running network campaign/checkpoint.
 
-## Synthetic and public probe
+If N!=C, a second **complete direct-size** DEVELOPMENT workload is required.
+Never relabel C-prefixes or tail-subset results as direct-N executions. A code
+refactor alone is not a new network identity; a new network campaign records its
+own exact executable. Changed result-affecting deployment/index invalidates
+automatic transfer of calibration conclusions and needs reviewed recalibration.
 
-Offline synthetic fixtures establish exact encoder/serializer vectors,
-Unicode/plus/LF/leading-zero round trips, null-vs-empty rules, unsupported
-structured country/region rejection, raw slices, duplicate features, all
-failure states, Retry-After bounds, secret canaries, pool limits, collision
-handling and local-loss/resume/fsync/publication races. A local mock server
-tests timeout, malformed JSON, TLS/DNS error classification and overload;
-do not intentionally overload live SAFE to test a breaker.
+## Public/synthetic deployment probe
 
-After separate authority, freeze **64 public/synthetic query cases**, 32 per
-mode, independently of DEVELOPMENT strings. Include Latin, non-Latin, mixed
-and combining-mark text; leading-zero postcode; percent/plus/ampersand/equals;
-known public ambiguous locations; sparse/no-result-intended inputs (not promised
-zero); supported boundary codes and both structured postal/locality forms.
-All case text is public or invented and provenance-reviewed before dispatch.
-Use only the approved SAFE origin. No third-party geocoder comparison.
+After implementation authorization, offline synthetic tests establish canonical
+IDs with code/extraction/operations/signature changes excluded where specified,
+exact Unicode/plus/LF/postcode serialization, raw decoded-payload hashing,
+storage recompression equality, offline re-extraction/version changes, malformed
+feature audit/no filtered rows, duplicate ranks, all errors, secrets, rate
+limits, multi-job crash recovery and publication faults. Use mock services for
+deliberate timeout/TLS/malformed/overload tests, not a live overload experiment.
 
-Run the 64 cases at four sizes twice: **512 ordinary requests maximum before
-bounded retries**. Freeze case order by ID, size order [1,3,5,10] in pass one
-and [10,5,3,1] in pass two to expose temporal effects. Reserve at most **16
-additional calls** for request-length/endpoint/authentication/identity
-compatibility, described exactly in the authorized workload; do not invent
-extra calls during the probe. Initial concurrency 2 and 1 request/second.
-Never print real keys during valid/missing-key tests. Use a synthetic invalid
-key only if the operator explicitly includes that negative test in the budget.
+Before live public calls, the operator supplies documented supported size bounds
+and a finite proposed ladder of **at most two deeper sizes above 10**. Exact
+numbers and per-size resource guards are approved in the public probe workload;
+they are not inferred from protected outcomes. If no documented safe candidate
+above 10 exists, probe readiness fails rather than silently omitting tail work.
 
-Establish signed manifest acquisition, index/content identity, serving lease/
-attestation, endpoint and country support, actual auth, exact decoded request
-values, JSON/field types, GET length limits and no-injection/no-secret logging.
-Operator configuration and controlled local capture establish limits that
-queries alone cannot prove. No numeric transport limit is fabricated here.
-Freeze the concrete limit before Phase C. Absence of evidence is a blocker.
+Freeze 64 public/invented cases (32 per mode), with public provenance, diverse
+scripts, boundary/postcode/escaping/ambiguity and empty-result-intended examples.
+No protected text. Main probe: 64 x {1,3,5,10} x two repetitions = 512 calls.
+Deep capability probe: 16 preselected cases (eight per mode, drawn from those
+64 by frozen ID order/coverage) x at most two operator-approved deeper sizes x
+two repetitions = at most 64 calls. Execute size ladder ascending; stop before
+the next depth on limit/latency/overload/schema failure. Reserve at most 16
+additional explicitly described authentication/GET-limit/identity checks.
+Total ordinary call ceiling **592**, and at most 2,960 attempts at five attempts
+each; circuit breakers and segment budgets normally stop earlier. Any probe
+increase above initial 1 request/second/two connections is a separately bounded,
+owner-authorized public subplan, not automatic tuning or protected load testing.
 
-Compare repeated **same-size** outputs separately from **cross-size** prefixes.
-Use ordered full feature structural equality: compare every key/value in each
-feature, retaining array order, string bytes and exact JSON numeric token
-spelling; ignore JSON object key order/whitespace only. Do not compare response
-timestamps or request echo size as candidate content. Do not ignore confidence,
-match_type, labels, coordinates or unknown feature fields to manufacture
-agreement. Raw bytes and raw hashes stay independently authoritative.
-A new unknown field has no extracted meaning but still participates in this
-conservative equivalence test.
+Verify endpoints, auth, exact serialization/schema/decoded payloads, safe size/
+byte limits, index/content acquisition and the feasible drift-observability mode.
+No Pelias-quality metric from public examples selects scientific N, C for
+scientific usefulness, or a tail sufficiency conclusion. Safe-size observations
+only bound choices at the pre-DEVELOPMENT owner gate.
 
-Record exact-length/count/order equality at k and within-size repeatability,
-plus component differences for diagnosis. Zero observed disagreement is
-**tested-case agreement**, not universal proof. Any same-size disagreement
-blocks protected execution until the serving determinism issue is resolved.
-Any cross-size disagreement disables treating offline prefixes as measurements
-of direct smaller policies, without invalidating size=10 observations.
-Exhaustive proof is not claimed from 64 public cases. Even proven prefix
-behavior would not merge different scientific execution identities.
+Compare repeated same-size ordered **full feature structural equality**, retaining
+every key/value, array order, exact strings and JSON numeric token spelling;
+ignore only object key order/whitespace. Exclude response-level timestamps and
+size echoes, not feature confidence/match/labels. Raw payload hashes remain
+separate provenance and need not equal when timestamps differ. A same-size
+feature disagreement blocks reproducibility approval pending investigation.
+Cross-size agreement is only tested-case agreement, never universal equivalence
+or permission to merge policy/execution IDs.
 
-## Bounded paired DEVELOPMENT diagnostic
+## Frozen deterministic protected subsets
 
-Public cases may miss workload-specific behavior. Preselect at most **400
-distinct semantic IDs**, without inspecting responses, before calibration:
+The deep-tail audit uses at most **2,000 distinct semantic requests**, an
+engineering cap below 2% of the full catalog; it is not a statistical power or
+recall guarantee. The paired-size diagnostic uses at most 400 of those requests.
+Both are selected **before any protected response** using accepted upstream
+metadata, not Pelias confidence, returned ranks or observed failures.
 
-1. For each semantic ID, derive its boundary country/mode and the **set** of
-   upstream occurrence tuples (script class, Stage 9 capability mask, source
-   completeness mask). Never choose one representative context as truth.
-2. Script class uses the already pinned Unicode 16 script resource on accepted
-   source representation line-body text: ignore Common/Inherited for the class;
-   no remaining script=COMMON_ONLY, one script=that script, otherwise MIXED.
-   Classification creates diagnostic labels only; no query modification.
-3. Capability mask is the exact enabled/full-vs-partial/positive/negative
-   authority vector for the accepted Stage 9 country/question/component
-   registry. Missing expected registry rows are integrity failures, not weak
-   capability. Retain per-reference masks; do not fabricate a scalar quality.
-4. Completeness is four booleans: nonempty accepted source representation
-   line body, source postcode, source locality, source region. Empty means
-   exact zero-length, no trimming or parser-derived fill. Accepted Stage 8
-   locators/Stage 10 context slots determine the fields.
-5. A request's stratum is (country, mode, sorted distinct occurrence tuple
-   set). Sort strata by H("SAFE:stage12-calibration-stratum:v1", framed tuple).
-   Inside each stratum sort requests by H("SAFE:stage12-calibration-sample:v1",
-   [protocol version, query_semantic_id]), full ID as final tie-break.
-6. Round-robin take one remaining request per ordered stratum until 400 or
-   catalog exhaustion. Freeze the ordered ID list, all stratum populations,
-   inclusion counts and workload digest before responses. If strata >400,
-   report unrepresented strata; do not claim complete paired coverage.
+Derive diagnostic labels through the exact Stage 11 -> Stage 10 context ->
+Stage 8 occurrence chain. Never choose one representative context for a shared
+request. Script classification uses the pinned Unicode 16 resource on accepted
+source representation line-body text: ignore Common/Inherited; no remaining
+script=COMMON_ONLY; one script=that script; otherwise MIXED. Completeness is
+four exact-nonempty booleans for source line body/postcode/locality/region.
+Capability signature is the accepted Stage 9 country/question/reference vector
+(enabled, granularity, positive/negative authority), including explicit
+unsupported states. Missing registry rows are integrity failure, not weak
+capability. Preserve representation and Stage 10 eligible family incidence,
+including Q4 evidence-driven and Q6 transliteration lineages.
 
-This is an engineering diagnostic, not a random accuracy sample. No sampling
-confidence interval or population prefix-equivalence claim. Full size=10
-calibration supplies every-country evidence curves. Stage 10 family lineage
-is preserved for incidence diagnostics, not a sampler that suppresses families.
+Freeze mandatory coverage cells comprising every nonempty:
+country x mode, script x mode, capability-signature x mode, completeness-mask x
+mode, representation x mode, and family x mode. Country x capability is also
+reported (where the registry makes it constant within country it adds no new
+quota). Each cell requires min(2, available distinct source rows) represented
+by selected requests. This provides explicit minimum coverage, not independent
+statistical evidence. All source links of a selected shared request count
+toward coverage; repeated queries from the same source cannot fill a second
+source slot.
 
-For these selected requests, retain the first size=10 calibration observation,
-then execute sizes 1/3/5 once and all four sizes once again under the same
-deployment: **at most 2,800 supplemental requests**, plus the 400 already in
-the complete run. Freeze round order as in the public probe. Thus each size
-has two observations; audit-only repeat observations use separate diagnostic
-campaigns, never two selected successes in one final relation.
+Selection algorithm:
+1. Enumerate cell populations and per-request memberships with exact source-row
+   links in controlled external joins.
+2. Start empty. At each step choose the request that covers the largest number
+   of still-missing cell/source quota units, counting at most one unit per
+   cell for that choice. Break ties by full H("SAFE:stage12-tail-sample:v1",
+   [protocol version, query_semantic_id]); then full semantic ID. Update covered
+   source sets for all its actual members.
+3. Stop quota selection when all cells pass, no gain is possible, or 2,000
+   requests are selected. Any unsatisfied quota means
+   INSUFFICIENT_CALIBRATION_COVERAGE: STOP; no automatic cap increase or
+   omission of rare/weak-reference cells.
+4. If quota coverage passes before 2,000, fill deterministically up to 2,000
+   (or catalog exhaustion) round-robin over sorted complete request strata:
+   (country, mode, sorted set of occurrence script/capability/completeness/
+   representation/family tuples). Order strata and remaining requests by the
+   same domain-separated framed hash with full-byte tie-break.
+5. Select the paired-size subset as the first min(400, tail count) under the
+   separate H("SAFE:stage12-paired-sample:v1", [protocol version, semantic ID]).
+   Report its coverage; unlike the tail audit it does not claim every cell.
+6. Seal exact IDs, populations/coverage, input/selection hashes and request
+   budgets at the preflight gate before dispatch. No replacement of failed or
+   inconvenient cases, no post-outcome expansion of this audit.
 
-The calibration workload ceiling is 108,605 ordinary calls (105,805 complete
-size=10 plus 2,800 supplemental), at most 543,025 dispatched attempts under
-five-attempt bounds, with circuit breakers able to stop much earlier. The public
-probe ceiling is 528 ordinary calls / 2,640 attempts. A separately authorized
-complete final run adds at most 105,805 ordinary calls / 529,025 attempts.
-Identity/control checks have a separate explicitly bounded lease-duration
-budget in workload approval and consume the same rate/concurrency pool; expiry
-stops the campaign. These are ceilings, not instructions to consume retries.
+All 105,805 requests run at C. Tail subset runs at T **twice**, in separate
+diagnostic observation campaigns, to check repeat stability. Paired subset runs
+each g in G except C once, then every g in G once again (C's first observation
+already exists in the full run). Intentional repeats are separately authorized
+observations/artifacts, not duplicate terminal rows in one artifact.
 
-Compare direct size policies and offline prefixes by the same strict rule.
-Report policy-dependent candidate additions **and losses**; non-nested outputs
-need not give monotone curves. If repeats at the same size disagree, block
-final policy freeze pending investigation. If cross-size differs, direct paired
-results remain separate evidence; full prefixes are explicitly labeled
-size=10-retention diagnostics. V1 then permits selecting the empirically
-observed global maximum 10 if defensible, or stopping for a separately reviewed
-expanded direct-policy calibration. It does **not** select a smaller policy
-from invalid prefix equivalence. No automatic four-full-workload expansion.
+With m<=2,000 tail requests, p<=400 paired requests and g=|G|<=4, ordinary
+protected calibration calls are exactly
+105,805 + 2*m + (2*g-1)*p, at most **112,605**; maximum attempts **563,025** at
+the proposed ceiling five. The result-position/storage ceiling is
+105,805*C + 2*m*T + p*(2*sum(G)-C), with actual decoded byte caps and retained
+audit/projection copies budgeted separately. T is bounded by the frozen public
+capability/owner decision, not silently increased. Control calls have an exact
+approved segment/time budget and share the rate pool. Final direct-N, if needed,
+adds 105,805 calls, at most 529,025 attempts. Multi-job scheduling is expected.
+
+## Prefix behavior and deep-tail adequacy
+
+Each size retains distinct retrieval_policy_id and request_execution_id even
+with perfect prefix agreement. Evaluate full-population C-prefixes as retention
+diagnostics, and actual direct-size sets separately. Record additions, losses,
+reordering and same-size instability; no monotonicity assumption across sizes.
+
+For the tail audit, compare both (a) ranks C+1..T within each T response and
+(b) the entire T response against that request's actual C response, using the
+witness sets defined below. This catches deeper-size changes in the first C
+positions as well as additional ranks. Test equality of T's first C full
+features against direct C as a separate prefix diagnostic. A new potentially
+useful candidate anywhere in T that C did not preserve means C was not
+established adequate, even if it appeared at T rank 1.
+
+Tail adequacy passes only when:
+- every mandatory audit cell is covered, all scheduled responses are valid,
+  both T observations repeat stably and all identity/integrity gates pass;
+- for every audited request and **every linked source context**, no potential
+  witness token is new beyond C within T, and V(u,q,T) is a subset of
+  V(u,q,C-direct);
+- no potentially useful novelty persists to the deepest audited rank T.
+
+Any observed useful/unknown tail novelty, including at the deepest rank, yields
+**INSUFFICIENT CALIBRATION DEPTH**. Stop before final N selection and redesign
+the bounded calibration with owner review. No choosing the maximum tested
+rank, trading loss for storage, or adaptive extra call to explain away a case.
+Technical uncertainty/coverage failure cannot be called saturation.
+
+A passing bounded audit supports adequacy only for the declared design and
+sampled strata. It is not proof that all 105,805 queries, unobserved ranks >T
+or the world have no useful tail. Publish coverage and that limitation. The
+owner can reject adequacy and commission a new predeclared audit; cannot claim
+global recall from zero observed loss. Tail failure rules cannot be relaxed
+after observing protected responses.
 
 ## Evidence questions without Stage 13 scoring
 
@@ -200,86 +256,120 @@ STANDARD/NATIVE and multiple families share Orbis origin. Report channels
 separately; no summed evidence count, numeric candidate score, hard gate,
 winner, or confidence-weighted utility.
 
-## Marginal metrics and strata
+## Bounded calibration-only witness model
 
-For each channel c and source context u, let A_c(u,k) mean at least one of the
-first k size=10 features is compatible with that channel's evaluable evidence.
-Let E_c(u) mark evaluability from the frozen source/reference prerequisites.
-Count A over E, and count NOT_EVALUABLE separately. At each adjacent rank and
-primary grid transition k->l report:
+Freeze stage12_calibration_witness_v1 with the approved response projection
+before outcomes. It is a deterministic information-retention screen, not
+Stage 13 scoring or candidate rejection.
 
-- newly covered contexts where E is true, A(u,k)=false and A(u,l)=true;
-- newly observed distinct compatible candidates, even where A was already true;
-- contexts whose only observed compatible features are below k;
-- novel candidates with missing/unevaluable evidence, not coded incompatible;
-- new layer/source/feature/GID diversity, repeated positions and coarse-layer
-  incidence, raw bytes and incremental retained candidate rows;
-- candidate-set additions/losses for actual direct-policy comparisons,
-  separately from nested prefix gains.
+For context u, semantic request q and feature f:
+1. Form evidence key K(f) from the exact extracted feature ID/GID/source/source_id/
+   layer, geometry type/longitude/latitude, accuracy string and all label/name/
+   address/admin component fields in DC schema order. Exclude rank, request/
+   response hashes, byte locators, confidence and match_type. No string cleanup
+   or GID/coordinate-only collapse. Distinct K means potentially different
+   evidence; identical K only supports diagnostic set membership, never removal
+   of a returned row. Confidence/match_type-only changes are descriptive and
+   cannot create scientific value or independent confirmation.
+2. Produce a finite channel-state vector using the comparison rules above.
+   Country/source full postcode/locality/admin comparisons are
+   SOURCE_COMPATIBLE, SOURCE_DISAGREEMENT or UNEVALUABLE. Existing accepted
+   reference support is REFERENCE_COMPATIBLE only when a scoped positive
+   witness, exact permitted comparison key and matching granularity connect
+   the returned component to the already accepted source claim.
+3. For each compatible channel create one token
+   (K, claim kind, accepted origin claim key, ancestry group, dependence class).
+   All source/query/parser/Pelias restatements of the same source-field claim
+   share one origin key, regardless of how many families or hypotheses echo
+   it. Reference aliases/mirrors/components sharing an ancestor/claim are one
+   group with preserved member pointers, not multiple votes. PROVEN_DISJOINT
+   requires positive importer lineage evidence; POSSIBLE_SHARED/UNKNOWN remain
+   correlated/unknown, never independent by default.
+4. Add a conservative potential-information token (K, POTENTIAL_UNRESOLVED)
+   whenever no compatible channel exists, any relevant channel is unevaluable,
+   ancestry independence is unknown, or unmodeled feature content might carry
+   later evidence. Even a candidate with source disagreement remains available
+   as unresolved potential; Stage 12 applies no hard contradiction/granularity
+   gate. Existing NOT_FOUND/NOT_EVALUABLE cannot remove that token.
+5. If unknown feature properties differ, conservatively add an OPAQUE_EXTENSION
+   token identified by their exact structural content (sorted object keys,
+   exact strings/numeric tokens, array order). This avoids claiming losslessness
+   from the small extracted schema. Raw provenance remains available. Unknown
+   metadata cannot be declared useless after observing its tail distribution.
 
-Count once per context/channel (and once per source row in a separately
-deduplicated source-grain view), never once per parser component or family
-label. Request-grain workload metrics use unique semantic IDs. Use full join
-keys including hypothesis/context for Stage 10 family membership; families
-are overlapping incidence categories whose sums need not equal population.
-No denominators mixed across those grains.
+The opaque subtree is all non-extracted feature-level members plus all
+non-extracted properties, excluding only feature.type, geometry.type and
+geometry.coordinates (fully validated by DC), feature.id and the explicit
+properties consumed by the DC schema.
+Confidence/match_type are known consumed properties, so they cannot re-enter
+utility through this subtree. Other additional geometry/feature members remain
+opaque evidence. Null/absent and exact number token distinctions are retained.
+Token fields follow E framing in declared order; K uses schema field order and
+binary64 bits from DC, and full-byte comparisons guard hash collisions. For
+stratum fill order the domain is SAFE:stage12-tail-stratum:v1 with ordered
+fields protocol_version and full stratum tuple; request ties use the separate
+tail-sample domain above.
 
-Stratify country, script, FULL_TEXT/STRUCTURED, exact reference capability and
-source completeness, plus STANDARD/NATIVE and family incidence when informative.
-Primary mode-request totals are disjoint. Context/family/script incidence for
-shared requests is explicitly overlapping; never assign arbitrary representative
-labels. Provide predeclared one-dimensional strata and country x mode and
-country x capability tables; keep full joint diagnostics controlled.
-Absent references produce unknown tail value, not apparently worse candidates.
-Present numerators/denominators and capability coverage next to every curve.
+A feature is **POTENTIALLY_USEFUL_WITNESSED** if it has a new compatible token;
+**POTENTIALLY_USEFUL_UNRESOLVED** if it adds a potential/opaque token; otherwise
+it is **REDUNDANT_FOR_THIS_CALIBRATION_SCREEN**. Those are calibration-only
+observations, never address truth labels. Pure duplication of a claim across
+parsers/families/queries adds no token. Novel candidate K can add an alternative
+without becoming an independent confirmation. Source agreement is explicitly
+correlated with the query; only PROVEN_DISJOINT reference tokens may be reported
+as independently sourced support, and no vote/score is calculated.
 
-Pelias confidence/match_type distributions and confidence by rank are
-**descriptive only**; no selection rule depends on them. Retrieval success rate
-and zero-result rate are not geocoding accuracy or recall.
+V(u,q,k) is the **set union** of these tokens at ranks <=k within the named
+response observation. Useful marginal gain k->l exists iff
+V(u,q,l) minus V(u,q,k) is nonempty. Report compatible and unresolved gains
+separately, with dependence class; do not sum evidence-family counts as strength.
+Each query/context comparison is bounded by depth, fixed component channels
+and fields in its byte-capped payload. Reference witness alias sets are joined
+externally to existing accepted objects, collapsed by claim/ancestry; never
+truncated to a convenient top-k or copied into a growing Python collection.
 
-## Explicit final N owner-review criterion
+## Metrics and exact final N freeze rule
 
-No percentage tolerance is invented. Propose a conservative **zero observed
-evidence-loss screen** on the full size=10 calibration:
+Report adjacent ranks and G transitions for each context and request, then
+aggregate: new compatible/unknown tokens, new alternative K, first compatible
+occurrence, only-low-rank evidence, unresolved/opaque tails, duplicate positions,
+coarse/source/layer diversity, direct-policy additions/losses and actual bytes/
+latency/storage. Report source-row summaries separately; do not multiply
+denominators by parser components, hypothesis edges or overlapping families.
+Country/script/mode/capability/completeness/representation/family strata retain
+their explicit populations. Full cross-tabs remain controlled.
 
-1. Complete scientific/technical validity, deterministic same-size probes,
-   deployment stability and all strata/denominators must pass first.
-2. A smaller grid N is eligible only with zero tested prefix disagreements
-   and zero marginal loss relative to Nmax in **every** evaluable evidence
-   channel/stratum, including additional compatible alternatives, not just
-   existence of one candidate.
-3. No novel unassessed tail feature may be dismissed because reference coverage
-   is weak. For this screen an unassessed feature is any feature with a missing
-   diagnostic channel, and its full structural novelty is retained as potential
-   information. Unknown tail contribution prevents certifying a smaller N.
-4. Among eligible depths, propose the smallest, with measured row/body/storage/
-   latency cost and Stage 13 evidence sufficiency explicitly reviewed. Tested
-   prefix agreement is still not proof of all direct size responses; choosing
-   smaller N requires the final complete direct-size run and a reported
-   comparison against calibration before owner acceptance.
-5. If no smaller depth qualifies, propose **10 as the maximum actually
-   evaluated**, only if the owner accepts the observed marginal curve and
-   finite-depth limitation in every material country/script/capability stratum.
-   Never label an unsaturated tail saturated. If rank 10 still contributes
-   unresolved value the owner cannot accept, STOP for a revised finite
-   calibration design, possibly a larger Nmax; no automatic extension.
+Apply these deterministic gates, in order:
+1. Integrity/totality and reproducibility pass; no unresolved technical/contract/
+   deployment failure. Tail coverage and adequacy pass under the rules above.
+2. For each n in G, n<C is provisionally eligible only if **for every** full
+   calibration request q and linked context u,
+   V(u,q,n-prefix-of-C) = V(u,q,C). This includes alternate candidates,
+   unknown/weak-reference and opaque tokens, not just one compatible hit.
+   All paired direct n observations must also preserve V(u,q,C) and show no
+   strict prefix disagreement. C is eligible only after step 1; it is not
+   an automatic fallback for an inadequate ceiling.
+3. Propose the smallest eligible n. If no shallower n proves preservation,
+   retain C only when its independent deeper-tail audit passed. Cost can
+   distinguish eligible lossless choices or motivate a new design; it cannot
+   override demonstrated or unresolved value loss.
+4. Owner freezes concrete final N/policy with all input/projection/probe/tail/
+   witness hashes, coverage limits and rationale. **N remains UNSELECTED until
+   this happens.** If useful evidence persists at T, the sole current result
+   is INSUFFICIENT CALIBRATION DEPTH, not N=T.
+5. If N!=C, execute a separately authorized complete direct-N run, then require
+   V(u,q,C) subset V(u,q,N-direct) for every request/context before acceptance.
+   Any loss rejects that final candidate and returns to owner-reviewed
+   DEVELOPMENT calibration; no automatic size increase or rank repair.
+   If N=C, validate reuse of exact raw observations and current approved
+   projection, with no required second complete network workload.
 
-This selects a retrieval budget, not accuracy or global recall. The zero-loss
-screen is intentionally conservative in the absence of independent truth and
-an approved loss tolerance. The full DEVELOPMENT prefix census has no sampling
-uncertainty for that observed list, but does not establish generalization,
-unobserved deeper candidates or smaller-size population equivalence.
-No ad hoc threshold relaxation after seeing inconvenient strata. An alternative
-bounded stratified N or tolerance requires a new owner-reviewed protocol,
-deterministic pre-HOLDOUT policy and identity; it is not enabled by v1.
-
-The signed owner freeze record binds exact input/deployment/calibration/
-protocol hashes, primary/adjacent curves, probe disagreement and coverage,
-selected concrete N/policy ID, cost evidence, remaining uncertainty and explicit
-accept/reject rationale. **Final N remains UNSELECTED in this design.**
-If final smaller-size behavior reveals unexpected losses, preserve that
-candidate, reject acceptance and return to DEVELOPMENT policy review; no
-silent switch to 10, reranking or publication under the old policy.
+No empirical percentage loss tolerance, final score, winner, usability gate,
+or confidence threshold is introduced. No ability to prove independent support
+does not imply no utility: unknown-reference strata retain potential tokens
+and can force deeper retention or an insufficient-depth stop. A different
+witness model, per-stratum depth or relaxed tolerance requires a new reviewed
+pre-outcome calibration protocol; no HOLDOUT tuning.
 
 ## Sanitized reporting and disclosure
 
@@ -288,7 +378,7 @@ sections: input/planned/attempted/completed/unprocessed requests; both success
 states; attempts/retries/final failures by closed HTTP/error category; count and
 rank histograms; layer/source and descriptive confidence/match_type bins;
 country/mode and capability/script/completeness diagnostics; convergence;
-marginal curves; selected N rationale; deployment stability; bytes/compression/
+marginal/witness curves at C and T; stratum audit coverage and adequacy status; selected N rationale; deployment stability; bytes/compression/
 storage; latency/throughput; checkpoint adoption and integrity/publication checks.
 Confidence bins: null, [0,.25), [.25,.5), [.5,.75), [.75,1], with explicit
 descriptive labels. Latency reports aggregate percentiles, no request traces.
@@ -301,7 +391,7 @@ histograms and strata with at least **20 distinct source rows**. Suppress cells
 with 1..19 contributing rows and use complementary suppression/removal of
 derived totals to prevent reconstruction; do not replace suppressed cells by
 zero. This is a proposed conservative disclosure parameter, **not** a scientific
-gain threshold. Freeze the exact table release plan before Phase D. Suppress
+gain threshold. Freeze the exact table release plan at the pre-DEVELOPMENT owner gate. Suppress
 unsafe cross-tabs entirely if independent tables permit differencing; approved
 controlled owner review retains them so small-country concerns still govern N.
 No free-form response-derived dimension labels or arbitrary error text.

@@ -29,7 +29,7 @@ Their [remediation](stages/STAGE10_REVIEW_REMEDIATION.md),
 evidence remain preserved. Historical F01's exception remains unresolved.
 Stage 11 [owner acceptance](stages/STAGE11_OWNER_ACCEPTANCE.md), 2026-10-08,
 freezes job 1788751 after independent review 1790315: 124 checks PASS, zero defects.
-Stage 12 has a design-only proposal ready for owner review; Stages 13–14 remain
+Stage 12 has owner review incorporated and is ready for owner freeze; Stages 13–14 remain
 unstarted proposals. Production Stages 0–1 are accepted for the
 1,411-file population; production Stage 2 onward has not started.
 
@@ -72,7 +72,7 @@ scientific bytes.
 ```
 
 Stages 8–11 are accepted and frozen; Stage 12 is design-only, ready for owner
-review; Stages 13–14 remain proposed.
+freeze; Stages 13–14 remain proposed.
 Each stage requires its own approved design,
 authorized execution, DEVELOPMENT evidence, independent review and owner
 acceptance, then stops. The [current geocoding gate](#current-safe-pelias-boundary)
@@ -364,13 +364,14 @@ frozen; Stage 12 is a design-only proposal, and Stages 13–14 are unstarted.
 - **Primary tool:** self-hosted SAFE Pelias, with total normal concurrency 2–4.
 - **Acceptance:** Exact workload identity, privacy/authentication, bounded
   retries, complete results/errors, and no implicit match acceptance.
-- **Design:** [Complete contract and owner-review package](stages/STAGE12_PELIAS_TOPN_RETRIEVAL.md),
-  D091. Four relations; exact execution/deployment/index identity; complete raw
-  responses and ordered ranks; DEVELOPMENT calibration at bounded maximum 10,
-  final N unselected. A smaller final size requires another complete retrieval.
-- **Status:** **DESIGN READY FOR OWNER REVIEW — NOT APPROVED, NOT IMPLEMENTED,
-  NOT EXECUTED**. The Stage 19/size policy gate still requires explicit owner
-  reconciliation before any public probe or protected retrieval.
+- **Design:** [Owner-revised contract package](stages/STAGE12_PELIAS_TOPN_RETRIEVAL.md),
+  D092. Four relations, scientific network IDs separate from executable and
+  offline response projection; full calibration C plus predeclared deep-tail
+  subset T>C and T>10. Exact protected C/T await the public-capability owner
+  gate; final operational N remains UNSELECTED. N!=C requires complete direct-N
+  retrieval. Useful evidence beyond C forces insufficient-depth review.
+- **Status:** **OWNER REVIEW INCORPORATED — READY FOR OWNER FREEZE; NOT FROZEN,
+  NOT IMPLEMENTED, NOT EXECUTED**. Separate phase/workload authority is required.
 
 ### Stage 13 — Result evidence scoring and cross-query convergence
 
@@ -560,11 +561,22 @@ explicit review.
 
 ## Current SAFE Pelias boundary
 
-No geocoding is authorized by the proposed renumbering. Under the current
-repository rule, geocoding begins only after Stage 19 acceptance and a separate
-exact-workload authorization. The compact architecture does not waive that
-rule; it must be explicitly reconciled before proposed Stage 12 can run. Normal
-concurrency remains 2–4 requests across the complete process. The proposed top-N policy also requires reconciliation with the current
-`size=1` preference. Results must be evaluated using independent
-agreement, layer, match type, accuracy, and contradictions; confidence and
-rank alone are insufficient.
+Owner-directed D092 resolves the old Stage 19 reference as **stale architecture
+numbering**, not a typo or genuine later-stage dependency. Legacy Stage 19
+performed query deduplication/final QA; accepted Stage 11 now supplies semantic
+identity/map-back QA and Stage 12 owns executable/deployment/workload QA.
+Historical records remain intact.
+
+The active gate is accepted Stages 0–11, owner-frozen Stage 12 design, validated
+implementation and separate phase-specific exact-workload authorization.
+The public/synthetic probe needs explicit authority; protected calibration
+additionally needs the post-probe owner deployment/auth/operations/C/T freeze,
+offline preflight and exact workload approval. No Stage 13 dependency or
+implementation is introduced. This correction grants no current execution.
+
+The old size=1 preference cannot choose N or override accepted request modes.
+Stage 12 freezes explicit result limits by approved policy; final N is selected
+only from DEVELOPMENT evidence after a passing deeper-tail audit. Initial
+service policy is two connections and one request/second; increases require
+public/synthetic evidence and owner approval. Rank, confidence, match_type and
+point geometry do not establish correctness or rooftop precision.

@@ -2,11 +2,13 @@
 
 ## Status, scope and authority
 
-**DESIGN READY FOR OWNER REVIEW — NOT APPROVED, NOT IMPLEMENTED, NOT EXECUTED.**
-This is the owner-requested 2026-10-08 design/contract/freeze-only session.
-The design branch freezes a reviewable proposal, not an accepted scientific
-stage or permission to run. No acceptance tag or main merge is requested here.
-Stage 0–11 scientific files, artifacts and history remain unchanged.
+**OWNER REVIEW INCORPORATED — READY FOR OWNER FREEZE; NOT FROZEN,
+NOT IMPLEMENTED, NOT EXECUTED.** The owner approved the architecture in
+principle and directed the 24 revisions recorded in the review ledger.
+Previous design SHA: **54d52e01ed906c41b48c5dac945a76abd9f66846**.
+This revision updates documentation on the same branch only; no acceptance
+tag, freeze or main merge is performed. Stages 0–11 science/history remain
+unchanged. Future empirical parameters have exact gates, not assumed values.
 
 Stage 12 deterministically materializes accepted semantic requests, retrieves
 ordered candidate evidence from one verified self-hosted SAFE deployment, and
@@ -22,25 +24,47 @@ The five normative documents are:
 4. [DEVELOPMENT calibration and future phase plan](STAGE12_DEVELOPMENT_CALIBRATION.md).
 5. [Bounded critical review and owner decisions](STAGE12_DESIGN_REVIEW.md).
 
-The current [Stage 19 gate](../PIPELINE.md#current-safe-pelias-boundary),
-[D017/D032](../DECISIONS.md) and AGENTS.md still control execution. **Before even
-a public Pelias probe**, the owner must explicitly reconcile that gate with the
-compact Stage 12 placement and the existing size=1 preference, and authorize an
-exact workload. Proposed reconciliation: accepted Stages 0–11 plus approved
-Stage 12 compatibility/privacy/workload gates replace the legacy pre-geocoding
-placement for Stage 12 retrieval only; top-N evidence collection does not
-authorize Stage 13/14 or production. This proposal makes no such policy change
-now. Ordinary implementation approval would authorize synthetic/offline work
-only. Each later network phase requires separately stated authority.
+## Stage 19 and size-policy reconciliation
+
+Repository history establishes **stale architecture numbering, not a typo and
+not a genuine later-stage dependency**. Commit
+bd8108c0b959c59ad02d2a3e82fb4c24418405af (2026-08-27) retained the Stage 19
+geocoding gate in AGENTS.md. Commit
+7a99c047b22a35a7144032eb8bad6b2eac067497 (2026-09-01), D032, introduced the compact
+8–14 architecture and explicitly labeled old Stage 19 “Query deduplication and
+final QA” as legacy/unstarted, temporarily retaining the gate pending deliberate
+reconciliation. D017 already identified size=1 as a historical preference
+prospectively superseded by top-N retention. Accepted Stage 11 now provides
+semantic deduplication/QA/map-back; Stage 12 adds executable request, deployment,
+privacy and exact-workload QA. Stage 13 remains downstream of retrieval.
+
+Under the owner's explicit direction to correct stale references, active
+AGENTS.md, pipeline/execution/privacy/workflow and overview guidance now replace
+the obsolete Stage 19 prerequisite with **accepted Stages 0–11, owner-frozen
+Stage 12 design, validated implementation, phase-specific preflight and separate
+exact-workload authorization**. Public probing requires its own authority;
+protected calibration additionally requires the post-probe owner C/T and
+deployment/operations freeze and exact preflight workload approval. Final
+retrieval follows the calibration/N state machine. There is no Stage 13 or
+fictional future Stage 19 dependency before Stage 12.
+
+The size=1 preference does not choose N or override accepted FULL_TEXT requests.
+V1 uses exact Stage 11 modes; explicit depths come from approved Stage 12
+policies. These prospective governance corrections implement the owner's
+review direction, **authorize no call now**, and do not edit historical frozen
+Stage 0–11 records or rewrite D017/D032. D092 records the reconciliation.
+Ordinary implementation authorization remains offline/synthetic-only.
 
 ## Baseline precheck and limits
 
-The design session ran git fetch --all --prune --tags before editing. Local
+The original design session ran git fetch --all --prune --tags before editing. Local
 main, origin/main and HEAD were equal, the working tree was clean, and no
 Stage 12 source, test, client, launcher or machine-readable asset existed.
 The design branch was created directly from the accepted main below. Full
 ancestry checks passed for design, implementation, reporting and independent
-review commits. Annotated tag objects and peeled commits are distinguished.
+review commits. This revision fetched again and verified a clean design branch
+at the previous design SHA, origin equality and unchanged accepted main/tag.
+Annotated tag objects and peeled commits are distinguished.
 
 | Binding | Accepted value |
 |---|---|
@@ -80,8 +104,9 @@ Use the complete accepted Stage 11 catalog, including all **81,773 FULL_TEXT**
 and **24,032 STRUCTURED** requests. All 105,805 are country-bound. Stage 10's
 operating budget remains **UNSELECTED**. No family pruning, new semantic
 deduplication, source deduplication or representative-hypothesis selection.
-Calibration also covers all accepted requests at its maximum depth; only the
-separate, deterministic paired-size diagnostic uses a bounded subset.
+Full calibration covers all accepted requests at owner-frozen C. A separate
+deterministic bounded subset runs at T>max(C,10), plus paired-size diagnostics;
+none substitutes for complete final retrieval.
 
 Upstream contract/profile/schema hashes and the transitive Stage 10 input
 binding are inherited exactly from the accepted Stage 11 manifest. Recompute
@@ -118,7 +143,10 @@ canonical byte vectors after design approval.
 | stage12_retrieval_policy_v1 | Result limit and retention semantics; separately versioned policy object |
 | stage12_pelias_deployment_manifest_v1 | Deployment/index/default behavior schema and operator evidence |
 | stage12_request_materialization_v1 | Exact Stage 11-to-HTTP mapping and serialization |
-| stage12_response_extraction_v1 | Strict response validation, extraction and raw-byte provenance |
+| stage12_response_validation_v1 | Whole-response validity, including malformed-feature failure; separate from network identity |
+| stage12_response_extraction_v1 | Offline deterministic candidate projection and raw-payload provenance |
+| stage12_response_projection_v1 | Dataset-level raw-input/validation/extraction/schema binding; no additional relation |
+| stage12_campaign_provenance_v1 | Exact executable/runtime/operations and append-only authorized segment/attempt evidence |
 | stage12_execution_identity_v1 | Named typed framing and identity domains |
 | stage12_transport_operations_v1 | Attempts, timeouts, rate control and circuit breaker |
 | stage12_attempt_receipt_v1 | Audit receipt schema within request_attempt, not another relation |
@@ -157,9 +185,11 @@ An accepted complete final candidate requires:
   execution; **technical final failures = 0**, contract failures = 0, identity
   failures = 0, missing or duplicate executions = 0;
 - complete response/raw-object/candidate reconciliation, all rank/count
-  invariants, selected successful attempt provenance, collision checks, and
+  invariants, original HTTP capture and approved validation/replay provenance,
+  collision checks, and
   exact upstream map-back;
-- stable deployment attestation throughout every adopted attempt; no drift,
+- verified deployment continuity under the approved observability mode for all
+  adopted attempts/segments; no drift,
   unverified interval, secret leakage, unresolved integrity or I/O ambiguity;
 - accepted calibration evidence and an explicit owner decision freezing final
   N before the final candidate is registered and before any HOLDOUT use.
@@ -181,7 +211,7 @@ reservations and uncertain writes remain preserved.
 Registration uses record_version stage12_publication_record_v1, the exact
 namespace above, stage12_input_binding_sha256, publication_key, manifest and
 inventory hashes, executable SHA/runtime inventory, contract/profile/schema/
-extraction/operations hashes, retrieval_policy_id, deployment fingerprint,
+validation/extraction/projection/operations hashes, retrieval_policy_id, deployment fingerprint,
 index_data_identity, full logical result/candidate digests and summary hash.
 It also binds the calibration selection/freeze record and adopted checkpoint
 inventory. No Stage 10/11 registration key is reused under a new stage number.
@@ -193,14 +223,21 @@ and bindings. The bindings object has these exact required fields:
 ~~~
 stage12_input_binding_sha256, manifest_sha256, inventory_sha256,
 executable_sha, runtime_inventory_sha256, contract_sha256, profile_sha256,
-schema_sha256, extraction_sha256, operations_sha256, retrieval_policy_id,
+schema_sha256, validation_sha256, extraction_sha256, response_projection_id,
+campaign_manifest_sha256, projection_provenance_sha256, operations_sha256, retrieval_policy_id,
 pelias_deployment_fingerprint, index_data_identity, effective_behavior_id,
 scientific_result_sha256, candidate_relation_sha256, summary_sha256,
 calibration_protocol_sha256, workload_sha256, adopted_checkpoint_inventory_sha256,
 owner_freeze_sha256
 ~~~
 
-All are full SHA-256 hex except executable_sha (full Git commit hash).
+All are full SHA-256 hex except executable_sha (full Git commit hash of the
+publishing/validation executable). campaign_manifest_sha256 binds the original
+network executable, runtime, operations and authorized job chain even for an
+offline re-extraction publication. projection_provenance_sha256 binds extractor
+SHA/runtime, parent dataset and replay authorization/evidence. A new projection
+uses a new immutable publication key/registration without changing request IDs,
+original raw bytes or prior accepted artifacts.
 owner_freeze_sha256 is explicitly null for calibration evidence and mandatory
 for a final candidate. workload_sha256 binds exact input scope and policy;
 the complete catalog and paired subset cannot share it. An empty adoption
@@ -243,8 +280,11 @@ collection or population-sized Python set. Keep transient database/spill and
 bounded decoding on private compute-local storage, durable responses/checkpoints
 on controlled PanFS. Never assume local scratch survives job end.
 
-At Nmax=10, DEVELOPMENT has at most 1,058,050 candidate rows per complete
-policy. Plan durable capacity from measured response bytes, compression,
+At the proposed C=10, a complete policy has at most 1,058,050 candidate
+rows. The separate audit cap is 2,000 requests at owner-frozen T, with the
+full call/result-position formulas in the calibration protocol. C and T are
+not claimed safe or adequate now. At 1 request/second a full policy already
+needs about 29.4 hours before overhead; multiple authorized jobs are expected. Plan durable capacity from measured response bytes, compression,
 candidate Parquet, receipts, checkpoint copies, final copies and retained
 failures, including filesystem allocation and headroom; compression is not a
 guaranteed bound. Production requests are unknown until its own Stage 11.
@@ -256,7 +296,8 @@ contract for byte bounds and packing; no new production access is authorized.
 ## Stage 13 handoff and stop
 
 Hand off the committed four relations, exact raw responses and locators,
-schema/extraction contracts, input/deployment/index/policy/freeze bindings,
+validation/extraction contracts and response_projection_id,
+input/deployment/index/policy/freeze bindings,
 attempt provenance, summary, validation and full-reopen evidence. Stage 13 can
 recover all original feature properties and upstream context/evidence lineage.
 It must not mistake calibration compatibility diagnostics for candidate scores.
@@ -268,5 +309,5 @@ evidence. Cross-query convergence is dependent evidence, not independent votes.
 Layer/contradiction/granularity gates, evidence weights, final ranking and
 selection remain Stage 13 or the later explicitly approved granularity stage.
 
-**NEXT: OWNER REVIEW OF STAGE 12 DESIGN.** No implementation, SLURM, probe,
+**NEXT: OWNER FREEZE OF STAGE 12 DESIGN.** No implementation, SLURM, probe,
 protected read, HOLDOUT, production, Pelias call or Stage 13 work follows.

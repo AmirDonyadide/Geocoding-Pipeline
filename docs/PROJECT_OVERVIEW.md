@@ -104,7 +104,8 @@ The [owner accepts and freezes Stage 11](stages/STAGE11_OWNER_ACCEPTANCE.md)
 on 2026-10-08 after independent job 1790315 passed all 124 checks with zero
 candidate defects. Stage 12 now has a
 [design-only proposal](stages/STAGE12_PELIAS_TOPN_RETRIEVAL.md) ready for owner
-review; no implementation, protected read or service call has occurred.
+freeze after owner review; no implementation, protected read or service call
+has occurred.
 The [Stage 10 acceptance](../reports/development/stage10.md) preserves the exact
 candidate, final independent rereview and UNSELECTED operating budget.
 Production Stages 0–1 are accepted. The [progress index](DEVELOPMENT_PROGRESS.md)
@@ -131,7 +132,10 @@ thresholds remain undecided. Normal concurrency is constrained to 2–4 requests
 across the complete process; this is a project policy, not an implemented
 limiter or verified service quota.
 
-The current Stage 19 acceptance and exact-workload authorization gate remains
-controlling. The proposed Stage 12 retrieval placement and top-N policy require
-explicit reconciliation with that gate and the current `size=1` preference
-before execution. Credentials will remain runtime-only and must never be logged.
+Owner-directed D092 reconciles the stale legacy Stage 19 query-deduplication/QA
+gate with accepted Stage 11 and Stage 12 execution QA. It is not a downstream
+dependency. Pelias requires owner-frozen Stage 12, validated implementation,
+separate public-probe authority and pre-DEVELOPMENT owner freeze of exact
+deployment/operations/calibration/tail policies and workloads. Final N remains
+UNSELECTED; size=1 is not a selection rule. No execution is authorized now.
+Credentials remain runtime-only and must never be logged.
