@@ -2382,3 +2382,46 @@ that predicate/proof and dependent bounds; the other reviewed decisions stand.
   by accepted records and not accessed; production/Pelias untouched; no SLURM.
   Stage 12 NOT STARTED. Final owner freeze/merge and any subsequent implementation
   authorization are separate actions. **NEXT: OWNER FREEZE/MERGE OF STAGE 11 DESIGN.**
+
+
+### D088 — Owner authorizes frozen Stage 11 implementation and one DEVELOPMENT candidate
+
+- **Authority, 2026-10-03/04:** Implement the owner-frozen design at
+  `ac96b033e2ba7201fbb99ea38cd363d13410c7c4`, integrated without squash at
+  `125b3684a000ea79523f77049ae1a290b0da8109`; comprehensive synthetic validation,
+  exact branch push and one guarded complete DEVELOPMENT execution are authorized.
+- **Continuation:** Initial precheck found historical dependency-blocked Stage 1
+  jobs 1759120/1759121 with zero runtime. Owner `continue` was taken as direction
+  to proceed with Stage 11 while leaving those jobs unchanged. No production
+  data access, cancellation or retrospective history repair occurred.
+- **Implementation:** [Exact assets, bounded processing, durable restart,
+  Stage 11 publication adapter and complete review](stages/STAGE11_IMPLEMENTATION.md).
+  Preserve the two relations, 19-field core, exact strings, full SHA-256/byte
+  equality and all 142,677 hypothesis edges. No scientific redesign.
+- **Execution:** Exact pushed dedicated-branch SHA; no integration required.
+  Goethe only, local transient/PanFS durable; measured resource request.
+  Pending/running means one report and stop. No duplicate or automatic retry.
+- **Boundary:** Stage 11 design frozen; Stage 11 not owner accepted. Stage 0–10
+  science/history unchanged; budget UNSELECTED; no top-N, HOLDOUT, production,
+  Pelias or Stage 12. Candidate completion precedes fresh independent review.
+
+### D089 — Stage 11 DEVELOPMENT candidate reconciled; independent review next
+
+- **Date/authority:** 2026-10-05 owner continuation explicitly names existing job
+  1788751, executable `8dce0e1078e123748ae692fa824200fc3e646aa4`, and publication
+  `stage11_development_20261004T095201Z_8dce0e1078e1`. Inspect once; no new job,
+  cancellation, requeue or retry. One observation confirmed COMPLETED / 0:0.
+- **Evidence:** [Candidate report, exact bindings and complete C01–C26 ledger](../reports/development/stage11.md).
+  142,677 input hypotheses/map rows, 105,805 semantic requests, exact reduction
+  36,872 (25.842988%); zero integrity or job technical failures. All 274 durable
+  checkpoint units, Stage 11 publication registration/seal and full initial,
+  prepared and committed reopen checks pass. Synthetic resume/variation evidence
+  satisfies the frozen plan; no additional protected replay was required.
+- **Review scope:** Portable reconciliation uses sanitized metadata and the
+  completed guarded job's full-population verification, not a new row-level
+  scan on the Mac/login node. Reporting-only corrections do not change the
+  executable or immutable candidate. No main integration or acceptance tag.
+- **Status:** DEVELOPMENT CANDIDATE READY; **NOT YET OWNER ACCEPTED**.
+  **NEXT: FRESH INDEPENDENT REVIEW OF STAGE 11 DEVELOPMENT CANDIDATE.**
+  Operating budget UNSELECTED; Stage 0–10 science and frozen Stage 11 design
+  unchanged; HOLDOUT sealed; production/Pelias untouched; Stage 12 NOT STARTED.

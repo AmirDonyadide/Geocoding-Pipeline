@@ -94,8 +94,12 @@ Rejected runs remain immutable. HOLDOUT is reserved for one separately
 authorized final evaluation after the governing pipeline is frozen.
 
 Stages 0–10 are accepted and frozen on DEVELOPMENT. Stage 11's
-[owner-directed design](stages/STAGE11_SEMANTIC_REQUEST_DEDUPLICATION.md) is ready
-for owner freeze/merge; implementation and execution are NOT STARTED.
+[owner-approved design](stages/STAGE11_SEMANTIC_REQUEST_DEDUPLICATION.md) is frozen;
+[implementation and synthetic validation](stages/STAGE11_IMPLEMENTATION.md) are
+complete on the dedicated branch. Job 1788751 produced the
+[DEVELOPMENT candidate](../reports/development/stage11.md): 142,677 hypotheses
+map exactly to 105,805 semantic requests. Publication and full reopen checks pass.
+Fresh independent review is next; Stage 11 is not owner accepted.
 The [Stage 10 acceptance](../reports/development/stage10.md) preserves the exact
 candidate, final independent rereview and UNSELECTED operating budget.
 Production Stages 0–1 are accepted. The [progress index](DEVELOPMENT_PROGRESS.md)

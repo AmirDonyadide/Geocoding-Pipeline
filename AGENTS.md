@@ -8,7 +8,8 @@
 - Design and obtain explicit review/approval before implementing a stage. Stop
   after every stage; evidence is not permission to continue.
 - Stages 0–10 are accepted and frozen on DEVELOPMENT; Stage 10 owner acceptance
-  is in `reports/development/stage10.md`. Stage 11 is not started.
+  is in `reports/development/stage10.md`. Stage 11 has a DEVELOPMENT candidate
+  awaiting independent review and owner acceptance; see `reports/development/stage11.md`.
   Production Stage 2 is not started. New stage work and runs require explicit
   authorization; documentation maintenance grants none.
 - Preserve accepted/rejected scientific history. Do not rebase, squash, or
