@@ -29,7 +29,8 @@ Their [remediation](stages/STAGE10_REVIEW_REMEDIATION.md),
 evidence remain preserved. Historical F01's exception remains unresolved.
 Stage 11 [owner acceptance](stages/STAGE11_OWNER_ACCEPTANCE.md), 2026-10-08,
 freezes job 1788751 after independent review 1790315: 124 checks PASS, zero defects.
-Stages 12–14 remain proposed. Production Stages 0–1 are accepted for the
+Stage 12 has a design-only proposal ready for owner review; Stages 13–14 remain
+unstarted proposals. Production Stages 0–1 are accepted for the
 1,411-file population; production Stage 2 onward has not started.
 
 Use [current progress](DEVELOPMENT_PROGRESS.md) for status and the
@@ -70,7 +71,8 @@ scientific bytes.
 11 query identity/QA -> 12 Pelias top-N -> 13 scoring -> 14 granularity/abstain
 ```
 
-Stages 8–11 are accepted and frozen; Stages 12–14 remain proposed.
+Stages 8–11 are accepted and frozen; Stage 12 is design-only, ready for owner
+review; Stages 13–14 remain proposed.
 Each stage requires its own approved design,
 authorized execution, DEVELOPMENT evidence, independent review and owner
 acceptance, then stops. The [current geocoding gate](#current-safe-pelias-boundary)
@@ -235,8 +237,8 @@ remains in force.
 ## Replacement Stages 8–14
 
 These stages separate source truth, parser/reference evidence, hypotheses,
-geocoder results and the final accepted match. Stages 8–10 are accepted and
-frozen, and Stages 11–14 remain proposed.
+geocoder results and the final accepted match. Stages 8–11 are accepted and
+frozen; Stage 12 is a design-only proposal, and Stages 13–14 are unstarted.
 
 ### Stage 8 — Lossless address-evidence projection
 
@@ -352,7 +354,7 @@ frozen, and Stages 11–14 remain proposed.
   [Owner acceptance and exact identities](stages/STAGE11_OWNER_ACCEPTANCE.md),
   D090; job 1788751, independent review 1790315, zero candidate defects.
   The historical [candidate report](../reports/development/stage11.md) is unchanged.
-  Stage 12 remains NOT STARTED; fresh Stage 12 design is next.
+  Stage 12's subsequent design-only proposal is linked below; Stage 11 is unchanged.
 
 ### Stage 12 — Self-hosted SAFE Pelias top-N retrieval
 
@@ -362,7 +364,13 @@ frozen, and Stages 11–14 remain proposed.
 - **Primary tool:** self-hosted SAFE Pelias, with total normal concurrency 2–4.
 - **Acceptance:** Exact workload identity, privacy/authentication, bounded
   retries, complete results/errors, and no implicit match acceptance.
-- **Status:** **PROPOSED — NOT STARTED; NOT AUTHORIZED**.
+- **Design:** [Complete contract and owner-review package](stages/STAGE12_PELIAS_TOPN_RETRIEVAL.md),
+  D091. Four relations; exact execution/deployment/index identity; complete raw
+  responses and ordered ranks; DEVELOPMENT calibration at bounded maximum 10,
+  final N unselected. A smaller final size requires another complete retrieval.
+- **Status:** **DESIGN READY FOR OWNER REVIEW — NOT APPROVED, NOT IMPLEMENTED,
+  NOT EXECUTED**. The Stage 19/size policy gate still requires explicit owner
+  reconciliation before any public probe or protected retrieval.
 
 ### Stage 13 — Result evidence scoring and cross-query convergence
 
@@ -391,8 +399,8 @@ frozen, and Stages 11–14 remain proposed.
 ## Legacy unstarted Stages 8–19 — superseded proposal
 
 The following decomposition was never implemented. It is retained as
-historical planning context. Compact Stages 8–10 above have since been designed
-and implemented; Stages 11–14 remain proposals. The legacy safeguards remain:
+historical planning context. Compact Stages 8–11 above have since been accepted;
+Stage 12 is design-only and Stages 13–14 remain proposals. The legacy safeguards remain:
 losslessness, bounded matching, absence-not-invalidity, query deduplication and
 explicit review.
 

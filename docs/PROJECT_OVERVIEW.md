@@ -102,7 +102,9 @@ Job 1788751 produced the
 map exactly to 105,805 semantic requests. Publication and full reopen checks pass.
 The [owner accepts and freezes Stage 11](stages/STAGE11_OWNER_ACCEPTANCE.md)
 on 2026-10-08 after independent job 1790315 passed all 124 checks with zero
-candidate defects. Stage 12 is not started; its fresh design is the next task.
+candidate defects. Stage 12 now has a
+[design-only proposal](stages/STAGE12_PELIAS_TOPN_RETRIEVAL.md) ready for owner
+review; no implementation, protected read or service call has occurred.
 The [Stage 10 acceptance](../reports/development/stage10.md) preserves the exact
 candidate, final independent rereview and UNSELECTED operating budget.
 Production Stages 0–1 are accepted. The [progress index](DEVELOPMENT_PROGRESS.md)
@@ -118,7 +120,10 @@ request.
 There is no implemented `X-API-Key` configuration, `/v1/autocomplete` or
 `/attribution` workflow.
 
-The proposed retrieval stage retains top-N results and evaluates layer, match
+The [Stage 12 proposal](stages/STAGE12_PELIAS_TOPN_RETRIEVAL.md) specifies
+deployment/index binding, exact request materialization, bounded retrieval,
+raw-response preservation and DEVELOPMENT-only top-N calibration. Final N
+remains unselected. The later scoring/granularity stages evaluate layer, match
 type, accuracy, independent agreement, contradictions and cross-query
 convergence. Proposed output granularities are `EXACT_ADDRESS`, `STREET_ADDRESS`,
 `STREET`, `POSTCODE`, `LOCALITY`, `ADMIN` and `UNRESOLVED`. Research usability

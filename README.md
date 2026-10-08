@@ -10,8 +10,9 @@ remediated job `1785683` after final independent rereview passed with zero
 candidate defects; see the [acceptance record](reports/development/stage10.md).
 Stage 11 [owner acceptance](docs/stages/STAGE11_OWNER_ACCEPTANCE.md) freezes
 job `1788751` after independent review `1790315` passed with zero candidate
-defects. Stage 12 is not started. Production Stages 0–1 are
-accepted; production Stage 2 onward has not started. See
+defects. Stage 12 has a [design-only proposal](docs/stages/STAGE12_PELIAS_TOPN_RETRIEVAL.md)
+ready for owner review; implementation and execution are not authorized.
+Production Stages 0–1 are accepted; production Stage 2 onward has not started. See
 [current progress](docs/DEVELOPMENT_PROGRESS.md).
 
 ## Pipeline

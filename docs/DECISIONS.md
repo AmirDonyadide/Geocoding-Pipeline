@@ -1663,8 +1663,9 @@ These questions remain for later approved designs or evaluation:
 - reference vintages and country-specific extensions beyond Stage 9 v1;
 - Stage 10's scientific operating budget, still UNSELECTED, and later empirical
   family value (D064–D066 already authorize its implementation/one catalog);
-- complete Stage 11 request semantics and the reconciliation of proposed Stage
-  12 retrieval/top-N with the current Stage 19 geocoding gate and size policy;
+- reconciliation of proposed Stage 12 retrieval/top-N with the current Stage 19
+  geocoding gate and size policy (Stage 11 semantics are frozen by D090; D091
+  proposes the Stage 12 contract without waiving that gate);
 - Stage 13 scoring, calibration and contradiction policy; and
 - Stage 14 usability thresholds, including interpolated Pelias address results.
 
@@ -2456,3 +2457,44 @@ that predicate/proof and dependent bounds; the other reviewed decisions stand.
   Stage 0–10 unchanged; Stage 11 ACCEPTED/FROZEN; budget UNSELECTED; HOLDOUT sealed;
   production/Pelias untouched; Stage 12 NOT STARTED. **NEXT: FRESH STAGE 12 PELIAS
   TOP-N RETRIEVAL DESIGN**, in a fresh session after this acceptance completes.
+
+## Stage 12 design proposal
+
+### D091 — Propose deployment-bound SAFE Pelias candidate retrieval for owner review
+
+- **Date/authority:** Design session 2026-10-08/09. Owner authorizes design,
+  contract, bounded review, dedicated branch commit and push only. Fetch verified
+  clean main = origin/main = acceptance tag peeled commit
+  678a1dd4fc22c518ddd13a06d1de347a57da7a1c and complete Stage 11 ancestry.
+  Tracked sanitized artifact/manifest/registration bindings match acceptance.
+  No remote protected reopen or live deployment verification is claimed.
+- **Proposal:** [Five-document design package](stages/STAGE12_PELIAS_TOPN_RETRIEVAL.md),
+  stage12_pelias_retrieval_contract_v1, stage12_pelias_retrieval_profile_v1 and
+  stage12_pelias_retrieval_schema_v1. Four relations: policy, complete execution/
+  outcome, attempt receipt, candidate at original rank. Domain-separated full
+  SHA-256 binds semantic ID, retrieval/materialization/extraction/implementation
+  and verified deployment/index/effective configuration. Secrets/operations are
+  excluded from scientific IDs.
+- **Evidence/operations:** Proposed signed operator deployment manifest with
+  immutable index/content/alias/import identity, effective omitted language/
+  layer/source behavior, enforced generation/maintenance exclusion and response
+  attestation. No current auth/deployment/schema guarantee is invented.
+  Exact GET/UTF-8 serialization, runtime X-API-Key pending verification, raw
+  successful response bytes plus extracted ordered features, five bounded
+  attempts, initial two connections/one request per second, durable resumability.
+- **Calibration:** All 105,805 accepted Stage 11 requests at engineering maximum
+  10; grid 1/3/5/10, adjacent-rank curves and separately bounded public/DEVELOPMENT
+  paired-size checks. Final N UNSELECTED; no prefix-equivalence assumption.
+  A smaller final N requires a second complete direct-size workload. Reference
+  capability/dependence and unknown-tail protection govern owner review; no
+  confidence truth labels, candidate scoring or final address.
+- **Publication/review:** Full final input totality and zero unresolved technical,
+  contract or identity failures; Stage 12-specific reservation/registration/seal/
+  full reopen. [40 resolved design-ledger items and 26 proposed owner decisions](stages/STAGE12_DESIGN_REVIEW.md).
+  Pending owner design approval, gate reconciliation, concrete deployment/probe
+  evidence, workload/disclosure approval and empirical N remain explicit.
+- **Boundary/status:** DESIGN READY FOR OWNER REVIEW, not approved/implemented/
+  executed. No Stage 19 gate waiver, main merge, machine-readable implementation
+  assets, protected payload read, SLURM, Pelias/API call, HOLDOUT, production or
+  Stage 13. Stage 0–11 science/history unchanged; Stage 10 budget UNSELECTED.
+  **NEXT: OWNER REVIEW OF STAGE 12 DESIGN.**
