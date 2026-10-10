@@ -8,8 +8,9 @@
 - Design and obtain explicit review/approval before implementing a stage. Stop
   after every stage; evidence is not permission to continue.
 - Stages 0–11 are accepted and frozen on DEVELOPMENT; Stage 11 owner acceptance
-  is in `docs/stages/STAGE11_OWNER_ACCEPTANCE.md`. Stage 12 design has owner
-  review incorporated; it is not frozen, implemented or executed.
+  is in `docs/stages/STAGE11_OWNER_ACCEPTANCE.md`. Stage 12 DESIGN is owner
+  frozen; see `docs/stages/STAGE12_DESIGN_FREEZE.md`. Stage 12 implementation
+  and execution have not started; C, T and final N remain UNSELECTED.
   Production Stage 2 is not started. New stage work and runs require explicit
   authorization; documentation maintenance grants none.
 - Preserve accepted/rejected scientific history. Do not rebase, squash, or

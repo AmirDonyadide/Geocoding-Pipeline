@@ -10,9 +10,9 @@ remediated job `1785683` after final independent rereview passed with zero
 candidate defects; see the [acceptance record](reports/development/stage10.md).
 Stage 11 [owner acceptance](docs/stages/STAGE11_OWNER_ACCEPTANCE.md) freezes
 job `1788751` after independent review `1790315` passed with zero candidate
-defects. Stage 12 has a [design-only proposal](docs/stages/STAGE12_PELIAS_TOPN_RETRIEVAL.md)
-with owner review incorporated, ready for owner freeze; it is not frozen,
-implemented or authorized for execution.
+defects. Stage 12's [owner-reviewed design](docs/stages/STAGE12_PELIAS_TOPN_RETRIEVAL.md)
+is [OWNER FROZEN](docs/stages/STAGE12_DESIGN_FREEZE.md). Implementation and
+execution have not started; C, T and final operational N remain UNSELECTED.
 Production Stages 0–1 are accepted; production Stage 2 onward has not started. See
 [current progress](docs/DEVELOPMENT_PROGRESS.md).
 
@@ -26,7 +26,8 @@ Production Stages 0–1 are accepted; production Stage 2 onward has not started.
 | 9 | Conservative offline country, postal-code, locality and administrative reference evidence |
 | 10 | Accepted bounded query hypotheses; operating budget UNSELECTED |
 | 11 | Accepted exact semantic request deduplication with complete hypothesis map-back |
-| 12–14 | Proposed Pelias retrieval, scoring and granularity/abstention |
+| 12 | Owner-frozen Pelias retrieval design; implementation/execution not started |
+| 13–14 | Proposed scoring and granularity/abstention; not started |
 
 Parser labels and reference matches are evidence, not verified address truth.
 A returned geocoder feature is not automatically a usable research location.

@@ -17,7 +17,7 @@ scheduler observations. Contracts and evidence are linked below.
 | 9 | Conservative offline reference evidence | **`STAGE_9_ACCEPTED`** | Executable `3e10ac7c…`; job `1771191`; independent review `a9ae443c…` / job `1772139`; zero candidate defects; [acceptance](../reports/development/stage09.md#owner-acceptance-and-freeze--2026-09-14) | **NOT STARTED** |
 | 10 | Bounded multi-hypothesis query generation | **`STAGE_10_ACCEPTED`** | Job `1785683`; final independent rereview `1786959`, 281 checks PASS, zero defects; [owner acceptance and freeze](../reports/development/stage10.md) | **NOT STARTED** |
 | 11 | Global semantic request deduplication | **STAGE_11_ACCEPTED — FROZEN** | Job 1788751; review 1790315, 124 checks PASS, zero candidate defects; [owner acceptance](stages/STAGE11_OWNER_ACCEPTANCE.md), D090 | **NOT STARTED** |
-| 12 | SAFE Pelias top-N retrieval | **OWNER REVIEW INCORPORATED — READY FOR OWNER FREEZE** | [Design-only contract package](stages/STAGE12_PELIAS_TOPN_RETRIEVAL.md), D092; not frozen, implemented or executed | **NOT STARTED** |
+| 12 | SAFE Pelias top-N retrieval | **DESIGN FROZEN — IMPLEMENTATION NOT STARTED** | [Owner freeze](stages/STAGE12_DESIGN_FREEZE.md), D093; exact reviewed design preserved; C/T/N UNSELECTED; no execution | **NOT STARTED** |
 | 13–14 proposed | Scoring → granularity/abstain | **PROPOSED — NOT STARTED** | Remaining compact replacement architecture; [pipeline specification](PIPELINE.md) | **NOT STARTED** |
 
 Benchmark V1 contains 35,000 DEVELOPMENT and 15,000 sealed HOLDOUT rows from
@@ -26,6 +26,28 @@ fingerprint
 `014f7c1373380b265f34e2ecb76614161b320e2bb972befb8f53994cc5a1dd52`.
 
 ## Current checkpoint
+
+The owner **accepts and freezes the Stage 12 DESIGN**, **2026-10-10**, exactly
+at reviewed commit **538f32023d2f78394e3acc5e8552f670fe0a6add**. Normal
+non-squash merge **25e528c1b2b3917dd423c948ceb547ac3547f3c3** preserves the
+design history. The [freeze record](stages/STAGE12_DESIGN_FREEZE.md) binds all
+five unchanged normative documents; the final frozen main is the peeled target
+of annotated tag **stage12-pelias-topn-retrieval-design-v1**.
+
+All **57 design checks** and **24 owner directions** are resolved; unresolved
+scientific design decisions and design defects are **0**. **C = UNSELECTED,
+T = UNSELECTED, N = UNSELECTED**. Deployment/authentication/observability,
+final operations budgets and exact protected workload fingerprints remain
+gated future parameters. The public probe and subsequent protected calibration
+gates require separate owner authorization.
+
+Stages 0–11 unchanged/frozen; Stage 12 implementation and execution **NOT
+STARTED**; HOLDOUT sealed; production untouched; Pelias **NOT CALLED**;
+no SLURM; Stage 13 **NOT STARTED**. The design branch remains retained.
+**NEXT: OPEN ONE FRESH SESSION FOR STAGE 12 IMPLEMENTATION + PUBLIC/SYNTHETIC PELIAS PROBE.**
+This identifies the next session; it authorizes no implementation or probe now.
+
+## Historical Stage 12 owner-review checkpoint — 2026-10-09
 
 Stage 12 owner revisions, **2026-10-09**, on
 **design/stage12-pelias-retrieval**, previous design

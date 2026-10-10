@@ -143,8 +143,9 @@ documentation test pass.
 ## Current authorization boundary
 
 Production Stages 0–1 are accepted; production Stage 2 onward has not started.
-DEVELOPMENT Stages 0–11 are accepted and frozen. Stage 12 has owner review
-incorporated in its design, but is not frozen, implemented or executed. See
+DEVELOPMENT Stages 0–11 are accepted and frozen. Stage 12 DESIGN is
+[owner-frozen](stages/STAGE12_DESIGN_FREEZE.md); implementation and execution
+have not started. C, T and final N remain UNSELECTED. See
 [current progress](DEVELOPMENT_PROGRESS.md) for the status index.
 
 Under owner-directed D092, the old Stage 19 query-deduplication/QA reference is
@@ -155,4 +156,4 @@ authorization. Public probing is separately authorized; protected calibration
 also requires the post-probe owner deployment/operations/C/T freeze and exact
 workload approval described in the [state machine](stages/STAGE12_DEVELOPMENT_CALIBRATION.md#future-state-machine).
 No implementation, probe, protected retrieval, rerun, HOLDOUT or production
-authority is granted by this documentation correction.
+authority is granted by this design freeze or documentation maintenance.

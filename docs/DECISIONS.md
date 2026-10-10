@@ -2551,3 +2551,33 @@ that predicate/proof and dependent bounds; the other reviewed decisions stand.
   concrete deployment/observability/operations values are gated future
   empirical parameters. **OWNER REVIEW INCORPORATED — READY FOR OWNER FREEZE,
   NOT FROZEN/IMPLEMENTED/EXECUTED. NEXT: OWNER FREEZE OF STAGE 12 DESIGN.**
+
+### D093 — Owner accepts, freezes and integrates the Stage 12 design
+
+- **Authority/date:** 2026-10-10. Owner explicitly approves design
+  538f32023d2f78394e3acc5e8552f670fe0a6add and authorizes normal non-squash
+  integration and annotated design tag only. Accepted baseline
+  678a1dd4fc22c518ddd13a06d1de347a57da7a1c; merge
+  25e528c1b2b3917dd423c948ceb547ac3547f3c3. Original design
+  54d52e01ed906c41b48c5dac945a76abd9f66846 and all accepted ancestry remain.
+- **Frozen scope:** The [owner freeze record](stages/STAGE12_DESIGN_FREEZE.md)
+  binds the five normative documents byte-for-byte at the reviewed commit.
+  Their historical pre-freeze wording stays unchanged. D092's identity,
+  response replay, deployment, calibration and Stage 19 reconciliation stand
+  exactly as reviewed; no scientific rule or new machine-readable asset is
+  introduced. This decision supersedes the pending-freeze status in D092.
+- **Review:** 57 resolved design checks, 24 owner directions incorporated,
+  unresolved scientific design decisions **0**, design defects **0**.
+- **Gates:** **C = UNSELECTED; T = UNSELECTED; N = UNSELECTED.** Exact protected
+  depths/subset/witness/workload bindings, verified deployment/authentication/
+  observability and final retry/concurrency/resource budgets retain their
+  public-probe, owner-freeze and protected preflight/authorization gates.
+  They are future empirical/operational parameters, not design defects.
+- **Integration:** Annotated tag **stage12-pelias-topn-retrieval-design-v1**
+  identifies the final frozen main after this separate freeze/status record.
+  The design branch is retained; no history rewrite or branch deletion.
+- **Boundary/status:** **STAGE 12 DESIGN FROZEN; IMPLEMENTATION NOT STARTED.**
+  Stages 0–11 remain accepted/frozen and unchanged. No protected DEVELOPMENT,
+  HOLDOUT or production access, Pelias/API call, SLURM or Stage 13. Freeze
+  grants no execution authority. **NEXT: OPEN ONE FRESH SESSION FOR STAGE 12
+  IMPLEMENTATION + PUBLIC/SYNTHETIC PELIAS PROBE.**

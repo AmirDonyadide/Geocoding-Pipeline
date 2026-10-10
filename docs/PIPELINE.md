@@ -11,6 +11,9 @@ stage.
   DEVELOPMENT.
 - **DESIGN READY — NOT IMPLEMENTED:** prospective scientific contract is
   complete; implementation and execution still require explicit authorization.
+- **DESIGN FROZEN — NOT IMPLEMENTED:** owner-approved scientific architecture
+  and decision process are frozen; gated empirical parameters and separate
+  implementation/execution authorization remain required.
 - **IMPLEMENTATION READY — NOT EXECUTED:** the reviewed design is implemented
   and synthetic/local gates pass; protected execution still requires separate
   explicit authorization.
@@ -29,8 +32,9 @@ Their [remediation](stages/STAGE10_REVIEW_REMEDIATION.md),
 evidence remain preserved. Historical F01's exception remains unresolved.
 Stage 11 [owner acceptance](stages/STAGE11_OWNER_ACCEPTANCE.md), 2026-10-08,
 freezes job 1788751 after independent review 1790315: 124 checks PASS, zero defects.
-Stage 12 has owner review incorporated and is ready for owner freeze; Stages 13–14 remain
-unstarted proposals. Production Stages 0–1 are accepted for the
+Stage 12's design is [OWNER FROZEN](stages/STAGE12_DESIGN_FREEZE.md), with
+implementation/execution not started; Stages 13–14 remain unstarted proposals.
+Production Stages 0–1 are accepted for the
 1,411-file population; production Stage 2 onward has not started.
 
 Use [current progress](DEVELOPMENT_PROGRESS.md) for status and the
@@ -71,8 +75,8 @@ scientific bytes.
 11 query identity/QA -> 12 Pelias top-N -> 13 scoring -> 14 granularity/abstain
 ```
 
-Stages 8–11 are accepted and frozen; Stage 12 is design-only, ready for owner
-freeze; Stages 13–14 remain proposed.
+Stages 8–11 are accepted and frozen; Stage 12 DESIGN is frozen without
+implementation or execution; Stages 13–14 remain proposed.
 Each stage requires its own approved design,
 authorized execution, DEVELOPMENT evidence, independent review and owner
 acceptance, then stops. The [current geocoding gate](#current-safe-pelias-boundary)
@@ -238,7 +242,8 @@ remains in force.
 
 These stages separate source truth, parser/reference evidence, hypotheses,
 geocoder results and the final accepted match. Stages 8–11 are accepted and
-frozen; Stage 12 is a design-only proposal, and Stages 13–14 are unstarted.
+frozen; Stage 12 DESIGN is frozen without implementation, and Stages 13–14
+are unstarted.
 
 ### Stage 8 — Lossless address-evidence projection
 
@@ -354,7 +359,7 @@ frozen; Stage 12 is a design-only proposal, and Stages 13–14 are unstarted.
   [Owner acceptance and exact identities](stages/STAGE11_OWNER_ACCEPTANCE.md),
   D090; job 1788751, independent review 1790315, zero candidate defects.
   The historical [candidate report](../reports/development/stage11.md) is unchanged.
-  Stage 12's subsequent design-only proposal is linked below; Stage 11 is unchanged.
+  Stage 12's subsequent frozen design is linked below; Stage 11 is unchanged.
 
 ### Stage 12 — Self-hosted SAFE Pelias top-N retrieval
 
@@ -365,13 +370,14 @@ frozen; Stage 12 is a design-only proposal, and Stages 13–14 are unstarted.
 - **Acceptance:** Exact workload identity, privacy/authentication, bounded
   retries, complete results/errors, and no implicit match acceptance.
 - **Design:** [Owner-revised contract package](stages/STAGE12_PELIAS_TOPN_RETRIEVAL.md),
-  D092. Four relations, scientific network IDs separate from executable and
+  frozen by [owner decision](stages/STAGE12_DESIGN_FREEZE.md), D093.
+  Four relations, scientific network IDs separate from executable and
   offline response projection; full calibration C plus predeclared deep-tail
   subset T>C and T>10. Exact protected C/T await the public-capability owner
   gate; final operational N remains UNSELECTED. N!=C requires complete direct-N
   retrieval. Useful evidence beyond C forces insufficient-depth review.
-- **Status:** **OWNER REVIEW INCORPORATED — READY FOR OWNER FREEZE; NOT FROZEN,
-  NOT IMPLEMENTED, NOT EXECUTED**. Separate phase/workload authority is required.
+- **Status:** **DESIGN FROZEN; IMPLEMENTATION AND EXECUTION NOT STARTED**.
+  C, T and final N remain UNSELECTED. Separate phase/workload authority is required.
 
 ### Stage 13 — Result evidence scoring and cross-query convergence
 

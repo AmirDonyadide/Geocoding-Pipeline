@@ -25,8 +25,9 @@ Preprocessing makes each transformation and assumption independently reviewable.
 The implemented chain establishes source identity, preserves decoded values,
 adds clean and lowercase forms, reconstructs separate standard/native
 candidates, deduplicates exact candidate work, and records parser and reference
-evidence. Stage 10 generates query hypotheses offline. Retrieval, scoring and
-final selection remain proposed. See [PIPELINE.md](PIPELINE.md) for stage
+evidence. Stage 10 generates query hypotheses offline. Retrieval design is
+owner-frozen but unimplemented; scoring and final selection remain proposed.
+See [PIPELINE.md](PIPELINE.md) for stage
 boundaries and [DATA_FLOW.md](DATA_FLOW.md) for schemas and map-back.
 
 ## Standard and native Orbis representations
@@ -102,10 +103,10 @@ Job 1788751 produced the
 map exactly to 105,805 semantic requests. Publication and full reopen checks pass.
 The [owner accepts and freezes Stage 11](stages/STAGE11_OWNER_ACCEPTANCE.md)
 on 2026-10-08 after independent job 1790315 passed all 124 checks with zero
-candidate defects. Stage 12 now has a
-[design-only proposal](stages/STAGE12_PELIAS_TOPN_RETRIEVAL.md) ready for owner
-freeze after owner review; no implementation, protected read or service call
-has occurred.
+candidate defects. Stage 12's
+[owner-reviewed design](stages/STAGE12_PELIAS_TOPN_RETRIEVAL.md) is
+[OWNER FROZEN](stages/STAGE12_DESIGN_FREEZE.md), 2026-10-10; implementation
+and execution have not started. C, T and final N remain UNSELECTED.
 The [Stage 10 acceptance](../reports/development/stage10.md) preserves the exact
 candidate, final independent rereview and UNSELECTED operating budget.
 Production Stages 0–1 are accepted. The [progress index](DEVELOPMENT_PROGRESS.md)
@@ -121,7 +122,7 @@ request.
 There is no implemented `X-API-Key` configuration, `/v1/autocomplete` or
 `/attribution` workflow.
 
-The [Stage 12 proposal](stages/STAGE12_PELIAS_TOPN_RETRIEVAL.md) specifies
+The [frozen Stage 12 design](stages/STAGE12_PELIAS_TOPN_RETRIEVAL.md) specifies
 deployment/index binding, exact request materialization, bounded retrieval,
 raw-response preservation and DEVELOPMENT-only top-N calibration. Final N
 remains unselected. The later scoring/granularity stages evaluate layer, match
