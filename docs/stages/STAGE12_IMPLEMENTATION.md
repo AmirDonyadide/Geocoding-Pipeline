@@ -259,3 +259,45 @@ documentation/local links, shell/SBATCH and whitespace checks passed.
 The [sanitized validation record](../scientific_assets/stage12_implementation_validation_v1.json)
 contains the exact aggregate results and ledger closure. There was no probe
 submission, live authentication test or deployment/result-size observation.
+
+## Owner-authorized private-file provider and initial probe — 2026-10-10
+
+The owner resolved the origin/authentication/provider blockers in this same
+session: approved origin https://geocode.safe-frankfurt.de; X-API-Key; private
+Goethe file $HOME/.config/safe-geocoding/pelias_api_key. This is an operations-only
+provider clarification, not a change to the frozen science or design tag.
+Only sizes 1, 3, 5 and 10 are authorized for this submission. No >10 test,
+protected DEVELOPMENT payload access, HOLDOUT, production or Stage 13 is allowed.
+
+Read-only Goethe preflight confirmed a regular, readable, nonempty file owned by
+the executing UID, mode 0600, one link; its parent is owner-owned mode 0700.
+No file contents were printed, copied, hashed or placed in shell variables.
+The approved hostname resolved through Goethe's resolver to 159.69.61.56.
+The probe configuration pins that numeric route; TLS still verifies the exact
+approved hostname with the runtime trust store. This route observation does not
+establish scientific deployment or immutable index identity.
+
+The adapter uses SAFE_PELIAS_API_KEY_FILE. Only the scheduled Python process
+reads the file directly into memory. It rejects symlinks, hardlinks, nonregular
+files, wrong ownership, unsafe permissions, changes during reading, empty or
+invalid content and ambiguous simultaneous providers. One terminal LF or CRLF
+is permitted for text-file provisioning; header-injection bytes remain rejected.
+The launcher exports only the path and unsets the legacy value environment
+variable. The secret never enters a hash, persisted audit, command argument or
+report. Existing semantic, policy, execution and projection identities remain
+unchanged. The exact new Git SHA remains required executable provenance.
+
+During synthetic validation one test caught a static FILE_CHANGED error being
+collapsed into FILE_INVALID by the general ValueError handler; the dedicated
+Stage12Error path now preserves the sanitized specific code. No live request
+was involved. Dedicated tests cover the provider boundaries and the complete
+mock public harness with file-provider audit reporting.
+
+Final adapter validation: **256 focused Stage 12 tests PASS**; **1,599 full safe
+suite tests PASS**, with **24 pre-existing optional ICU skips**. Mypy (149 source
+files), Ruff, canonical contract/schema verification, documentation/local links,
+all shell/SBATCH syntax and diff whitespace checks PASS. All 17 named descriptors
+and five frozen design documents remain byte-identical to the prior implementation.
+See the [provider validation record](../scientific_assets/stage12_file_provider_validation_v1.json)
+and [sanitized owner authorization](../scientific_assets/stage12_public_probe_owner_authorization_v1.json).
+No job was submitted and no real service request was sent during these checks.

@@ -8,10 +8,12 @@ import os
 import re
 import socket
 import ssl
+import stat
 import threading
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from pathlib import Path
 from urllib.parse import urlsplit
 
 from safe_geocoding_pipeline.execution_policy import require_goethe_nhr_slurm
@@ -28,6 +30,12 @@ class Secret:
     @classmethod
     def runtime(cls) -> Secret:
         require_goethe_nhr_slurm("stage12 runtime authentication")
+        filename = os.environ.get("SAFE_PELIAS_API_KEY_FILE")
+        if filename is not None:
+            c.require(
+                not os.environ.get("SAFE_PELIAS_API_KEY"), "ENVIRONMENT_AUTH_AMBIGUOUS"
+            )
+            return cls.private_file(filename)
         value = os.environ.get("SAFE_PELIAS_API_KEY")
         c.require(bool(value), "ENVIRONMENT_AUTH_MISSING")
         assert value is not None
@@ -36,6 +44,76 @@ class Secret:
         except UnicodeError:
             raise c.Stage12Error("ENVIRONMENT_AUTH_INVALID") from None
         return cls.checked(encoded)
+
+    @classmethod
+    def private_file(cls, filename: str) -> Secret:
+        """Read an owner-only regular file into memory, without copying or hashing.
+
+        No fallback on a bad configured file. One final LF/CRLF is permitted for
+        a text-file provider; all other whitespace/header injection is rejected.
+        """
+        c.require(
+            bool(filename) and Path(filename).is_absolute(),
+            "ENVIRONMENT_AUTH_FILE_INVALID",
+        )
+        fd = None
+        parent_fd = None
+        try:
+            path = Path(filename)
+            parent_fd = os.open(
+                path.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+            )
+            parent = os.fstat(parent_fd)
+            c.require(
+                parent.st_uid == os.geteuid() and not parent.st_mode & 0o022,
+                "ENVIRONMENT_AUTH_FILE_INVALID",
+            )
+            fd = os.open(
+                path.name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=parent_fd
+            )
+            before = os.fstat(fd)
+            c.require(
+                stat.S_ISREG(before.st_mode)
+                and before.st_uid == os.geteuid()
+                and stat.S_IMODE(before.st_mode) in (0o400, 0o600)
+                and before.st_nlink == 1
+                and 0 < before.st_size <= 8194,
+                "ENVIRONMENT_AUTH_FILE_INVALID",
+            )
+            value = os.read(fd, 8195)
+            after = os.fstat(fd)
+            c.require(
+                len(value) == before.st_size
+                and (
+                    before.st_dev,
+                    before.st_ino,
+                    before.st_size,
+                    before.st_mtime_ns,
+                    before.st_ctime_ns,
+                )
+                == (
+                    after.st_dev,
+                    after.st_ino,
+                    after.st_size,
+                    after.st_mtime_ns,
+                    after.st_ctime_ns,
+                ),
+                "ENVIRONMENT_AUTH_FILE_CHANGED",
+            )
+        except c.Stage12Error:
+            raise
+        except (OSError, ValueError):
+            raise c.Stage12Error("ENVIRONMENT_AUTH_FILE_INVALID") from None
+        finally:
+            if fd is not None:
+                os.close(fd)
+            if parent_fd is not None:
+                os.close(parent_fd)
+        if value.endswith(b"\r\n"):
+            value = value[:-2]
+        elif value.endswith(b"\n"):
+            value = value[:-1]
+        return cls.checked(value)
 
     @classmethod
     def checked(cls, value: bytes) -> Secret:

@@ -227,3 +227,49 @@ def test_unapproved_auth_mechanism_stops_before_secret_or_dispatch(tmp_path):
     cfg["authentication_mechanism"] = "guessed-header"
     with pytest.raises(c.Stage12Error, match="AUTH_SOURCE_UNVERIFIED"):
         cli.validate_config(cfg)
+
+
+def test_public_harness_records_file_provider_without_value(monkeypatch, tmp_path):
+    cfg = harness(monkeypatch, tmp_path, successful)
+    cfg["secret_source_category"] = "APPROVED_PRIVATE_FILE"
+    monkeypatch.setenv(
+        "SAFE_PELIAS_API_KEY_FILE", str(tmp_path / "invented-provider-path")
+    )
+    report = cli.run(cfg, "1" * 40, Path("."))
+    assert report["status"] == "COMPLETED"
+    assert report["authentication"]["source_category"] == "APPROVED_PRIVATE_FILE"
+    assert report["authentication"]["provider_preflight"] == "PASS"
+    assert b"synthetic-canary" not in c.canonical(report)
+    assert b"invented-provider-path" not in c.canonical(report)
+
+
+def test_startup_provider_failure_has_sanitized_specific_code(
+    monkeypatch, capsys, tmp_path
+):
+    import sys
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "probe",
+            "--configuration",
+            str(tmp_path / "config.json"),
+            "--implementation-sha",
+            "1" * 40,
+        ],
+    )
+    monkeypatch.setattr(cli, "require_goethe_nhr_slurm", lambda _: None)
+    monkeypatch.setattr(cli.io, "read", lambda _: b"{}\n")
+
+    def fail(*_):
+        raise c.Stage12Error("ENVIRONMENT_AUTH_FILE_INVALID")
+
+    monkeypatch.setattr(cli, "run", fail)
+    assert cli.main() == 1
+    captured = capsys.readouterr()
+    assert (
+        io.metadata(captured.out.encode())["failure_code"]
+        == "ENVIRONMENT_AUTH_FILE_INVALID"
+    )
+    assert not captured.err

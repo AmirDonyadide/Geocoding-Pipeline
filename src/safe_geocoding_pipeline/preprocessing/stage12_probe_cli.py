@@ -48,7 +48,8 @@ def validate_config(
         "PUBLIC_PROBE_CONFIGURATION_INVALID",
     )
     c.require(
-        config["secret_source_category"] == "APPROVED_RUNTIME_ENVIRONMENT"
+        config["secret_source_category"]
+        in ("APPROVED_RUNTIME_ENVIRONMENT", "APPROVED_PRIVATE_FILE")
         and config["authentication_mechanism"] == "X-API-Key",
         "PUBLIC_PROBE_AUTH_SOURCE_UNVERIFIED",
     )
@@ -191,6 +192,11 @@ def run(
         "PUBLIC_PROBE_EXECUTABLE_DIRTY",
     )
     key = transport.Secret.runtime()
+    c.require(
+        (config["secret_source_category"] == "APPROVED_PRIVATE_FILE")
+        == bool(os.environ.get("SAFE_PELIAS_API_KEY_FILE")),
+        "PUBLIC_PROBE_AUTH_SOURCE_UNVERIFIED",
+    )
     output = Path(config["output_directory"])
     validate_output_scope(output)
     io.reserve(output)
@@ -241,7 +247,8 @@ def run(
             "mechanism": "X-API-Key",
             "present": True,
             "accepted": False,
-            "source_category": "APPROVED_RUNTIME_ENVIRONMENT",
+            "source_category": config["secret_source_category"],
+            "provider_preflight": "PASS",
         },
         "deployment_observability": {
             kind: {name: "UNKNOWN" for name in names}
@@ -491,6 +498,18 @@ def main() -> int:
         )
         print(c.canonical(result).decode("ascii"), end="")
         return 0 if result["status"] == "COMPLETED" else 1
+    except c.Stage12Error as error:
+        print(
+            c.canonical(
+                {
+                    "status": "FAILED",
+                    "failure_phase": "startup",
+                    "failure_code": str(error),
+                }
+            ).decode("ascii"),
+            end="",
+        )
+        return 1
     except Exception:
         print(
             '{"status":"FAILED","failure_phase":"startup","failure_code":"PUBLIC_PROBE_PREFLIGHT_FAILED"}'

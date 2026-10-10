@@ -18,8 +18,14 @@ ulimit -c 0
 : "${STAGE12_EXECUTION_GIT_SHA:?exact pushed executable required}"
 : "${STAGE12_CHECKOUT:?clean detached checkout required}"
 : "${STAGE12_PUBLIC_PROBE_CONFIGURATION:?approved private configuration required}"
-# Presence only: the secret is never expanded into a command argument or log.
-[[ -n "${SAFE_PELIAS_API_KEY:-}" ]]
+# The owner-approved provider path is nonsecret. Never export/read the value in shell.
+unset SAFE_PELIAS_API_KEY
+export SAFE_PELIAS_API_KEY_FILE="${HOME}/.config/safe-geocoding/pelias_api_key"
+[[ -f "${SAFE_PELIAS_API_KEY_FILE}" && ! -L "${SAFE_PELIAS_API_KEY_FILE}" ]]
+[[ -r "${SAFE_PELIAS_API_KEY_FILE}" && -s "${SAFE_PELIAS_API_KEY_FILE}" ]]
+[[ "$(stat -c %u -- "${SAFE_PELIAS_API_KEY_FILE}")" == "$(id -u)" ]]
+[[ "$(stat -c %a -- "${SAFE_PELIAS_API_KEY_FILE}")" =~ ^(400|600)$ ]]
+[[ "$(stat -c %h -- "${SAFE_PELIAS_API_KEY_FILE}")" == 1 ]]
 readonly stage12_project=/panfs/vdura1/footprint/donyadidegan/safe_geocoding_pipeline
 readonly stage12_python="${stage12_project}/runtimes/stage06/stage06_development_20260828T223804Z_f39047cc825d/venv/bin/python"
 [[ "${SLURM_RESTART_COUNT:-0}" == 0 ]]
