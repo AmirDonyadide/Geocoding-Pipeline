@@ -10,8 +10,10 @@ remediated job `1785683` after final independent rereview passed with zero
 candidate defects; see the [acceptance record](reports/development/stage10.md).
 Stage 11 [owner acceptance](docs/stages/STAGE11_OWNER_ACCEPTANCE.md) freezes
 job `1788751` after independent review `1790315` passed with zero candidate
-defects. Stage 12 is not started. Production Stages 0–1 are
-accepted; production Stage 2 onward has not started. See
+defects. Stage 12 has a [design-only proposal](docs/stages/STAGE12_PELIAS_TOPN_RETRIEVAL.md)
+with owner review incorporated, ready for owner freeze; it is not frozen,
+implemented or authorized for execution.
+Production Stages 0–1 are accepted; production Stage 2 onward has not started. See
 [current progress](docs/DEVELOPMENT_PROGRESS.md).
 
 ## Pipeline
@@ -29,8 +31,10 @@ accepted; production Stage 2 onward has not started. See
 Parser labels and reference matches are evidence, not verified address truth.
 A returned geocoder feature is not automatically a usable research location.
 The [pipeline specification](docs/PIPELINE.md) defines each boundary and retains
-the legacy Stage 0–19 plan. The existing Stage 19 acceptance and separate
-exact-workload authorization gate still prohibits geocoding.
+the legacy Stage 0–19 plan. Stage 19 was the older query-deduplication/QA gate,
+not a later dependency. The reconciled rule requires owner-frozen Stage 12,
+validated implementation and separate phase/workload approvals; no geocoding
+is currently authorized.
 
 ## Local setup
 

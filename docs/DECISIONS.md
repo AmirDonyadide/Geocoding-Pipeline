@@ -1663,8 +1663,9 @@ These questions remain for later approved designs or evaluation:
 - reference vintages and country-specific extensions beyond Stage 9 v1;
 - Stage 10's scientific operating budget, still UNSELECTED, and later empirical
   family value (D064–D066 already authorize its implementation/one catalog);
-- complete Stage 11 request semantics and the reconciliation of proposed Stage
-  12 retrieval/top-N with the current Stage 19 geocoding gate and size policy;
+- concrete Stage 12 deployment/operations and calibration/tail depths after the
+  public capability probe, then final N from DEVELOPMENT (D092 reconciles stale
+  Stage 19 numbering and size=1 without authorizing execution);
 - Stage 13 scoring, calibration and contradiction policy; and
 - Stage 14 usability thresholds, including interpolated Pelias address results.
 
@@ -2456,3 +2457,97 @@ that predicate/proof and dependent bounds; the other reviewed decisions stand.
   Stage 0–10 unchanged; Stage 11 ACCEPTED/FROZEN; budget UNSELECTED; HOLDOUT sealed;
   production/Pelias untouched; Stage 12 NOT STARTED. **NEXT: FRESH STAGE 12 PELIAS
   TOP-N RETRIEVAL DESIGN**, in a fresh session after this acceptance completes.
+
+## Stage 12 design proposal
+
+### D091 — Propose deployment-bound SAFE Pelias candidate retrieval for owner review
+
+- **Date/authority:** Design session 2026-10-08/09. Owner authorizes design,
+  contract, bounded review, dedicated branch commit and push only. Fetch verified
+  clean main = origin/main = acceptance tag peeled commit
+  678a1dd4fc22c518ddd13a06d1de347a57da7a1c and complete Stage 11 ancestry.
+  Tracked sanitized artifact/manifest/registration bindings match acceptance.
+  No remote protected reopen or live deployment verification is claimed.
+- **Proposal:** [Five-document design package](stages/STAGE12_PELIAS_TOPN_RETRIEVAL.md),
+  stage12_pelias_retrieval_contract_v1, stage12_pelias_retrieval_profile_v1 and
+  stage12_pelias_retrieval_schema_v1. Four relations: policy, complete execution/
+  outcome, attempt receipt, candidate at original rank. Domain-separated full
+  SHA-256 binds semantic ID, retrieval/materialization/extraction/implementation
+  and verified deployment/index/effective configuration. Secrets/operations are
+  excluded from scientific IDs.
+- **Evidence/operations:** Proposed signed operator deployment manifest with
+  immutable index/content/alias/import identity, effective omitted language/
+  layer/source behavior, enforced generation/maintenance exclusion and response
+  attestation. No current auth/deployment/schema guarantee is invented.
+  Exact GET/UTF-8 serialization, runtime X-API-Key pending verification, raw
+  successful response bytes plus extracted ordered features, five bounded
+  attempts, initial two connections/one request per second, durable resumability.
+- **Calibration:** All 105,805 accepted Stage 11 requests at engineering maximum
+  10; grid 1/3/5/10, adjacent-rank curves and separately bounded public/DEVELOPMENT
+  paired-size checks. Final N UNSELECTED; no prefix-equivalence assumption.
+  A smaller final N requires a second complete direct-size workload. Reference
+  capability/dependence and unknown-tail protection govern owner review; no
+  confidence truth labels, candidate scoring or final address.
+- **Publication/review:** Full final input totality and zero unresolved technical,
+  contract or identity failures; Stage 12-specific reservation/registration/seal/
+  full reopen. [40 resolved design-ledger items and 26 proposed owner decisions](stages/STAGE12_DESIGN_REVIEW.md).
+  Pending owner design approval, gate reconciliation, concrete deployment/probe
+  evidence, workload/disclosure approval and empirical N remain explicit.
+- **Boundary/status:** DESIGN READY FOR OWNER REVIEW, not approved/implemented/
+  executed. No Stage 19 gate waiver, main merge, machine-readable implementation
+  assets, protected payload read, SLURM, Pelias/API call, HOLDOUT, production or
+  Stage 13. Stage 0–11 science/history unchanged; Stage 10 budget UNSELECTED.
+  **NEXT: OWNER REVIEW OF STAGE 12 DESIGN.**
+
+### D092 — Incorporate Stage 12 owner review and reconcile the legacy execution gate
+
+- **Authority/date:** 2026-10-09. Owner approves the architecture in principle,
+  directs 24 design revisions and authorizes documentation commit/push on
+  design/stage12-pelias-retrieval only. Prior proposal
+  54d52e01ed906c41b48c5dac945a76abd9f66846; accepted main remains
+  678a1dd4fc22c518ddd13a06d1de347a57da7a1c. No freeze, merge, implementation,
+  protected input, service call, SLURM, HOLDOUT, production or Stage 13.
+- **Identity/replay:** [Revised data contract](stages/STAGE12_DATA_CONTRACT.md)
+  removes client implementation and validation/extraction from network request
+  identity. Exact client SHA/runtime/operations remain campaign/checkpoint
+  provenance. A dataset-level response_projection_id binds raw capture set,
+  validation/extraction and candidate schema; deterministic offline replay
+  publishes a new immutable projection without a required new Pelias call.
+  Four relations remain; original outcomes/artifacts are never silently changed.
+- **Payload/deployment:** Response hash is SHA-256 of exact decoded uncompressed
+  application bytes before JSON. Storage compression does not enter science.
+  Malformed-feature responses fail wholly, retain safe complete raw audit and
+  never compress ranks. Deployment fingerprint hashes canonical result-affecting
+  content only; signature/key rotation is authenticity provenance. Immutable
+  backing data/alias bindings remain mandatory. Per-response generation is
+  preferred if available; verified controlled campaign exclusion and pre/
+  periodic/post identity checks are an acceptable operator-reviewed minimum.
+- **Calibration:** [Revised calibration protocol](stages/STAGE12_DEVELOPMENT_CALIBRATION.md)
+  separates final N, complete-population ceiling C and deep audit T>max(C,10).
+  C=10 is planning only; exact protected C/T await public safe-size evidence and
+  pre-outcome owner freeze. A deterministic <=2,000-request tail subset must meet
+  explicit country/script/mode/capability/completeness/representation/family
+  coverage. Bounded witness-token sets preserve compatible and unknown evidence
+  without independent-vote inflation or Stage 13 scoring. New useful tail means
+  INSUFFICIENT CALIBRATION DEPTH, never selection of the maximum tested depth.
+  N remains UNSELECTED; N!=C requires complete direct-N retrieval. Public
+  geocoding quality cannot select scientific N.
+- **Operations:** Initial one request/second, two connections, proposed five
+  bounded attempts; safe increases/lower retry limits need public evidence and
+  owner review before protected use. Multi-job campaigns preserve campaign ID,
+  exact executable/operations, durable receipts and cumulative budgets; no
+  concurrency increase just to fit SLURM walltime.
+- **Stage 19 finding and correction:** History bd8108c0b959c59ad02d2a3e82fb4c24418405af
+  and 7a99c047b22a35a7144032eb8bad6b2eac067497 establishes old Stage 19 as
+  query-deduplication/final QA in the superseded architecture. It is stale
+  numbering, not a typo or later scientific dependency. Owner direction now
+  replaces active references with accepted Stages 0–11 plus owner-frozen Stage
+  12, validated implementation and separate exact phase/workload authority,
+  including the public-probe and pre-DEVELOPMENT gates. D017/D032 and frozen
+  Stage 0–11 snapshots are preserved historically. size=1 cannot choose N or
+  change accepted Stage 11 modes. No execution is authorized by this correction.
+- **Review/status:** [All 24 owner directions and 57 bounded design checks](stages/STAGE12_DESIGN_REVIEW.md)
+  resolved; no unresolved scientific owner choice. Final N, exact C/T and
+  concrete deployment/observability/operations values are gated future
+  empirical parameters. **OWNER REVIEW INCORPORATED — READY FOR OWNER FREEZE,
+  NOT FROZEN/IMPLEMENTED/EXECUTED. NEXT: OWNER FREEZE OF STAGE 12 DESIGN.**

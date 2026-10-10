@@ -18,6 +18,7 @@ status is summarized in [progress](../DEVELOPMENT_PROGRESS.md).
 | 9 | [Conservative offline geographic reference evidence](STAGE09_OFFLINE_REFERENCE_EVIDENCE.md) | `STAGE_9_ACCEPTED`; executable `3e10ac7c…`, job `1771191`, independent job `1772139`; [owner acceptance](../../reports/development/stage09.md#owner-acceptance-and-freeze--2026-09-14) | NOT STARTED |
 | 10 | [Bounded multi-hypothesis query generation](STAGE10_MULTI_HYPOTHESIS_QUERY_GENERATION.md) | **STAGE_10_ACCEPTED**; job `1785683`, independent rereview `1786959`, zero candidate defects; [owner acceptance](../../reports/development/stage10.md) | NOT STARTED |
 | 11 | [Complete semantic request deduplication design](STAGE11_SEMANTIC_REQUEST_DEDUPLICATION.md) | **STAGE_11_ACCEPTED — FROZEN**; job 1788751, review 1790315, zero defects; [owner acceptance](STAGE11_OWNER_ACCEPTANCE.md); [contract](STAGE11_DATA_CONTRACT.md), [evaluation plan](STAGE11_DEVELOPMENT_EVALUATION.md), [design ledger/decisions](STAGE11_DESIGN_REVIEW.md) | NOT STARTED |
+| 12 | [SAFE Pelias top-N retrieval design](STAGE12_PELIAS_TOPN_RETRIEVAL.md) | **OWNER REVIEW INCORPORATED — READY FOR OWNER FREEZE**; not frozen, implemented or executed; [data contract](STAGE12_DATA_CONTRACT.md), [execution contract](STAGE12_EXECUTION_CONTRACT.md), [calibration](STAGE12_DEVELOPMENT_CALIBRATION.md), [review/owner decisions](STAGE12_DESIGN_REVIEW.md) | NOT STARTED |
 
 ## Reading frozen records
 
