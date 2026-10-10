@@ -1,0 +1,1 @@
+{"complementary_suppression":"REQUIRED","portable_values":"ALLOWLISTED_AGGREGATES_ONLY","protected_text_or_row_ids":"FORBIDDEN","release_plan":"OWNER_FREEZE_BEFORE_PROTECTED_PREFLIGHT","sections":["scientific","operations"],"small_cell_min_distinct_source_rows":20,"summary_version":"stage12_pelias_retrieval_summary_v1"}

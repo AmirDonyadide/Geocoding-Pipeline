@@ -1,0 +1,1 @@
+{"domain":"SAFE:stage12-retrieval-policy:v1","ordered_identity_fields":["policy_version","result_limit","retention","result_options"],"policy_version":"stage12_retrieval_policy_v1","purpose_outside_identity":true,"result_limit":"EXPLICIT_APPROVED_POSITIVE_UINT64","result_options":[],"retention":"ALL_RETURNED_IN_ORDER"}
