@@ -24,6 +24,7 @@ from .stages import s12_assets as assets
 from .stages import s12_deployment as deployment
 from .stages import s12_operations as ops
 from .stages import s12_probe as probe
+from .stages import s12_public_audit as audit
 from .stages import s12_response as response
 from .stages import s12_retrieval_contract as c
 from .stages import s12_storage as io
@@ -225,6 +226,7 @@ def run(
             }
         ),
     )
+    audit.initialize(output)
     operations = ops.Operations()
     operations.validate(initial_probe=True)
     admission = ops.Admission(operations)
@@ -234,6 +236,7 @@ def run(
     prefix_pairs: dict[str, dict[str, int]] = {}
     endpoint_counts = {"FULL_TEXT": 0, "STRUCTURED": 0}
     dispatch_started = 0
+    audit_started = audit_completed = 0
     http_errors = network_errors = retry_after_observed = 0
     sent = retries = same_agree = same_disagree = prefix_agree = prefix_disagree = 0
     report: dict[str, Any] = {
@@ -317,7 +320,8 @@ def run(
                     "outcome": "UNKNOWN_DELIVERY",
                 }
                 name = f"call_{call_number:04d}_attempt_{attempt}"
-                io.write(output / (name + "_begin.json"), c.canonical(begin))
+                audit.begin(output, begin)
+                audit_started += 1
                 admission.admit(time.monotonic_ns() // 1_000_000)
                 dispatch_started += 1
                 capture = transport.send(target, profile, key, operations)
@@ -336,6 +340,8 @@ def run(
                     "content_type": capture.content_type,
                     "content_encoding": capture.content_encoding,
                     "elapsed_ms": capture.elapsed_ms,
+                    "finished_utc": datetime.now(timezone.utc).isoformat(),
+                    "received_body_bytes": capture.received_body_bytes,
                     "payload_bytes": len(capture.payload)
                     if capture.payload is not None
                     else None,
@@ -344,8 +350,39 @@ def run(
                     if capture.retry_after_audit
                     else None,
                 }
-                io.write(output / (name + "_finish.json"), c.canonical(finish))
+                try:
+                    io.write(output / (name + "_finish.json"), c.canonical(finish))
+                except Exception:
+                    raise audit.AuditWriteError(
+                        capture.reason
+                        if capture.outcome in c.OUTCOMES
+                        and capture.outcome not in (*c.SUCCESS, "UNKNOWN_DELIVERY")
+                        else "PUBLIC_PROBE_EVIDENCE_WRITE_FAILED"
+                    ) from None
                 size_row["latency_ms"].append(capture.elapsed_ms)
+                raw = capture.payload
+                privacy_rejected = False
+                if raw is not None:
+                    try:
+                        response.secret_guard(raw, key.value)
+                    except c.Stage12Error:
+                        raw = None
+                        privacy_rejected = True
+                report["failure_phase"] = (
+                    "response_contract" if raw is not None else "dispatch"
+                )
+                terminal, features = audit.complete(
+                    output,
+                    name,
+                    raw,
+                    validator=public_shapes,
+                    privacy_rejected=privacy_rejected,
+                    primary_failure_reason=capture.reason
+                    if capture.outcome in c.OUTCOMES
+                    and capture.outcome not in (*c.SUCCESS, "UNKNOWN_DELIVERY")
+                    else None,
+                )
+                audit_completed += 1
                 if capture.outcome == "TECHNICAL_FAILURE_RETRYABLE":
                     admission.finish(
                         time.monotonic_ns() // 1_000_000,
@@ -365,23 +402,10 @@ def run(
                         / 1000
                     )
                     continue
-                if capture.status != 200 or capture.payload is None:
-                    raise c.Stage12Error(capture.reason)
-                raw = capture.payload
-                response.secret_guard(raw, key.value)
+                if terminal["outcome"] not in c.SUCCESS:
+                    raise c.Stage12Error(terminal["reason_code"])
+                assert raw is not None and features is not None
                 raw_path = output / (name + ".zst")
-                io.write(raw_path, response.compress(raw))
-                decoded = response.decompress(
-                    io.read(raw_path), length=len(raw), expected_hash=c.sha(raw)
-                )
-                report["failure_phase"] = "response_contract"
-                features = public_shapes(decoded)
-                c.require(
-                    len(features) <= size
-                    and capture.content_type in response.MEDIA
-                    and capture.content_encoding in ("absent", "identity"),
-                    "RESPONSE_CONTRACT_INVALID",
-                )
                 observed[(size, repetition, case["fixture_id"])] = (
                     raw_path,
                     len(raw),
@@ -441,11 +465,17 @@ def run(
             if isinstance(error, c.Stage12Error)
             else "PUBLIC_PROBE_HARNESS_FAILURE"
         )
+        if isinstance(error, audit.AuditWriteError):
+            report["evidence_write_status"] = "FAILED"
     finally:
         for row in sizes.values():
             for field in ("latency_ms", "payload_bytes", "candidate_counts"):
                 row[field] = aggregate(row[field])
         report.update(
+            public_audit_attempts_started=audit_started,
+            public_audit_attempts_completed=audit_completed,
+            public_audit_attempts_incomplete=audit_started - audit_completed,
+            public_audit_scope=audit.SCOPE,
             public_synthetic_requests_sent=sent if dispatch_started == sent else None,
             dispatch_attempts_started=dispatch_started,
             uncertain_dispatches=dispatch_started - sent,
