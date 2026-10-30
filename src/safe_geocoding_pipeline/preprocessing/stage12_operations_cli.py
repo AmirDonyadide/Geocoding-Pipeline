@@ -8,6 +8,21 @@ from .stages import s12_storage as io
 from .stages import s12_retrieval_contract as c
 
 
+def result_exit_status(config, result):
+    """Keep legacy completion semantics; require both lower-profile phases."""
+    if config["version"] == runtime.LOWER_VERSION:
+        passed = result["completed_phases"] == [
+            "capability_subset",
+            "confirmatory1",
+        ] and result["qualified_public_rates"] == [1]
+    else:
+        passed = (
+            len(result["completed_phases"]) == 3
+            and 40 in result["qualified_public_rates"]
+        )
+    return 0 if passed else 1
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--configuration", type=Path, required=True)
@@ -29,8 +44,9 @@ def main():
             args.configuration.parent == args.review_binding.parent,
             "PUBLIC_PROBE_AUTHORITY_BUNDLE_MISMATCH",
         )
+        config = io.metadata(raw)
         result = runtime.execute(
-            io.metadata(raw),
+            config,
             bundle=args.configuration.parent,
             review=io.metadata(review),
             review_hash=args.review_binding_sha256,
@@ -38,12 +54,7 @@ def main():
             git_sha=args.implementation_sha,
         )
         print(c.canonical(result).decode("ascii"), end="")
-        return (
-            0
-            if len(result["completed_phases"]) == 3
-            and 40 in result["qualified_public_rates"]
-            else 1
-        )
+        return result_exit_status(config, result)
     except Exception:
         # No arbitrary exception/response/configuration/credential echo.
         print(

@@ -909,3 +909,54 @@ def test_scale120_lower_wrapper_is_explicit_same_rate_and_preserves_legacy(mutat
     if mutation:
         with pytest.raises(c.Stage12Error):
             r.validate_config(cfg)
+
+
+@pytest.mark.parametrize(
+    "completed,rates,status",
+    [
+        (["capability_subset", "confirmatory1"], [1], 0),
+        ([], [], 1),
+        (["capability_subset"], [], 1),
+        (["capability_subset", "confirmatory1"], [], 1),
+        (["capability_subset", "confirmatory1"], [2], 1),
+        (["capability_subset", "confirmatory1"], [1, 20], 1),
+        (["capability_subset", "rate20", "rate40"], [20, 40], 1),
+    ],
+)
+def test_scale120_lower_cli_exit_requires_both_reopened_phases(
+    completed, rates, status
+):
+    from safe_geocoding_pipeline.preprocessing import stage12_operations_cli as entry
+
+    assert (
+        entry.result_exit_status(
+            {"version": r.LOWER_VERSION},
+            {"completed_phases": completed, "qualified_public_rates": rates},
+        )
+        == status
+    )
+
+
+def test_scale120_legacy_cli_exit_is_preserved():
+    from safe_geocoding_pipeline.preprocessing import stage12_operations_cli as entry
+
+    assert (
+        entry.result_exit_status(
+            {"version": r.VERSION},
+            {
+                "completed_phases": ["capability_subset", "rate20", "rate40"],
+                "qualified_public_rates": [20, 40],
+            },
+        )
+        == 0
+    )
+    assert (
+        entry.result_exit_status(
+            {"version": r.VERSION},
+            {
+                "completed_phases": ["capability_subset", "confirmatory1"],
+                "qualified_public_rates": [1],
+            },
+        )
+        == 1
+    )
