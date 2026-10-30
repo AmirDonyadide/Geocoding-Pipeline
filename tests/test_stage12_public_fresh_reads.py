@@ -250,9 +250,12 @@ def test_each_stage_reads_original_event_twice_with_no_cross_stage_cache(
     root, report, data = campaign(tmp_path)
     assert report["report_complete"]
     assert reopen(root, data) == report["blocks"][0]
-    assert len(entered) == len(finished) == 3
-    assert len({id(value) for value in entered}) == 3
-    assert reads == {0: 2, 1: 2, 2: 2}
+    assert len(entered) == len(finished) == 4
+    assert len({id(value) for value in entered}) == 4
+    assert entered[0].root == root / "attempts"
+    # The comparison view excludes events: its pinned prefix still reads
+    # this original event once; each later whole-campaign stage reads twice.
+    assert reads == {0: 1, 1: 2, 2: 2, 3: 2}
 
 
 def test_initial_source_stage_failure_is_report_preparation_not_comparison(
@@ -272,7 +275,11 @@ def test_initial_source_stage_failure_is_report_preparation_not_comparison(
     def diagnose(*args, **kwargs):
         return run(*args, diagnostics=failures, **kwargs)
 
+    enter = f.FreshReads.__enter__
+
     def fail(self):
+        if self.root.name == "attempts":
+            return enter(self)
         raise RuntimeError("UNSAFE_TEXT_MUST_NOT_BE_RETAINED")
 
     monkeypatch.setattr(cli, "run_operations_block", diagnose)
@@ -283,3 +290,308 @@ def test_initial_source_stage_failure_is_report_preparation_not_comparison(
     assert failures.first["family"] == "UNCLASSIFIED"
     assert "UNSAFE_TEXT" not in str(failures.snapshot())
     assert not (root / "snapshot.json").exists()
+
+
+def work_source(tmp_path, count=3):
+    from safe_geocoding_pipeline.preprocessing.stages import s12_public_operations as o
+
+    root = tmp_path / "work"
+    io.reserve(root)
+    rows = [{"key": key} for key in range(1, count + 1)]
+    for key, row in enumerate(rows, 1):
+        io.write(root / f"{key:020d}.json", c.canonical(row))
+    return root, o.manifest_digest(rows)
+
+
+@pytest.mark.parametrize("count", [0, 1, 3, 120])
+def test_work_pass_exact_manifest_no_cross_attempt_state(tmp_path, count, monkeypatch):
+    root, expected = work_source(tmp_path, count)
+    original = f._work_read
+    reads = []
+
+    def read(path):
+        reads.append(path.name)
+        return original(path)
+
+    monkeypatch.setattr(f, "_work_read", read)
+    assert f.work_manifest_digest(root, count) == expected
+    assert len(reads) == 2 * count
+    assert f.work_manifest_digest(root, count) == expected
+    assert len(reads) == 4 * count
+    if count:
+        io.write(root / "extra", b"extra")
+        with pytest.raises(c.Stage12Error):
+            f.work_manifest_digest(root, count)
+
+
+@pytest.mark.parametrize(
+    "kind",
+    [
+        "changed",
+        "truncated",
+        "extra",
+        "missing",
+        "reordered",
+        "root_mode",
+        "root_replace",
+    ],
+)
+def test_work_pass_detects_mutation_before_return(tmp_path, monkeypatch, kind):
+    root, _ = work_source(tmp_path)
+    original = f._work_read
+    calls = 0
+
+    def read(path):
+        nonlocal calls
+        raw = original(path)
+        calls += 1
+        if calls == 3:
+            first, second = root / f"{1:020d}.json", root / f"{2:020d}.json"
+            if kind == "changed":
+                first.write_bytes(c.canonical({"key": 9}))
+            elif kind == "truncated":
+                first.write_bytes(b"{")
+            elif kind == "extra":
+                io.write(root / "unexpected", b"x")
+            elif kind == "missing":
+                first.unlink()
+            elif kind == "reordered":
+                a, b = first.read_bytes(), second.read_bytes()
+                first.write_bytes(b)
+                second.write_bytes(a)
+            elif kind == "root_mode":
+                root.chmod(0o755)
+            else:
+                root.rename(root.with_name("replaced"))
+                root.mkdir(mode=0o700)
+        return raw
+
+    monkeypatch.setattr(f, "_work_read", read)
+    with pytest.raises((c.Stage12Error, OSError)):
+        f.work_manifest_digest(root, 3)
+    assert calls <= 4
+
+
+@pytest.mark.parametrize(
+    "kind",
+    [
+        "noncanonical",
+        "nondict",
+        "symlink",
+        "hardlink",
+        "file_mode",
+        "count_bound",
+        "deadline",
+    ],
+)
+def test_work_pass_preserves_guards_and_bounds(tmp_path, monkeypatch, kind):
+    root, _ = work_source(tmp_path)
+    first = root / f"{1:020d}.json"
+    if kind == "noncanonical":
+        first.write_bytes(b'{"key": 1}\n')
+    elif kind == "nondict":
+        first.write_bytes(b"[]\n")
+    elif kind == "symlink":
+        first.unlink()
+        first.symlink_to(root / f"{2:020d}.json")
+    elif kind == "hardlink":
+        import os
+
+        os.link(first, tmp_path / "linked")
+    elif kind == "file_mode":
+        first.chmod(0o644)
+    elif kind == "deadline":
+        from safe_geocoding_pipeline.preprocessing.stages import (
+            s12_public_recovery as rec,
+        )
+
+        def expire():
+            raise rec.FinalizationExpired()
+
+        monkeypatch.setattr(io, "_checkpoint", expire)
+    with pytest.raises((c.Stage12Error, RuntimeError, OSError)):
+        f.work_manifest_digest(
+            root, f.WORK_ROWS_BOUND + 1 if kind == "count_bound" else 3
+        )
+
+
+def test_begin_still_rejects_changed_full_work_source_before_dispatch(
+    tmp_path, monkeypatch
+):
+    from test_stage12_public_closure import campaign
+    from safe_geocoding_pipeline.preprocessing.stages import (
+        s12_public_scheduler as sched,
+    )
+
+    oldadmit = sched.Coordinator.admit
+    changed = False
+
+    def admit(self, begin):
+        nonlocal changed
+        if not changed:
+            work = self.writer.root / "work" / f"{2:020d}.json"
+            value = io.metadata(io.read(work))
+            value["repetition"] += 1
+            work.write_bytes(c.canonical(value))
+            changed = True
+        return oldadmit(self, begin)
+
+    monkeypatch.setattr(sched.Coordinator, "admit", admit)
+    root, report, _ = campaign(tmp_path)
+    assert changed and not report["report_complete"]
+    from safe_geocoding_pipeline.preprocessing.stages import (
+        s12_public_journal as journal,
+    )
+
+    start = io.metadata(io.read(root / "campaign_start.json"))
+    from safe_geocoding_pipeline.preprocessing.stages import s12_public_operations as o
+
+    assert all(
+        e["kind"] != "ATTEMPT_STARTED"
+        for e in journal.read_events(root, o.digest(start))
+    )
+
+
+def test_work_reader_bound_keeps_original_streaming_fallback(tmp_path, monkeypatch):
+    from test_stage12_public_closure import campaign, reopen
+
+    monkeypatch.setattr(f, "WORK_ROWS_BOUND", 1)
+
+    def forbidden(*_args):
+        pytest.fail("bounded work reader used beyond its row bound")
+
+    monkeypatch.setattr(f, "work_manifest_digest", forbidden)
+    root, report, data = campaign(tmp_path)
+    assert report["report_complete"]
+    assert reopen(root, data) == report["blocks"][0]
+
+
+def test_comparison_attempt_stage_rechecks_mutated_original_before_accepting(
+    tmp_path, monkeypatch
+):
+    from test_stage12_public_closure import campaign
+
+    old = f.FreshReads.finish
+    changed = False
+
+    def finish(self):
+        nonlocal changed
+        if self.root.name == "attempts":
+            assert not changed
+            next(self.root.rglob("*.zst")).write_bytes(b"synthetic mutation")
+            changed = True
+        return old(self)
+
+    monkeypatch.setattr(f.FreshReads, "finish", finish)
+    root, report, _ = campaign(tmp_path)
+    assert changed and not report["report_complete"]
+    assert not (root / "snapshot.json").exists()
+    assert not (root / "_WRITER_RELEASED.json").exists()
+    assert not io.has_read_view()
+
+
+def test_comparison_attempt_stage_does_not_hide_late_actual_sample(
+    tmp_path, monkeypatch
+):
+    from test_stage12_public_closure import campaign
+    from test_stage12_public_operations_v2 import FakeClock
+
+    clock = FakeClock()
+    finish = f.FreshReads.finish
+
+    def late(self):
+        finish(self)
+        if self.root.name == "attempts":
+            clock.advance(101_000_000)
+
+    monkeypatch.setattr(f.FreshReads, "finish", late)
+    root, report, _ = campaign(tmp_path, clock=clock)
+    assert not report["blocks"][0]["resource_sampling_complete"]
+    assert not report["report_complete"]
+    assert not io.has_read_view()
+
+
+def test_comparison_view_allows_actual_sampler_persistence_without_owning_events(
+    tmp_path, monkeypatch
+):
+    from test_stage12_public_closure import campaign, reopen
+    from safe_geocoding_pipeline.preprocessing.stages import (
+        s12_public_scheduler as scheduler,
+    )
+
+    init = scheduler.Coordinator.__init__
+    enter = f.FreshReads.__enter__
+    captured = []
+    observations = []
+
+    def initialize(self, *args, **kwargs):
+        init(self, *args, **kwargs)
+        captured.append(self)
+
+    def sample(self):
+        result = enter(self)
+        if self.root.name == "attempts":
+            coordinator = captured[0]
+            before = coordinator.journal.seq
+            errors = []
+
+            def observe():
+                try:
+                    assert not io.has_read_view()
+                    coordinator.resource("PERIODIC")
+                except BaseException as error:
+                    errors.append(error)
+
+            thread = threading.Thread(target=observe)
+            thread.start()
+            thread.join(2)
+            assert not thread.is_alive() and not errors
+            assert coordinator.journal.seq > before
+            assert all(not name.startswith("events/") for name in self.hashes)
+            observations.append(1)
+        return result
+
+    monkeypatch.setattr(scheduler.Coordinator, "__init__", initialize)
+    monkeypatch.setattr(f.FreshReads, "__enter__", sample)
+    root, report, data = campaign(tmp_path)
+    assert observations == [1] and report["report_complete"]
+    assert reopen(root, data) == report["blocks"][0]
+
+
+def test_outside_comparison_output_keeps_exact_writer_reopening(tmp_path, monkeypatch):
+    from test_stage12_public_closure import campaign
+    from safe_geocoding_pipeline.preprocessing.stages import (
+        s12_public_journal as journal,
+    )
+
+    read = journal.read_array
+    intercepted = False
+
+    def corrupted(path, **kwargs):
+        nonlocal intercepted
+        for row in read(path, **kwargs):
+            if path.name == "repeat_comparison.json" and io.has_read_view():
+                intercepted = True
+                row = {**row, "equal": not row["equal"]}
+            yield row
+
+    monkeypatch.setattr(journal, "read_array", corrupted)
+    root, report, _ = campaign(tmp_path)
+    assert intercepted and not report["report_complete"]
+    assert not (root / "snapshot.json").exists()
+    assert not io.has_read_view()
+
+
+def test_outside_output_does_not_enter_source_bindings(tmp_path):
+    root = source(tmp_path)
+    outside = tmp_path / "outside"
+    io.write(outside, b"generated elsewhere")
+    with f.FreshReads(root) as stage:
+        before = stage.hashes.copy()
+        io.record_read_output(outside, "0" * 64)
+        assert stage.hashes == before
+        inner = root / "unapproved"
+        io.write(inner, b"unexpected")
+        with pytest.raises(c.Stage12Error):
+            stage.output(inner, c.sha(b"unexpected").hex())
+        inner.unlink()

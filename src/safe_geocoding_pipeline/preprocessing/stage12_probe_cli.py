@@ -935,7 +935,17 @@ def run_operations_block(
 
         def begin(pending):
             row, attempt = pending.work, pending.attempt
-            po.require(po.manifest_digest(works()) == plan["work_manifest_sha256"])
+            from .stages.s12_public_fresh_reads import (
+                WORK_ROWS_BOUND,
+                work_manifest_digest,
+            )
+
+            current_work_digest = (
+                work_manifest_digest(output / "work", total_rows)
+                if total_rows <= WORK_ROWS_BOUND
+                else po.manifest_digest(works())
+            )
+            po.require(current_work_digest == plan["work_manifest_sha256"])
             root = attempt_root(row["work_id"], attempt)
             if row["kind"] == "DATA":
                 return oa.begin_data(
@@ -1358,7 +1368,18 @@ def run_operations_block(
                             "equal": shapes[0] is not None and shapes[0] == shapes[1],
                         }
 
-            comparison_hash = log.stream_array("repeat_comparison.json", comparisons())
+            from .stages.s12_public_fresh_reads import FreshReads
+
+            # Attempts are drained; the independent sampler writes only events.
+            # Reuse checked original attempt bytes within this comparison stage,
+            # then freshly re-read the entire exact attempt source set before
+            # accepting its output identity. No stage survives into closure.
+            with coordinator.safety:
+                po.require(not coordinator.slots)
+            with FreshReads(output / "attempts", check=finalization_deadline.check):
+                comparison_hash = log.stream_array(
+                    "repeat_comparison.json", comparisons()
+                )
             # Drain/join the independent bounded sample slot before recording the
             # last sample. No sample may race report-prefix capture or writer release.
             po.require(

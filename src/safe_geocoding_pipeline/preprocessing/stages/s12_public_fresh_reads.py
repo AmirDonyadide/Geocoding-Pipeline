@@ -138,6 +138,11 @@ class FreshReads:
     def output(self, path, digest):
         self._owner()
         o.require(self.state == "ACTIVE")
+        if not Path(path).absolute().is_relative_to(self.root):
+            # A read-only attempts-stage view does not own the event journal or
+            # derived comparison output. These retain their original writer
+            # validation, and are checked by the later whole-campaign stage.
+            return
         key = self._key(path)
         o.require(key in self.outputs and key not in self.hashes)
         raw = io.original_read(path)
@@ -191,3 +196,92 @@ class FreshReads:
             self.finish()
         else:
             o.require(self.state == "VERIFIED")
+
+
+WORK_ROWS_BOUND = 4096
+
+
+def _work_read(path):
+    """Original file reader, within a separately checked private work anchor."""
+    from . import s12_retrieval_contract as c
+
+    try:
+        raw = io.accepted.read_private(path)
+    except Exception:
+        raise c.Stage12Error("S12_PRIVATE_FILE_INVALID") from None
+    io._checkpoint()
+    return raw
+
+
+def work_manifest_digest(root, count):
+    """Fresh, bounded two-pass work validation; no state survives an attempt.
+
+    Fuse repeated ancestor checks only. Both passes use the existing exact
+    private-file reader, and pin/check the work-directory identity for every
+    file. Canonical bytes generate the original manifest digest directly.
+    Before returning, re-read every original and exact directory membership.
+    The caller retains its streaming fallback above WORK_ROWS_BOUND.
+    """
+    root = Path(root)
+    o.require(type(count) is int and 0 <= count <= WORK_ROWS_BOUND)
+    io._checkpoint()
+    io.private_directory(root)
+    anchor = os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        identity = os.fstat(anchor)
+        expected = {f"{key:020d}.json" for key in range(1, count + 1)}
+
+        def bound():
+            io._checkpoint()
+            info = root.stat(follow_symlinks=False)
+            o.require(
+                stat.S_ISDIR(info.st_mode)
+                and stat.S_IMODE(info.st_mode) == 0o700
+                and info.st_uid == os.geteuid()
+                and (info.st_dev, info.st_ino) == (identity.st_dev, identity.st_ino),
+                "S12_PUBLIC_SOURCE_CHANGED",
+            )
+
+        def membership():
+            bound()
+            names = set()
+            with os.scandir(root) as entries:
+                for entry in entries:
+                    io._checkpoint()
+                    # Bound before retaining any attacker-supplied name.
+                    o.require(entry.name in expected and entry.name not in names)
+                    names.add(entry.name)
+                    o.require(len(names) <= WORK_ROWS_BOUND)
+            o.require(names == expected, "S12_PUBLIC_SOURCE_CHANGED")
+            bound()
+
+        membership()
+        hashes = []
+        digest = hashlib.sha256(b"[")
+        for key in range(1, count + 1):
+            bound()
+            raw = _work_read(root / f"{key:020d}.json")
+            # Parse and check canonical form once; the exact validated bytes
+            # are also the manifest contribution, avoiding recanonicalization.
+            io.metadata(raw)
+            bound()
+            hashes.append(hashlib.sha256(raw).digest())
+            if key > 1:
+                digest.update(b",")
+            digest.update(raw[:-1])
+        digest.update(b"]\n")
+        membership()
+        for key, expected_hash in enumerate(hashes, 1):
+            bound()
+            raw = _work_read(root / f"{key:020d}.json")
+            o.require(
+                hashlib.sha256(raw).digest() == expected_hash,
+                "S12_PUBLIC_SOURCE_CHANGED",
+            )
+            bound()
+        membership()
+        io.private_directory(root)
+        bound()
+        return digest.hexdigest()
+    finally:
+        os.close(anchor)

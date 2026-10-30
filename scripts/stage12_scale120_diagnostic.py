@@ -488,7 +488,21 @@ def main():
         FreshReads,
     )
 
+    from safe_geocoding_pipeline.preprocessing.stages import (
+        s12_public_fresh_reads as fresh_reads,
+    )
+
+    original_work_read = fresh_reads._work_read
+
+    def measured_work_read(path):
+        t = time.monotonic_ns()
+        raw = original_work_read(path)
+        add("physical_work_read_bytes", time.monotonic_ns() - t, len(raw))
+        return raw
+
+    fresh_reads._work_read = measured_work_read
     for owner, name, tag in (
+        (fresh_reads, "work_manifest_digest", "per_attempt_work_validation"),
         (FreshReads, "__enter__", "fresh_stage_load"),
         (FreshReads, "finish", "fresh_stage_finish"),
         (j.MeasurementPrefix, "build", "prefix"),
@@ -897,7 +911,7 @@ def main():
             "post_run_diagnostic_scan",
         ],
         "metrics": metrics,
-        "physical_read_units": "physical_original_read_bytes: calls are completed original file reads; yielded_rows is byte count. Cache hits excluded. array_stream_read_bytes reports actual bytes returned by os.read within read_array (calls include EOF); array_stream_traversals counts initiated traversals including empty/failed ones. read_* tags are logical calls.",
+        "physical_read_units": "physical_original_read_bytes: calls are completed original file reads; yielded_rows is byte count. Cache hits excluded. physical_work_read_bytes separately reports the new fresh work-reader calls/bytes, which bypass io.original_read; sum these two non-overlapping byte categories for those readers. array_stream_read_bytes reports actual bytes returned by os.read within read_array (calls include EOF); array_stream_traversals counts initiated traversals including empty/failed ones. read_* tags are logical calls.",
         "stage_metrics_fields": [
             "calls",
             "inclusive_wall_ns",
