@@ -15,6 +15,7 @@ import resource
 import subprocess
 import time
 from datetime import datetime, timezone
+from itertools import islice
 from pathlib import Path
 from typing import Any, Iterator
 
@@ -1292,8 +1293,8 @@ def run_operations_block(
                         return
                 po.require(False, "PUBLIC_PROBE_EVIDENCE_WRITE_FAILED")
 
-            def comparisons():
-                # Exact original structural tuple equality; one pair resident at a time.
+            def comparison_pairs():
+                # Preserve the original first-predecessor and work ordering.
                 for row in works():
                     if row["kind"] != "DATA" or row["block_id"] != block_id:
                         continue
@@ -1311,47 +1312,60 @@ def run_operations_block(
                     )
                     if predecessor is None:
                         continue
+                    yield predecessor, row
+
+            def comparisons():
+                pairs = iter(comparison_pairs())
+                while batch := list(islice(pairs, 4)):
+                    # Fixed metadata only: <=4 pairs / <=8 work IDs. Raw payloads
+                    # and structural tuples are still verified one pair at a time.
+                    ids = {r["work_id"] for pair in batch for r in pair}
                     finals = {}
                     for event in comparison_events():
                         b = event["body"]
                         if (
                             event["kind"] == "ATTEMPT_FINALIZED"
-                            and b["work_id"] in (predecessor["work_id"], row["work_id"])
+                            and b["work_id"] in ids
                             and b["outcome"]["value"] in c.SUCCESS
                         ):
                             po.require(b["work_id"] not in finals)
                             finals[b["work_id"]] = b
-                    shapes = []
-                    for current in (predecessor, row):
-                        final = finals.get(current["work_id"])
-                        if final is None:
-                            shapes.append(None)
-                            continue
-                        terminal = verify_receipt(current, final)
-                        root = locate_attempt(
-                            output, current["work_id"], final["attempt"]
-                        )
-                        raw = response.decompress(
-                            io.read(
-                                root
-                                / (
-                                    audit.name_for(current["work_id"], final["attempt"])
-                                    + ".zst"
-                                )
-                            ),
-                            length=terminal["application_payload_bytes"],
-                            expected_hash=bytes.fromhex(terminal["response_sha256"]),
-                        )
-                        shapes.append(
-                            public_shapes(raw)
-                            if public_validation is None
-                            else public_validation.validator(current, root)(raw)
-                        )
-                    yield {
-                        "first_work_id": predecessor["work_id"],
-                        "next_work_id": row["work_id"],
-                        "equal": shapes[0] is not None and shapes[0] == shapes[1],
-                    }
+                    for predecessor, row in batch:
+                        shapes = []
+                        for current in (predecessor, row):
+                            final = finals.get(current["work_id"])
+                            if final is None:
+                                shapes.append(None)
+                                continue
+                            terminal = verify_receipt(current, final)
+                            root = locate_attempt(
+                                output, current["work_id"], final["attempt"]
+                            )
+                            raw = response.decompress(
+                                io.read(
+                                    root
+                                    / (
+                                        audit.name_for(
+                                            current["work_id"], final["attempt"]
+                                        )
+                                        + ".zst"
+                                    )
+                                ),
+                                length=terminal["application_payload_bytes"],
+                                expected_hash=bytes.fromhex(
+                                    terminal["response_sha256"]
+                                ),
+                            )
+                            shapes.append(
+                                public_shapes(raw)
+                                if public_validation is None
+                                else public_validation.validator(current, root)(raw)
+                            )
+                        yield {
+                            "first_work_id": predecessor["work_id"],
+                            "next_work_id": row["work_id"],
+                            "equal": shapes[0] is not None and shapes[0] == shapes[1],
+                        }
 
             comparison_hash = log.stream_array("repeat_comparison.json", comparisons())
             # Drain/join the independent bounded sample slot before recording the

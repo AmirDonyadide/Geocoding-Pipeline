@@ -12,6 +12,140 @@ from test_stage12_public_scheduler import run_offline
 
 
 @pytest.mark.parametrize(
+    "case", ["ordinary", "missing_timing", "duplicate_timing", "duplicate_network"]
+)
+def test_1804272_bounded_join_matches_single_work_and_preserves_failures(
+    tmp_path, monkeypatch, case
+):
+    import copy
+
+    campaign, root, (profile, plan, start, rows, _) = run_offline(tmp_path, count=9)
+    events = [
+        e
+        for e in j.read_events(root, o.digest(start))
+        if e["seq"] <= campaign["blocks"][0]["input_last_event_seq"]
+    ]
+    if case == "missing_timing":
+        events = [
+            e
+            for e in events
+            if not (e["kind"] == "AUDIT_TIMING" and e["body"]["work_id"] == 1)
+        ]
+    elif case.startswith("duplicate_"):
+        kind = "AUDIT_TIMING" if case == "duplicate_timing" else "NETWORK_DONE"
+        example = next(
+            e for e in events if e["kind"] == kind and e["body"]["work_id"] == 1
+        )
+        events[-1:-1] = [copy.deepcopy(example) for _ in range(7)]
+    calls = 0
+
+    def source():
+        nonlocal calls
+        calls += 1
+        yield from events
+
+    def report():
+        return r.block_report(
+            plan,
+            profile,
+            1,
+            events=source,
+            works=lambda: iter(rows),
+            verified_receipt=lambda *_: {"outcome": c.SUCCESS[1]},
+            repeat_evidence=lambda: (
+                campaign["blocks"][0]["repeat_comparison_sha256"],
+                True,
+            ),
+            monitoring_closed=lambda: True,
+        )
+
+    monkeypatch.setattr(r, "_TIMING_JOIN_WORKS", 1)
+    one = report()
+    one_calls = calls
+    calls = 0
+    monkeypatch.setattr(r, "_TIMING_JOIN_WORKS", 8)
+    grouped = report()
+    assert grouped == one
+    assert calls < one_calls
+    if case == "ordinary":
+        assert grouped == campaign["blocks"][0]
+        assert grouped["status"] == "EXPLORATORY_ONLY"
+    else:
+        assert grouped["status"] == "INCOMPLETE"
+        assert not grouped["resource_sampling_complete"]
+    if case == "duplicate_timing":
+        assert grouped["latencies"]["writer_wait"]["n"] == 16
+    if case == "duplicate_network":
+        assert grouped["latencies"]["transport_all"]["n"] == 16
+
+
+@pytest.mark.parametrize("count", [8, 9, 17])
+def test_1804272_join_scan_count_and_fixed_memory_bound(tmp_path, monkeypatch, count):
+    import sys
+
+    campaign, root, (profile, plan, start, rows, _) = run_offline(tmp_path, count=count)
+    events = [
+        e
+        for e in j.read_events(root, o.digest(start))
+        if e["seq"] <= campaign["blocks"][0]["input_last_event_seq"]
+    ]
+    calls = rounds = 0
+    retained_peak = 0
+    stats = r.exact_stats
+
+    def source():
+        nonlocal calls
+        calls += 1
+        yield from events
+
+    def counted(values, names):
+        def stream():
+            nonlocal rounds
+            rounds += 1
+            yield from values()
+
+        return stats(stream, names)
+
+    def bounded_frames(frame, event, arg):
+        nonlocal retained_peak
+        if frame.f_code.co_filename != r.__file__:
+            return
+        if frame.f_code.co_name == "values":
+            state = frame.f_locals
+            for field in ("starts", "timings", "transports"):
+                mapping = state.get(field, {})
+                assert len(mapping) <= 8
+                assert all(len(items) <= 5 for items in mapping.values())
+            retained_peak = max(retained_peak, len(state.get("starts", {})))
+        elif frame.f_code.co_name == "single_values":
+            assert len(frame.f_locals.get("started", {})) <= 5
+            assert len(frame.f_locals.get("timings", [])) <= 5
+
+    monkeypatch.setattr(r, "exact_stats", counted)
+    previous_profile = sys.getprofile()
+    sys.setprofile(bounded_frames)
+    try:
+        result = r.block_report(
+            plan,
+            profile,
+            1,
+            events=source,
+            works=lambda: iter(rows),
+            verified_receipt=lambda *_: {"outcome": c.SUCCESS[1]},
+            repeat_evidence=lambda: (
+                campaign["blocks"][0]["repeat_comparison_sha256"],
+                True,
+            ),
+            monitoring_closed=lambda: True,
+        )
+    finally:
+        sys.setprofile(previous_profile)
+    assert result == campaign["blocks"][0]
+    assert calls == 1 + count + rounds * ((count + 7) // 8)
+    assert retained_peak == min(count, 8)
+
+
+@pytest.mark.parametrize(
     "values,expected",
     [
         ([], (None, None, None)),

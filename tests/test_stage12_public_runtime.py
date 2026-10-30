@@ -26,6 +26,80 @@ from test_stage12_public_operational_audit import capture
 from stage12_synthetic import body
 
 
+@pytest.mark.parametrize("count", [4, 5, 9])
+def test_1804272_repeat_join_batches_metadata_but_reopens_each_pair(
+    tmp_path, monkeypatch, count
+):
+    from safe_geocoding_pipeline.preprocessing.stages import s12_public_journal as j
+    from test_stage12_public_scheduler import run_offline
+
+    active = False
+    traversals = comparisons = payload_reads = 0
+    stream = j.Journal.stream_array
+    read_events = j.read_events
+    read = io.read
+
+    def counted_events(*a, **kw):
+        nonlocal traversals
+        if active:
+            traversals += 1
+        yield from read_events(*a, **kw)
+
+    def counted_read(path, **kw):
+        nonlocal payload_reads
+        if active and path.suffix == ".zst":
+            payload_reads += 1
+        return read(path, **kw)
+
+    def counted_stream(self, name, rows):
+        nonlocal active, comparisons
+        if name != "repeat_comparison.json":
+            return stream(self, name, rows)
+
+        def values():
+            nonlocal comparisons
+            for row in rows:
+                comparisons += 1
+                yield row
+
+        active = True
+        try:
+            return stream(self, name, values())
+        finally:
+            active = False
+
+    monkeypatch.setattr(j, "read_events", counted_events)
+    monkeypatch.setattr(j.Journal, "stream_array", counted_stream)
+    monkeypatch.setattr(io, "read", counted_read)
+    campaign, root, (_, _, _, rows, _) = run_offline(tmp_path, count=count)
+    expected = []
+    for index, work in enumerate(rows):
+        prior = next(
+            (
+                item
+                for item in rows[:index]
+                if (item["fixture_id"], item["result_limit"])
+                == (work["fixture_id"], work["result_limit"])
+            ),
+            None,
+        )
+        if prior is not None:
+            expected.append(
+                {
+                    "first_work_id": prior["work_id"],
+                    "next_work_id": work["work_id"],
+                    "equal": True,
+                }
+            )
+    assert list(j.read_array(root / "repeat_comparison.json")) == expected
+    assert comparisons == len(expected) > 0
+    assert traversals == (comparisons + 3) // 4
+    assert (
+        payload_reads >= 2 * comparisons
+    )  # Fresh raw bytes for both sides of every pair.
+    assert campaign["report_complete"] and campaign["disposition"] == "COMPLETED"
+
+
 def berlin_work():
     return dict(
         work_id=1,
@@ -520,7 +594,14 @@ def test_runtime_guard_precedes_input_and_key_access(monkeypatch, tmp_path):
 
 
 @pytest.mark.parametrize(
-    "mismatch", [None, "prior_block_report_sha256", "next_rate", "review_report_sha256", "reviewer"]
+    "mismatch",
+    [
+        None,
+        "prior_block_report_sha256",
+        "next_rate",
+        "review_report_sha256",
+        "reviewer",
+    ],
 )
 def test_progression_validates_actual_report_bound_gate(tmp_path, mismatch):
     clock = FakeClock()

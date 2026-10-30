@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+from itertools import islice
 
 from collections.abc import Callable, Iterable, Iterator
 from typing import Any
@@ -10,6 +11,9 @@ from typing import Any
 from . import s12_probe as probe
 from . import s12_public_operations as o
 from . import s12_retrieval_contract as c
+
+
+_TIMING_JOIN_WORKS = 8  # Fixed engineering bound, unrelated to live rates or C/T/N.
 
 
 def count(value: int | None, lower: int = 0) -> dict[str, int | None]:
@@ -360,66 +364,120 @@ def block_report(
         elif not success:
             reasons.add("INCOMPLETE_WORK")
 
-    def values() -> Iterator[tuple[str, int]]:
-        # One work's <=5 attempts at a time. Join start/timing once per scan,
-        # not one whole event traversal for every individual timing sample.
-        for row in works():
-            if row["block_id"] != block_id:
+    def single_values(row) -> Iterator[tuple[str, int]]:
+        # Existing bounded one-work path preserves all malformed duplicate values.
+        started, timings = {}, []
+        timing_overflow = False
+        for event in source():
+            body = event["body"]
+            if body.get("work_id") != row["work_id"]:
                 continue
-            started, timings = {}, []
-            timing_overflow = False
+            kind = event["kind"]
+            if kind in ("ATTEMPT_STARTED", "AUDIT_TIMING", "NETWORK_DONE"):
+                o.require(1 <= body["attempt"] <= 5)
+            if kind == "ATTEMPT_STARTED":
+                started.setdefault(body["attempt"], body["started_mono_ns"])
+            elif kind == "AUDIT_TIMING":
+                if len(timings) < 5:
+                    timings.append(body)
+                else:
+                    timing_overflow = True
+            elif kind == "NETWORK_DONE":
+                yield "transport_all", body["elapsed_ms"]
+                if row["kind"] == "DATA":
+                    yield "transport_data", body["elapsed_ms"]
+        # Malformed duplicate timing records may exceed five even though
+        # ordinals cannot. Preserve their known n / INCOMPLETE statistics
+        # without keeping an unbounded list: only this case needs a rescan.
+        selected_timings = (
+            (
+                e["body"]
+                for e in source()
+                if e["kind"] == "AUDIT_TIMING"
+                and e["body"]["work_id"] == row["work_id"]
+            )
+            if timing_overflow
+            else iter(timings)
+        )
+        for timing in selected_timings:
+            yield (
+                "writer_wait",
+                (timing["receipt_reopened_ns"] - timing["writer_enqueued_ns"] + 999_999)
+                // 1_000_000,
+            )
+            if row["kind"] == "DATA":
+                o.require(timing["attempt"] in started)
+                yield (
+                    "full_slot_data",
+                    (
+                        timing["reservation_released_ns"]
+                        - started[timing["attempt"]]
+                        + 999_999
+                    )
+                    // 1_000_000,
+                )
+
+    def values() -> Iterator[tuple[str, int]]:
+        # Fixed eight-work join, rebuilt on EVERY percentile scan. No event or
+        # campaign-sized cache survives; at most 8 * 5 starts/timings/transports
+        # are retained. Every batch consumes the same fully validated prefix.
+        selected = (row for row in works() if row["block_id"] == block_id)
+        while batch := list(islice(selected, _TIMING_JOIN_WORKS)):
+            ids = {row["work_id"] for row in batch}
+            o.require(len(ids) == len(batch))
+            starts = {key: {} for key in ids}
+            timings = {key: [] for key in ids}
+            transports = {key: [] for key in ids}
+            overflow = set()
             for event in source():
                 body = event["body"]
-                if body.get("work_id") != row["work_id"]:
+                key = body.get("work_id")
+                if key not in ids:
                     continue
                 kind = event["kind"]
                 if kind in ("ATTEMPT_STARTED", "AUDIT_TIMING", "NETWORK_DONE"):
                     o.require(1 <= body["attempt"] <= 5)
                 if kind == "ATTEMPT_STARTED":
-                    started.setdefault(body["attempt"], body["started_mono_ns"])
-                elif kind == "AUDIT_TIMING":
-                    if len(timings) < 5:
-                        timings.append(body)
+                    starts[key].setdefault(body["attempt"], body["started_mono_ns"])
+                elif kind in ("AUDIT_TIMING", "NETWORK_DONE"):
+                    target = timings[key] if kind == "AUDIT_TIMING" else transports[key]
+                    if len(target) < 5:
+                        target.append(
+                            body if kind == "AUDIT_TIMING" else body["elapsed_ms"]
+                        )
                     else:
-                        timing_overflow = True
-                elif kind == "NETWORK_DONE":
-                    yield "transport_all", body["elapsed_ms"]
+                        overflow.add(key)
+            for row in batch:
+                key = row["work_id"]
+                if key in overflow:
+                    # Never truncate malformed duplicates into a complete report.
+                    yield from single_values(row)
+                    continue
+                for elapsed in transports[key]:
+                    yield "transport_all", elapsed
                     if row["kind"] == "DATA":
-                        yield "transport_data", body["elapsed_ms"]
-            # Malformed duplicate timing records may exceed five even though
-            # ordinals cannot. Preserve their known n / INCOMPLETE statistics
-            # without keeping an unbounded list: only this case needs a rescan.
-            selected_timings = (
-                (
-                    e["body"]
-                    for e in source()
-                    if e["kind"] == "AUDIT_TIMING"
-                    and e["body"]["work_id"] == row["work_id"]
-                )
-                if timing_overflow
-                else iter(timings)
-            )
-            for timing in selected_timings:
-                yield (
-                    "writer_wait",
-                    (
-                        timing["receipt_reopened_ns"]
-                        - timing["writer_enqueued_ns"]
-                        + 999_999
-                    )
-                    // 1_000_000,
-                )
-                if row["kind"] == "DATA":
-                    o.require(timing["attempt"] in started)
+                        yield "transport_data", elapsed
+                for timing in timings[key]:
                     yield (
-                        "full_slot_data",
+                        "writer_wait",
                         (
-                            timing["reservation_released_ns"]
-                            - started[timing["attempt"]]
+                            timing["receipt_reopened_ns"]
+                            - timing["writer_enqueued_ns"]
                             + 999_999
                         )
                         // 1_000_000,
                     )
+                    if row["kind"] == "DATA":
+                        o.require(timing["attempt"] in starts[key])
+                        yield (
+                            "full_slot_data",
+                            (
+                                timing["reservation_released_ns"]
+                                - starts[key][timing["attempt"]]
+                                + 999_999
+                            )
+                            // 1_000_000,
+                        )
 
     latencies = exact_stats(values, tuple(o.TYPES["Latencies"]))
     peaks["writer_wait_ms"] = latencies["writer_wait"]["max_ms"]
