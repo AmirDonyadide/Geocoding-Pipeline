@@ -7,6 +7,7 @@ execution command, automatic resubmission or protected-policy selection exists.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import importlib.metadata
 import platform
 import ssl
@@ -1437,9 +1438,42 @@ def run_operations_block(
                 closure=True,
             )
             operation = "RECONCILIATION"
-            total = recovery.required_work_complete(
-                plan, works, lambda: recovery.work_ledger(works, events, verify_receipt)
-            )
+
+            def ledger():
+                for row in recovery.work_ledger(works, events, verify_receipt):
+                    if (
+                        report["counts"]["unprocessed_data"]["value"] == 0
+                        and row["work_id"] in block["reserved_control_ids"]
+                        and not row["charged_ordinals"]
+                    ):
+                        row["state"] = "UNUSED_RESERVED_CONTROL"
+                    yield row
+
+            ledger_hash = log.stream_array("work_ledger.json", ledger())
+
+            def verified_ledger():
+                # This is a freshly derived, fsynced and reopened stream, never
+                # an authority token or an unbounded in-memory ledger cache.
+                # Each reuse checks every actual canonical byte before yielding
+                # and again while consuming; mutations cannot produce totality.
+                path = output / "work_ledger.json"
+                po.require(
+                    po.manifest_digest(pj.read_array(path, check=writer.check_deadline))
+                    == ledger_hash
+                )
+                fingerprint = hashlib.sha256(b"[")
+                for i, row in enumerate(
+                    pj.read_array(path, check=writer.check_deadline)
+                ):
+                    po.validate_type(row, "WorkLedgerRow")
+                    if i:
+                        fingerprint.update(b",")
+                    fingerprint.update(c.canonical(row)[:-1])
+                    yield row
+                fingerprint.update(b"]\n")
+                po.require(fingerprint.hexdigest() == ledger_hash)
+
+            total = recovery.required_work_complete(plan, works, verified_ledger)
             if (
                 not total
                 and not coordinator.stop_reason
@@ -1467,22 +1501,11 @@ def run_operations_block(
             )
             state = recovery.replay(events())
 
-            def ledger():
-                for row in recovery.work_ledger(works, events, verify_receipt):
-                    if (
-                        report["counts"]["unprocessed_data"]["value"] == 0
-                        and row["work_id"] in block["reserved_control_ids"]
-                        and not row["charged_ordinals"]
-                    ):
-                        row["state"] = "UNUSED_RESERVED_CONTROL"
-                    yield row
-
-            ledger_hash = log.stream_array("work_ledger.json", ledger())
             remaining_hash = log.stream_array(
                 "remaining_work_ledger.json",
                 (
                     r
-                    for r in ledger()
+                    for r in verified_ledger()
                     if r["state"] in ("UNBEGUN", "RETRY_DUE", "UNUSED_RESERVED_CONTROL")
                 ),
             )

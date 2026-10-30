@@ -16,7 +16,7 @@ import importlib.metadata
 from copy import deepcopy
 from datetime import datetime, timezone
 from pathlib import Path
-from itertools import zip_longest
+from itertools import islice, zip_longest
 from . import s12_response as response
 from . import s12_assets as assets
 from . import s12_operations as v1
@@ -468,14 +468,8 @@ def reopen_completed(root, profile, plan, start, *, validation_sha256=None):
     comparisons = list(journal.read_array(root / "repeat_comparison.json"))
 
     # Raw bytes and their exact structural repeat relation are checked anew.
-    def structural(work):
-        final = next(
-            e["body"]
-            for e in events()
-            if e["kind"] == "ATTEMPT_FINALIZED"
-            and e["body"]["work_id"] == work["work_id"]
-            and e["body"]["outcome"]["value"] in c.SUCCESS
-        )
+    def structural(work, final):
+        o.require(final is not None)
         terminal = receipt(work, final)
         name = audit.name_for(work["work_id"], final["attempt"])
         path = root / "attempts" / name
@@ -486,19 +480,38 @@ def reopen_completed(root, profile, plan, start, *, validation_sha256=None):
         )
         return validation.shapes(raw, work, version=adapter.VERSION)
 
+    def pairs():
+        for work in works():
+            prior = next(
+                (
+                    w
+                    for w in works()
+                    if w["work_id"] < work["work_id"]
+                    and (w["fixture_id"], w["result_limit"])
+                    == (work["fixture_id"], work["result_limit"])
+                ),
+                None,
+            )
+            if prior is not None:
+                yield prior, work
+
     expected_comparisons = 0
-    for work in works():
-        prior = next(
-            (
-                w
-                for w in works()
-                if w["work_id"] < work["work_id"]
-                and (w["fixture_id"], w["result_limit"])
-                == (work["fixture_id"], work["result_limit"])
-            ),
-            None,
-        )
-        if prior is not None:
+    pair_rows = iter(pairs())
+    while batch := list(islice(pair_rows, 4)):
+        # Same bounded metadata join as capture-side comparisons. Consume the
+        # entire validated prefix; every receipt/body still reopens per pair.
+        ids = {w["work_id"] for pair in batch for w in pair}
+        finals = {}
+        for event in events():
+            body = event["body"]
+            if (
+                event["kind"] == "ATTEMPT_FINALIZED"
+                and body["work_id"] in ids
+                and body["outcome"]["value"] in c.SUCCESS
+            ):
+                o.require(body["work_id"] not in finals)
+                finals[body["work_id"]] = body
+        for prior, work in batch:
             expected_comparisons += 1
             value = next(
                 (x for x in comparisons if x["next_work_id"] == work["work_id"]), None
@@ -508,7 +521,8 @@ def reopen_completed(root, profile, plan, start, *, validation_sha256=None):
                 == {
                     "first_work_id": prior["work_id"],
                     "next_work_id": work["work_id"],
-                    "equal": structural(prior) == structural(work),
+                    "equal": structural(prior, finals.get(prior["work_id"]))
+                    == structural(work, finals.get(work["work_id"])),
                 }
             )
     o.require(len(comparisons) == expected_comparisons)

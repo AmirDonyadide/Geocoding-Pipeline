@@ -26,8 +26,8 @@ from test_stage12_public_operations_v2 import (
 from test_stage12_public_scheduler import repair_common, synthetic_dispatch
 
 
-def campaign(tmp_path, *, clock=None):
-    p, plan, start, rows, inv = inputs(2)
+def campaign(tmp_path, *, clock=None, count=2):
+    p, plan, start, rows, inv = inputs(count)
     p["resources"]["writer_guard_ms"] = 5000
     rebind(p, plan, start, rows)
     clock = clock or FakeClock()
@@ -432,3 +432,142 @@ def test_storage_scan_rejects_changed_accounting_binding(tmp_path, monkeypatch):
     root, report, _ = campaign(tmp_path)
     assert changed and not report["report_complete"]
     assert not (root / "_SEGMENT_SEALED").exists()
+
+
+def test_closure_derives_original_ledger_once_and_reopens_it_exactly(
+    tmp_path, monkeypatch
+):
+    ledger = rec.work_ledger
+    calls = []
+
+    def counted(*args, **kwargs):
+        calls.append(1)
+        yield from ledger(*args, **kwargs)
+
+    monkeypatch.setattr(rec, "work_ledger", counted)
+    root, report, data = campaign(tmp_path)
+    assert report["disposition"] == "COMPLETED" and report["report_complete"]
+    assert len(calls) == 1
+    retained = list(j.read_array(root / "work_ledger.json"))
+    assert len(retained) == 2
+    assert all(row["state"] == "DURABLE_SUCCESS" for row in retained)
+    assert list(j.read_array(root / "remaining_work_ledger.json")) == []
+    assert reopen(root, data) == report["blocks"][0]
+    assert len(calls) == 2  # Full opener still derives from original evidence.
+
+
+@pytest.mark.parametrize("stage", ["totality", "remaining", "during_totality"])
+def test_reused_ledger_content_is_validated_at_every_consumer(
+    tmp_path, monkeypatch, stage
+):
+    totality, stream, read = (
+        rec.required_work_complete,
+        j.Journal.stream_array,
+        j.read_array,
+    )
+    changed = False
+    ledger_root = None
+
+    def corrupt(root):
+        nonlocal changed
+        path = root / "work_ledger.json"
+        value = json.loads(path.read_bytes())
+        value[0]["selected_receipt_sha256"] = "0" * 64
+        # Same-length, schema-valid metadata must not pass on stat/size alone.
+        assert len(c.canonical(value)) == len(path.read_bytes())
+        path.write_bytes(c.canonical(value))
+        changed = True
+
+    def capture(self, name, rows):
+        nonlocal ledger_root
+        ledger_root = self.writer.root
+        if stage == "remaining" and name == "remaining_work_ledger.json":
+            corrupt(ledger_root)
+        return stream(self, name, rows)
+
+    def check(*args, **kwargs):
+        if stage == "totality":
+            corrupt(ledger_root)
+        return totality(*args, **kwargs)
+
+    ledger_reads = 0
+
+    def altered(path, **kwargs):
+        nonlocal ledger_reads, changed
+        if path.name == "work_ledger.json":
+            ledger_reads += 1
+        # On the consumer's second pass (after its prehash), alter a row in
+        # the yielded stream. The consuming digest must reject it too.
+        for row in read(path, **kwargs):
+            if (
+                stage == "during_totality"
+                and path.name == "work_ledger.json"
+                and ledger_reads == 2
+                and not changed
+            ):
+                row["selected_receipt_sha256"] = "0" * 64
+                changed = True
+            yield row
+
+    monkeypatch.setattr(j.Journal, "stream_array", capture)
+    monkeypatch.setattr(rec, "required_work_complete", check)
+    monkeypatch.setattr(j, "read_array", altered)
+    root, report, _ = campaign(tmp_path)
+    assert changed and report["disposition"] == "RECOVERY_BLOCKED"
+    assert not report["report_complete"]
+    assert not (root / "_SEGMENT_SEALED").exists()
+    assert not (root / "_WRITER_RELEASED.json").exists()
+
+
+@pytest.mark.parametrize("count", [2, 5, 6])
+def test_reopening_comparison_join_is_bounded_and_revalidates_each_body(
+    tmp_path, monkeypatch, count
+):
+    root, report, data = campaign(tmp_path, count=count)
+    assert report["report_complete"]
+    from safe_geocoding_pipeline.preprocessing.stages import s12_response as response
+
+    events, shapes = j.MeasurementPrefix.events, validation.shapes
+    in_comparison = False
+    passes, bodies = [], []
+    original_ledger, original_report = rec.work_ledger, runtime.reporting.block_report
+
+    def after_ledger(*args, **kwargs):
+        nonlocal in_comparison
+        yield from original_ledger(*args, **kwargs)
+        in_comparison = True
+
+    def before_report(*args, **kwargs):
+        nonlocal in_comparison
+        in_comparison = False
+        return original_report(*args, **kwargs)
+
+    def counted(self, *args, **kwargs):
+        if in_comparison:
+            passes.append(1)
+        yield from events(self, *args, **kwargs)
+
+    def checked(raw, work, **kwargs):
+        if in_comparison:
+            bodies.append(work["work_id"])
+        return shapes(raw, work, **kwargs)
+
+    # Receipt reopening may also use shapes; count the direct raw-body call
+    # via its preceding decompress rather than treating receipt checks as skips.
+    decompress = response.decompress
+    decompressions = []
+
+    def decoded(*args, **kwargs):
+        if in_comparison:
+            decompressions.append(1)
+        return decompress(*args, **kwargs)
+
+    monkeypatch.setattr(rec, "work_ledger", after_ledger)
+    monkeypatch.setattr(runtime.reporting, "block_report", before_report)
+    monkeypatch.setattr(j.MeasurementPrefix, "events", counted)
+    monkeypatch.setattr(validation, "shapes", checked)
+    monkeypatch.setattr(response, "decompress", decoded)
+    assert reopen(root, data) == report["blocks"][0]
+    assert len(passes) == (count - 1 + 3) // 4
+    assert len(decompressions) >= 2 * (count - 1)
+    assert set(bodies) == set(range(1, count + 1))
