@@ -41,6 +41,8 @@ class Writer:
         self.wake = threading.Event()
         self.failed = threading.Event()
         self.closed = False
+        self.failures = None
+        self.charge_write: Callable[[Path, int], None] = lambda path, size: None
         self.storage_guard: Callable[[], None] = lambda: None
         self.check_deadline: Callable[[], None] = lambda: None
         self.remaining_seconds: Callable[[], float] = lambda: self.guard_ms / 1000
@@ -73,12 +75,17 @@ class Writer:
         try:
             o.require(not self.failed.is_set(), "PUBLIC_PROBE_EVIDENCE_WRITE_FAILED")
             self.check_deadline()
-            with io.cooperative_io(self.check_deadline):
+            with (
+                io.cooperative_io(self.check_deadline),
+                io.charged_writes(self.charge_write),
+            ):
                 result = action()
             self.check_deadline()
             o.require(not self.failed.is_set(), "PUBLIC_PROBE_EVIDENCE_WRITE_FAILED")
             self.storage_guard()
         except BaseException as error:
+            if self.failures is not None:
+                self.failures.record("WRITER_ACTION", error, writer=self)
             self.failed.set()
             self.stop()
             future.set_exception(error)
@@ -145,7 +152,9 @@ class Writer:
             )
             self.check_deadline()
             return result
-        except BaseException:
+        except BaseException as error:
+            if self.failures is not None:
+                self.failures.record("WRITER_WAIT", error, writer=self)
             self.failed.set()
             self.stop()
             raise
@@ -221,6 +230,8 @@ class Journal:
         self.last_mono = 0
         self.segment_closed = True
         self.start_hash = self.contract.digest(start)
+        self.accounted_bytes: int | None = None
+        self.root_identity = None
         writer.call(lambda: self.write("campaign_start.json", start))
         writer.call(lambda: io.reserve(writer.root / "events"))
         if predecessor is not None:
@@ -257,12 +268,55 @@ class Journal:
                 node = predecessor_root(node)
         writer.storage_guard = lambda: self.check_storage(0)
 
+    def enable_accounting(self) -> None:
+        """Public-only monotone reservation counter, never a validation cache.
+
+        Rebuilt from the new segment tree on every invocation. Exclusive writes
+        are charged before I/O; uncertain writes are never refunded. No path or
+        event list is retained. Full physical accounting is reconciled on each
+        admission and finalization boundary by the sole writer. Contents still
+        require the original event/receipt readers; this tracks bytes only.
+        """
+
+        def enable():
+            self.writer.assert_owner()
+            self.contract.require(self.accounted_bytes is None)
+            info = self.writer.root.stat(follow_symlinks=False)
+            self.root_identity = (info.st_dev, info.st_ino)
+            self.accounted_bytes = tree_bytes(self.writer.root)
+            self.writer.charge_write = self.reserve_bytes
+
+        self.writer.call(enable)
+
+    def reserve_bytes(self, path: Path, size: int) -> None:
+        self.writer.assert_owner()
+        self.contract.uint(size)
+        self.contract.require(path.is_relative_to(self.writer.root))
+        self.check_storage(size)
+        self.accounted_bytes = self.contract.checked(self.accounted_bytes + size)
+
+    def verify_storage(self) -> int:
+        self.writer.assert_owner()
+        actual = tree_bytes(self.writer.root, check=self.writer.check_deadline)
+        if self.accounted_bytes is not None:
+            info = self.writer.root.stat(follow_symlinks=False)
+            self.contract.require(
+                (info.st_dev, info.st_ino) == self.root_identity
+                and actual == self.accounted_bytes,
+                "S12_PUBLIC_STORAGE_ACCOUNTING_MISMATCH",
+            )
+        return actual
+
     @property
     def stored_bytes(self) -> int:
         return self.contract.checked(self.prior_bytes + tree_bytes(self.writer.root))
 
     def check_storage(self, additional: int) -> None:
-        current = tree_bytes(self.writer.root)
+        current = (
+            tree_bytes(self.writer.root)
+            if self.accounted_bytes is None
+            else self.accounted_bytes
+        )
         self.contract.require(
             self.prior_bytes + current + additional <= self.storage_budget
             and self.prior_block_bytes + current + additional <= self.block_byte_budget,
@@ -310,6 +364,7 @@ class Journal:
                         <= self.block_byte_budget,
                         "PUBLIC_PROBE_EVIDENCE_WRITE_FAILED",
                     )
+                    io.charge_write(path, len(raw))
                     stream.write(raw)
                     fingerprint.update(raw)
                     size += len(raw)
@@ -355,6 +410,7 @@ class Journal:
                 state["fd"] = os.open(
                     path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600
                 )
+            io.charge_write(path, len(raw))
             view = memoryview(raw)
             while view:
                 written = os.write(state["fd"], view)
@@ -387,12 +443,18 @@ class Journal:
                 == fingerprint.hexdigest()
             )
             return fingerprint.hexdigest()
-        except BaseException:
+        except BaseException as error:
+            if self.writer.failures is not None:
+                self.writer.failures.record("RECONCILIATION", error, writer=self.writer)
             if not self.writer.failed.is_set():
                 try:
                     self.writer.call(close)
-                except BaseException:
-                    pass  # Keep the original derivation/validation failure.
+                except BaseException as error:
+                    if self.writer.failures is not None:
+                        self.writer.failures.record(
+                            "CLEANUP", error, writer=self.writer
+                        )
+                    # Keep the original derivation/validation failure.
             raise
 
     def open_segment(self, segment: int, epoch: str, body: dict[str, Any]) -> str:
@@ -531,6 +593,171 @@ def read_events(
         yield obj
 
 
+class MeasurementPrefix:
+    """Bounded disk projection of a quiescent validated event prefix.
+
+    No event cache survives in memory. Every projection traversal revalidates
+    canonical bytes, types, exact seq/hash chain and the pinned head. Original
+    files are fully compared before creation and before accepting derived
+    outputs/closure. Subsequent tail events remain original-file reads. This
+    object is never restored or used for admission/recovery; ordinary reopen
+    still reads all original event/receipt files.
+    """
+
+    LIMIT = 64 * 1024 * 1024
+
+    def __init__(self, journal):
+        self.journal = journal
+        self.root = journal.writer.root
+        self.start_hash = journal.start_hash
+        self.seq, self.head = journal.writer.call(
+            lambda: (journal.seq, journal.last_hash)
+        )
+        self.path = self.root / "measurement_event_prefix.json"
+        self.bytes = 0
+        self.hash = None
+        self.check = lambda: journal.writer.check_deadline()
+
+    @classmethod
+    def from_closed(cls, root, start_hash, seq, *, check):
+        """Freshly bind a retained projection to ORIGINAL source, never its label.
+
+        The caller has validated sealed snapshot inventories. No authority or
+        correctness follows from the projection existing. Missing projection is
+        handled by the caller as the legacy full-reader path.
+        """
+        result = cls.__new__(cls)
+        result.journal = None
+        result.root, result.start_hash = root, start_hash
+        result.seq, result.head = seq, None
+        result.path = root / "measurement_event_prefix.json"
+        result.check = check
+        fingerprint = hashlib.sha256(b"[")
+        last = None
+        for event in read_events(root, start_hash):
+            check()
+            last = event
+            if event["seq"] <= seq:
+                if event["seq"] > 1:
+                    fingerprint.update(b",")
+                fingerprint.update(c.canonical(event)[:-1])
+            if event["seq"] == seq:
+                result.head = o.digest(event)
+        o.require(last is not None and result.head is not None)
+        fingerprint.update(b"]\n")
+        result.hash = fingerprint.hexdigest()
+        result.closed_end = (last["seq"], o.digest(last))
+        return result
+
+    def endpoint(self):
+        if self.journal is None:
+            return self.closed_end
+        return (
+            (self.journal.seq, self.journal.last_hash)
+            if threading.current_thread() is self.journal.writer.thread
+            else self.journal.writer.call(
+                lambda: (self.journal.seq, self.journal.last_hash)
+            )
+        )
+
+    def verify_original(self):
+        last = None
+        for event in read_events(self.root, self.start_hash):
+            last = event
+            if event["seq"] == self.seq:
+                o.require(o.digest(event) == self.head)
+        o.require(last is not None and last["seq"] >= self.seq)
+        o.require((last["seq"], o.digest(last)) == self.endpoint())
+
+    def build(self, *, closure_reserve=0):
+        o.uint(closure_reserve)
+        # No sample/event producer remains during this construction.
+        size = 3
+        for event in read_events(self.root, self.start_hash):
+            size += len(c.canonical(event))
+            if size > self.LIMIT:
+                return False  # Original validated factory remains the fallback.
+        journal = self.journal
+        current = journal.writer.call(journal.verify_storage)
+        if (
+            journal.prior_bytes + current + size + closure_reserve
+            > journal.storage_budget
+            or journal.prior_block_bytes + current + size + closure_reserve
+            > journal.block_byte_budget
+        ):
+            return False  # Preserve the full selected finalization metadata reserve.
+        self.verify_original()
+        self.hash = self.journal.stream_array(
+            self.path.name, read_events(self.root, self.start_hash)
+        )
+        self.bytes = size
+        self.verify_original()
+        return True
+
+    def events(self):
+        last, segment, epoch, mono, closed = None, 0, None, 0, True
+        fingerprint = hashlib.sha256(b"[")
+        seq = 0
+        for obj in read_array(self.path, check=self.check):
+            seq += 1
+            if seq > 1:
+                fingerprint.update(b",")
+            raw = c.canonical(obj)
+            fingerprint.update(raw[:-1])
+            o.validate(obj, o.EVENT)
+            o.require(
+                obj["seq"] == seq
+                and obj["previous_event_sha256"] == last
+                and obj["campaign_start_sha256"] == self.start_hash
+            )
+            if obj["kind"] == "SEGMENT_OPEN":
+                o.require(
+                    closed
+                    and obj["segment_id"] == segment + 1
+                    and obj["epoch_id"] != epoch
+                )
+                segment, epoch, mono, closed = (
+                    obj["segment_id"],
+                    obj["epoch_id"],
+                    0,
+                    False,
+                )
+            o.require(
+                not closed
+                and obj["segment_id"] == segment
+                and obj["epoch_id"] == epoch
+                and obj["mono_ns"] >= mono
+            )
+            if obj["kind"] == "SEGMENT_CLOSE":
+                closed = True
+            last, mono = c.sha(raw).hex(), obj["mono_ns"]
+            yield obj
+        fingerprint.update(b"]\n")
+        o.require(
+            seq == self.seq
+            and last == self.head
+            and fingerprint.hexdigest() == self.hash
+        )
+        # Only the sole writer can append a tail. Pin its current head on entry.
+        end, head = self.endpoint()
+        for i in range(seq + 1, end + 1):
+            obj = o.parse(io.read(self.root / "events" / f"{i:020d}.json"), o.EVENT)
+            o.require(
+                not closed
+                and obj["seq"] == i
+                and obj["previous_event_sha256"] == last
+                and obj["campaign_start_sha256"] == self.start_hash
+                and obj["segment_id"] == segment
+                and obj["epoch_id"] == epoch
+                and obj["mono_ns"] >= mono
+            )
+            if obj["kind"] == "SEGMENT_CLOSE":
+                closed = True
+            last, mono = o.digest(obj), obj["mono_ns"]
+            yield obj
+        o.require(last == head)
+
+
 def inventory(root: Path) -> Iterator[dict[str, str]]:
     """Available-file inventory; does not assert complete campaign provenance."""
     for p in sorted(root.rglob("*")):
@@ -556,16 +783,23 @@ def evidence_inventory(
         }
 
 
-def tree_bytes(root: Path, exclude: frozenset[str] = frozenset()) -> int:
+def tree_bytes(
+    root: Path,
+    exclude: frozenset[str] = frozenset(),
+    *,
+    check: Callable[[], None] = lambda: None,
+) -> int:
     """Actual logical file bytes, including failed writes, without reading bodies."""
+    check()
     total = 0
     with os.scandir(root) as entries:
         for entry in entries:
+            check()
             if entry.name in exclude:
                 continue
             info = entry.stat(follow_symlinks=False)
             if stat.S_ISDIR(info.st_mode):
-                total = o.checked(total + tree_bytes(Path(entry.path)))
+                total = o.checked(total + tree_bytes(Path(entry.path), check=check))
             else:
                 o.require(stat.S_ISREG(info.st_mode) and info.st_nlink == 1)
                 total = o.checked(total + info.st_size)

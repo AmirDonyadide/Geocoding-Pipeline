@@ -541,6 +541,7 @@ def run_operations_block(
     public_validation: Any = None,
     ascending_sizes: bool = False,
     task_deadline_ns: int | None = None,
+    diagnostics: Any = None,
 ) -> dict[str, Any]:
     """Explicit O-r2 programmatic boundary; no real adapter or secret provider.
 
@@ -558,6 +559,10 @@ def run_operations_block(
     from .stages import s12_public_reporting as pr
     from .stages import s12_public_recovery as recovery
 
+    from .stages.s12_public_diagnostics import Failures
+
+    diagnostics = diagnostics or Failures(clock)
+    operation = "PREFLIGHT"
     po.verify_authorities(profile, plan, start, authority)
     po.verify_work_manifest(work_factory, plan)
     po.require(po.digest(runtime_inventory) == start["runtime_inventory_sha256"])
@@ -743,8 +748,10 @@ def run_operations_block(
         monitor=monitor,
         predecessor=predecessor,
         rebase=rebased,
+        diagnostics=diagnostics,
     )
     writer, log = coordinator.writer, coordinator.journal
+    log.enable_accounting()
     # One absolute cumulative bound, including derivation, reconciliation and
     # final reopening. The shutdown reserve is already inside these budgets.
     from datetime import datetime
@@ -879,6 +886,31 @@ def run_operations_block(
                 plan["experiment_kind"] != "CAPABILITY" and not ascending_sizes
             ) or pending.work["kind"] != "DATA":
                 return True
+            # One exact full work-manifest validation and one pinned event-prefix
+            # traversal, rather than one growing traversal per earlier work item.
+            # Fixed <=4096 integer IDs (<1 MiB conservative Python metadata bound),
+            # discarded before returning; larger plans retain streaming fallback.
+            po.verify_work_manifest(works, plan)
+            if total_rows <= 4096:
+                needed = {
+                    r["work_id"]
+                    for r in works()
+                    if r["kind"] == "DATA"
+                    and r["result_limit"] < pending.work["result_limit"]
+                }
+                if not needed:
+                    return True
+                seq, head = writer.call(lambda: (log.seq, log.last_hash))
+                for event in pj.read_events(output, po.digest(start)):
+                    if (
+                        event["kind"] == "ATTEMPT_FINALIZED"
+                        and event["body"]["outcome"]["value"] in c.SUCCESS
+                    ):
+                        needed.discard(event["body"]["work_id"])
+                    if event["seq"] == seq:
+                        po.require(po.digest(event) == head)
+                        return not needed
+                po.require(False, "PUBLIC_PROBE_EVIDENCE_WRITE_FAILED")
             for earlier in works():
                 if (
                     earlier["kind"] != "DATA"
@@ -954,7 +986,15 @@ def run_operations_block(
                     coordinator.hooks(slot, record_hash, persist),
                 )
                 po.require(slot.capture == result and slot.ticket is not None)
-            except BaseException:
+            except BaseException as error:
+                diagnostics.record(
+                    "DISPATCH",
+                    error,
+                    work_id=slot.key[0],
+                    attempt=slot.key[1],
+                    writer=writer,
+                    deadline=finalization_deadline,
+                )
                 with coordinator.safety:
                     coordinator.state, coordinator.stop_reason = (
                         "RECOVERY_BLOCKED",
@@ -973,7 +1013,10 @@ def run_operations_block(
                         closure=True,
                     )
                     coordinator.resource("CONNECTION_RELEASE")
-                except BaseException:
+                except BaseException as error:
+                    diagnostics.record(
+                        "CLEANUP", error, writer=writer, deadline=finalization_deadline
+                    )
                     coordinator.audit_failed()
                 raise
 
@@ -1050,6 +1093,7 @@ def run_operations_block(
             max_workers=coordinator.capacity, thread_name_prefix="stage12-public-http"
         ) as pool:
             while True:
+                operation = "ADMISSION"
                 coordinator.tick()
                 if pause_requested is not None and pause_requested():
                     coordinator.pause_pending = True
@@ -1124,7 +1168,15 @@ def run_operations_block(
                         records.pop(next_slot.key, None)
                         if retry is not None:
                             coordinator.queue(retry)
-                    except BaseException:
+                    except BaseException as error:
+                        diagnostics.record(
+                            "CAPTURE_FINALIZE",
+                            error,
+                            work_id=next_slot.key[0],
+                            attempt=next_slot.key[1],
+                            writer=writer,
+                            deadline=finalization_deadline,
+                        )
                         coordinator.audit_failed()
                     finally:
                         # The queue owns any returned retry. Keeping a local
@@ -1204,8 +1256,14 @@ def run_operations_block(
                     records.pop(slot.key, None)
                     slot = None
 
+        measurement_prefix = None
+
         def events():
-            return pj.read_events(output, po.digest(start))
+            return (
+                measurement_prefix.events()
+                if measurement_prefix is not None
+                else pj.read_events(output, po.digest(start))
+            )
 
         def verify_receipt(row, event_body):
             return verify_at(output, row, event_body)
@@ -1216,8 +1274,10 @@ def run_operations_block(
             # No false seal or invented controller state. Read-only recovery evidence.
             return incomplete()
 
+        operation = "COMPARISON"
         with io.cooperative_io(finalization_deadline.check):
             finalization_deadline.check()
+            writer.call(log.verify_storage)
             comparison_last_seq, comparison_head = writer.call(
                 lambda: (log.seq, log.last_hash)
             )
@@ -1304,6 +1364,12 @@ def run_operations_block(
                 e["kind"] == "MONITOR_RESULT" and e["body"]["interval_closed"]
                 for e in events()
             )
+            operation = "REPORT"
+            prefix = pj.MeasurementPrefix(log)
+            if prefix.build(
+                closure_reserve=profile["resources"]["fixed_campaign_disk_bound_bytes"]
+            ):
+                measurement_prefix = prefix
             report = pr.block_report(
                 plan,
                 profile,
@@ -1320,6 +1386,8 @@ def run_operations_block(
                 ),
                 monitoring_closed=lambda: closed_monitor,
             )
+            if measurement_prefix is not None:
+                measurement_prefix.verify_original()
             block_hash = writer.call(lambda: log.write("block_report.json", report))
             log.event(
                 "BLOCK_CLOSED",
@@ -1330,6 +1398,7 @@ def run_operations_block(
                 },
                 closure=True,
             )
+            operation = "RECONCILIATION"
             total = recovery.required_work_complete(
                 plan, works, lambda: recovery.work_ledger(works, events, verify_receipt)
             )
@@ -1390,6 +1459,8 @@ def run_operations_block(
                 writer_release_evidence,
                 {"start": start, "disposition": disposition},
             )
+            operation = "CLOSURE"
+            writer.call(log.verify_storage)
             snapshot = {
                 "schema_version": po.SNAPSHOT,
                 "campaign_start_sha256": po.digest(start),
@@ -1427,8 +1498,14 @@ def run_operations_block(
                 "sealed_utc": clock.utc(),
                 "disposition": disposition,
             }
+            if measurement_prefix is not None:
+                measurement_prefix.verify_original()
             snap_hash = recovery.write_snapshot(
-                writer, snapshot, verify=lambda: recovery.replay(events())
+                writer,
+                snapshot,
+                verify=lambda: recovery.replay(
+                    pj.read_events(output, po.digest(start))
+                ),
             )
             reports = {block_id: report}
             snapshots = [snap_hash]
@@ -1463,7 +1540,10 @@ def run_operations_block(
                 }
             )
             return campaign
-    except (Exception, KeyboardInterrupt):
+    except (Exception, KeyboardInterrupt) as error:
+        diagnostics.record(
+            operation, error, writer=writer, deadline=finalization_deadline
+        )
         # Preserve the primary terminal reason if read-only derivation or later
         # cleanup also fails. An uncertain writer is never reused for a seal.
         if (
@@ -1481,10 +1561,25 @@ def run_operations_block(
                     },
                     closure=True,
                 )
-            except BaseException:
-                pass
+            except BaseException as error:
+                diagnostics.record(
+                    "CLEANUP", error, writer=writer, deadline=finalization_deadline
+                )
         coordinator.audit_failed()
-        return incomplete()
+        try:
+            return incomplete()
+        except BaseException as error:
+            diagnostics.record(
+                "RECONCILIATION", error, writer=writer, deadline=finalization_deadline
+            )
+            writer.abort()
+            return pr.incomplete_report(
+                start,
+                plan,
+                event_inventory_sha256=po.manifest_digest([]),
+                attempt_inventory_sha256=po.manifest_digest([]),
+                begins_lower_bound=0,
+            )
     finally:
         coordinator.stop_sampling()
 

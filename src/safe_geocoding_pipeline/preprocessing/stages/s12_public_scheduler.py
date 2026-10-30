@@ -86,7 +86,9 @@ class Coordinator:
         rebase: dict[str, Any] | None = None,
         contract: Any = o,
         segment_body: dict[str, Any] | None = None,
+        diagnostics: Any = None,
     ):
+        self.failures = diagnostics
         self.contract = contract
         self.contract.verify_authorities(profile, plan, start, authority)
         self.contract.uint(block_id, True)
@@ -169,6 +171,7 @@ class Coordinator:
         self.writer = journal.Writer(
             root, self.capacity, self.resources["writer_guard_ms"], self.audit_failed
         )
+        self.writer.failures = diagnostics
         self.contract.require((predecessor is None) == (rebase is None))
         self.journal = journal.Journal(
             self.writer,
@@ -355,7 +358,9 @@ class Coordinator:
                     self.sample_stop.wait(
                         max(0, self.next_wakeup_ns() - self.clock.now_ns()) / 1e9
                     )
-            except BaseException:
+            except BaseException as error:
+                if self.failures is not None:
+                    self.failures.record("SAMPLER", error, writer=self.writer)
                 # No abandoned sampler may leave admission open or create a
                 # clean report. Do not attempt a second writer/recovery path.
                 self.audit_failed()
@@ -614,7 +619,19 @@ class Coordinator:
                 selected = self.selected
             # Evidence and filesystem interfaces may wait: never hold the
             # independent safety latch while calling either one.
-            if not self.size_ready(pending):
+            try:
+                ready = self.size_ready(pending)
+            except BaseException as error:
+                if self.failures is not None:
+                    self.failures.record(
+                        "READINESS",
+                        error,
+                        work_id=pending.work["work_id"],
+                        attempt=pending.attempt,
+                        writer=self.writer,
+                    )
+                raise
+            if not ready:
                 return None
             if self.monitored and not pending.monitor:
                 self.monitor.before_dispatch()
@@ -625,6 +642,8 @@ class Coordinator:
                 {"work": pending.work, "attempt": pending.attempt, "state": selected},
             )
             available = self.free_bytes()
+            if self.journal.accounted_bytes is not None:
+                self.writer.call(self.journal.verify_storage)
             self.journal.check_storage(
                 self.resources["per_attempt_disk_bound_bytes"]
                 + self.resources["fixed_campaign_disk_bound_bytes"]
@@ -993,6 +1012,8 @@ class Coordinator:
                 except c.Stage12Error as error:
                     failure = str(error)
         if failure:
+            if self.failures is not None and not retryable:
+                self.failures.rejected(reason)
             self.terminal(
                 "PRIVACY"
                 if reason == "SECRET_ECHO_DETECTED"

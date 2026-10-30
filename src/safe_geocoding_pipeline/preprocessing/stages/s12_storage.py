@@ -38,6 +38,27 @@ def cooperative_io(callback: Callable[[], None]) -> Iterator[None]:
         _checkpoints.callback = previous
 
 
+@contextmanager
+def charged_writes(callback: Callable[[Path, int], None]) -> Iterator[None]:
+    """Opt-in conservative byte reservation BEFORE exclusive writes.
+
+    Thread-local, sole-writer only. Failed/partial writes retain the full charge.
+    Legacy/B2 callers without this context retain their exact existing behavior.
+    """
+    previous = getattr(_checkpoints, "charge", None)
+    _checkpoints.charge = callback
+    try:
+        yield
+    finally:
+        _checkpoints.charge = previous
+
+
+def charge_write(path: Path, size: int) -> None:
+    callback = getattr(_checkpoints, "charge", None)
+    if callback is not None:
+        callback(path, size)
+
+
 def _checkpoint() -> None:
     callback = getattr(_checkpoints, "callback", None)
     if callback is not None:
@@ -79,6 +100,7 @@ def reserve(path: Path) -> None:
 
 
 def write(path: Path, raw: bytes) -> None:
+    charge_write(path, len(raw))
     private_directory(path.parent)
     fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
     try:

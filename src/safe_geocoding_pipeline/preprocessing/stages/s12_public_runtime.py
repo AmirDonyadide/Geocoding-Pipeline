@@ -389,8 +389,14 @@ def reopen_completed(root, profile, plan, start, *, validation_sha256=None):
     def works():
         return iter(plan_work(root, plan))
 
+    projection = None
+
     def events():
-        return journal.read_events(root, o.digest(start))
+        return (
+            projection.events()
+            if projection is not None
+            else journal.read_events(root, o.digest(start))
+        )
 
     def receipt(work, event):
         name = audit.name_for(work["work_id"], event["attempt"])
@@ -424,6 +430,12 @@ def reopen_completed(root, profile, plan, start, *, validation_sha256=None):
         o.require(
             o.manifest_digest(journal.evidence_inventory(root, area))
             == snapshot[area[:-1] + "_inventory_sha256"]
+        )
+    block = read_object(root / "block_report.json")
+    o.validate_type(block, "BlockReport")
+    if (root / "measurement_event_prefix.json").exists():
+        projection = journal.MeasurementPrefix.from_closed(
+            root, o.digest(start), block["input_last_event_seq"], check=io._checkpoint
         )
     state = recovery.replay(events())
     o.require(
@@ -510,6 +522,14 @@ def reopen_completed(root, profile, plan, start, *, validation_sha256=None):
     o.require(
         len(closed) == 1 and closed[0]["body"]["report_sha256"] == o.digest(block)
     )
+    if projection is not None:
+        projection.verify_original()
+        # The projection never substitutes for mutable original evidence.
+        for area in ("events", "attempts"):
+            o.require(
+                o.manifest_digest(journal.evidence_inventory(root, area))
+                == snapshot[area[:-1] + "_inventory_sha256"]
+            )
     return block
 
 
@@ -602,6 +622,7 @@ def execute(
     clock=None,
 ):
     from ..stage12_probe_cli import run_operations_block
+    from .s12_public_diagnostics import Failures, classify
 
     require_goethe_nhr_slurm("stage12 explicit O-r2 public diagnostic")
     validate_config(config)
@@ -681,14 +702,19 @@ def execute(
             target, transport_profile, key, v1.Operations(), hooks=envelope.wrap(hooks)
         )
 
+    diagnostics = Failures(clock)
     results = []
     verified_complete = []
     verified_rates = []
     parent = None
     initial_cpu = time.process_time_ns()
     rss0 = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    runtime_operation = "RUNTIME"
+    runtime_failure = None
+    persistence_failed = False
     try:
         for item in config["campaigns"]:
+            runtime_operation = "RUNTIME"
             envelope.check()
             authority.recheck()
             plan = deepcopy(item["plan"])
@@ -748,6 +774,7 @@ def execute(
                 public_validation=validation_for(config["public_validation_sha256"]),
                 ascending_sizes=item["ascending_sizes"],
                 task_deadline_ns=phase_deadline.end_ns,
+                diagnostics=diagnostics,
                 pause_requested=lambda: (
                     clock.now_ns() >= envelope.deadline - 80 * 10**9
                 ),
@@ -764,6 +791,7 @@ def execute(
             )
             if result["disposition"] != "COMPLETED" or not result["report_complete"]:
                 break
+            runtime_operation = "RUNTIME_REOPEN"
             with io.cooperative_io(phase_deadline.check):
                 phase_deadline.check()
                 block = reopen_completed(
@@ -774,6 +802,7 @@ def execute(
                     validation_sha256=config["public_validation_sha256"],
                 )
                 phase_deadline.check()
+            runtime_operation = "RUNTIME"
             verified_complete.append(item["label"])
             if not qualifies(block, smoke=item["label"] == "capability_subset"):
                 break
@@ -797,20 +826,28 @@ def execute(
             )
             if item["label"] == "capability_subset":
                 parent = o.digest(block)
-    except (c.Stage12Error, recovery.FinalizationExpired) as error:
-        # Only allowlisted static prefix codes reach an ordinary log/summary.
-        text = str(error)
-        code = (
-            text
-            if text.startswith(("S12_", "PUBLIC_PROBE_", "RESPONSE_"))
-            and text.replace("_", "").isalnum()
-            else "PUBLIC_PROBE_DIAGNOSTIC_STOPPED"
-        )
-        io.write(
-            output / "diagnostic_stop.json",
-            c.canonical({"reason": code, "attempts_charged": envelope.attempts}),
-        )
+    except (Exception, KeyboardInterrupt) as error:
+        runtime_failure = error
+        diagnostics.record(runtime_operation, error)
+        family, code, number = classify(error)
+        code = code or "PUBLIC_PROBE_DIAGNOSTIC_STOPPED"
+        try:
+            io.write(
+                output / "diagnostic_stop.json",
+                c.canonical({"reason": code, "attempts_charged": envelope.attempts}),
+            )
+        except (Exception, KeyboardInterrupt) as cleanup:
+            persistence_failed = True
+            diagnostics.record("CLEANUP", cleanup)
     finally:
+        # Supplementary task output, never a campaign seal or writer reuse.
+        try:
+            io.write(
+                output / "failure_diagnostics.json", c.canonical(diagnostics.snapshot())
+            )
+        except (Exception, KeyboardInterrupt) as cleanup:
+            persistence_failed = True
+            diagnostics.record("CLEANUP", cleanup)
         summary = {
             "scope": o.SCOPE,
             "scientific_identity_verified": False,
@@ -830,6 +867,18 @@ def execute(
             "C": "UNSELECTED",
             "T": "UNSELECTED",
             "N": "UNSELECTED",
+            "failure_diagnostics": diagnostics.snapshot(),
+            "diagnostic_persistence_complete": not persistence_failed,
         }
-        io.write(output / "diagnostic_summary.json", c.canonical(summary))
+        try:
+            io.write(output / "diagnostic_summary.json", c.canonical(summary))
+        except (Exception, KeyboardInterrupt) as cleanup:
+            diagnostics.record("CLEANUP", cleanup)
+            if runtime_failure is not None:
+                raise runtime_failure
+            raise c.Stage12Error("PUBLIC_PROBE_EVIDENCE_WRITE_FAILED") from None
+    if persistence_failed:
+        if runtime_failure is not None:
+            raise runtime_failure
+        raise c.Stage12Error("PUBLIC_PROBE_EVIDENCE_WRITE_FAILED")
     return summary
