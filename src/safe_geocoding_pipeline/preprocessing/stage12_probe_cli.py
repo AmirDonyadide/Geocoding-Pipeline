@@ -540,6 +540,7 @@ def run_operations_block(
     continuation_authority: str | None = None,
     public_validation: Any = None,
     ascending_sizes: bool = False,
+    task_deadline_ns: int | None = None,
 ) -> dict[str, Any]:
     """Explicit O-r2 programmatic boundary; no real adapter or secret provider.
 
@@ -744,6 +745,32 @@ def run_operations_block(
         rebase=rebased,
     )
     writer, log = coordinator.writer, coordinator.journal
+    # One absolute cumulative bound, including derivation, reconciliation and
+    # final reopening. The shutdown reserve is already inside these budgets.
+    from datetime import datetime
+
+    window_left = max(
+        0,
+        (
+            datetime.fromisoformat(plan["window_end"])
+            - datetime.fromisoformat(clock.utc())
+        ).total_seconds(),
+    )
+    ends = [
+        coordinator.opened_ns
+        + (plan["budgets"]["active_duration_ms"] - coordinator.prior_active_ms)
+        * 1_000_000,
+        coordinator.opened_ns
+        + (block["budget"]["active_duration_ms"] - coordinator.prior_block_ms)
+        * 1_000_000,
+        clock.now_ns() + int(window_left * 1_000_000_000),
+    ]
+    if task_deadline_ns is not None:
+        po.uint(task_deadline_ns, True)
+        ends.append(task_deadline_ns)
+    finalization_deadline = recovery.Deadline(clock, min(ends))
+    writer.check_deadline = finalization_deadline.check
+    writer.remaining_seconds = finalization_deadline.remaining_seconds
 
     def incomplete():
         coordinator.stop_sampling()
@@ -773,9 +800,18 @@ def run_operations_block(
             )
             return True
 
-        known = recovery.unclean_reconciliation(
-            output, po.digest(start), verify_known=verify_known
-        )
+        try:
+            finalization_deadline.check()
+            with io.cooperative_io(finalization_deadline.check):
+                known = recovery.unclean_reconciliation(
+                    output, po.digest(start), verify_known=verify_known
+                )
+            finalization_deadline.check()
+        except recovery.FinalizationExpired:
+            # Empty *available* inventory and zero lower bound do not assert no
+            # attempts. Exact totals stay null; preserved files remain reopenable.
+            known = {"known_files": [], "begins_charged": {"confirmed_min": 0}}
+
         event_rows = [
             r for r in known["known_files"] if r["path"].startswith("events/")
         ]
@@ -789,7 +825,7 @@ def run_operations_block(
             attempt_inventory_sha256=po.manifest_digest(attempt_rows),
             begins_lower_bound=known["begins_charged"]["confirmed_min"],
         )
-        if not writer.failed.is_set():
+        if not writer.failed.is_set() and finalization_deadline.remaining_seconds() > 0:
             try:
                 writer.call(
                     lambda: log.write_array(
@@ -1180,248 +1216,261 @@ def run_operations_block(
             # No false seal or invented controller state. Read-only recovery evidence.
             return incomplete()
 
-        comparison_last_seq, comparison_head = writer.call(
-            lambda: (log.seq, log.last_hash)
-        )
+        with io.cooperative_io(finalization_deadline.check):
+            finalization_deadline.check()
+            comparison_last_seq, comparison_head = writer.call(
+                lambda: (log.seq, log.last_hash)
+            )
 
-        def comparison_events() -> Iterator[dict[str, Any]]:
-            # Attempts are drained. Concurrent periodic records add no outcomes;
-            # validate a pinned prefix, not an ever-growing chain on each pair.
-            for event in events():
-                yield event
-                if event["seq"] == comparison_last_seq:
-                    po.require(po.digest(event) == comparison_head)
-                    return
-            po.require(False, "PUBLIC_PROBE_EVIDENCE_WRITE_FAILED")
+            def comparison_events() -> Iterator[dict[str, Any]]:
+                # Attempts are drained. Concurrent periodic records add no outcomes;
+                # validate a pinned prefix, not an ever-growing chain on each pair.
+                for event in events():
+                    yield event
+                    if event["seq"] == comparison_last_seq:
+                        po.require(po.digest(event) == comparison_head)
+                        return
+                po.require(False, "PUBLIC_PROBE_EVIDENCE_WRITE_FAILED")
 
-        def comparisons():
-            # Exact original structural tuple equality; one pair resident at a time.
-            for row in works():
-                if row["kind"] != "DATA" or row["block_id"] != block_id:
-                    continue
-                predecessor = next(
-                    (
-                        r
-                        for r in works()
-                        if r["kind"] == "DATA"
-                        and r["block_id"] == block_id
-                        and r["work_id"] < row["work_id"]
-                        and (r["fixture_id"], r["result_limit"])
-                        == (row["fixture_id"], row["result_limit"])
-                    ),
-                    None,
-                )
-                if predecessor is None:
-                    continue
-                finals = {}
-                for event in comparison_events():
-                    b = event["body"]
-                    if (
-                        event["kind"] == "ATTEMPT_FINALIZED"
-                        and b["work_id"] in (predecessor["work_id"], row["work_id"])
-                        and b["outcome"]["value"] in c.SUCCESS
-                    ):
-                        po.require(b["work_id"] not in finals)
-                        finals[b["work_id"]] = b
-                shapes = []
-                for current in (predecessor, row):
-                    final = finals.get(current["work_id"])
-                    if final is None:
-                        shapes.append(None)
+            def comparisons():
+                # Exact original structural tuple equality; one pair resident at a time.
+                for row in works():
+                    if row["kind"] != "DATA" or row["block_id"] != block_id:
                         continue
-                    terminal = verify_receipt(current, final)
-                    root = locate_attempt(output, current["work_id"], final["attempt"])
-                    raw = response.decompress(
-                        io.read(
-                            root
-                            / (
-                                audit.name_for(current["work_id"], final["attempt"])
-                                + ".zst"
-                            )
+                    predecessor = next(
+                        (
+                            r
+                            for r in works()
+                            if r["kind"] == "DATA"
+                            and r["block_id"] == block_id
+                            and r["work_id"] < row["work_id"]
+                            and (r["fixture_id"], r["result_limit"])
+                            == (row["fixture_id"], row["result_limit"])
                         ),
-                        length=terminal["application_payload_bytes"],
-                        expected_hash=bytes.fromhex(terminal["response_sha256"]),
+                        None,
                     )
-                    shapes.append(
-                        public_shapes(raw)
-                        if public_validation is None
-                        else public_validation.validator(current, root)(raw)
-                    )
-                yield {
-                    "first_work_id": predecessor["work_id"],
-                    "next_work_id": row["work_id"],
-                    "equal": shapes[0] is not None and shapes[0] == shapes[1],
-                }
+                    if predecessor is None:
+                        continue
+                    finals = {}
+                    for event in comparison_events():
+                        b = event["body"]
+                        if (
+                            event["kind"] == "ATTEMPT_FINALIZED"
+                            and b["work_id"] in (predecessor["work_id"], row["work_id"])
+                            and b["outcome"]["value"] in c.SUCCESS
+                        ):
+                            po.require(b["work_id"] not in finals)
+                            finals[b["work_id"]] = b
+                    shapes = []
+                    for current in (predecessor, row):
+                        final = finals.get(current["work_id"])
+                        if final is None:
+                            shapes.append(None)
+                            continue
+                        terminal = verify_receipt(current, final)
+                        root = locate_attempt(
+                            output, current["work_id"], final["attempt"]
+                        )
+                        raw = response.decompress(
+                            io.read(
+                                root
+                                / (
+                                    audit.name_for(current["work_id"], final["attempt"])
+                                    + ".zst"
+                                )
+                            ),
+                            length=terminal["application_payload_bytes"],
+                            expected_hash=bytes.fromhex(terminal["response_sha256"]),
+                        )
+                        shapes.append(
+                            public_shapes(raw)
+                            if public_validation is None
+                            else public_validation.validator(current, root)(raw)
+                        )
+                    yield {
+                        "first_work_id": predecessor["work_id"],
+                        "next_work_id": row["work_id"],
+                        "equal": shapes[0] is not None and shapes[0] == shapes[1],
+                    }
 
-        comparison_hash = log.stream_array("repeat_comparison.json", comparisons())
-        # Drain/join the independent bounded sample slot before recording the
-        # last sample. No sample may race report-prefix capture or writer release.
-        po.require(coordinator.stop_sampling(), "PUBLIC_PROBE_EVIDENCE_WRITE_FAILED")
-        coordinator.resource("PERIODIC")
-        closed_monitor = not coordinator.monitored or any(
-            e["kind"] == "MONITOR_RESULT" and e["body"]["interval_closed"]
-            for e in events()
-        )
-        report = pr.block_report(
-            plan,
-            profile,
-            block_id,
-            events=events,
-            works=works,
-            verified_receipt=verify_receipt,
-            repeat_evidence=lambda: (
-                comparison_hash,
-                all(
-                    r["equal"] for r in pj.read_array(output / "repeat_comparison.json")
+            comparison_hash = log.stream_array("repeat_comparison.json", comparisons())
+            # Drain/join the independent bounded sample slot before recording the
+            # last sample. No sample may race report-prefix capture or writer release.
+            po.require(
+                coordinator.stop_sampling(), "PUBLIC_PROBE_EVIDENCE_WRITE_FAILED"
+            )
+            coordinator.resource("PERIODIC")
+            closed_monitor = not coordinator.monitored or any(
+                e["kind"] == "MONITOR_RESULT" and e["body"]["interval_closed"]
+                for e in events()
+            )
+            report = pr.block_report(
+                plan,
+                profile,
+                block_id,
+                events=events,
+                works=works,
+                verified_receipt=verify_receipt,
+                repeat_evidence=lambda: (
+                    comparison_hash,
+                    all(
+                        r["equal"]
+                        for r in pj.read_array(output / "repeat_comparison.json")
+                    ),
                 ),
-            ),
-            monitoring_closed=lambda: closed_monitor,
-        )
-        block_hash = writer.call(lambda: log.write("block_report.json", report))
-        log.event(
-            "BLOCK_CLOSED",
-            {
-                "block_id": block_id,
-                "report_sha256": block_hash,
-                "result": report["status"],
-            },
-            closure=True,
-        )
-        total = recovery.required_work_complete(
-            plan, works, lambda: recovery.work_ledger(works, events, verify_receipt)
-        )
-        if (
-            not total
-            and not coordinator.stop_reason
-            and not coordinator.pause_pending
-            and block_id == len(plan["blocks"])
-        ):
-            coordinator.terminal("BUDGET")
-        disposition = (
-            coordinator.state
-            if coordinator.state in ("STOPPED", "QUARANTINED", "RECOVERY_BLOCKED")
-            else "PAUSED_CLEAN"
-            if coordinator.pause_pending or block_id < len(plan["blocks"])
-            else "COMPLETED"
-        )
-        log.event(
-            "SEGMENT_CLOSE",
-            {
-                "disposition": disposition,
+                monitoring_closed=lambda: closed_monitor,
+            )
+            block_hash = writer.call(lambda: log.write("block_report.json", report))
+            log.event(
+                "BLOCK_CLOSED",
+                {
+                    "block_id": block_id,
+                    "report_sha256": block_hash,
+                    "result": report["status"],
+                },
+                closure=True,
+            )
+            total = recovery.required_work_complete(
+                plan, works, lambda: recovery.work_ledger(works, events, verify_receipt)
+            )
+            if (
+                not total
+                and not coordinator.stop_reason
+                and not coordinator.pause_pending
+                and block_id == len(plan["blocks"])
+            ):
+                coordinator.terminal("BUDGET")
+            disposition = (
+                coordinator.state
+                if coordinator.state in ("STOPPED", "QUARANTINED", "RECOVERY_BLOCKED")
+                else "PAUSED_CLEAN"
+                if coordinator.pause_pending or block_id < len(plan["blocks"])
+                else "COMPLETED"
+            )
+            log.event(
+                "SEGMENT_CLOSE",
+                {
+                    "disposition": disposition,
+                    "closure_evidence_sha256": comparison_hash
+                    if closed_monitor
+                    else None,
+                    "last_ticket": coordinator.last_ticket,
+                },
+                closure=True,
+            )
+            state = recovery.replay(events())
+
+            def ledger():
+                for row in recovery.work_ledger(works, events, verify_receipt):
+                    if (
+                        report["counts"]["unprocessed_data"]["value"] == 0
+                        and row["work_id"] in block["reserved_control_ids"]
+                        and not row["charged_ordinals"]
+                    ):
+                        row["state"] = "UNUSED_RESERVED_CONTROL"
+                    yield row
+
+            ledger_hash = log.stream_array("work_ledger.json", ledger())
+            remaining_hash = log.stream_array(
+                "remaining_work_ledger.json",
+                (
+                    r
+                    for r in ledger()
+                    if r["state"] in ("UNBEGUN", "RETRY_DUE", "UNUSED_RESERVED_CONTROL")
+                ),
+            )
+            event_hash = log.stream_array(
+                "event_inventory.json", pj.evidence_inventory(output, "events")
+            )
+            attempt_hash = log.stream_array(
+                "attempt_inventory.json", pj.evidence_inventory(output, "attempts")
+            )
+            authority.require(
+                "writer_release",
+                writer_release_evidence,
+                {"start": start, "disposition": disposition},
+            )
+            snapshot = {
+                "schema_version": po.SNAPSHOT,
+                "campaign_start_sha256": po.digest(start),
+                "segment_id": log.segment,
+                "last_event_seq": log.seq,
+                "last_event_sha256": log.last_hash,
+                "event_inventory_sha256": event_hash,
+                "attempt_inventory_sha256": attempt_hash,
+                "work_ledger_sha256": ledger_hash,
+                "controller": {
+                    "state_id": coordinator.state_id,
+                    "block_id": block_id,
+                    "charged_data_attempts": coordinator.charged["DATA"],
+                    "charged_control_attempts": coordinator.charged["SERVICE_CONTROL"],
+                    "administrative_operations": 0,
+                    "active_duration_ms": state["active_duration_ms"],
+                    "stored_bytes": log.stored_bytes,
+                    "event_count": log.seq,
+                    "last_ticket": state["last_ticket"],
+                    "consecutive_retryable": state["consecutive_retryable"],
+                    "recent": state["recent"],
+                    "overload_carry": state["overload_carry"],
+                    "breaker_reason": state["breaker_reason"],
+                    "cooldown_delay_ms": state["cooldown_delay_ms"],
+                    "remaining_work_ledger_sha256": remaining_hash,
+                    "monitoring_state": "CLOSED_VERIFIED"
+                    if coordinator.monitored and closed_monitor
+                    else "PUBLIC_GAPS_ONLY"
+                    if not coordinator.monitored
+                    else "UNVERIFIED",
+                    "resume_eligible": disposition == "PAUSED_CLEAN",
+                },
                 "closure_evidence_sha256": comparison_hash if closed_monitor else None,
-                "last_ticket": coordinator.last_ticket,
-            },
-            closure=True,
-        )
-        state = recovery.replay(events())
-
-        def ledger():
-            for row in recovery.work_ledger(works, events, verify_receipt):
-                if (
-                    report["counts"]["unprocessed_data"]["value"] == 0
-                    and row["work_id"] in block["reserved_control_ids"]
-                    and not row["charged_ordinals"]
-                ):
-                    row["state"] = "UNUSED_RESERVED_CONTROL"
-                yield row
-
-        ledger_hash = log.stream_array("work_ledger.json", ledger())
-        remaining_hash = log.stream_array(
-            "remaining_work_ledger.json",
-            (
-                r
-                for r in ledger()
-                if r["state"] in ("UNBEGUN", "RETRY_DUE", "UNUSED_RESERVED_CONTROL")
-            ),
-        )
-        event_hash = log.stream_array(
-            "event_inventory.json", pj.evidence_inventory(output, "events")
-        )
-        attempt_hash = log.stream_array(
-            "attempt_inventory.json", pj.evidence_inventory(output, "attempts")
-        )
-        authority.require(
-            "writer_release",
-            writer_release_evidence,
-            {"start": start, "disposition": disposition},
-        )
-        snapshot = {
-            "schema_version": po.SNAPSHOT,
-            "campaign_start_sha256": po.digest(start),
-            "segment_id": log.segment,
-            "last_event_seq": log.seq,
-            "last_event_sha256": log.last_hash,
-            "event_inventory_sha256": event_hash,
-            "attempt_inventory_sha256": attempt_hash,
-            "work_ledger_sha256": ledger_hash,
-            "controller": {
-                "state_id": coordinator.state_id,
-                "block_id": block_id,
-                "charged_data_attempts": coordinator.charged["DATA"],
-                "charged_control_attempts": coordinator.charged["SERVICE_CONTROL"],
-                "administrative_operations": 0,
-                "active_duration_ms": state["active_duration_ms"],
-                "stored_bytes": log.stored_bytes,
-                "event_count": log.seq,
-                "last_ticket": state["last_ticket"],
-                "consecutive_retryable": state["consecutive_retryable"],
-                "recent": state["recent"],
-                "overload_carry": state["overload_carry"],
-                "breaker_reason": state["breaker_reason"],
-                "cooldown_delay_ms": state["cooldown_delay_ms"],
-                "remaining_work_ledger_sha256": remaining_hash,
-                "monitoring_state": "CLOSED_VERIFIED"
-                if coordinator.monitored and closed_monitor
-                else "PUBLIC_GAPS_ONLY"
-                if not coordinator.monitored
-                else "UNVERIFIED",
-                "resume_eligible": disposition == "PAUSED_CLEAN",
-            },
-            "closure_evidence_sha256": comparison_hash if closed_monitor else None,
-            "writer_release_evidence_sha256": writer_release_evidence,
-            "sealed_utc": clock.utc(),
-            "disposition": disposition,
-        }
-        snap_hash = recovery.write_snapshot(
-            writer, snapshot, verify=lambda: recovery.replay(events())
-        )
-        reports = {block_id: report}
-        snapshots = [snap_hash]
-        node = predecessor
-        while node is not None:
-            previous = po.parse(io.read(node / "snapshot.json"), po.SNAPSHOT)
-            prior_report = io.metadata(io.read(node / "block_report.json"))
-            po.validate_type(prior_report, "BlockReport")
-            reports.setdefault(prior_report["block_id"], prior_report)
-            snapshots.append(po.digest(previous))
-            node = pj.predecessor_root(node)
-        campaign = pr.campaign_report(
-            start,
-            event_inventory_sha256=event_hash,
-            attempt_inventory_sha256=attempt_hash,
-            snapshots=list(reversed(snapshots)),
-            blocks=[reports[k] for k in sorted(reports)],
-            disposition=disposition,
-            scientific_identity_verified=coordinator.monitored
-            and closed_monitor
-            and not coordinator.stop_reason,
-            reconciliation_reasons=[]
-            if disposition == "COMPLETED" and len(reports) == len(plan["blocks"])
-            else ["INCOMPLETE_WORK"],
-            plan=plan,
-        )
-        writer.call(lambda: log.write("campaign_report.json", campaign))
-        writer.release(
-            {
                 "writer_release_evidence_sha256": writer_release_evidence,
-                "snapshot_sha256": snap_hash,
+                "sealed_utc": clock.utc(),
+                "disposition": disposition,
             }
-        )
-        return campaign
+            snap_hash = recovery.write_snapshot(
+                writer, snapshot, verify=lambda: recovery.replay(events())
+            )
+            reports = {block_id: report}
+            snapshots = [snap_hash]
+            node = predecessor
+            while node is not None:
+                previous = po.parse(io.read(node / "snapshot.json"), po.SNAPSHOT)
+                prior_report = io.metadata(io.read(node / "block_report.json"))
+                po.validate_type(prior_report, "BlockReport")
+                reports.setdefault(prior_report["block_id"], prior_report)
+                snapshots.append(po.digest(previous))
+                node = pj.predecessor_root(node)
+            campaign = pr.campaign_report(
+                start,
+                event_inventory_sha256=event_hash,
+                attempt_inventory_sha256=attempt_hash,
+                snapshots=list(reversed(snapshots)),
+                blocks=[reports[k] for k in sorted(reports)],
+                disposition=disposition,
+                scientific_identity_verified=coordinator.monitored
+                and closed_monitor
+                and not coordinator.stop_reason,
+                reconciliation_reasons=[]
+                if disposition == "COMPLETED" and len(reports) == len(plan["blocks"])
+                else ["INCOMPLETE_WORK"],
+                plan=plan,
+            )
+            writer.call(lambda: log.write("campaign_report.json", campaign))
+            writer.release(
+                {
+                    "writer_release_evidence_sha256": writer_release_evidence,
+                    "snapshot_sha256": snap_hash,
+                }
+            )
+            return campaign
     except (Exception, KeyboardInterrupt):
         # Preserve the primary terminal reason if read-only derivation or later
         # cleanup also fails. An uncertain writer is never reused for a seal.
-        if not writer.failed.is_set() and not log.segment_closed:
+        if (
+            not writer.failed.is_set()
+            and not log.segment_closed
+            and finalization_deadline.remaining_seconds() > 0
+        ):
             try:
                 log.event(
                     "STOP",

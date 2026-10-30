@@ -48,7 +48,7 @@ def warning_body():
         type="FeatureCollection",
         features=[],
         geocoding=dict(
-            warnings=[v.warning.WARNING],
+            warnings=[v.WARNING],
             query={
                 "text": "Berlin",
                 "size": 1,
@@ -415,7 +415,7 @@ def test_actual_coordinator_capture_report_reopen_and_failure_honesty(
         "check_output",
         lambda args, **kw: "a" * 40 if "rev-parse" in args else b"",
     )
-    monkeypatch.setattr(r, "runtime_inventory", lambda: {"scope": "SYNTHETIC_ONLY"})
+    monkeypatch.setattr(r, "runtime_inventory", lambda *a: {"scope": "SYNTHETIC_ONLY"})
     monkeypatch.setattr(r.resource, "setrlimit", lambda *a: None)
     monkeypatch.setattr(
         r.os,
@@ -449,7 +449,7 @@ def test_actual_coordinator_capture_report_reopen_and_failure_honesty(
     monkeypatch.setattr(r, "progression", stop)
     if broken_reopen:
 
-        def fail(*a):
+        def fail(*a, **kw):
             raise c.Stage12Error("S12_TEST_REOPEN_FAILURE")
 
         monkeypatch.setattr(r, "reopen_completed", fail)
@@ -520,7 +520,7 @@ def test_runtime_guard_precedes_input_and_key_access(monkeypatch, tmp_path):
 
 
 @pytest.mark.parametrize(
-    "mismatch", [None, "prior_block_report_sha256", "next_rate", "review_report_sha256"]
+    "mismatch", [None, "prior_block_report_sha256", "next_rate", "review_report_sha256", "reviewer"]
 )
 def test_progression_validates_actual_report_bound_gate(tmp_path, mismatch):
     clock = FakeClock()
@@ -535,7 +535,7 @@ def test_progression_validates_actual_report_bound_gate(tmp_path, mismatch):
         prior_label="capability_subset",
         prior_block_report_sha256=o.digest(block),
         next_rate=20,
-        reviewer="/root/public_or2_integration_review",
+        reviewer="/root/public_followup_review",
         disposition="PASS",
         review_report_sha256=c.sha(report).hex(),
     )

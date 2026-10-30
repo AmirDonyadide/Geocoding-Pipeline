@@ -9,22 +9,31 @@ from . import s12_probe as probe
 from . import s12_response as response
 from . import s12_retrieval_contract as c
 from . import s12_storage as io
-from . import s12_warning_policy as warning
+
+# Public constants do not activate/import the inactive scientific successor.
+BASE_SCIENTIFIC_SHA256 = (
+    "3acfb6cb6888a6b16903f0b132b071f6bac82277263b9d17fd368bbe9449994e"
+)
+WARNING = "performance optimization: excluding 'address' layer"
+SIZE1_TARGET = b"/v1/search?boundary.country=DE&size=1&text=Berlin"
 
 VERSION = "stage12_public_observation_validation_v1"
+FAMILY_VERSION = "stage12_public_observation_validation_v2"
+FAMILY_SIZES = (1, 3, 5, 10, 20, 40)
 SCOPE = "PUBLIC_SHAPES_WITH_EXACT_BERLIN_LIMITATION_SCIENTIFIC_IDENTITY_UNVERIFIED"
 
 
-def descriptor():
-    return {
+def descriptor(version=VERSION):
+    c.require(version in (VERSION, FAMILY_VERSION), "RESPONSE_CONTRACT_INVALID")
+    value = {
         "version": VERSION,
         "scope": SCOPE,
-        "base_scientific_validation_sha256": warning.BASE_SHA256,
+        "base_scientific_validation_sha256": BASE_SCIENTIFIC_SHA256,
         "scientific_validator_activation": False,
         "scientific_identity_verified": False,
         "ordinary_checks": "UNCHANGED_PUBLIC_SHAPES_PLUS_REQUEST_SIZE_BOUND",
-        "exception_target_ascii": warning.TARGET.decode("ascii"),
-        "exception_warning": warning.WARNING,
+        "exception_target_ascii": SIZE1_TARGET.decode("ascii"),
+        "exception_warning": WARNING,
         "exception_location": "geocoding.warnings_SINGLETON_ONLY",
         "echo": {"text": "Berlin", "size": 1, "boundary.country": ["DEU"]},
         "echo_basis": "HISTORICAL_PUBLIC_OBSERVATION_NOT_VERIFIED_DEPLOYMENT_DEFAULT",
@@ -41,6 +50,35 @@ def descriptor():
         "top_warnings_all_errors_other_warnings": "ABSENT_OR_EMPTY_ARRAY_ONLY",
         "accepted_scope": "PUBLIC_OBSERVATIONS_ONLY_NO_SCIENTIFIC_RELATIONS",
     }
+
+    if version == FAMILY_VERSION:
+        value.update(
+            version=FAMILY_VERSION,
+            exception_target_ascii=[
+                f"/v1/search?boundary.country=DE&size={size}&text=Berlin"
+                for size in FAMILY_SIZES
+            ],
+            echo={
+                "text": "Berlin",
+                "size": "EXACT_REQUEST_INTEGER_TOKEN",
+                "boundary.country": ["DEU"],
+            },
+            echo_basis="PROSPECTIVE_OWNER_PUBLIC_POLICY_NOT_OBSERVED_RECURRENCE",
+        )
+    return value
+
+
+def eligible(work, version):
+    c.require(version in (VERSION, FAMILY_VERSION), "RESPONSE_CONTRACT_INVALID")
+    size = work["result_limit"]
+    sizes = (1,) if version == VERSION else FAMILY_SIZES
+    return (
+        type(size) is int
+        and size in sizes
+        and work["kind"] == "DATA"
+        and target(work)
+        == f"/v1/search?boundary.country=DE&size={size}&text=Berlin".encode("ascii")
+    )
 
 
 def target(work):
@@ -65,13 +103,13 @@ def messages(obj, *, berlin=False):
         value = obj[name]
         c.require(type(value) is list, "RESPONSE_CONTRACT_INVALID")
         c.require(
-            value == []
-            or (berlin and name == "warnings" and value == [warning.WARNING]),
+            value == [] or (berlin and name == "warnings" and value == [WARNING]),
             "RESPONSE_CONTRACT_INVALID",
         )
 
 
-def shapes(raw, work):
+def shapes(raw, work, *, version=VERSION):
+    c.require(version in (VERSION, FAMILY_VERSION), "RESPONSE_CONTRACT_INVALID")
     obj = response.Parser(raw).parse().value
     response.envelope(obj)
     c.require(
@@ -85,9 +123,7 @@ def shapes(raw, work):
         geo = obj["geocoding"]
         c.require(type(geo) is dict, "RESPONSE_CONTRACT_INVALID")
         response.envelope(geo, messages=False, bbox=False)
-        berlin = target(work) == warning.TARGET and geo.get("warnings") == [
-            warning.WARNING
-        ]
+        berlin = eligible(work, version) and geo.get("warnings") == [WARNING]
         messages(geo, berlin=berlin)
         for key in ("version", "attribution"):
             if key in geo:
@@ -107,7 +143,7 @@ def shapes(raw, work):
             c.require(
                 type(query) is dict
                 and query.get("text") == "Berlin"
-                and query.get("size") == response.Number("1")
+                and query.get("size") == response.Number(str(work["result_limit"]))
                 and query.get("boundary.country") == ["DEU"],
                 "RESPONSE_CONTRACT_INVALID",
             )
@@ -163,7 +199,13 @@ def shapes(raw, work):
 
 class Validation:
     VERSION, SCOPE = VERSION, SCOPE
-    descriptor = staticmethod(descriptor)
+
+    def __init__(self, version=VERSION):
+        descriptor(version)  # Reject unknown versions before evidence use.
+        self.VERSION = version
+
+    def descriptor(self):
+        return descriptor(self.VERSION)
 
     def limitation(self, raw, work):
         observed = False
@@ -174,21 +216,21 @@ class Validation:
                 obj = response.Parser(raw).parse().value
                 observed = type(obj.get("geocoding")) is dict and obj["geocoding"].get(
                     "warnings"
-                ) == [warning.WARNING]
-                shapes(raw, work)
+                ) == [WARNING]
+                shapes(raw, work, version=self.VERSION)
                 valid = True
                 if observed:
                     layers = obj["geocoding"]["query"]["layers"]
             except (c.Stage12Error, KeyError, TypeError, AttributeError):
                 pass
-        applied = bool(valid and observed and target(work) == warning.TARGET)
+        applied = bool(valid and observed and eligible(work, self.VERSION))
         return {
             "version": "stage12_public_limitation_receipt_v1",
-            "validation_sha256": c.sha(c.canonical(descriptor())).hex(),
+            "validation_sha256": c.sha(c.canonical(self.descriptor())).hex(),
             "work_sha256": c.sha(c.canonical(work)).hex(),
             "raw_sha256": c.sha(raw).hex() if raw is not None else None,
             "exception_applied": applied,
-            "warning": warning.WARNING if applied else None,
+            "warning": WARNING if applied else None,
             "observed_effective_layers": layers if applied else None,
             "coverage_limitation": "ADDRESS_LAYER_EXCLUDED_COVERAGE_MAY_BE_REDUCED"
             if applied
@@ -230,6 +272,6 @@ class Validation:
                 == c.canonical(self.limitation(raw, work)),
                 "S12_CAPTURE_BINDING_INVALID",
             )
-            return shapes(raw, work)
+            return shapes(raw, work, version=self.VERSION)
 
         return validate

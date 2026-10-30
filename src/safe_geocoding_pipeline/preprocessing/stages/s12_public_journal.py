@@ -42,6 +42,8 @@ class Writer:
         self.failed = threading.Event()
         self.closed = False
         self.storage_guard: Callable[[], None] = lambda: None
+        self.check_deadline: Callable[[], None] = lambda: None
+        self.remaining_seconds: Callable[[], float] = lambda: self.guard_ms / 1000
         self.thread = threading.Thread(
             target=self._work, name="stage12-public-writer", daemon=True
         )
@@ -70,7 +72,10 @@ class Writer:
         action, future = item
         try:
             o.require(not self.failed.is_set(), "PUBLIC_PROBE_EVIDENCE_WRITE_FAILED")
-            result = action()
+            self.check_deadline()
+            with io.cooperative_io(self.check_deadline):
+                result = action()
+            self.check_deadline()
             o.require(not self.failed.is_set(), "PUBLIC_PROBE_EVIDENCE_WRITE_FAILED")
             self.storage_guard()
         except BaseException as error:
@@ -102,7 +107,11 @@ class Writer:
 
     def cooperative(self, action: Callable[[], T]) -> T:
         def run() -> T:
-            with io.cooperative_io(self.service_periodic):
+            def checkpoint():
+                self.check_deadline()
+                self.service_periodic()
+
+            with io.cooperative_io(checkpoint):
                 return action()
 
         return self.call(run)
@@ -130,9 +139,12 @@ class Writer:
     def call(self, action: Callable[[], T], *, periodic: bool = False) -> T:
         o.require(threading.current_thread() is not self.thread)
         try:
-            return self.submit(action, periodic=periodic).result(
-                timeout=self.guard_ms / 1000
+            self.check_deadline()
+            result = self.submit(action, periodic=periodic).result(
+                timeout=min(self.guard_ms / 1000, self.remaining_seconds())
             )
+            self.check_deadline()
+            return result
         except BaseException:
             self.failed.set()
             self.stop()
@@ -157,7 +169,7 @@ class Writer:
         self.closed = True
         self.mailbox.put_nowait(None)
         self.wake.set()
-        self.thread.join(timeout=self.guard_ms / 1000)
+        self.thread.join(timeout=min(self.guard_ms / 1000, self.remaining_seconds()))
         o.require(not self.thread.is_alive(), "PUBLIC_PROBE_EVIDENCE_WRITE_FAILED")
         return result
 
@@ -169,7 +181,7 @@ class Writer:
             self.wake.set()
         except queue.Full:
             return
-        self.thread.join(timeout=self.guard_ms / 1000)
+        self.thread.join(timeout=min(self.guard_ms / 1000, self.remaining_seconds()))
 
 
 class Journal:
@@ -212,7 +224,9 @@ class Journal:
         writer.call(lambda: self.write("campaign_start.json", start))
         writer.call(lambda: io.reserve(writer.root / "events"))
         if predecessor is not None:
-            previous = self.contract.parse(io.read(predecessor / "snapshot.json"), self.contract.SNAPSHOT)
+            previous = self.contract.parse(
+                io.read(predecessor / "snapshot.json"), self.contract.SNAPSHOT
+            )
             self.contract.require(
                 io.read(predecessor / "campaign_start.json") == c.canonical(start)
             )
@@ -223,7 +237,10 @@ class Journal:
             writer.call(
                 lambda: self.write(
                     "predecessor.json",
-                    {"root": str(predecessor), "snapshot_sha256": self.contract.digest(previous)},
+                    {
+                        "root": str(predecessor),
+                        "snapshot_sha256": self.contract.digest(previous),
+                    },
                 )
             )
             self.seq, self.last_hash, self.segment = (
@@ -312,7 +329,9 @@ class Journal:
         finally:
             os.close(fd)
         io.fsync_directory(path.parent)
-        self.contract.require(self.contract.manifest_digest(read_array(path)) == fingerprint.hexdigest())
+        self.contract.require(
+            self.contract.manifest_digest(read_array(path)) == fingerprint.hexdigest()
+        )
         return fingerprint.hexdigest()
 
     def stream_array(self, name: str, rows: Iterator[dict[str, Any]]) -> str:
@@ -355,13 +374,16 @@ class Journal:
         try:
             self.writer.call(lambda: put(b"["))
             for i, row in enumerate(rows):
+                self.writer.check_deadline()
                 raw = c.canonical(row)[:-1]
                 self.contract.require(len(raw) <= 65536)
                 self.writer.call(lambda: put((b"," if i else b"") + raw))
             self.writer.call(lambda: put(b"]\n"))
             self.writer.call(close)
             self.contract.require(
-                self.contract.manifest_digest(read_array(path))
+                self.contract.manifest_digest(
+                    read_array(path, check=self.writer.check_deadline)
+                )
                 == fingerprint.hexdigest()
             )
             return fingerprint.hexdigest()
@@ -460,7 +482,11 @@ def predecessor_root(root: Path) -> Path | None:
 
 
 def read_events(
-    root: Path, start_hash: str, _seen: frozenset[str] = frozenset(), *, contract: Any = o
+    root: Path,
+    start_hash: str,
+    _seen: frozenset[str] = frozenset(),
+    *,
+    contract: Any = o,
 ) -> Iterator[dict[str, Any]]:
     """Validate the entire available chain; caller separately proves totality."""
     o = contract
@@ -472,7 +498,9 @@ def read_events(
         if parent is not None:
             yield from (
                 (e["seq"], c.canonical(e))
-                for e in read_events(parent, start_hash, _seen | {str(root)}, contract=contract)
+                for e in read_events(
+                    parent, start_hash, _seen | {str(root)}, contract=contract
+                )
             )
         for path in sorted((root / "events").iterdir()):
             o.require(path.name.endswith(".json") and path.stem.isdigit())
@@ -510,7 +538,9 @@ def inventory(root: Path) -> Iterator[dict[str, str]]:
             yield {"path": str(p.relative_to(root)), "sha256": c.sha(io.read(p)).hex()}
 
 
-def evidence_inventory(root: Path, area: str, *, contract: Any = o) -> Iterator[dict[str, str]]:
+def evidence_inventory(
+    root: Path, area: str, *, contract: Any = o
+) -> Iterator[dict[str, str]]:
     """Full campaign inventory with immutable predecessor locations disambiguated."""
     o = contract
     o.require(area in ("events", "attempts"))
@@ -542,7 +572,9 @@ def tree_bytes(root: Path, exclude: frozenset[str] = frozenset()) -> int:
     return total
 
 
-def read_array(path: Path) -> Iterator[dict[str, Any]]:
+def read_array(
+    path: Path, *, check: Callable[[], None] = lambda: None
+) -> Iterator[dict[str, Any]]:
     """Read canonical metadata arrays with a bounded single-row buffer.
 
     This is for fixed O-r2 work/ledger/inventory rows, never response payloads.
@@ -563,6 +595,7 @@ def read_array(path: Path) -> Iterator[dict[str, Any]]:
         buffer, eof = "", False
 
         def fill() -> None:
+            check()
             nonlocal buffer, eof
             raw = os.read(fd, 4096)
             eof = not raw

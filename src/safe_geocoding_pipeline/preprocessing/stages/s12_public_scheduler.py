@@ -188,12 +188,16 @@ class Coordinator:
 
             node = predecessor
             while node is not None:
-                prior = self.contract.parse(io.read(node / "snapshot.json"), self.contract.SNAPSHOT)
+                prior = self.contract.parse(
+                    io.read(node / "snapshot.json"), self.contract.SNAPSHOT
+                )
                 if prior["controller"]["block_id"] == block_id:
                     self.journal.prior_block_bytes += journal.tree_bytes(node)
                 node = journal.predecessor_root(node)
             current_block = None
-            for event in journal.read_events(predecessor, self.contract.digest(start), contract=contract):
+            for event in journal.read_events(
+                predecessor, self.contract.digest(start), contract=contract
+            ):
                 if event["kind"] == "SEGMENT_OPEN":
                     current_block = event["body"]["block_id"]
                 if current_block == block_id:
@@ -340,7 +344,9 @@ class Coordinator:
             self.sample_slot.release()
 
     def start_sampling(self) -> None:
-        self.contract.require(self.sample_thread is None and not self.sample_stop.is_set())
+        self.contract.require(
+            self.sample_thread is None and not self.sample_stop.is_set()
+        )
 
         def sample() -> None:
             try:
@@ -371,7 +377,12 @@ class Coordinator:
         if self.sample_join_failed:
             return False
         if self.sample_thread is not None:
-            self.sample_thread.join(self.resources["writer_guard_ms"] / 1000)
+            self.sample_thread.join(
+                min(
+                    self.resources["writer_guard_ms"] / 1000,
+                    self.writer.remaining_seconds(),
+                )
+            )
             if self.sample_thread.is_alive():
                 self.sample_join_failed = True
                 self.audit_failed()
@@ -727,7 +738,9 @@ class Coordinator:
                     blocked = self.safety_barriers or any(
                         s.ticket is not None for s in self.slots.values()
                     )
-                    self.contract.require(slot.started_ns is not None and slot.committed_ns is None)
+                    self.contract.require(
+                        slot.started_ns is not None and slot.committed_ns is None
+                    )
                     check_deadline()
                     if now - slot.started_ns >= 60_000_000_000:
                         raise c.Stage12Error("TIMEOUT")
@@ -759,7 +772,8 @@ class Coordinator:
                 with self.safety:
                     self.last_emit_end_ns = returned
                     self.next_emit_ns = max(
-                        self.next_emit_ns, self.contract.checked(returned + self.spacing)
+                        self.next_emit_ns,
+                        self.contract.checked(returned + self.spacing),
                     )
                 if entered is not None:
                     self.journal.event(
@@ -1064,7 +1078,9 @@ class Coordinator:
                 * 1_000_000
             )
             acquired = self.monitor.accept(receipt, closure=closure)
-            self.contract.require(acquired <= self.clock.now_ns() < acquired + 60_000_000_000)
+            self.contract.require(
+                acquired <= self.clock.now_ns() < acquired + 60_000_000_000
+            )
         except c.Stage12Error:
             self.terminal("IDENTITY_STALE", "IDENTITY_UNVERIFIABLE")
             return
@@ -1121,7 +1137,9 @@ class Coordinator:
             self.terminal("TIME")
 
     def downshift(self, state_id: int, why: str, basis_seq: int) -> None:
-        self.contract.require(not self.stop_reason and 0 < basis_seq <= self.journal.seq)
+        self.contract.require(
+            not self.stop_reason and 0 < basis_seq <= self.journal.seq
+        )
         self.authority.require(
             "rate_reduction_basis",
             self.start["initial_workload_authority_sha256"],

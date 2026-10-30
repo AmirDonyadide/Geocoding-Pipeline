@@ -107,6 +107,14 @@ def read_object(path):
     return io.metadata(io.read(path, limit=8 * 1024 * 1024))
 
 
+def validation_for(identity):
+    for version in (validation.VERSION, validation.FAMILY_VERSION):
+        adapter = validation.Validation(version)
+        if o.digest(adapter.descriptor()) == identity:
+            return adapter
+    raise c.Stage12Error("S12_PUBLIC_VALIDATION_BINDING_INVALID")
+
+
 def validate_config(config):
     o.require(
         set(config) == FIELDS
@@ -124,7 +132,7 @@ def validate_config(config):
     for k in ("window_start", "window_end"):
         o.validate_type(config[k], "Z")
     o.require(config["window_start"] < config["window_end"])
-    o.require(config["public_validation_sha256"] == o.digest(validation.descriptor()))
+    validation_for(config["public_validation_sha256"])
     t = config["transport"]
     o.require(
         set(t)
@@ -229,7 +237,7 @@ def validate_config(config):
     o.require(total <= 400)
 
 
-def runtime_inventory():
+def runtime_inventory(validation_sha256=None):
     return {
         "python": platform.python_version(),
         "implementation": platform.python_implementation(),
@@ -237,7 +245,8 @@ def runtime_inventory():
         "packages": sorted(
             (d.metadata["Name"], d.version) for d in importlib.metadata.distributions()
         ),
-        "public_validation_sha256": o.digest(validation.descriptor()),
+        "public_validation_sha256": validation_sha256
+        or o.digest(validation.descriptor()),
         "scientific_identity_verified": False,
         "job_id": os.environ["SLURM_JOB_ID"],
         "resource_sampling_is_service_monitoring": False,
@@ -373,9 +382,9 @@ class Authority:
         )
 
 
-def reopen_completed(root, profile, plan, start):
+def reopen_completed(root, profile, plan, start, *, validation_sha256=None):
     """Existing event/receipt/ledger/report readers, no trusted aggregate shortcut."""
-    adapter = validation.Validation()
+    adapter = validation_for(validation_sha256 or o.digest(validation.descriptor()))
 
     def works():
         return iter(plan_work(root, plan))
@@ -451,7 +460,7 @@ def reopen_completed(root, profile, plan, start):
             length=terminal["application_payload_bytes"],
             expected_hash=bytes.fromhex(terminal["response_sha256"]),
         )
-        return validation.shapes(raw, work)
+        return validation.shapes(raw, work, version=adapter.VERSION)
 
     expected_comparisons = 0
     for work in works():
@@ -554,7 +563,7 @@ def progression(root, label, block, clock, envelope, seconds):
         "prior_label": label,
         "prior_block_report_sha256": o.digest(block),
         "next_rate": 20 if label == "capability_subset" else 40,
-        "reviewer": "/root/public_or2_integration_review",
+        "reviewer": "/root/public_followup_review",
         "disposition": "PASS",
     }
     io.write(root / (label + "_AWAITING_REVIEW.json"), c.canonical(expected))
@@ -644,7 +653,7 @@ def execute(
         return stat.f_bavail * stat.f_frsize
 
     o.require(free() >= r["allocated_disk_bytes"], "S12_PUBLIC_DISK_UNAVAILABLE")
-    runtime = runtime_inventory()
+    runtime = runtime_inventory(config["public_validation_sha256"])
     io.write(output / "runtime_inventory.json", c.canonical(runtime))
     io.write(output / "configuration.json", c.canonical(config))
     io.write(output / "review_binding.json", c.canonical(review))
@@ -705,6 +714,18 @@ def execute(
             authority.bind(item, plan, start)
             phase = output / item["label"]
             source = config["sources"]["owner"]
+            phase_deadline = recovery.Deadline(
+                clock,
+                min(
+                    envelope.deadline,
+                    clock.now_ns()
+                    + min(
+                        plan["budgets"]["active_duration_ms"],
+                        plan["blocks"][0]["budget"]["active_duration_ms"],
+                    )
+                    * 1_000_000,
+                ),
+            )
             result = run_operations_block(
                 profile,
                 plan,
@@ -724,8 +745,9 @@ def execute(
                 writer_exclusion_evidence=source,
                 epoch=os.urandom(32).hex(),
                 writer_release_evidence=source,
-                public_validation=validation.Validation(),
+                public_validation=validation_for(config["public_validation_sha256"]),
                 ascending_sizes=item["ascending_sizes"],
+                task_deadline_ns=phase_deadline.end_ns,
                 pause_requested=lambda: (
                     clock.now_ns() >= envelope.deadline - 80 * 10**9
                 ),
@@ -742,7 +764,16 @@ def execute(
             )
             if result["disposition"] != "COMPLETED" or not result["report_complete"]:
                 break
-            block = reopen_completed(phase, profile, plan, start)
+            with io.cooperative_io(phase_deadline.check):
+                phase_deadline.check()
+                block = reopen_completed(
+                    phase,
+                    profile,
+                    plan,
+                    start,
+                    validation_sha256=config["public_validation_sha256"],
+                )
+                phase_deadline.check()
             verified_complete.append(item["label"])
             if not qualifies(block, smoke=item["label"] == "capability_subset"):
                 break
@@ -766,7 +797,7 @@ def execute(
             )
             if item["label"] == "capability_subset":
                 parent = o.digest(block)
-    except c.Stage12Error as error:
+    except (c.Stage12Error, recovery.FinalizationExpired) as error:
         # Only allowlisted static prefix codes reach an ordinary log/summary.
         text = str(error)
         code = (

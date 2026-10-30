@@ -14,6 +14,22 @@ from . import s12_retrieval_contract as c
 from . import s12_storage as io
 
 
+class FinalizationExpired(RuntimeError):
+    """Cumulative limit, never a response-contract or unavailable-receipt error."""
+
+
+class Deadline:
+    def __init__(self, clock, end_ns):
+        self.clock, self.end_ns = clock, end_ns
+
+    def check(self):
+        if self.clock.now_ns() >= self.end_ns:
+            raise FinalizationExpired("S12_PUBLIC_FINALIZATION_DEADLINE")
+
+    def remaining_seconds(self):
+        return max(0, self.end_ns - self.clock.now_ns()) / 1e9
+
+
 def replay(events: Iterable[dict[str, Any]], *, contract: Any = o) -> dict[str, Any]:
     """Reconstruct bounded controller state, not a trusted snapshot cache."""
     o = contract
@@ -173,7 +189,8 @@ def work_ledger(
     work_factory: Callable[[], Iterable[dict[str, Any]]],
     event_factory: Callable[[], Iterable[dict[str, Any]]],
     verify_receipt: Callable[[dict[str, Any], dict[str, Any]], None],
-    *, contract: Any = o,
+    *,
+    contract: Any = o,
 ) -> Iterator[dict[str, Any]]:
     """At most five attempts for one row are resident; never a full work map."""
     o = contract
