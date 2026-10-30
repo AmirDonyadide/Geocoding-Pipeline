@@ -1,0 +1,1 @@
+{"complementary_suppression":true,"continuous_service_state":"NOT_VERIFIED","data_generation_status":"UNVERIFIED","minimum_distinct_source_rows":20,"protected_text_and_row_ids":"FORBIDDEN","required_sections":["observation_evidence","permission_status","window_applicability","interruptions","counts"],"summary_version":"stage12_pelias_retrieval_summary_b2_v1"}

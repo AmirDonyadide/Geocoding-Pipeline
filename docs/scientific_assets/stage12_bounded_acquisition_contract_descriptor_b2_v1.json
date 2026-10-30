@@ -1,0 +1,1 @@
+{"record_schema":{"postflight":{"max_duration_ms":"P","max_record_bytes":"P","max_records":"P","max_total_bytes":"P"},"preflight":{"max_duration_ms":"P","max_record_bytes":"P","max_records":"P","max_total_bytes":"P"},"schema_version":"=stage12_bounded_acquisition_contract_b2_v1","scope":"=DEVELOPMENT_ONLY"},"schema_version":"stage12_bounded_acquisition_contract_descriptor_b2_v1"}

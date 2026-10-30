@@ -1,0 +1,2077 @@
+{
+  "named_types": {
+    "AcquisitionLedgerEntry": {
+      "begin_sha256": "D",
+      "cumulative_ordinal": "ID",
+      "finish_sha256": "D?"
+    },
+    "AdministrativeBounds": {
+      "acquisition_contract_sha256": "D",
+      "max_duration_ms": "P",
+      "max_record_bytes": "P",
+      "max_records": "P",
+      "max_total_bytes": "P"
+    },
+    "AdministrativeSpent": {
+      "bytes": "U",
+      "duration_ms": "U",
+      "operations": "U"
+    },
+    "Allowance": {
+      "connections": "P",
+      "rate_ceiling": "Rate",
+      "record_sha256": "D",
+      "valid_from": "Z",
+      "valid_until": "Z"
+    },
+    "Block": {
+      "block_id": "ID",
+      "budget": "Budget",
+      "fallback_state_ids": "ID[]",
+      "first_work_id": "ID",
+      "last_work_id": "ID",
+      "state_id": "ID",
+      "transition_from": "ID?"
+    },
+    "BlockReport": {
+      "block_id": "ID",
+      "cells": "CellCount[]",
+      "counts": "Counts",
+      "criterion_sha256": "D?",
+      "duration_ns": "U?",
+      "input_event_prefix_sha256": "D",
+      "input_last_event_seq": "ID",
+      "latencies": "Latencies",
+      "monitoring_complete": "B",
+      "peaks": "Peaks",
+      "rates": "Rates",
+      "reasons": "ReportReason[]",
+      "receipts_complete": "B",
+      "repeat_comparison_sha256": "D?",
+      "resource_sampling_complete": "B",
+      "status": "BlockStatus"
+    },
+    "BlockStatus": {
+      "enum": [
+        "PASS",
+        "FAIL",
+        "INCOMPLETE",
+        "EXPLORATORY_ONLY"
+      ]
+    },
+    "BootstrapStatus": {
+      "enum": [
+        "SEALED",
+        "FAILED",
+        "INCOMPLETE"
+      ]
+    },
+    "BranchCondition": {
+      "enum": [
+        "REQUIRED",
+        "ONLY_IF_SELECTED_N_DIFFERS_FROM_C"
+      ]
+    },
+    "Budget": {
+      "active_duration_ms": "P",
+      "administrative_duration_ms": "U",
+      "administrative_operations": "U",
+      "control_http_attempts": "U",
+      "data_attempts": "U",
+      "data_observations": "U",
+      "event_count": "P",
+      "required_control_observations": "U",
+      "reserved_control_observations": "U",
+      "storage_bytes": "P"
+    },
+    "CalibrationKind": {
+      "enum": [
+        "FULL_C",
+        "TAIL",
+        "PAIRED"
+      ]
+    },
+    "Cell": {
+      "mode": "Mode",
+      "size": "P"
+    },
+    "CellCount": {
+      "durable_valid": "Count",
+      "mode": "Mode",
+      "planned": "U",
+      "size": "P"
+    },
+    "ControlOutcome": {
+      "enum": [
+        "CONTROL_SUCCESS",
+        "TECHNICAL_FAILURE_RETRYABLE",
+        "TECHNICAL_FAILURE_FINAL",
+        "CONTRACT_FAILURE",
+        "OBSERVATION_CONTRACT_FAILURE",
+        "PERMISSION_FAILURE"
+      ]
+    },
+    "ControlRecipe": {
+      "implementation_contract_sha256": "D",
+      "max_duration_ms": "P",
+      "max_http_attempts_per_invocation": "P",
+      "purpose": "Purpose",
+      "recipe_id": "ID",
+      "recipe_sha256": "D",
+      "transport_profile_sha256": "D"
+    },
+    "ControllerSnapshot": {
+      "active_duration_ms": "U",
+      "administrative_bytes": "U",
+      "administrative_duration_ms": "U",
+      "administrative_operations": "U",
+      "block_id": "ID",
+      "breaker_reason": "Reason?",
+      "charged_control_attempts": "U",
+      "charged_data_attempts": "U",
+      "consecutive_retryable": "U",
+      "cooldown_delay_ms": "U",
+      "event_count": "U",
+      "last_ticket": "U",
+      "monitoring_state": "MonitoringState",
+      "overload_carry": "OverloadEntry[]",
+      "recent": "PressureEntry[]",
+      "remaining_work_ledger_sha256": "D",
+      "resume_eligible": "B",
+      "state_id": "ID",
+      "stored_bytes": "U"
+    },
+    "Count": {
+      "confirmed_min": "U",
+      "value": "U?"
+    },
+    "Counts": {
+      "administrative_operations": "Count",
+      "attempt_starts": "Count",
+      "begins_charged": "Count",
+      "breakers": "Count",
+      "control_attempt_starts": "Count",
+      "cooldown_events": "Count",
+      "downshift_events": "Count",
+      "durable_retryable": "Count",
+      "durable_terminal_failure": "Count",
+      "durable_valid_data": "Count",
+      "durable_valid_zero": "Count",
+      "emission_commits": "Count",
+      "emissions_entered": "Count",
+      "first_attempt_starts": "Count",
+      "http_200": "Count",
+      "http_completions": "Count",
+      "planned_data": "Count",
+      "required_controls": "Count",
+      "reserved_controls": "Count",
+      "retry_attempt_starts": "Count",
+      "unknown_delivery": "Count",
+      "unprocessed_data": "Count",
+      "unused_reserved_controls": "Count"
+    },
+    "Criteria": {
+      "max_duration_ms": "P",
+      "max_http_p95_ms": "P",
+      "max_http_p99_ms": "P",
+      "max_pending_bytes": "U",
+      "max_pending_count": "U",
+      "max_reserved_bytes": "P",
+      "max_retry_fraction": "Fraction",
+      "max_slot_p95_ms": "P",
+      "max_slot_p99_ms": "P",
+      "max_writer_wait_ms": "P",
+      "min_attempt_rate": "Rate",
+      "min_durable_data_rate": "Rate",
+      "min_duration_ms": "P",
+      "min_per_cell": "P",
+      "min_valid_data": "P",
+      "required_cells": "Cell[]"
+    },
+    "Disposition": {
+      "enum": [
+        "PAUSED_CLEAN",
+        "COMPLETED",
+        "STOPPED",
+        "QUARANTINED",
+        "RECOVERY_BLOCKED"
+      ]
+    },
+    "Evaluation": {
+      "enum": [
+        "EXPLORATORY",
+        "CONFIRMATORY"
+      ]
+    },
+    "Experiment": {
+      "enum": [
+        "CAPABILITY",
+        "PERFORMANCE"
+      ]
+    },
+    "Fact": "stage12_observation_fact_b2_v1",
+    "FinalOutcome": {
+      "tag": "kind",
+      "variants": {
+        "DATA": {
+          "kind": "=DATA",
+          "value": "Outcome"
+        },
+        "SERVICE_CONTROL": {
+          "kind": "=SERVICE_CONTROL",
+          "value": {
+            "enum": [
+              "CONTROL_SUCCESS",
+              "TECHNICAL_FAILURE_RETRYABLE",
+              "TECHNICAL_FAILURE_FINAL",
+              "CONTRACT_FAILURE",
+              "OBSERVATION_CONTRACT_FAILURE",
+              "PERMISSION_FAILURE",
+              "UNKNOWN_DELIVERY"
+            ]
+          }
+        }
+      }
+    },
+    "Fraction": {
+      "den": "P",
+      "num": "U"
+    },
+    "Kind": {
+      "enum": [
+        "DATA",
+        "SERVICE_CONTROL"
+      ]
+    },
+    "Latencies": {
+      "full_slot_data": "Stat",
+      "transport_all": "Stat",
+      "transport_data": "Stat",
+      "writer_wait": "Stat"
+    },
+    "Mechanism": {
+      "enum": [
+        "CONTROLLED_CAMPAIGN",
+        "PER_RESPONSE_GENERATION"
+      ]
+    },
+    "Mode": {
+      "enum": [
+        "FULL_TEXT",
+        "STRUCTURED"
+      ]
+    },
+    "Monitoring": {
+      "mode": "=OBSERVED_PREPOST_WINDOW",
+      "privacy_permission_sha256": "D",
+      "scientific_decision_sha256": "D",
+      "window_plan_sha256": "D"
+    },
+    "MonitoringState": {
+      "enum": [
+        "PROVISIONAL",
+        "CLOSED_OBSERVATIONAL",
+        "QUARANTINED"
+      ]
+    },
+    "Outcome": {
+      "enum": [
+        "SUCCESS_WITH_CANDIDATES",
+        "SUCCESS_ZERO_CANDIDATES",
+        "TECHNICAL_FAILURE_FINAL",
+        "CONTRACT_FAILURE",
+        "OBSERVATION_CONTRACT_FAILURE",
+        "TECHNICAL_FAILURE_RETRYABLE",
+        "UNKNOWN_DELIVERY",
+        "PERMISSION_FAILURE"
+      ]
+    },
+    "OverloadEntry": {
+      "attempt": "P",
+      "work_id": "ID"
+    },
+    "Peaks": {
+      "admitted": "U?",
+      "connection_slots": "U?",
+      "min_free_allocated_disk_bytes": "U?",
+      "pending_bytes": "U?",
+      "pending_count": "U?",
+      "reserved_bytes": "U?",
+      "writer_wait_ms": "U?"
+    },
+    "PlannedCampaign": {
+      "candidate_limits": "P[]",
+      "conditional_on": "BranchCondition",
+      "intent_id": "ID",
+      "planned_data": "P",
+      "repetition": "U",
+      "result_limit": "P?",
+      "segment_slots": "PlannedSegment[]",
+      "subset_inventory_sha256": "D",
+      "workload_kind": "WorkloadKind"
+    },
+    "PlannedSegment": {
+      "administrative_bounds": "AdministrativeBounds",
+      "dispatch_from": "Z",
+      "dispatch_until": "Z",
+      "max_attempts": "P",
+      "slot_id": "ID"
+    },
+    "PopulationScope": {
+      "enum": [
+        "ACCEPTED_DEVELOPMENT",
+        "SYNTHETIC_TEST_ONLY"
+      ]
+    },
+    "Preserved": {
+      "materialization_sha256": "D",
+      "operations_v1_sha256": "D",
+      "public_audit_source_sha256": "D",
+      "response_validation_sha256": "D"
+    },
+    "PressureEntry": {
+      "elapsed_ms": "U",
+      "retryable": "B",
+      "ticket": "ID"
+    },
+    "PrivacyFact": {
+      "name": "PrivacyName",
+      "record_sha256": "D?",
+      "status": {
+        "enum": [
+          "DOCUMENTED",
+          "UNKNOWN"
+        ]
+      }
+    },
+    "PrivacyName": {
+      "enum": [
+        "log_paths_and_components",
+        "query_fields",
+        "response_body_fields",
+        "source_and_row_identifiers",
+        "credential_and_header_exclusion",
+        "locations_and_processors",
+        "purposes_and_onward_use",
+        "access_roles_and_audit",
+        "retention_active_logs",
+        "retention_backups_and_diagnostics",
+        "deletion_and_expiry",
+        "encryption_and_access_enforcement",
+        "incident_notification_and_response",
+        "no_secret_echo",
+        "permitted_transfer_scope"
+      ]
+    },
+    "Purpose": {
+      "enum": [
+        "AUTH_CHECK",
+        "LIMIT_CHECK",
+        "HEALTH_CHECK"
+      ]
+    },
+    "Rate": {
+      "den": "P",
+      "num": "P"
+    },
+    "RateState": {
+      "admitted_operations": "P",
+      "connections": "P",
+      "evidence_sha256": "D",
+      "rate": "Rate",
+      "state_id": "ID"
+    },
+    "Rates": {
+      "all_attempts_per_s": "Ratio?",
+      "data_first_dispatch_per_s": "Ratio?",
+      "durable_data_per_s": "Ratio?",
+      "http_completions_per_s": "Ratio?",
+      "retry_fraction": "Ratio?"
+    },
+    "Ratio": {
+      "den": "P",
+      "num": "U"
+    },
+    "Reason": {
+      "enum": [
+        "AUTHENTICATION_FAILED",
+        "AUTHORITY_UNRESOLVED",
+        "AUTHORIZATION_FAILED",
+        "CLOSURE_MISSING",
+        "DEPLOYMENT_AUTHENTICITY_FAILURE",
+        "DEPLOYMENT_IDENTITY_FAILURE",
+        "ENVIRONMENT_NETWORK_INVALID",
+        "HTTP_REQUEST_REJECTED",
+        "IDENTITY_INTERVAL_NOT_CLOSED",
+        "IDENTITY_UNVERIFIABLE",
+        "IDENTITY_VERIFICATION_STALE",
+        "KNOWN_CHANGE",
+        "LATENCY_PRESSURE",
+        "MAINTENANCE_REPORTED",
+        "NETWORK_TRANSIENT",
+        "OBSERVATION_CONTRACT_FAILURE",
+        "OK",
+        "OVERLOAD_PRESSURE",
+        "PERMISSION_FAILURE",
+        "PERMISSION_REVOKED",
+        "PERMISSION_UNRESOLVED",
+        "PREFLIGHT_MISSING",
+        "PUBLIC_PROBE_EVIDENCE_WRITE_FAILED",
+        "RATE_LIMITED",
+        "RECORD_DISCREPANCY",
+        "REDIRECT_FORBIDDEN",
+        "RESPONSE_CONTRACT_INVALID",
+        "RESPONSE_RESOURCE_LIMIT",
+        "RESPONSE_TRUNCATED",
+        "RETRY_AFTER_REQUIRES_OWNER_RECOVERY",
+        "RETRY_BUDGET_EXHAUSTED",
+        "SECRET_ECHO_DETECTED",
+        "SERVER_TRANSIENT",
+        "TECHNICAL_ERROR_PRESSURE",
+        "TERMINAL_FAILURE",
+        "TIMEOUT",
+        "UNSUPPORTED_PROTOCOL",
+        "WINDOW_EXPIRED",
+        "WINDOW_TRANSFER_FORBIDDEN"
+      ]
+    },
+    "ReportDisposition": {
+      "enum": [
+        "PAUSED_CLEAN",
+        "COMPLETED",
+        "STOPPED",
+        "QUARANTINED",
+        "RECOVERY_BLOCKED"
+      ]
+    },
+    "ReportReason": {
+      "enum": [
+        "MISSING_AUTHORITY",
+        "INCOMPLETE_WORK",
+        "UNSAFE_RESPONSE",
+        "REPEAT_DISAGREEMENT",
+        "OVERLOAD_OR_COOLDOWN",
+        "RATE_CHANGED",
+        "THRESHOLD_FAILED",
+        "COVERAGE_FAILED",
+        "MONITOR_FAILED",
+        "AUDIT_FAILED",
+        "BUDGET_EXHAUSTED",
+        "STOPPED",
+        "UNKNOWN_DELIVERY",
+        "INSUFFICIENT_MEASUREMENT",
+        "EXPLORATORY_NO_QUALIFICATION"
+      ]
+    },
+    "Resources": {
+      "admission_memory_bytes": "P",
+      "allocated_disk_bytes": "P",
+      "capacity_basis_sha256": "D",
+      "fixed_campaign_disk_bound_bytes": "P",
+      "job_memory_bytes": "P",
+      "pending_request_bytes": "P",
+      "per_attempt_disk_bound_bytes": "P",
+      "process_overhead_bytes": "P",
+      "resource_review_sha256": "D",
+      "scheduler_guard_ms": "P",
+      "writer_guard_ms": "P"
+    },
+    "ServiceEvidenceState": {
+      "enum": [
+        "PROVISIONAL",
+        "CLOSED_OBSERVATIONAL",
+        "QUARANTINED"
+      ]
+    },
+    "Stat": {
+      "max_ms": "U?",
+      "n": "U",
+      "p50_ms": "U?",
+      "p95_ms": "U?",
+      "p99_ms": "U?"
+    },
+    "T": {
+      "primitive": "nonempty_utf8"
+    },
+    "Value": {
+      "tag": "kind",
+      "variants": {
+        "COUNT": {
+          "decimal": "T",
+          "kind": "=COUNT",
+          "precision": {
+            "enum": [
+              "EXACT",
+              "APPROXIMATE"
+            ]
+          },
+          "unit": "=DOCUMENTS"
+        },
+        "STATEMENT": {
+          "kind": "=STATEMENT",
+          "text": "T"
+        },
+        "TOKEN": {
+          "kind": "=TOKEN",
+          "text": "T"
+        }
+      }
+    },
+    "Verification": {
+      "enum": [
+        "VERIFIED",
+        "FAILED",
+        "NOT_PERFORMED"
+      ]
+    },
+    "Work": {
+      "block_id": "ID",
+      "kind": "Kind",
+      "query_semantic_id": "D?",
+      "recipe_id": "ID?",
+      "repetition": "U?",
+      "result_limit": "P?",
+      "retry_spacing_key": "D",
+      "work_id": "ID"
+    },
+    "WorkLedgerRow": {
+      "charged_ordinals": "U[]",
+      "last_outcome": "FinalOutcome?",
+      "retry_delay_ms": "U?",
+      "selected_receipt_sha256": "D?",
+      "state": "WorkState",
+      "work_id": "ID"
+    },
+    "WorkState": {
+      "enum": [
+        "UNBEGUN",
+        "RETRY_DUE",
+        "DURABLE_SUCCESS",
+        "TERMINAL",
+        "UNKNOWN_DELIVERY",
+        "UNUSED_RESERVED_CONTROL"
+      ]
+    },
+    "WorkloadKind": {
+      "enum": [
+        "FULL_C",
+        "TAIL",
+        "PAIRED",
+        "DIRECT_N"
+      ]
+    },
+    "stage12_authority_review_b2_v1": {
+      "channel_evidence_sha256": "D",
+      "issuer_role_record_sha256": "D",
+      "result": {
+        "enum": [
+          "ATTRIBUTION_ACCEPTED",
+          "REJECTED",
+          "UNRESOLVED"
+        ]
+      },
+      "reviewed_utc": "Z",
+      "reviewer_delegation_sha256": "D",
+      "schema_version": "=stage12_authority_review_b2_v1",
+      "subject_record_sha256": "D"
+    },
+    "stage12_campaign_closure_b2_v1": {
+      "account_status": {
+        "enum": [
+          "NO_KNOWN_INTERVENTION",
+          "INTERVENTION_REPORTED",
+          "UNKNOWN"
+        ]
+      },
+      "campaign_start_sha256": "D",
+      "disposition": {
+        "enum": [
+          "CLOSED_OBSERVATIONAL",
+          "PROVISIONAL",
+          "QUARANTINED",
+          "RECOVERY_BLOCKED"
+        ]
+      },
+      "operator_campaign_account_sha256": "D?",
+      "ordered_segment_closure_hashes": "D[]",
+      "review_decision_sha256": "D",
+      "reviewed_utc": "Z",
+      "schema_version": "=stage12_campaign_closure_b2_v1",
+      "window_plan_sha256": "D",
+      "workload_kind": {
+        "enum": [
+          "FULL_C",
+          "TAIL",
+          "PAIRED",
+          "DIRECT_N"
+        ]
+      },
+      "workload_sha256": "D"
+    },
+    "stage12_correspondence_b2_v1": {
+      "acquired_utc": "Z",
+      "asserted_issuer": "T",
+      "retained_record_sha256": "D",
+      "schema_version": "=stage12_correspondence_b2_v1",
+      "signature_record_sha256": "D?",
+      "source_kind": {
+        "enum": [
+          "MAIL_EXPORT",
+          "MAIL_CONNECTOR",
+          "ADMIN_RECORD"
+        ]
+      },
+      "source_locator": "T",
+      "statement_date": "T?",
+      "statement_utc": "Z?"
+    },
+    "stage12_evidence_inventory_b2_v1": {
+      "authority_review_hashes": "D[]",
+      "coverage_contract_sha256": "D",
+      "facts": "Fact[]",
+      "omissions_record_sha256": "D",
+      "schema_version": "=stage12_evidence_inventory_b2_v1",
+      "source_record_hashes": "D[]"
+    },
+    "stage12_observation_binding_b2_v1": {
+      "continuous_service_state": "=NOT_VERIFIED",
+      "data_generation_status": "=UNVERIFIED",
+      "initial_evidence_inventory_sha256": "D",
+      "provenance_model": "=MAINTAINED_SERVICE_OBSERVATIONS",
+      "response_interpretation_sha256": "D",
+      "schema_version": "=stage12_observation_binding_b2_v1",
+      "window_plan_sha256": "D"
+    },
+    "stage12_observation_fact_b2_v1": {
+      "as_of_end": "Z?",
+      "as_of_start": "Z?",
+      "category": {
+        "enum": [
+          "SOFTWARE",
+          "CONFIGURATION",
+          "VIEW_ROUTES",
+          "RESPONSE_BEHAVIOR",
+          "INDEX",
+          "SOURCE_IMPORT",
+          "AUXILIARY",
+          "MAINTENANCE",
+          "PRIVACY"
+        ]
+      },
+      "check_receipt_sha256": "D?",
+      "correspondence_sha256": "D?",
+      "precision": {
+        "enum": [
+          "INSTANT",
+          "INTERVAL",
+          "DATE",
+          "UNKNOWN"
+        ]
+      },
+      "schema_version": "=stage12_observation_fact_b2_v1",
+      "status": {
+        "enum": [
+          "OPERATOR_REPORTED",
+          "INDEPENDENTLY_CHECKED",
+          "UNKNOWN",
+          "NOT_PROVIDED",
+          "OPERATOR_CONFIRMED_UNAVAILABLE"
+        ]
+      },
+      "subject": "T",
+      "value": "Value?"
+    },
+    "stage12_privacy_arrangement_b2_v1": {
+      "controller_role_record_sha256": "D?",
+      "data_categories_record_sha256": "D",
+      "facts": "PrivacyFact[]",
+      "facts_inventory_sha256": "D",
+      "operator_role_record_sha256": "D?",
+      "schema_version": "=stage12_privacy_arrangement_b2_v1",
+      "service_view_record_sha256": "D",
+      "source_permission_record_sha256": "D?"
+    },
+    "stage12_privacy_permission_b2_v1": {
+      "arrangement_sha256": "D",
+      "controller_decision_sha256": "D",
+      "decision": {
+        "enum": [
+          "PERMITTED",
+          "DENIED",
+          "UNRESOLVED"
+        ]
+      },
+      "institutional_privacy_security_review_sha256": "D",
+      "permitted_workload_class": "=DEVELOPMENT_ONLY",
+      "project_boundary_review_sha256": "D",
+      "revocation_check_record_sha256": "D",
+      "schema_version": "=stage12_privacy_permission_b2_v1",
+      "source_licence_review_sha256": "D",
+      "valid_from": "Z",
+      "valid_until": "Z"
+    },
+    "stage12_response_interpretation_b2_v1": {
+      "approved_origin_record_sha256": "D",
+      "authentication_review_sha256": "D",
+      "decision_sha256": "D",
+      "materialization_sha256": "D",
+      "no_secret_echo_review_sha256": "D",
+      "public_probe_evidence_sha256": "D",
+      "schema_version": "=stage12_response_interpretation_b2_v1",
+      "service_view_record_sha256": "D",
+      "validation_sha256": "D",
+      "vocabulary_echo_evidence_sha256": "D"
+    },
+    "stage12_scientific_decision_b2_v1": {
+      "accepted_limitations_sha256": "D",
+      "amendment_sha256": "D",
+      "decided_utc": "Z",
+      "decision": {
+        "enum": [
+          "ADOPT_CONDITIONAL",
+          "REJECT"
+        ]
+      },
+      "owner_delegation_sha256": "D",
+      "schema_spec_sha256": "D",
+      "schema_version": "=stage12_scientific_decision_b2_v1"
+    },
+    "stage12_segment_closure_b2_v1": {
+      "account_status": {
+        "enum": [
+          "NO_KNOWN_INTERVENTION",
+          "INTERVENTION_REPORTED",
+          "UNKNOWN"
+        ]
+      },
+      "attempt_inventory_sha256": "D",
+      "campaign_start_sha256": "D",
+      "comparison": {
+        "enum": [
+          "REPORTED_FIELDS_AGREE",
+          "DISCREPANT",
+          "INCOMPLETE"
+        ]
+      },
+      "controller_reconciliation_sha256": "D",
+      "disposition": {
+        "enum": [
+          "CLOSED_OBSERVATIONAL",
+          "PROVISIONAL",
+          "QUARANTINED",
+          "RECOVERY_BLOCKED"
+        ]
+      },
+      "gap_account_sha256": "D?",
+      "operator_account_sha256": "D?",
+      "postflight_sha256": "D?",
+      "predecessor_closure_sha256": "D?",
+      "preflight_sha256": "D",
+      "resource_report_sha256": "D",
+      "review_decision_sha256": "D",
+      "reviewed_utc": "Z",
+      "schema_version": "=stage12_segment_closure_b2_v1",
+      "segment_nonce": "N32",
+      "window_plan_sha256": "D"
+    },
+    "stage12_window_closure_b2_v1": {
+      "account_status": {
+        "enum": [
+          "NO_KNOWN_INTERVENTION",
+          "INTERVENTION_REPORTED",
+          "UNKNOWN"
+        ]
+      },
+      "disposition": {
+        "enum": [
+          "CLOSED_OBSERVATIONAL",
+          "PROVISIONAL",
+          "QUARANTINED"
+        ]
+      },
+      "operator_campaign_account_sha256": "D?",
+      "ordered_campaign_closure_hashes": "D[]",
+      "review_decision_sha256": "D",
+      "reviewed_utc": "Z",
+      "schema_version": "=stage12_window_closure_b2_v1",
+      "window_plan_sha256": "D"
+    },
+    "stage12_window_observation_b2_v1": {
+      "acquired_utc": "Z",
+      "authority_review_sha256": "D",
+      "correspondence_sha256": "D",
+      "interpretation_review_sha256": "D",
+      "inventory_sha256": "D",
+      "observed_from": "Z",
+      "observed_until": "Z",
+      "phase": {
+        "enum": [
+          "PREFLIGHT",
+          "POSTFLIGHT",
+          "SUPPLEMENTAL"
+        ]
+      },
+      "schema_version": "=stage12_window_observation_b2_v1",
+      "segment_nonce": "N32",
+      "window_plan_sha256": "D"
+    },
+    "stage12_window_plan_b2_v1": {
+      "authority_review_sha256": "D",
+      "calibration_plan_sha256": "D",
+      "closure_deadline": "Z",
+      "dispatch_from": "Z",
+      "dispatch_until": "Z",
+      "limitations_sha256": "D",
+      "notice_procedure_sha256": "D",
+      "operator_arrangement_sha256": "D",
+      "planned_segment_plan_sha256": "D",
+      "preflight_max_age_ms": "P",
+      "privacy_permission_sha256": "D",
+      "required_comparison_subjects": "T[]",
+      "schema_version": "=stage12_window_plan_b2_v1",
+      "scientific_decision_sha256": "D",
+      "service_view_record_sha256": "D",
+      "window_nonce": "N32"
+    }
+  },
+  "names": {
+    "CONTROL_BEGIN": "stage12_development_control_begin_b2_v1",
+    "CONTROL_FINISH": "stage12_development_control_finish_b2_v1",
+    "EVENT": "stage12_development_controller_event_b2_v1",
+    "PLAN": "stage12_development_workload_plan_b2_v1",
+    "PROFILE": "stage12_development_operations_b2_v1",
+    "REPORT": "stage12_development_operations_report_b2_v1",
+    "SNAPSHOT": "stage12_development_recovery_snapshot_b2_v1",
+    "START": "stage12_development_operations_campaign_b2_v1"
+  },
+  "schema_bundle_version": "stage12_development_observational_schemas_b2_v1",
+  "schemas": {
+    "stage12_authority_review_b2_v1": {
+      "channel_evidence_sha256": "D",
+      "issuer_role_record_sha256": "D",
+      "result": {
+        "enum": [
+          "ATTRIBUTION_ACCEPTED",
+          "REJECTED",
+          "UNRESOLVED"
+        ]
+      },
+      "reviewed_utc": "Z",
+      "reviewer_delegation_sha256": "D",
+      "schema_version": "=stage12_authority_review_b2_v1",
+      "subject_record_sha256": "D"
+    },
+    "stage12_bootstrap_administration_b2_v1": {
+      "attempts": "AcquisitionLedgerEntry[]",
+      "authority_sha256": "D",
+      "campaign_id": "N32",
+      "plan_sha256": "D",
+      "predecessor_bootstrap_sha256": "D?",
+      "schema_version": "=stage12_bootstrap_administration_b2_v1",
+      "segment_nonce": "N32",
+      "spent": "AdministrativeSpent",
+      "status": "BootstrapStatus"
+    },
+    "stage12_calibration_plan_b2_v1": {
+      "C": "P",
+      "T": "P",
+      "capability_evidence_sha256": "D",
+      "coverage_sha256": "D",
+      "decision_sha256": "D",
+      "grid": "P[]",
+      "lineage_binding_sha256": "D",
+      "paired_inventory_sha256": "D",
+      "population_scope": {
+        "enum": [
+          "ACCEPTED_DEVELOPMENT",
+          "SYNTHETIC_TEST_ONLY"
+        ]
+      },
+      "schema_version": "=stage12_calibration_plan_b2_v1",
+      "stage11_input_binding_sha256": "D",
+      "tail_inventory_sha256": "D",
+      "workload_inventory_sha256": "D"
+    },
+    "stage12_calibration_result_b2_v1": {
+      "calibration_inventory_sha256": "D",
+      "comparison_inventory_sha256": "D",
+      "coverage_complete": "B",
+      "disposition": {
+        "enum": [
+          "ELIGIBLE_FOR_OWNER_REVIEW",
+          "INSUFFICIENT_CALIBRATION_DEPTH",
+          "INCOMPLETE",
+          "REPEAT_DISAGREEMENT"
+        ]
+      },
+      "eligible_limits": "P[]",
+      "population_complete": "B",
+      "population_scope": {
+        "enum": [
+          "ACCEPTED_DEVELOPMENT",
+          "SYNTHETIC_TEST_ONLY"
+        ]
+      },
+      "proposed_limit": "P?",
+      "repeats_stable": "B",
+      "schema_version": "=stage12_calibration_result_b2_v1",
+      "scientific_N_selected": {
+        "const": false
+      },
+      "selection_sha256": "D",
+      "tail_adequate": "B",
+      "window_plan_sha256": "D"
+    },
+    "stage12_calibration_selection_b2_v1": {
+      "C": "P",
+      "T": "P",
+      "calibration_plan_sha256": "D",
+      "capability_evidence_sha256": "D",
+      "coverage_sha256": "D",
+      "decision_sha256": "D",
+      "grid": "P[]",
+      "lineage_binding_sha256": "D",
+      "paired_inventory_sha256": "D",
+      "population_scope": {
+        "enum": [
+          "ACCEPTED_DEVELOPMENT",
+          "SYNTHETIC_TEST_ONLY"
+        ]
+      },
+      "schema_version": "=stage12_calibration_selection_b2_v1",
+      "stage11_input_binding_sha256": "D",
+      "tail_inventory_sha256": "D",
+      "window_plan_sha256": "D",
+      "workload_inventory_sha256": "D"
+    },
+    "stage12_calibration_work_intent_b2_v1": {
+      "planned_data": "P",
+      "repetition": "U",
+      "result_limit": "P",
+      "schema_version": "=stage12_calibration_work_intent_b2_v1",
+      "subset_inventory_sha256": "D",
+      "workload_kind": "CalibrationKind"
+    },
+    "stage12_campaign_closure_b2_v1": {
+      "account_status": {
+        "enum": [
+          "NO_KNOWN_INTERVENTION",
+          "INTERVENTION_REPORTED",
+          "UNKNOWN"
+        ]
+      },
+      "campaign_start_sha256": "D",
+      "disposition": {
+        "enum": [
+          "CLOSED_OBSERVATIONAL",
+          "PROVISIONAL",
+          "QUARANTINED",
+          "RECOVERY_BLOCKED"
+        ]
+      },
+      "operator_campaign_account_sha256": "D?",
+      "ordered_segment_closure_hashes": "D[]",
+      "review_decision_sha256": "D",
+      "reviewed_utc": "Z",
+      "schema_version": "=stage12_campaign_closure_b2_v1",
+      "window_plan_sha256": "D",
+      "workload_kind": {
+        "enum": [
+          "FULL_C",
+          "TAIL",
+          "PAIRED",
+          "DIRECT_N"
+        ]
+      },
+      "workload_sha256": "D"
+    },
+    "stage12_campaign_provenance_b2_v1": {
+      "authorization_sha256": "D",
+      "campaign_id": "N32",
+      "campaign_version": "=stage12_campaign_provenance_b2_v1",
+      "candidate_schema_sha256": "D",
+      "executable_sha": "G",
+      "materialization_contract_sha256": "D",
+      "observation_binding_id": "D",
+      "operations_policy_sha256": "D",
+      "privacy_permission_sha256": "D",
+      "response_extraction_contract_sha256": "D",
+      "response_interpretation_sha256": "D",
+      "response_validation_contract_sha256": "D",
+      "retrieval_policy_id": "D",
+      "runtime_inventory_sha256": "D",
+      "schema_version": "=stage12_campaign_provenance_b2_v1",
+      "scientific_decision_sha256": "D",
+      "stage11_input_binding_sha256": "D",
+      "window_plan_sha256": "D",
+      "workload_sha256": "D"
+    },
+    "stage12_checkpoint_binding_b2_v1": {
+      "authorization_sha256": "D",
+      "campaign_id": "D",
+      "campaign_start_sha256": "D",
+      "candidate_schema_sha256": "D",
+      "executable_sha": "G",
+      "materialization_contract_sha256": "D",
+      "observation_binding_id": "D",
+      "operations_policy_sha256": "D",
+      "privacy_permission_sha256": "D",
+      "query_semantic_id": "D",
+      "request_execution_id": "D",
+      "response_extraction_contract_sha256": "D",
+      "response_interpretation_sha256": "D",
+      "response_validation_contract_sha256": "D",
+      "retrieval_policy_id": "D",
+      "runtime_inventory_sha256": "D",
+      "schema_version": "=stage12_checkpoint_binding_b2_v1",
+      "scientific_decision_sha256": "D",
+      "stage11_input_binding_sha256": "D",
+      "window_plan_sha256": "D"
+    },
+    "stage12_correspondence_b2_v1": {
+      "acquired_utc": "Z",
+      "asserted_issuer": "T",
+      "retained_record_sha256": "D",
+      "schema_version": "=stage12_correspondence_b2_v1",
+      "signature_record_sha256": "D?",
+      "source_kind": {
+        "enum": [
+          "MAIL_EXPORT",
+          "MAIL_CONNECTOR",
+          "ADMIN_RECORD"
+        ]
+      },
+      "source_locator": "T",
+      "statement_date": "T?",
+      "statement_utc": "Z?"
+    },
+    "stage12_data_begin_b2_v1": {
+      "attempt": "P",
+      "attempt_id": "D",
+      "campaign_start_sha256": "D",
+      "epoch_id": "N32",
+      "outcome": "=UNKNOWN_DELIVERY",
+      "preflight_observation_sha256": "D",
+      "request_execution_id": "D",
+      "request_target_sha256": "D",
+      "schema_version": "=stage12_data_begin_b2_v1",
+      "segment_nonce": "N32",
+      "started_utc": "Z",
+      "work_sha256": "D"
+    },
+    "stage12_data_receipt_b2_v1": {
+      "attempt_id": "D",
+      "begin_sha256": "D",
+      "candidate_count": "U?",
+      "extraction_sha256": "D",
+      "finished_utc": "Z",
+      "outcome": "Outcome",
+      "privacy_rejected": "B",
+      "reason": "Reason",
+      "request_execution_id": "D",
+      "response_bytes": "U?",
+      "response_sha256": "D?",
+      "schema_version": "=stage12_data_receipt_b2_v1",
+      "transport_sha256": "D",
+      "validation_sha256": "D"
+    },
+    "stage12_development_control_begin_b2_v1": {
+      "attempt": "P",
+      "campaign_start_sha256": "D",
+      "plan_sha256": "D",
+      "profile_sha256": "D",
+      "recipe_sha256": "D",
+      "request_target_sha256": "D",
+      "schema_version": "=stage12_development_control_begin_b2_v1",
+      "segment_id": "ID",
+      "started_utc": "Z",
+      "work_id": "ID"
+    },
+    "stage12_development_control_finish_b2_v1": {
+      "application_payload_bytes": "U?",
+      "begin_sha256": "D",
+      "outcome": "ControlOutcome",
+      "raw_inventory_sha256": "D?",
+      "reason": "Reason",
+      "response_sha256": "D?",
+      "schema_version": "=stage12_development_control_finish_b2_v1",
+      "transport_record_sha256": "D",
+      "validation_contract_sha256": "D",
+      "validation_result": "Verification",
+      "verification_receipt_sha256": "D?"
+    },
+    "stage12_development_controller_event_b2_v1": {
+      "tag": "kind",
+      "variants": {
+        "ADMIN_ACQUISITION": {
+          "body": {
+            "acquisition_contract_sha256": "D",
+            "bytes": "U",
+            "finished_mono_ns": "U",
+            "outcome": {
+              "enum": [
+                "ACQUIRED",
+                "FAILED",
+                "BUDGET_EXHAUSTED"
+              ]
+            },
+            "record_sha256": "D?",
+            "started_mono_ns": "U"
+          },
+          "campaign_start_sha256": "D",
+          "epoch_id": "N32",
+          "kind": "=ADMIN_ACQUISITION",
+          "mono_ns": "U",
+          "previous_event_sha256": "D?",
+          "schema_version": "=stage12_development_controller_event_b2_v1",
+          "segment_id": "ID",
+          "seq": "ID",
+          "utc": "Z"
+        },
+        "ATTEMPT_FINALIZED": {
+          "body": {
+            "attempt": "P",
+            "elapsed_ms": "U",
+            "outcome": "FinalOutcome",
+            "reason": "Reason",
+            "receipt_inventory_sha256": "D",
+            "retry_after_seconds": "U?",
+            "retry_delay_ms": "U?",
+            "status": "U?",
+            "ticket": "ID",
+            "work_id": "ID"
+          },
+          "campaign_start_sha256": "D",
+          "epoch_id": "N32",
+          "kind": "=ATTEMPT_FINALIZED",
+          "mono_ns": "U",
+          "previous_event_sha256": "D?",
+          "schema_version": "=stage12_development_controller_event_b2_v1",
+          "segment_id": "ID",
+          "seq": "ID",
+          "utc": "Z"
+        },
+        "ATTEMPT_STARTED": {
+          "body": {
+            "attempt": "P",
+            "started_mono_ns": "U",
+            "work_id": "ID"
+          },
+          "campaign_start_sha256": "D",
+          "epoch_id": "N32",
+          "kind": "=ATTEMPT_STARTED",
+          "mono_ns": "U",
+          "previous_event_sha256": "D?",
+          "schema_version": "=stage12_development_controller_event_b2_v1",
+          "segment_id": "ID",
+          "seq": "ID",
+          "utc": "Z"
+        },
+        "AUDIT_TIMING": {
+          "body": {
+            "attempt": "P",
+            "finalized_event_ack_ns": "U",
+            "receipt_reopened_ns": "U",
+            "reservation_released_ns": "U",
+            "ticket": "ID",
+            "work_id": "ID",
+            "writer_enqueued_ns": "U",
+            "writer_started_ns": "U"
+          },
+          "campaign_start_sha256": "D",
+          "epoch_id": "N32",
+          "kind": "=AUDIT_TIMING",
+          "mono_ns": "U",
+          "previous_event_sha256": "D?",
+          "schema_version": "=stage12_development_controller_event_b2_v1",
+          "segment_id": "ID",
+          "seq": "ID",
+          "utc": "Z"
+        },
+        "BACKPRESSURE": {
+          "body": {
+            "entered": "B",
+            "why": {
+              "enum": [
+                "SLOTS",
+                "REQUEST_BYTES",
+                "WRITER",
+                "STORAGE",
+                "MONITORING",
+                "TIME"
+              ]
+            }
+          },
+          "campaign_start_sha256": "D",
+          "epoch_id": "N32",
+          "kind": "=BACKPRESSURE",
+          "mono_ns": "U",
+          "previous_event_sha256": "D?",
+          "schema_version": "=stage12_development_controller_event_b2_v1",
+          "segment_id": "ID",
+          "seq": "ID",
+          "utc": "Z"
+        },
+        "BEGIN_DURABLE": {
+          "body": {
+            "attempt": "P",
+            "begin_sha256": "D",
+            "work_id": "ID"
+          },
+          "campaign_start_sha256": "D",
+          "epoch_id": "N32",
+          "kind": "=BEGIN_DURABLE",
+          "mono_ns": "U",
+          "previous_event_sha256": "D?",
+          "schema_version": "=stage12_development_controller_event_b2_v1",
+          "segment_id": "ID",
+          "seq": "ID",
+          "utc": "Z"
+        },
+        "BLOCK_CLOSED": {
+          "body": {
+            "block_id": "ID",
+            "report_sha256": "D",
+            "result": "BlockStatus"
+          },
+          "campaign_start_sha256": "D",
+          "epoch_id": "N32",
+          "kind": "=BLOCK_CLOSED",
+          "mono_ns": "U",
+          "previous_event_sha256": "D?",
+          "schema_version": "=stage12_development_controller_event_b2_v1",
+          "segment_id": "ID",
+          "seq": "ID",
+          "utc": "Z"
+        },
+        "CAMPAIGN_REVIEWED": {
+          "body": {
+            "authority_sha256": "D",
+            "continuous_service_state": "=NOT_VERIFIED",
+            "record_sha256": "D",
+            "service_evidence_state": "ServiceEvidenceState"
+          },
+          "campaign_start_sha256": "D",
+          "epoch_id": "N32",
+          "kind": "=CAMPAIGN_REVIEWED",
+          "mono_ns": "U",
+          "previous_event_sha256": "D?",
+          "schema_version": "=stage12_development_controller_event_b2_v1",
+          "segment_id": "ID",
+          "seq": "ID",
+          "utc": "Z"
+        },
+        "COOLDOWN": {
+          "body": {
+            "trigger_attempt": "P",
+            "trigger_work_id": "ID",
+            "until_mono_ns": "U"
+          },
+          "campaign_start_sha256": "D",
+          "epoch_id": "N32",
+          "kind": "=COOLDOWN",
+          "mono_ns": "U",
+          "previous_event_sha256": "D?",
+          "schema_version": "=stage12_development_controller_event_b2_v1",
+          "segment_id": "ID",
+          "seq": "ID",
+          "utc": "Z"
+        },
+        "DOWNSHIFT": {
+          "body": {
+            "basis_event_seq": "ID",
+            "from_state": "ID",
+            "to_state": "ID",
+            "why": {
+              "enum": [
+                "RESOURCE_PRESSURE",
+                "OVERLOAD",
+                "OPERATOR_RESTRICTION"
+              ]
+            }
+          },
+          "campaign_start_sha256": "D",
+          "epoch_id": "N32",
+          "kind": "=DOWNSHIFT",
+          "mono_ns": "U",
+          "previous_event_sha256": "D?",
+          "schema_version": "=stage12_development_controller_event_b2_v1",
+          "segment_id": "ID",
+          "seq": "ID",
+          "utc": "Z"
+        },
+        "EARLY_SIGNAL": {
+          "body": {
+            "attempt": "P",
+            "observed_mono_ns": "U",
+            "retry_after_seconds": "U?",
+            "signal": {
+              "enum": [
+                "OVERLOAD",
+                "RETRYABLE_5XX",
+                "TERMINAL",
+                "PRIVACY",
+                "IDENTITY"
+              ]
+            },
+            "status": "U?",
+            "work_id": "ID"
+          },
+          "campaign_start_sha256": "D",
+          "epoch_id": "N32",
+          "kind": "=EARLY_SIGNAL",
+          "mono_ns": "U",
+          "previous_event_sha256": "D?",
+          "schema_version": "=stage12_development_controller_event_b2_v1",
+          "segment_id": "ID",
+          "seq": "ID",
+          "utc": "Z"
+        },
+        "EMISSION": {
+          "body": {
+            "attempt": "P",
+            "entered_mono_ns": "U",
+            "result": {
+              "enum": [
+                "WRITE_RETURNED",
+                "WRITE_FAILED",
+                "UNKNOWN"
+              ]
+            },
+            "returned_mono_ns": "U?",
+            "work_id": "ID"
+          },
+          "campaign_start_sha256": "D",
+          "epoch_id": "N32",
+          "kind": "=EMISSION",
+          "mono_ns": "U",
+          "previous_event_sha256": "D?",
+          "schema_version": "=stage12_development_controller_event_b2_v1",
+          "segment_id": "ID",
+          "seq": "ID",
+          "utc": "Z"
+        },
+        "EMIT_COMMITTED": {
+          "body": {
+            "attempt": "P",
+            "committed_mono_ns": "U",
+            "work_id": "ID"
+          },
+          "campaign_start_sha256": "D",
+          "epoch_id": "N32",
+          "kind": "=EMIT_COMMITTED",
+          "mono_ns": "U",
+          "previous_event_sha256": "D?",
+          "schema_version": "=stage12_development_controller_event_b2_v1",
+          "segment_id": "ID",
+          "seq": "ID",
+          "utc": "Z"
+        },
+        "NETWORK_DONE": {
+          "body": {
+            "attempt": "P",
+            "completed_mono_ns": "U",
+            "elapsed_ms": "U",
+            "ticket": "ID",
+            "transport_record_sha256": "D",
+            "work_id": "ID"
+          },
+          "campaign_start_sha256": "D",
+          "epoch_id": "N32",
+          "kind": "=NETWORK_DONE",
+          "mono_ns": "U",
+          "previous_event_sha256": "D?",
+          "schema_version": "=stage12_development_controller_event_b2_v1",
+          "segment_id": "ID",
+          "seq": "ID",
+          "utc": "Z"
+        },
+        "NOTICE_RECEIVED": {
+          "body": {
+            "authority_sha256": "D",
+            "continuous_service_state": "=NOT_VERIFIED",
+            "record_sha256": "D",
+            "service_evidence_state": "ServiceEvidenceState"
+          },
+          "campaign_start_sha256": "D",
+          "epoch_id": "N32",
+          "kind": "=NOTICE_RECEIVED",
+          "mono_ns": "U",
+          "previous_event_sha256": "D?",
+          "schema_version": "=stage12_development_controller_event_b2_v1",
+          "segment_id": "ID",
+          "seq": "ID",
+          "utc": "Z"
+        },
+        "POSTFLIGHT_OBSERVED": {
+          "body": {
+            "authority_sha256": "D",
+            "continuous_service_state": "=NOT_VERIFIED",
+            "record_sha256": "D",
+            "service_evidence_state": "ServiceEvidenceState"
+          },
+          "campaign_start_sha256": "D",
+          "epoch_id": "N32",
+          "kind": "=POSTFLIGHT_OBSERVED",
+          "mono_ns": "U",
+          "previous_event_sha256": "D?",
+          "schema_version": "=stage12_development_controller_event_b2_v1",
+          "segment_id": "ID",
+          "seq": "ID",
+          "utc": "Z"
+        },
+        "PREFLIGHT_OBSERVED": {
+          "body": {
+            "authority_sha256": "D",
+            "continuous_service_state": "=NOT_VERIFIED",
+            "record_sha256": "D",
+            "service_evidence_state": "ServiceEvidenceState"
+          },
+          "campaign_start_sha256": "D",
+          "epoch_id": "N32",
+          "kind": "=PREFLIGHT_OBSERVED",
+          "mono_ns": "U",
+          "previous_event_sha256": "D?",
+          "schema_version": "=stage12_development_controller_event_b2_v1",
+          "segment_id": "ID",
+          "seq": "ID",
+          "utc": "Z"
+        },
+        "RESOURCE": {
+          "body": {
+            "admitted_operations": "U",
+            "cause": {
+              "enum": [
+                "START_RESERVE",
+                "CONNECTION_RELEASE",
+                "QUEUE_ADD",
+                "QUEUE_REMOVE",
+                "RESERVATION_RELEASE",
+                "STATE_CHANGE",
+                "PERIODIC"
+              ]
+            },
+            "connection_slots": "U",
+            "free_allocated_disk_bytes": "U?",
+            "observed_mono_ns": "U",
+            "pending_bytes": "U",
+            "pending_count": "U",
+            "reserved_bytes": "U"
+          },
+          "campaign_start_sha256": "D",
+          "epoch_id": "N32",
+          "kind": "=RESOURCE",
+          "mono_ns": "U",
+          "previous_event_sha256": "D?",
+          "schema_version": "=stage12_development_controller_event_b2_v1",
+          "segment_id": "ID",
+          "seq": "ID",
+          "utc": "Z"
+        },
+        "SEGMENT_CLOSE": {
+          "body": {
+            "closure_evidence_sha256": "D?",
+            "disposition": "Disposition",
+            "last_ticket": "U"
+          },
+          "campaign_start_sha256": "D",
+          "epoch_id": "N32",
+          "kind": "=SEGMENT_CLOSE",
+          "mono_ns": "U",
+          "previous_event_sha256": "D?",
+          "schema_version": "=stage12_development_controller_event_b2_v1",
+          "segment_id": "ID",
+          "seq": "ID",
+          "utc": "Z"
+        },
+        "SEGMENT_OPEN": {
+          "body": {
+            "authority_sha256": "D",
+            "block_id": "ID",
+            "predecessor_snapshot_sha256": "D?",
+            "segment_admission_sha256": "D",
+            "state_id": "ID",
+            "writer_exclusion_evidence_sha256": "D"
+          },
+          "campaign_start_sha256": "D",
+          "epoch_id": "N32",
+          "kind": "=SEGMENT_OPEN",
+          "mono_ns": "U",
+          "previous_event_sha256": "D?",
+          "schema_version": "=stage12_development_controller_event_b2_v1",
+          "segment_id": "ID",
+          "seq": "ID",
+          "utc": "Z"
+        },
+        "SEGMENT_REVIEWED": {
+          "body": {
+            "authority_sha256": "D",
+            "continuous_service_state": "=NOT_VERIFIED",
+            "record_sha256": "D",
+            "service_evidence_state": "ServiceEvidenceState"
+          },
+          "campaign_start_sha256": "D",
+          "epoch_id": "N32",
+          "kind": "=SEGMENT_REVIEWED",
+          "mono_ns": "U",
+          "previous_event_sha256": "D?",
+          "schema_version": "=stage12_development_controller_event_b2_v1",
+          "segment_id": "ID",
+          "seq": "ID",
+          "utc": "Z"
+        },
+        "STOP": {
+          "body": {
+            "primary_reason": "Reason?",
+            "trigger_event_seq": "ID?",
+            "why": {
+              "enum": [
+                "BREAKER",
+                "TERMINAL",
+                "PRIVACY",
+                "DRIFT",
+                "IDENTITY_STALE",
+                "AUDIT_IO",
+                "BUDGET",
+                "TIME",
+                "RESOURCE",
+                "OPERATOR",
+                "UNACCOUNTED_DELIVERY",
+                "MEASUREMENT_FAILURE"
+              ]
+            }
+          },
+          "campaign_start_sha256": "D",
+          "epoch_id": "N32",
+          "kind": "=STOP",
+          "mono_ns": "U",
+          "previous_event_sha256": "D?",
+          "schema_version": "=stage12_development_controller_event_b2_v1",
+          "segment_id": "ID",
+          "seq": "ID",
+          "utc": "Z"
+        },
+        "WINDOW_REVIEWED": {
+          "body": {
+            "authority_sha256": "D",
+            "continuous_service_state": "=NOT_VERIFIED",
+            "record_sha256": "D",
+            "service_evidence_state": "ServiceEvidenceState"
+          },
+          "campaign_start_sha256": "D",
+          "epoch_id": "N32",
+          "kind": "=WINDOW_REVIEWED",
+          "mono_ns": "U",
+          "previous_event_sha256": "D?",
+          "schema_version": "=stage12_development_controller_event_b2_v1",
+          "segment_id": "ID",
+          "seq": "ID",
+          "utc": "Z"
+        }
+      }
+    },
+    "stage12_development_measurement_report_b2_v1": {
+      "administrative_spent": "AdministrativeSpent",
+      "attempt_inventory_sha256": "D",
+      "campaign_start_sha256": "D",
+      "continuous_service_state": "=NOT_VERIFIED",
+      "counts": "Counts",
+      "disposition": "ReportDisposition",
+      "duration_ns": "U?",
+      "event_inventory_sha256": "D",
+      "input_last_event_seq": "ID",
+      "latencies": "Latencies",
+      "plan_sha256": "D",
+      "population_scope": {
+        "enum": [
+          "ACCEPTED_DEVELOPMENT",
+          "SYNTHETIC_TEST_ONLY"
+        ]
+      },
+      "profile_sha256": "D",
+      "rates": "Rates",
+      "reasons": "ReportReason[]",
+      "receipts_complete": "B",
+      "report_complete": "B",
+      "resource_sampling_complete": "B",
+      "schema_version": "=stage12_development_measurement_report_b2_v1",
+      "scope": "=DEVELOPMENT_ONLY",
+      "work_ledger_sha256": "D"
+    },
+    "stage12_development_operations_b2_v1": {
+      "administrative": "AdministrativeBounds",
+      "demonstrated_ceiling_sha256": "D",
+      "monitoring": "Monitoring",
+      "operator_allowance": "Allowance",
+      "policy_freeze_record_sha256": "D",
+      "preserved": "Preserved",
+      "resource_sample_period_ms": "P",
+      "resources": "Resources",
+      "rule_bundle_sha256": "D",
+      "schema_version": "=stage12_development_operations_b2_v1",
+      "scope": "=DEVELOPMENT_ONLY",
+      "states": "RateState[]",
+      "transport_profile_sha256": "D"
+    },
+    "stage12_development_operations_campaign_b2_v1": {
+      "campaign_id": "N32",
+      "candidate_schema_sha256": "D",
+      "client_git_sha": "G",
+      "created_utc": "Z",
+      "implementation_authorization_sha256": "D",
+      "implementation_review_sha256": "D",
+      "initial_workload_authority_sha256": "D",
+      "materialization_contract_sha256": "D",
+      "observation_binding_id": "D",
+      "plan_sha256": "D",
+      "policy_freeze_record_sha256": "D",
+      "population_scope": {
+        "enum": [
+          "ACCEPTED_DEVELOPMENT",
+          "SYNTHETIC_TEST_ONLY"
+        ]
+      },
+      "privacy_permission_sha256": "D",
+      "profile_sha256": "D",
+      "response_extraction_contract_sha256": "D",
+      "response_interpretation_sha256": "D",
+      "response_validation_contract_sha256": "D",
+      "retrieval_policy_id": "D",
+      "rule_bundle_sha256": "D",
+      "runtime_inventory_sha256": "D",
+      "schema_version": "=stage12_development_operations_campaign_b2_v1",
+      "scientific_campaign_start_sha256": "D",
+      "scientific_decision_sha256": "D",
+      "scope": "=DEVELOPMENT_ONLY",
+      "stage11_input_binding_sha256": "D",
+      "window_plan_sha256": "D"
+    },
+    "stage12_development_operations_report_b2_v1": {
+      "attempt_inventory_sha256": "D",
+      "campaign_closure_sha256": "D?",
+      "campaign_start_sha256": "D",
+      "continuous_service_state": "=NOT_VERIFIED",
+      "counts": "Counts",
+      "disposition": "ReportDisposition",
+      "duration_ns": "U?",
+      "event_inventory_sha256": "D",
+      "latencies": "Latencies",
+      "measurement_report_sha256": "D",
+      "plan_sha256": "D",
+      "population_scope": {
+        "enum": [
+          "ACCEPTED_DEVELOPMENT",
+          "SYNTHETIC_TEST_ONLY"
+        ]
+      },
+      "profile_sha256": "D",
+      "rates": "Rates",
+      "reasons": "ReportReason[]",
+      "receipts_complete": "B",
+      "report_complete": "B",
+      "resource_sampling_complete": "B",
+      "schema_version": "=stage12_development_operations_report_b2_v1",
+      "scope": "=DEVELOPMENT_ONLY",
+      "segment_closure_sha256": "D?",
+      "service_evidence_state": "ServiceEvidenceState",
+      "work_ledger_sha256": "D"
+    },
+    "stage12_development_recovery_snapshot_b2_v1": {
+      "attempt_inventory_sha256": "D",
+      "bootstrap_acquisition_sha256": "D",
+      "campaign_start_sha256": "D",
+      "closure_evidence_sha256": "D?",
+      "continuous_service_state": "=NOT_VERIFIED",
+      "controller": "ControllerSnapshot",
+      "disposition": "Disposition",
+      "event_inventory_sha256": "D",
+      "last_event_seq": "ID",
+      "last_event_sha256": "D",
+      "observation_binding_id": "D",
+      "operations_report_sha256": "D",
+      "predecessor_closure_sha256": "D?",
+      "privacy_permission_sha256": "D",
+      "schema_version": "=stage12_development_recovery_snapshot_b2_v1",
+      "sealed_utc": "Z",
+      "segment_closure_sha256": "D",
+      "segment_id": "ID",
+      "service_evidence_state": "ServiceEvidenceState",
+      "window_plan_sha256": "D",
+      "work_ledger_sha256": "D",
+      "writer_release_evidence_sha256": "D"
+    },
+    "stage12_development_workload_plan_b2_v1": {
+      "blocks": "Block[]",
+      "budgets": "Budget",
+      "control_recipes": "ControlRecipe[]",
+      "operations_profile_sha256": "D",
+      "population_scope": {
+        "enum": [
+          "ACCEPTED_DEVELOPMENT",
+          "SYNTHETIC_TEST_ONLY"
+        ]
+      },
+      "repetition": "U",
+      "result_limit": "P",
+      "schema_version": "=stage12_development_workload_plan_b2_v1",
+      "scope": "=DEVELOPMENT_ONLY",
+      "selection_basis_sha256": "D",
+      "shutdown_reserve_ms": "P",
+      "stage11_input_binding_sha256": "D",
+      "subset_selection_sha256": "D?",
+      "window_end": "Z",
+      "window_plan_sha256": "D",
+      "window_start": "Z",
+      "work_manifest_sha256": "D",
+      "workload_kind": {
+        "enum": [
+          "FULL_C",
+          "TAIL",
+          "PAIRED",
+          "DIRECT_N"
+        ]
+      }
+    },
+    "stage12_evidence_acquisition_b2_v1": {
+      "acquisition_contract_sha256": "D",
+      "attempt_id": "ID",
+      "authority_sha256": "D",
+      "begin_sha256": "D",
+      "begun_utc": "Z",
+      "elapsed_ms": "U",
+      "epoch_id": "N32",
+      "finished_mono_ns": "U",
+      "finished_utc": "Z",
+      "outcome": {
+        "enum": [
+          "ACQUIRED",
+          "FAILED",
+          "BUDGET_EXHAUSTED"
+        ]
+      },
+      "records": "D[]",
+      "schema_version": "=stage12_evidence_acquisition_b2_v1",
+      "scope": "=DEVELOPMENT_ONLY",
+      "total_bytes": "U"
+    },
+    "stage12_evidence_acquisition_begin_b2_v1": {
+      "acquisition_contract_sha256": "D",
+      "authority_sha256": "D",
+      "bounds": "AdministrativeBounds",
+      "campaign_id": "N32",
+      "cumulative_ordinal": "ID",
+      "epoch_id": "N32",
+      "predecessor_begin_sha256": "D?",
+      "schema_version": "=stage12_evidence_acquisition_begin_b2_v1",
+      "segment_nonce": "N32",
+      "started_mono_ns": "U",
+      "started_utc": "Z",
+      "state": "=IN_PROGRESS"
+    },
+    "stage12_evidence_inventory_b2_v1": {
+      "authority_review_hashes": "D[]",
+      "coverage_contract_sha256": "D",
+      "facts": "Fact[]",
+      "omissions_record_sha256": "D",
+      "schema_version": "=stage12_evidence_inventory_b2_v1",
+      "source_record_hashes": "D[]"
+    },
+    "stage12_n_decision_b2_v1": {
+      "adequacy_report_sha256": "D",
+      "calibration_inventory_sha256": "D",
+      "decided_utc": "Z",
+      "decision": {
+        "enum": [
+          "SELECTED",
+          "REJECTED"
+        ]
+      },
+      "owner_delegation_sha256": "D",
+      "result_limit": "P",
+      "retrieval_policy_id": "D",
+      "schema_version": "=stage12_n_decision_b2_v1",
+      "window_plan_sha256": "D"
+    },
+    "stage12_observation_binding_b2_v1": {
+      "continuous_service_state": "=NOT_VERIFIED",
+      "data_generation_status": "=UNVERIFIED",
+      "initial_evidence_inventory_sha256": "D",
+      "provenance_model": "=MAINTAINED_SERVICE_OBSERVATIONS",
+      "response_interpretation_sha256": "D",
+      "schema_version": "=stage12_observation_binding_b2_v1",
+      "window_plan_sha256": "D"
+    },
+    "stage12_observation_fact_b2_v1": {
+      "as_of_end": "Z?",
+      "as_of_start": "Z?",
+      "category": {
+        "enum": [
+          "SOFTWARE",
+          "CONFIGURATION",
+          "VIEW_ROUTES",
+          "RESPONSE_BEHAVIOR",
+          "INDEX",
+          "SOURCE_IMPORT",
+          "AUXILIARY",
+          "MAINTENANCE",
+          "PRIVACY"
+        ]
+      },
+      "check_receipt_sha256": "D?",
+      "correspondence_sha256": "D?",
+      "precision": {
+        "enum": [
+          "INSTANT",
+          "INTERVAL",
+          "DATE",
+          "UNKNOWN"
+        ]
+      },
+      "schema_version": "=stage12_observation_fact_b2_v1",
+      "status": {
+        "enum": [
+          "OPERATOR_REPORTED",
+          "INDEPENDENTLY_CHECKED",
+          "UNKNOWN",
+          "NOT_PROVIDED",
+          "OPERATOR_CONFIRMED_UNAVAILABLE"
+        ]
+      },
+      "subject": "T",
+      "value": "Value?"
+    },
+    "stage12_privacy_arrangement_b2_v1": {
+      "controller_role_record_sha256": "D?",
+      "data_categories_record_sha256": "D",
+      "facts": "PrivacyFact[]",
+      "facts_inventory_sha256": "D",
+      "operator_role_record_sha256": "D?",
+      "schema_version": "=stage12_privacy_arrangement_b2_v1",
+      "service_view_record_sha256": "D",
+      "source_permission_record_sha256": "D?"
+    },
+    "stage12_privacy_permission_b2_v1": {
+      "arrangement_sha256": "D",
+      "controller_decision_sha256": "D",
+      "decision": {
+        "enum": [
+          "PERMITTED",
+          "DENIED",
+          "UNRESOLVED"
+        ]
+      },
+      "institutional_privacy_security_review_sha256": "D",
+      "permitted_workload_class": "=DEVELOPMENT_ONLY",
+      "project_boundary_review_sha256": "D",
+      "revocation_check_record_sha256": "D",
+      "schema_version": "=stage12_privacy_permission_b2_v1",
+      "source_licence_review_sha256": "D",
+      "valid_from": "Z",
+      "valid_until": "Z"
+    },
+    "stage12_response_interpretation_b2_v1": {
+      "approved_origin_record_sha256": "D",
+      "authentication_review_sha256": "D",
+      "decision_sha256": "D",
+      "materialization_sha256": "D",
+      "no_secret_echo_review_sha256": "D",
+      "public_probe_evidence_sha256": "D",
+      "schema_version": "=stage12_response_interpretation_b2_v1",
+      "service_view_record_sha256": "D",
+      "validation_sha256": "D",
+      "vocabulary_echo_evidence_sha256": "D"
+    },
+    "stage12_scientific_decision_b2_v1": {
+      "accepted_limitations_sha256": "D",
+      "amendment_sha256": "D",
+      "decided_utc": "Z",
+      "decision": {
+        "enum": [
+          "ADOPT_CONDITIONAL",
+          "REJECT"
+        ]
+      },
+      "owner_delegation_sha256": "D",
+      "schema_spec_sha256": "D",
+      "schema_version": "=stage12_scientific_decision_b2_v1"
+    },
+    "stage12_segment_admission_b2_v1": {
+      "admitted_utc": "Z",
+      "bootstrap_acquisition_sha256": "D",
+      "campaign_start_sha256": "D",
+      "epoch_id": "N32",
+      "fresh_workload_authority_sha256": "D",
+      "operations_campaign_sha256": "D",
+      "predecessor_closure_sha256": "D?",
+      "preflight_observation_sha256": "D",
+      "privacy_permission_sha256": "D",
+      "schema_version": "=stage12_segment_admission_b2_v1",
+      "segment_id": "ID",
+      "segment_nonce": "N32",
+      "window_plan_sha256": "D",
+      "writer_exclusion_evidence_sha256": "D"
+    },
+    "stage12_segment_closure_b2_v1": {
+      "account_status": {
+        "enum": [
+          "NO_KNOWN_INTERVENTION",
+          "INTERVENTION_REPORTED",
+          "UNKNOWN"
+        ]
+      },
+      "attempt_inventory_sha256": "D",
+      "campaign_start_sha256": "D",
+      "comparison": {
+        "enum": [
+          "REPORTED_FIELDS_AGREE",
+          "DISCREPANT",
+          "INCOMPLETE"
+        ]
+      },
+      "controller_reconciliation_sha256": "D",
+      "disposition": {
+        "enum": [
+          "CLOSED_OBSERVATIONAL",
+          "PROVISIONAL",
+          "QUARANTINED",
+          "RECOVERY_BLOCKED"
+        ]
+      },
+      "gap_account_sha256": "D?",
+      "operator_account_sha256": "D?",
+      "postflight_sha256": "D?",
+      "predecessor_closure_sha256": "D?",
+      "preflight_sha256": "D",
+      "resource_report_sha256": "D",
+      "review_decision_sha256": "D",
+      "reviewed_utc": "Z",
+      "schema_version": "=stage12_segment_closure_b2_v1",
+      "segment_nonce": "N32",
+      "window_plan_sha256": "D"
+    },
+    "stage12_stage11_input_binding_b2_v1": {
+      "dataset_sha256": "D",
+      "manifest_sha256": "D",
+      "map_count": "P",
+      "map_sha256": "D",
+      "population_scope": {
+        "enum": [
+          "ACCEPTED_DEVELOPMENT",
+          "SYNTHETIC_TEST_ONLY"
+        ]
+      },
+      "schema_version": "=stage12_stage11_input_binding_b2_v1",
+      "semantic_count": "P",
+      "semantic_sha256": "D",
+      "source_count": "P",
+      "upstream_acceptance_sha256": "D"
+    },
+    "stage12_window_closure_b2_v1": {
+      "account_status": {
+        "enum": [
+          "NO_KNOWN_INTERVENTION",
+          "INTERVENTION_REPORTED",
+          "UNKNOWN"
+        ]
+      },
+      "disposition": {
+        "enum": [
+          "CLOSED_OBSERVATIONAL",
+          "PROVISIONAL",
+          "QUARANTINED"
+        ]
+      },
+      "operator_campaign_account_sha256": "D?",
+      "ordered_campaign_closure_hashes": "D[]",
+      "review_decision_sha256": "D",
+      "reviewed_utc": "Z",
+      "schema_version": "=stage12_window_closure_b2_v1",
+      "window_plan_sha256": "D"
+    },
+    "stage12_window_observation_b2_v1": {
+      "acquired_utc": "Z",
+      "authority_review_sha256": "D",
+      "correspondence_sha256": "D",
+      "interpretation_review_sha256": "D",
+      "inventory_sha256": "D",
+      "observed_from": "Z",
+      "observed_until": "Z",
+      "phase": {
+        "enum": [
+          "PREFLIGHT",
+          "POSTFLIGHT",
+          "SUPPLEMENTAL"
+        ]
+      },
+      "schema_version": "=stage12_window_observation_b2_v1",
+      "segment_nonce": "N32",
+      "window_plan_sha256": "D"
+    },
+    "stage12_window_plan_b2_v1": {
+      "authority_review_sha256": "D",
+      "calibration_plan_sha256": "D",
+      "closure_deadline": "Z",
+      "dispatch_from": "Z",
+      "dispatch_until": "Z",
+      "limitations_sha256": "D",
+      "notice_procedure_sha256": "D",
+      "operator_arrangement_sha256": "D",
+      "planned_segment_plan_sha256": "D",
+      "preflight_max_age_ms": "P",
+      "privacy_permission_sha256": "D",
+      "required_comparison_subjects": "T[]",
+      "schema_version": "=stage12_window_plan_b2_v1",
+      "scientific_decision_sha256": "D",
+      "service_view_record_sha256": "D",
+      "window_nonce": "N32"
+    },
+    "stage12_window_segment_plan_b2_v1": {
+      "calibration_plan_sha256": "D",
+      "planned_campaigns": "PlannedCampaign[]",
+      "population_scope": "PopulationScope",
+      "schema_version": "=stage12_window_segment_plan_b2_v1"
+    },
+    "stage12_workload_authority_b2_v1": {
+      "decision": {
+        "enum": [
+          "AUTHORIZED",
+          "DENIED"
+        ]
+      },
+      "issuer_delegation_sha256": "D",
+      "phase": {
+        "enum": [
+          "PREFLIGHT",
+          "CALIBRATION",
+          "RETRIEVAL",
+          "PUBLICATION"
+        ]
+      },
+      "plan_sha256": "D",
+      "population_scope": {
+        "enum": [
+          "ACCEPTED_DEVELOPMENT",
+          "SYNTHETIC_TEST_ONLY"
+        ]
+      },
+      "privacy_permission_sha256": "D",
+      "runtime_inventory_sha256": "D",
+      "schema_version": "=stage12_workload_authority_b2_v1",
+      "valid_from": "Z",
+      "valid_until": "Z",
+      "window_plan_sha256": "D"
+    },
+    "stage12_writer_release_authority_b2_v1": {
+      "campaign_id": "N32",
+      "issuer_delegation_sha256": "D",
+      "purpose": "=WRITER_TERMINATION_AND_HANDOFF",
+      "schema_version": "=stage12_writer_release_authority_b2_v1",
+      "segment_nonce": "N32",
+      "valid_from": "Z",
+      "valid_until": "Z"
+    }
+  },
+  "scientific_amendment_sha256": "cb3d446545d9f1de6a8baa042eaa83a054a6f4660186a1de93e6a6c604937dba",
+  "scientific_schema_spec_sha256": "cb24baf2e9320498d693b28a1a7f9fefc01893fdf563141ae6e6e3eeb79e4f62",
+  "scope": "DEVELOPMENT_ONLY"
+}

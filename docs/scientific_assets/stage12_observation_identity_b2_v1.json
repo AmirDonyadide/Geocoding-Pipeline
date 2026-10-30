@@ -1,0 +1,1 @@
+{"campaign_in_scientific_identity":true,"domain":"SAFE:stage12-request-observation:b2:v1","framing":"E/Named/H/J_UNCHANGED","identity_version":"stage12_observation_identity_b2_v1","ordered_fields":["identity_version","query_semantic_id","retrieval_policy_id","materialization_contract_sha256","observation_binding_id","campaign_id"]}

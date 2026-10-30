@@ -515,6 +515,909 @@ def run(
     return report
 
 
+def run_operations_block(
+    profile: dict[str, Any],
+    plan: dict[str, Any],
+    start: dict[str, Any],
+    *,
+    work_factory: Any,
+    output: Path,
+    block_id: int,
+    authority: Any,
+    clock: Any,
+    dispatch: Any,
+    runtime_inventory: dict[str, Any],
+    runtime_key: bytes,
+    control_adapters: dict[int, Any],
+    monitor: Any,
+    free_bytes: Any,
+    segment_authority: str,
+    writer_exclusion_evidence: str,
+    epoch: str,
+    writer_release_evidence: str,
+    pause_requested: Any = None,
+    predecessor: Path | None = None,
+    continuation_authority: str | None = None,
+    public_validation: Any = None,
+    ascending_sizes: bool = False,
+) -> dict[str, Any]:
+    """Explicit O-r2 programmatic boundary; no real adapter or secret provider.
+
+    All dependencies and actual authority are mandatory. The existing CLI and
+    v1 path remain unchanged. D3 exercises this path solely with synthetic
+    gates/transports; a real-service adapter requires separate integration.
+    One predeclared block is executed; an upward next block is a separate call
+    requiring reviewed evidence and fresh explicit authority.
+    """
+    from concurrent.futures import ThreadPoolExecutor
+    from .stages import s12_public_operations as po
+    from .stages import s12_public_operational_audit as oa
+    from .stages import s12_public_journal as pj
+    from .stages import s12_public_scheduler as ps
+    from .stages import s12_public_reporting as pr
+    from .stages import s12_public_recovery as recovery
+
+    po.verify_authorities(profile, plan, start, authority)
+    po.verify_work_manifest(work_factory, plan)
+    po.require(po.digest(runtime_inventory) == start["runtime_inventory_sha256"])
+    recipes = {r["recipe_id"]: r for r in plan["control_recipes"]}
+    fixtures = {f["fixture_id"]: f for f in probe.fixtures()}
+    block = plan["blocks"][block_id - 1]
+    monitored = profile["monitoring"]["mode"] == "FROZEN_V1"
+
+    def queue_role(row):
+        if row["work_id"] in block["reserved_control_ids"]:
+            return (
+                "REFRESH"
+                if monitored
+                and row["kind"] == "SERVICE_CONTROL"
+                and row["recipe_id"] == profile["monitoring"]["refresh_recipe_id"]
+                else "RESERVED"
+            )
+        if (
+            monitored
+            and row["kind"] == "SERVICE_CONTROL"
+            and recipes[row["recipe_id"]]["purpose"] == "IDENTITY_CLOSURE"
+        ):
+            return "CLOSURE"
+        return "ORDINARY"
+
+    def target_for(row):
+        if row["kind"] == "DATA":
+            fixture = fixtures[row["fixture_id"]]
+            return c.materialize(
+                fixture["core"],
+                bytes.fromhex(row["fixture_id"]),
+                c.policy(row["result_limit"]),
+                target_limit=2**32,
+            )[0]
+        # The typed reviewed adapter owns exact bytes, never configuration URLs.
+        return control_adapters[row["recipe_id"]].target(recipes[row["recipe_id"]])
+
+    # Derive finite-work bounds with ONE target resident, before there is a
+    # queue or any slot. No speculative lookahead request is kept outside the
+    # byte budget. Only ordinary work coexists with the reserved refresh.
+    # Closure starts after draining and releasing queued materializations.
+    target_bound = 0
+    role_bounds = dict.fromkeys(("ORDINARY", "REFRESH", "CLOSURE", "RESERVED"), 0)
+    for row in work_factory():
+        target = target_for(row)
+        po.require(type(target) is bytes and len(target) > 0)
+        target_size = len(target)
+        po.require(
+            target_size <= profile["resources"]["pending_request_bytes"],
+            "S12_PUBLIC_SINGLE_REQUEST_TOO_LARGE",
+        )
+        target_bound = max(target_bound, target_size)
+        if row["block_id"] == block_id:
+            role = queue_role(row)
+            role_bounds[role] = max(role_bounds[role], target_size)
+        del target
+    ordinary_bound, monitor_reserve = role_bounds["ORDINARY"], role_bounds["REFRESH"]
+    po.require(
+        ordinary_bound + monitor_reserve
+        <= profile["resources"]["pending_request_bytes"],
+        "S12_PUBLIC_MONITOR_QUEUE_HEADROOM_REQUIRED",
+    )
+
+    def locate_attempt(base, work_id, attempt):
+        seen = set()
+        while base is not None:
+            po.require(str(base) not in seen)
+            seen.add(str(base))
+            candidate = base / "attempts" / audit.name_for(work_id, attempt)
+            if candidate.exists():
+                return candidate
+            base = pj.predecessor_root(base)
+        raise c.Stage12Error("S12_CAPTURE_INCOMPLETE")
+
+    def verify_at(base, row, event_body):
+        root = locate_attempt(base, row["work_id"], event_body["attempt"])
+        if row["kind"] == "DATA":
+            po.require(io.metadata(io.read(root / "work.json")) == row)
+            terminal = audit.reopen(
+                root,
+                audit.name_for(row["work_id"], event_body["attempt"]),
+                validator=public_shapes
+                if public_validation is None
+                else public_validation.validator(row, root),
+                context=oa.DataContext(public_validation),
+            )
+            receipt_path = root / (
+                audit.name_for(row["work_id"], event_body["attempt"]) + "_receipt.json"
+            )
+        else:
+            control_begin = po.parse(io.read(root / "begin.json"), po.CONTROL_BEGIN)
+            po.require(
+                control_begin["campaign_start_sha256"] == po.digest(start)
+                and control_begin["profile_sha256"] == po.digest(profile)
+                and control_begin["plan_sha256"] == po.digest(plan)
+                and control_begin["work_id"] == row["work_id"]
+                and control_begin["attempt"] == event_body["attempt"]
+            )
+            po.require(
+                io.metadata(io.read(root / "recipe.json")) == recipes[row["recipe_id"]]
+            )
+            terminal = oa.reopen_control(
+                root, control_adapters[row["recipe_id"]], key=runtime_key
+            )
+            receipt_path = root / "inventory.json"
+        po.require(
+            c.sha(io.read(receipt_path)).hex() == event_body["receipt_inventory_sha256"]
+        )
+        return terminal
+
+    rebased = None
+    if predecessor is not None:
+        po.require(
+            not output.is_relative_to(predecessor)
+            and not predecessor.is_relative_to(output)
+        )
+        po.validate_type(continuation_authority, "D")
+        authority.require(
+            "predecessor_input",
+            continuation_authority,
+            {"path": str(predecessor), "scope": po.SCOPE},
+        )
+        rebased = recovery.clean_continuation(
+            predecessor,
+            start,
+            profile,
+            plan,
+            authority=authority,
+            new_segment_authority=continuation_authority,
+            now_ns=clock.now_ns(),
+            work_factory=work_factory,
+            verify_receipt=lambda row, event: verify_at(predecessor, row, event),
+        )
+        previous_block = rebased["snapshot"]["controller"]["block_id"]
+        po.require(block_id in (previous_block, previous_block + 1))
+        previous_events = pj.read_events(predecessor, po.digest(start))
+        last_epoch = None
+        for event in previous_events:
+            last_epoch = event["epoch_id"]
+        po.require(epoch != last_epoch)
+        if block_id != previous_block:
+            po.require(
+                recovery.required_work_complete(
+                    plan, work_factory, rebased["ledger"], through_block=previous_block
+                )
+            )
+            previous_report = io.metadata(io.read(predecessor / "block_report.json"))
+            closed_hash = None
+            for event in pj.read_events(predecessor, po.digest(start)):
+                if (
+                    event["kind"] == "BLOCK_CLOSED"
+                    and event["body"]["block_id"] == previous_block
+                ):
+                    closed_hash = event["body"]["report_sha256"]
+            po.require(
+                po.digest(previous_report) == closed_hash
+                and previous_report["counts"]["unprocessed_data"]["value"] == 0
+            )
+            new_state = profile["states"][plan["blocks"][block_id - 1]["state_id"] - 1]
+            old_state = profile["states"][rebased["state_id"] - 1]
+            if not po.rate_le(new_state["rate"], old_state["rate"]):
+                po.require(previous_report["status"] == "PASS")
+    else:
+        po.require(continuation_authority is None and block_id == 1)
+    if block_id > 1:
+        authority.require(
+            "reviewed_public_progression",
+            segment_authority,
+            {"plan": plan, "block_id": block_id},
+        )
+    coordinator = ps.Coordinator(
+        profile,
+        plan,
+        start,
+        authority=authority,
+        clock=clock,
+        root=output,
+        block_id=block_id,
+        segment_authority=segment_authority,
+        writer_exclusion_evidence=writer_exclusion_evidence,
+        epoch=epoch,
+        free_bytes=free_bytes,
+        monitor=monitor,
+        predecessor=predecessor,
+        rebase=rebased,
+    )
+    writer, log = coordinator.writer, coordinator.journal
+
+    def incomplete():
+        coordinator.stop_sampling()
+
+        # An uncertain writer is never reused. If it is still healthy, it may
+        # persist the read-only reconciliation report without a clean seal.
+        def verify_known(root, begin):
+            work_id = begin.get("work_id", begin.get("call"))
+            row = next((r for r in work_factory() if r["work_id"] == work_id), None)
+            po.require(row is not None)
+            name = audit.name_for(work_id, begin["attempt"])
+            seal = root / (
+                name + "_SEALED" if row["kind"] == "DATA" else "_CONTROL_SEALED"
+            )
+            if not seal.exists():
+                return False
+            receipt = root / (
+                name + "_receipt.json" if row["kind"] == "DATA" else "inventory.json"
+            )
+            verify_at(
+                output,
+                row,
+                {
+                    "attempt": begin["attempt"],
+                    "receipt_inventory_sha256": c.sha(io.read(receipt)).hex(),
+                },
+            )
+            return True
+
+        known = recovery.unclean_reconciliation(
+            output, po.digest(start), verify_known=verify_known
+        )
+        event_rows = [
+            r for r in known["known_files"] if r["path"].startswith("events/")
+        ]
+        attempt_rows = [
+            r for r in known["known_files"] if r["path"].startswith("attempts/")
+        ]
+        report = pr.incomplete_report(
+            start,
+            plan,
+            event_inventory_sha256=po.manifest_digest(event_rows),
+            attempt_inventory_sha256=po.manifest_digest(attempt_rows),
+            begins_lower_bound=known["begins_charged"]["confirmed_min"],
+        )
+        if not writer.failed.is_set():
+            try:
+                writer.call(
+                    lambda: log.write_array(
+                        "available_event_inventory.json", iter(event_rows)
+                    )
+                )
+                writer.call(
+                    lambda: log.write_array(
+                        "available_attempt_inventory.json", iter(attempt_rows)
+                    )
+                )
+                writer.call(
+                    lambda: log.write("incomplete_campaign_report.json", report)
+                )
+            except Exception:
+                coordinator.audit_failed()
+        writer.abort()
+        return report
+
+    try:
+        coordinator.start_sampling()
+        records: dict[tuple[int, int], dict[str, Any]] = {}
+        block = plan["blocks"][block_id - 1]
+        total_rows = sum(
+            plan["budgets"][k]
+            for k in (
+                "data_observations",
+                "required_control_observations",
+                "reserved_control_observations",
+            )
+        )
+
+        def store_work() -> None:
+            io.reserve(output / "work")
+            io.reserve(output / "attempts")
+            for row in po.work_rows(work_factory(), plan):
+                io.write(
+                    output / "work" / f"{row['work_id']:020d}.json", c.canonical(row)
+                )
+
+        writer.call(store_work)
+
+        def works():
+            for i in range(1, total_rows + 1):
+                yield io.metadata(io.read(output / "work" / f"{i:020d}.json"))
+
+        po.verify_work_manifest(works, plan)
+
+        def size_ready(pending):
+            if (
+                plan["experiment_kind"] != "CAPABILITY" and not ascending_sizes
+            ) or pending.work["kind"] != "DATA":
+                return True
+            for earlier in works():
+                if (
+                    earlier["kind"] != "DATA"
+                    or earlier["result_limit"] >= pending.work["result_limit"]
+                ):
+                    continue
+                if not any(
+                    e["kind"] == "ATTEMPT_FINALIZED"
+                    and e["body"]["work_id"] == earlier["work_id"]
+                    and e["body"]["outcome"]["value"] in c.SUCCESS
+                    for e in pj.read_events(output, po.digest(start))
+                ):
+                    return False
+            return True
+
+        coordinator.size_ready = size_ready
+
+        def attempt_root(work_id, attempt):
+            return output / "attempts" / audit.name_for(work_id, attempt)
+
+        def begin(pending):
+            row, attempt = pending.work, pending.attempt
+            po.require(po.manifest_digest(works()) == plan["work_manifest_sha256"])
+            root = attempt_root(row["work_id"], attempt)
+            if row["kind"] == "DATA":
+                return oa.begin_data(
+                    root,
+                    profile,
+                    plan,
+                    start,
+                    row,
+                    attempt,
+                    runtime_inventory,
+                    validation=public_validation,
+                )
+            recipe = recipes[row["recipe_id"]]
+            value = {
+                "schema_version": po.CONTROL_BEGIN,
+                "campaign_start_sha256": po.digest(start),
+                "profile_sha256": po.digest(profile),
+                "plan_sha256": po.digest(plan),
+                "segment_id": log.segment,
+                "work_id": row["work_id"],
+                "attempt": attempt,
+                "recipe_sha256": recipe["recipe_sha256"],
+                "request_target_sha256": c.sha(pending.target).hex(),
+                "started_utc": clock.utc(),
+            }
+            return oa.begin_control(root, value)
+
+        def worker(slot):
+            def record_hash(capture):
+                record = oa.transport_record(
+                    slot.pending.work, slot.key[1], capture, clock.utc()
+                )
+                oa.validate_transport(record)
+                records[slot.key] = record
+                return po.digest(record)
+
+            def persist():
+                root = attempt_root(*slot.key)
+                name = (
+                    audit.name_for(*slot.key) + "_finish.json"
+                    if slot.pending.work["kind"] == "DATA"
+                    else "transport.json"
+                )
+                io.write(root / name, c.canonical(records[slot.key]))
+
+            try:
+                result = dispatch(
+                    slot.pending.work,
+                    slot.pending.target,
+                    coordinator.hooks(slot, record_hash, persist),
+                )
+                po.require(slot.capture == result and slot.ticket is not None)
+            except BaseException:
+                with coordinator.safety:
+                    coordinator.state, coordinator.stop_reason = (
+                        "RECOVERY_BLOCKED",
+                        "UNACCOUNTED_DELIVERY",
+                    )
+                    slot.connection = False
+                    coordinator.wake.set()
+                try:
+                    coordinator.journal.event(
+                        "STOP",
+                        {
+                            "why": "UNACCOUNTED_DELIVERY",
+                            "primary_reason": None,
+                            "trigger_event_seq": None,
+                        },
+                        closure=True,
+                    )
+                    coordinator.resource("CONNECTION_RELEASE")
+                except BaseException:
+                    coordinator.audit_failed()
+                raise
+
+        def finish(slot):
+            row, root = slot.pending.work, attempt_root(*slot.key)
+            record = records[slot.key]
+            if row["kind"] == "DATA":
+                return oa.finish_data(
+                    root,
+                    row,
+                    record,
+                    slot.capture.payload,
+                    key=runtime_key,
+                    validator=public_shapes
+                    if public_validation is None
+                    else public_validation.validator(row, root),
+                    validation=public_validation,
+                )
+            recipe = recipes[row["recipe_id"]]
+            return oa.finish_control(
+                root,
+                record,
+                slot.capture.payload,
+                recipe,
+                control_adapters[row["recipe_id"]],
+                key=runtime_key,
+            )
+
+        def old_ledger(row):
+            return (
+                next(
+                    (x for x in rebased["ledger"]() if x["work_id"] == row["work_id"]),
+                    None,
+                )
+                if rebased
+                else None
+            )
+
+        def unfinished(row):
+            previous = old_ledger(row)
+            return previous is None or previous["state"] in ("UNBEGUN", "RETRY_DUE")
+
+        def pending_for(row, *, monitoring=False):
+            previous = old_ledger(row)
+            target = target_for(row)
+            po.require(
+                type(target) is bytes
+                and 0 < len(target) <= target_bound
+                and len(target) <= role_bounds[queue_role(row)]
+            )
+            if previous is not None and previous["state"] == "RETRY_DUE":
+                return ps.Pending(
+                    row,
+                    target,
+                    previous["charged_ordinals"][-1] + 1,
+                    po.checked(
+                        coordinator.opened_ns + previous["retry_delay_ms"] * 1_000_000
+                    ),
+                    monitoring,
+                )
+            return ps.Pending(row, target, 1, clock.now_ns(), monitoring)
+
+        ordinary = iter(
+            r
+            for r in works()
+            if r["block_id"] == block_id
+            and queue_role(r) == "ORDINARY"
+            and unfinished(r)
+        )
+        exhausted = ordinary_bound == 0
+        reserved_cursor = 0
+        futures = {}
+        with ThreadPoolExecutor(
+            max_workers=coordinator.capacity, thread_name_prefix="stage12-public-http"
+        ) as pool:
+            while True:
+                coordinator.tick()
+                if pause_requested is not None and pause_requested():
+                    coordinator.pause_pending = True
+                if coordinator.stop_reason is None:
+                    if (
+                        not coordinator.pause_pending
+                        and coordinator.monitored
+                        and coordinator.monitoring_due()
+                        and not any(
+                            s.pending.monitor for s in coordinator.slots.values()
+                        )
+                        and not any(p.monitor for p in coordinator.pending)
+                        and (
+                            monitor_reserve == 0
+                            or coordinator.can_refill(monitor_reserve)
+                        )
+                    ):
+                        row = next(
+                            (
+                                r
+                                for r in works()
+                                if r["block_id"] == block_id
+                                and r["work_id"] in block["reserved_control_ids"]
+                                and r["work_id"] > reserved_cursor
+                                and r["recipe_id"]
+                                == profile["monitoring"]["refresh_recipe_id"]
+                                and unfinished(r)
+                            ),
+                            None,
+                        )
+                        if row is None:
+                            coordinator.terminal(
+                                "IDENTITY_STALE", "IDENTITY_UNVERIFIABLE"
+                            )
+                        else:
+                            reserved_cursor = row["work_id"]
+                            coordinator.queue(pending_for(row, monitoring=True))
+                    # Each active slot can return one retry. Keep that queue
+                    # headroom, plus the priority monitoring entry, unoccupied.
+                    while (
+                        not coordinator.pause_pending
+                        and not exhausted
+                        and coordinator.can_refill(
+                            ordinary_bound, monitor_reserve=monitor_reserve
+                        )
+                    ):
+                        row = next(ordinary, None)
+                        if row is None:
+                            exhausted = True
+                            break
+                        coordinator.queue(pending_for(row))
+                    slot = coordinator.admit(begin)
+                    if slot is not None:
+                        futures[slot.key] = pool.submit(worker, slot)
+                    slot = None  # The coordinator/worker now own the reservation.
+                next_slot = next(
+                    (
+                        s
+                        for s in coordinator.slots.values()
+                        if s.ticket == coordinator.finalized_ticket + 1
+                        and s.key in futures
+                        and futures[s.key].done()
+                    ),
+                    None,
+                )
+                if next_slot is not None:
+                    try:
+                        futures.pop(next_slot.key).result()
+                        retry = coordinator.finalize(
+                            next_slot, lambda slot=next_slot: finish(slot)
+                        )
+                        records.pop(next_slot.key, None)
+                        if retry is not None:
+                            coordinator.queue(retry)
+                    except BaseException:
+                        coordinator.audit_failed()
+                    finally:
+                        # The queue owns any returned retry. Keeping a local
+                        # Pending/Slot would retain target bytes after closure
+                        # preparation releases the coordinator's request caches.
+                        retry = next_slot = None
+                    continue
+                failed = [
+                    key
+                    for key, future in futures.items()
+                    if future.done() and future.exception() is not None
+                ]
+                for key in failed:
+                    futures.pop(key)
+                if coordinator.stop_reason:
+                    if all(f.done() for f in futures.values()):
+                        break
+                elif (
+                    exhausted and not coordinator.pending or coordinator.pause_pending
+                ) and not coordinator.slots:
+                    break
+                if futures:
+                    coordinator.wake.wait(
+                        max(
+                            0,
+                            coordinator.next_wakeup_ns(coordinator.next_start_ns)
+                            - clock.now_ns(),
+                        )
+                        / 1e9
+                    )
+                    coordinator.wake.clear()
+                elif coordinator.pending:
+                    waits = [
+                        coordinator.next_start_ns,
+                        coordinator.cooldown_until,
+                        *(p.due_ns for p in coordinator.pending),
+                    ]
+                    clock.wait_until(coordinator.next_wakeup_ns(*waits))
+
+        # Closure checks are explicit rows, globally paced, and use the same writer.
+        if not coordinator.stop_reason and coordinator.monitored:
+            coordinator.prepare_closure()
+            row = next(
+                (
+                    r
+                    for r in works()
+                    if r["block_id"] == block_id
+                    and r["kind"] == "SERVICE_CONTROL"
+                    and r["recipe_id"] == profile["monitoring"]["closure_recipe_id"]
+                    and unfinished(r)
+                ),
+                None,
+            )
+            if row is None:
+                coordinator.terminal("IDENTITY_STALE", "IDENTITY_INTERVAL_NOT_CLOSED")
+            else:
+                coordinator.queue(pending_for(row, monitoring=True))
+                closure_due = max(
+                    clock.now_ns(),
+                    coordinator.next_start_ns,
+                    coordinator.cooldown_until,
+                )
+                while clock.now_ns() < closure_due:
+                    clock.wait_until(min(closure_due, coordinator.next_wakeup_ns()))
+                    coordinator.tick()
+                    if coordinator.stop_reason:
+                        break
+                coordinator.tick()
+                slot = coordinator.admit(begin)
+                if slot is None:
+                    coordinator.terminal(
+                        "IDENTITY_STALE", "IDENTITY_INTERVAL_NOT_CLOSED"
+                    )
+                else:
+                    worker(slot)
+                    coordinator.finalize(slot, lambda: finish(slot))
+                    records.pop(slot.key, None)
+                    slot = None
+
+        def events():
+            return pj.read_events(output, po.digest(start))
+
+        def verify_receipt(row, event_body):
+            return verify_at(output, row, event_body)
+
+        if coordinator.writer.failed.is_set() or any(
+            s.ticket is None for s in coordinator.slots.values()
+        ):
+            # No false seal or invented controller state. Read-only recovery evidence.
+            return incomplete()
+
+        def comparisons():
+            # Exact original structural tuple equality; one pair resident at a time.
+            for row in works():
+                if row["kind"] != "DATA" or row["block_id"] != block_id:
+                    continue
+                predecessor = next(
+                    (
+                        r
+                        for r in works()
+                        if r["kind"] == "DATA"
+                        and r["block_id"] == block_id
+                        and r["work_id"] < row["work_id"]
+                        and (r["fixture_id"], r["result_limit"])
+                        == (row["fixture_id"], row["result_limit"])
+                    ),
+                    None,
+                )
+                if predecessor is None:
+                    continue
+                shapes = []
+                for current in (predecessor, row):
+                    final = next(
+                        (
+                            e["body"]
+                            for e in events()
+                            if e["kind"] == "ATTEMPT_FINALIZED"
+                            and e["body"]["work_id"] == current["work_id"]
+                            and e["body"]["outcome"]["value"] in c.SUCCESS
+                        ),
+                        None,
+                    )
+                    if final is None:
+                        shapes.append(None)
+                        continue
+                    terminal = verify_receipt(current, final)
+                    root = locate_attempt(output, current["work_id"], final["attempt"])
+                    raw = response.decompress(
+                        io.read(
+                            root
+                            / (
+                                audit.name_for(current["work_id"], final["attempt"])
+                                + ".zst"
+                            )
+                        ),
+                        length=terminal["application_payload_bytes"],
+                        expected_hash=bytes.fromhex(terminal["response_sha256"]),
+                    )
+                    shapes.append(
+                        public_shapes(raw)
+                        if public_validation is None
+                        else public_validation.validator(current, root)(raw)
+                    )
+                yield {
+                    "first_work_id": predecessor["work_id"],
+                    "next_work_id": row["work_id"],
+                    "equal": shapes[0] is not None and shapes[0] == shapes[1],
+                }
+
+        comparison_hash = writer.call(
+            lambda: log.write_array("repeat_comparison.json", comparisons())
+        )
+        # Drain/join the independent bounded sample slot before recording the
+        # last sample. No sample may race report-prefix capture or writer release.
+        po.require(coordinator.stop_sampling(), "PUBLIC_PROBE_EVIDENCE_WRITE_FAILED")
+        coordinator.resource("PERIODIC")
+        closed_monitor = not coordinator.monitored or any(
+            e["kind"] == "MONITOR_RESULT" and e["body"]["interval_closed"]
+            for e in events()
+        )
+        report = pr.block_report(
+            plan,
+            profile,
+            block_id,
+            events=events,
+            works=works,
+            verified_receipt=verify_receipt,
+            repeat_evidence=lambda: (
+                comparison_hash,
+                all(
+                    r["equal"] for r in pj.read_array(output / "repeat_comparison.json")
+                ),
+            ),
+            monitoring_closed=lambda: closed_monitor,
+        )
+        block_hash = writer.call(lambda: log.write("block_report.json", report))
+        log.event(
+            "BLOCK_CLOSED",
+            {
+                "block_id": block_id,
+                "report_sha256": block_hash,
+                "result": report["status"],
+            },
+            closure=True,
+        )
+        total = recovery.required_work_complete(
+            plan, works, lambda: recovery.work_ledger(works, events, verify_receipt)
+        )
+        if (
+            not total
+            and not coordinator.stop_reason
+            and not coordinator.pause_pending
+            and block_id == len(plan["blocks"])
+        ):
+            coordinator.terminal("BUDGET")
+        disposition = (
+            coordinator.state
+            if coordinator.state in ("STOPPED", "QUARANTINED", "RECOVERY_BLOCKED")
+            else "PAUSED_CLEAN"
+            if coordinator.pause_pending or block_id < len(plan["blocks"])
+            else "COMPLETED"
+        )
+        log.event(
+            "SEGMENT_CLOSE",
+            {
+                "disposition": disposition,
+                "closure_evidence_sha256": comparison_hash if closed_monitor else None,
+                "last_ticket": coordinator.last_ticket,
+            },
+            closure=True,
+        )
+        state = recovery.replay(events())
+
+        def ledger():
+            for row in recovery.work_ledger(works, events, verify_receipt):
+                if (
+                    report["counts"]["unprocessed_data"]["value"] == 0
+                    and row["work_id"] in block["reserved_control_ids"]
+                    and not row["charged_ordinals"]
+                ):
+                    row["state"] = "UNUSED_RESERVED_CONTROL"
+                yield row
+
+        ledger_hash = writer.call(lambda: log.write_array("work_ledger.json", ledger()))
+        remaining_hash = writer.call(
+            lambda: log.write_array(
+                "remaining_work_ledger.json",
+                (
+                    r
+                    for r in ledger()
+                    if r["state"] in ("UNBEGUN", "RETRY_DUE", "UNUSED_RESERVED_CONTROL")
+                ),
+            )
+        )
+        event_hash = writer.call(
+            lambda: log.write_array(
+                "event_inventory.json", pj.evidence_inventory(output, "events")
+            )
+        )
+        attempt_hash = writer.call(
+            lambda: log.write_array(
+                "attempt_inventory.json", pj.evidence_inventory(output, "attempts")
+            )
+        )
+        authority.require(
+            "writer_release",
+            writer_release_evidence,
+            {"start": start, "disposition": disposition},
+        )
+        snapshot = {
+            "schema_version": po.SNAPSHOT,
+            "campaign_start_sha256": po.digest(start),
+            "segment_id": log.segment,
+            "last_event_seq": log.seq,
+            "last_event_sha256": log.last_hash,
+            "event_inventory_sha256": event_hash,
+            "attempt_inventory_sha256": attempt_hash,
+            "work_ledger_sha256": ledger_hash,
+            "controller": {
+                "state_id": coordinator.state_id,
+                "block_id": block_id,
+                "charged_data_attempts": coordinator.charged["DATA"],
+                "charged_control_attempts": coordinator.charged["SERVICE_CONTROL"],
+                "administrative_operations": 0,
+                "active_duration_ms": state["active_duration_ms"],
+                "stored_bytes": log.stored_bytes,
+                "event_count": log.seq,
+                "last_ticket": state["last_ticket"],
+                "consecutive_retryable": state["consecutive_retryable"],
+                "recent": state["recent"],
+                "overload_carry": state["overload_carry"],
+                "breaker_reason": state["breaker_reason"],
+                "cooldown_delay_ms": state["cooldown_delay_ms"],
+                "remaining_work_ledger_sha256": remaining_hash,
+                "monitoring_state": "CLOSED_VERIFIED"
+                if coordinator.monitored and closed_monitor
+                else "PUBLIC_GAPS_ONLY"
+                if not coordinator.monitored
+                else "UNVERIFIED",
+                "resume_eligible": disposition == "PAUSED_CLEAN",
+            },
+            "closure_evidence_sha256": comparison_hash if closed_monitor else None,
+            "writer_release_evidence_sha256": writer_release_evidence,
+            "sealed_utc": clock.utc(),
+            "disposition": disposition,
+        }
+        snap_hash = recovery.write_snapshot(
+            writer, snapshot, verify=lambda: recovery.replay(events())
+        )
+        reports = {block_id: report}
+        snapshots = [snap_hash]
+        node = predecessor
+        while node is not None:
+            previous = po.parse(io.read(node / "snapshot.json"), po.SNAPSHOT)
+            prior_report = io.metadata(io.read(node / "block_report.json"))
+            po.validate_type(prior_report, "BlockReport")
+            reports.setdefault(prior_report["block_id"], prior_report)
+            snapshots.append(po.digest(previous))
+            node = pj.predecessor_root(node)
+        campaign = pr.campaign_report(
+            start,
+            event_inventory_sha256=event_hash,
+            attempt_inventory_sha256=attempt_hash,
+            snapshots=list(reversed(snapshots)),
+            blocks=[reports[k] for k in sorted(reports)],
+            disposition=disposition,
+            scientific_identity_verified=coordinator.monitored
+            and closed_monitor
+            and not coordinator.stop_reason,
+            reconciliation_reasons=[]
+            if disposition == "COMPLETED" and len(reports) == len(plan["blocks"])
+            else ["INCOMPLETE_WORK"],
+            plan=plan,
+        )
+        writer.call(lambda: log.write("campaign_report.json", campaign))
+        writer.release(
+            {
+                "writer_release_evidence_sha256": writer_release_evidence,
+                "snapshot_sha256": snap_hash,
+            }
+        )
+        return campaign
+    except Exception:
+        coordinator.audit_failed()
+        return incomplete()
+    finally:
+        coordinator.stop_sampling()
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--configuration", type=Path, required=True)

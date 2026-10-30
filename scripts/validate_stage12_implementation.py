@@ -21,6 +21,14 @@ ROOT = Path(__file__).resolve().parents[1]
 BASELINE = "7543b8bac4f2953aab311fb58f73dbcb62ba401b"
 
 
+def validate_public_operations() -> dict[str, str]:
+    """Opt-in O-r2 descriptor check only; no benchmark or execution authority."""
+    from safe_geocoding_pipeline.preprocessing.stages import s12_public_operations
+
+    hashes = assets.verify(ROOT, public_operations=True)
+    return {name: hashes[name] for name in s12_public_operations.SCHEMAS}
+
+
 def validate() -> dict[str, Any]:
     hashes = assets.verify(ROOT)
     for relation in c.RELATIONS:

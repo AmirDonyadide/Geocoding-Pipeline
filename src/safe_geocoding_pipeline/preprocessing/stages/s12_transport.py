@@ -14,6 +14,8 @@ import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
+from collections.abc import Callable
+from typing import Protocol
 from urllib.parse import urlsplit
 
 from safe_geocoding_pipeline.execution_policy import require_goethe_nhr_slurm
@@ -205,8 +207,39 @@ class _Connection(http.client.HTTPSConnection):
         self.sock = self.tls_context.wrap_socket(sock, server_hostname=self.host)
 
 
+class DispatchBlocked(Exception):
+    """Begun delivery is uncertain; preserve begin, never fabricate a finish."""
+
+
+class TimingHooks(Protocol):
+    """O-r2 opt-in hooks; no default scheduler, authority or transport bypass."""
+
+    def started(self, mono_ns: int) -> None: ...
+    def emit(
+        self, write: Callable[[], None], check_deadline: Callable[[], None]
+    ) -> None: ...
+    def signal(
+        self, status: int, outcome: str, reason: str, retry_after: int | None
+    ) -> None: ...
+    def completed(self, capture: Capture) -> None: ...
+
+
+def attempt_deadline_ns(started, operations, hooks):
+    """Optional stricter caller deadline; never widens the frozen transport cap."""
+    maximum = started + operations.attempt_timeout_ms * 1_000_000
+    select = getattr(hooks, "attempt_deadline_ns", None) if hooks is not None else None
+    selected = maximum if select is None else select(started, maximum)
+    c.require(type(selected) is int and started < selected <= maximum, "TIMEOUT")
+    return selected
+
+
 def send(
-    target: bytes, profile: TransportProfile, key: Secret, operations: ops.Operations
+    target: bytes,
+    profile: TransportProfile,
+    key: Secret,
+    operations: ops.Operations,
+    *,
+    hooks: TimingHooks | None = None,
 ) -> Capture:
     """Caller owns rate admission, durable begin, workload and deployment gates."""
     require_goethe_nhr_slurm("stage12 SAFE Pelias transport")
@@ -240,7 +273,10 @@ def send(
                 pass
         connection.close()
 
-    timer = threading.Timer(operations.attempt_timeout_ms / 1000, deadline)
+    selected_deadline = attempt_deadline_ns(started, operations, hooks)
+    remaining = max(0, selected_deadline - time.monotonic_ns()) / 1e9
+    connection.timeout = min(operations.connect_timeout_ms / 1000, remaining)
+    timer = threading.Timer(remaining, deadline)
     timer.daemon = True
     status: int | None = None
     media, coding = "ABSENT", "absent"
@@ -251,17 +287,37 @@ def send(
     outcome, reason = "TECHNICAL_FAILURE_RETRYABLE", "NETWORK_TRANSIENT"
     timer.start()
     try:
+        if hooks is not None:
+            hooks.started(started)
+        c.require(
+            not expired.is_set() and time.monotonic_ns() < selected_deadline, "TIMEOUT"
+        )
         connection.connect()
         c.require(not expired.is_set(), "TIMEOUT")
         assert connection.sock is not None
         active_socket = connection.sock
-        connection.sock.settimeout(operations.read_idle_timeout_ms / 1000)
+        connection.sock.settimeout(
+            min(
+                operations.read_idle_timeout_ms / 1000,
+                max(0, selected_deadline - time.monotonic_ns()) / 1e9,
+            )
+        )
         connection.putrequest(
             "GET", target.decode("ascii"), skip_host=True, skip_accept_encoding=True
         )
         for name, value in request_headers:
             connection.putheader(name, value)
-        connection.endheaders()
+
+        def check_deadline() -> None:
+            c.require(
+                not expired.is_set() and time.monotonic_ns() < selected_deadline,
+                "TIMEOUT",
+            )
+
+        if hooks is None:
+            connection.endheaders()
+        else:
+            hooks.emit(connection.endheaders, check_deadline)
         incoming = connection.getresponse()
         status = incoming.status
         media = response.media_type(incoming.getheader("Content-Type"))
@@ -273,6 +329,8 @@ def send(
         )
         retry = retry_audit.seconds
         outcome, reason = ops.classify(status)
+        if hooks is not None:
+            hooks.signal(status, outcome, reason, retry)
         # Authentication/error pages never enter ordinary raw storage.
         if 200 <= status < 300:
             c.require(coding in ("absent", "identity"), "RESPONSE_CONTRACT_INVALID")
@@ -306,7 +364,7 @@ def send(
             )
             collected = bytearray()
             while True:
-                c.require(not expired.is_set(), "TIMEOUT")
+                check_deadline()
                 part = incoming.read1(
                     min(65536, operations.response_ceiling_bytes + 1 - len(collected))
                 )
@@ -318,7 +376,7 @@ def send(
                     len(collected) <= operations.response_ceiling_bytes,
                     "RESPONSE_RESOURCE_LIMIT",
                 )
-            c.require(not expired.is_set(), "TIMEOUT")
+            check_deadline()
             if incoming.length not in (None, 0):
                 outcome, reason = "TECHNICAL_FAILURE_RETRYABLE", "RESPONSE_TRUNCATED"
             else:
@@ -353,7 +411,7 @@ def send(
     finally:
         timer.cancel()
         connection.close()
-    return Capture(
+    capture = Capture(
         outcome,
         reason,
         status,
@@ -365,3 +423,6 @@ def send(
         (time.monotonic_ns() - started) // 1_000_000,
         retry_audit,
     )
+    if hooks is not None:
+        hooks.completed(capture)
+    return capture

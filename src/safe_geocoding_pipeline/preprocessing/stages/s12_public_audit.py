@@ -11,7 +11,7 @@ import re
 from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 
 from . import s12_assets as assets
 from . import s12_probe as probe
@@ -30,6 +30,14 @@ CONTEXT = (
     "request_materialization.json",
 )
 Validator = Callable[[bytes], tuple[Any, ...]]
+
+
+class DataContext(Protocol):
+    """Explicit versioned DATA association; never used implicitly by v1."""
+
+    files: tuple[str, ...]
+
+    def load(self, root: Path, name: str) -> tuple[dict[str, Any], dict[str, Any]]: ...
 
 
 class AuditWriteError(c.Stage12Error):
@@ -55,20 +63,26 @@ def name_for(call: int, attempt: int) -> str:
     return f"call_{call:04d}_attempt_{attempt}"
 
 
-def begin(root: Path, request: dict[str, Any]) -> None:
+def begin(
+    root: Path,
+    request: dict[str, Any],
+    *,
+    validation_version: str = response.VALIDATION,
+    validation_scope: str = VALIDATION_SCOPE,
+) -> None:
     record = {
         **request,
         "started_utc": datetime.now(timezone.utc).isoformat(),
         "run_provenance_sha256": c.sha(io.read(root / "provenance.json")).hex(),
         "workload_sha256": c.sha(io.read(root / "workload.json")).hex(),
-        "validation_version": response.VALIDATION,
+        "validation_version": validation_version,
         "response_validation_contract_sha256": c.sha(
             io.read(root / "response_validation.json")
         ).hex(),
         "materialization_contract_sha256": c.sha(
             io.read(root / "request_materialization.json")
         ).hex(),
-        "validation_scope": VALIDATION_SCOPE,
+        "validation_scope": validation_scope,
     }
     io.write(
         root / (name_for(record["call"], record["attempt"]) + "_begin.json"),
@@ -168,6 +182,7 @@ def complete(
     validator: Validator,
     privacy_rejected: bool = False,
     primary_failure_reason: str | None = None,
+    context: DataContext | None = None,
 ) -> tuple[dict[str, Any], tuple[Any, ...] | None]:
     """Return only after complete linked evidence is sealed and fully reopened.
 
@@ -177,7 +192,9 @@ def complete(
     it cannot substitute for verified context or authorize completion.
     """
     try:
-        begin, transport = _context(root, name)
+        begin, transport = (
+            _context(root, name) if context is None else context.load(root, name)
+        )
     except Exception:
         if primary_failure_reason is not None:
             raise AuditWriteError(primary_failure_reason) from None
@@ -247,8 +264,8 @@ def complete(
             "response_validation_contract_sha256": begin[
                 "response_validation_contract_sha256"
             ],
-            "validation_version": response.VALIDATION,
-            "validation_scope": VALIDATION_SCOPE,
+            "validation_version": begin["validation_version"],
+            "validation_scope": begin["validation_scope"],
             "validation_performed": validation_performed,
             "validation_outcome": outcome if validation_performed else None,
             "outcome": outcome,
@@ -263,7 +280,7 @@ def complete(
         }
         io.write(root / (name + "_validation.json"), c.canonical(terminal))
         names = [
-            *CONTEXT,
+            *(CONTEXT if context is None else context.files),
             *(
                 name + suffix
                 for suffix in (
@@ -286,9 +303,9 @@ def complete(
                 }
             ),
         )
-        reopen(root, name, validator=validator, sealed=False)
+        reopen(root, name, validator=validator, sealed=False, context=context)
         io.write(root / (name + "_SEALED"), b"")
-        reopen(root, name, validator=validator)
+        reopen(root, name, validator=validator, context=context)
         return terminal, features
     except Exception:
         if outcome in c.OUTCOMES and outcome not in (*c.SUCCESS, "UNKNOWN_DELIVERY"):
@@ -297,10 +314,17 @@ def complete(
 
 
 def reopen(
-    root: Path, name: str, *, validator: Validator, sealed: bool = True
+    root: Path,
+    name: str,
+    *,
+    validator: Validator,
+    sealed: bool = True,
+    context: DataContext | None = None,
 ) -> dict[str, Any]:
     """Validate a public audit only; never adopt a checkpoint or publish rows."""
-    begin, transport = _context(root, name)
+    begin, transport = (
+        _context(root, name) if context is None else context.load(root, name)
+    )
     if sealed:
         c.require(
             io.read(root / (name + "_SEALED"), limit=0) == b"",
@@ -310,7 +334,7 @@ def reopen(
     terminal = io.metadata(io.read(root / (name + "_validation.json")))
     capture = io.metadata(io.read(root / (name + "_capture.json")))["capture"]
     names = [
-        *CONTEXT,
+        *(CONTEXT if context is None else context.files),
         *(
             name + suffix
             for suffix in (
@@ -344,8 +368,8 @@ def reopen(
         "response_validation_contract_sha256": begin[
             "response_validation_contract_sha256"
         ],
-        "validation_version": response.VALIDATION,
-        "validation_scope": VALIDATION_SCOPE,
+        "validation_version": begin["validation_version"],
+        "validation_scope": begin["validation_scope"],
     }.items():
         c.require(
             c.canonical(terminal[field]) == c.canonical(expected),

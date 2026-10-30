@@ -1,0 +1,1 @@
+{"domain":"SAFE:stage12-response-projection:b2:v1","ordered_fields":["projection_version","raw_response_set_sha256","capture_context_sha256","response_validation_contract_sha256","response_extraction_contract_sha256","candidate_schema_sha256"],"projection_version":"stage12_response_projection_b2_v1"}
