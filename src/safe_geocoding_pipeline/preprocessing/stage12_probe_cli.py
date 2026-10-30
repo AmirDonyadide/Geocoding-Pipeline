@@ -1294,31 +1294,21 @@ def run_operations_block(
                         return
                 po.require(False, "PUBLIC_PROBE_EVIDENCE_WRITE_FAILED")
 
+            from .stages.s12_public_work_index import WorkIndex
+
+            work_index = WorkIndex(
+                works,
+                lambda key: io.metadata(io.read(output / "work" / f"{key:020d}.json")),
+                plan,
+            )
+
             def comparison_pairs():
-                # Preserve the original first-predecessor and work ordering.
-                for row in works():
-                    if row["kind"] != "DATA" or row["block_id"] != block_id:
-                        continue
-                    predecessor = next(
-                        (
-                            r
-                            for r in works()
-                            if r["kind"] == "DATA"
-                            and r["block_id"] == block_id
-                            and r["work_id"] < row["work_id"]
-                            and (r["fixture_id"], r["result_limit"])
-                            == (row["fixture_id"], row["result_limit"])
-                        ),
-                        None,
-                    )
-                    if predecessor is None:
-                        continue
-                    yield predecessor, row
+                yield from work_index.pairs(block_id)
 
             def comparisons():
                 pairs = iter(comparison_pairs())
-                while batch := list(islice(pairs, 32)):
-                    # Fixed metadata only: <=32 pairs / <=64 work IDs. Raw payloads
+                while batch := list(islice(pairs, 128)):
+                    # Fixed metadata only: <=128 pairs / <=256 work IDs. Raw payloads
                     # and structural tuples are still verified one pair at a time.
                     ids = {r["work_id"] for pair in batch for r in pair}
                     finals = {}
@@ -1424,6 +1414,7 @@ def run_operations_block(
                     ),
                 ),
                 monitoring_closed=lambda: closed_monitor,
+                work_index=work_index,
             )
             if measurement_prefix is not None:
                 measurement_prefix.verify_original()
@@ -1440,7 +1431,9 @@ def run_operations_block(
             operation = "RECONCILIATION"
 
             def ledger():
-                for row in recovery.work_ledger(works, events, verify_receipt):
+                for row in recovery.work_ledger(
+                    works, events, verify_receipt, batch_size=128
+                ):
                     if (
                         report["counts"]["unprocessed_data"]["value"] == 0
                         and row["work_id"] in block["reserved_control_ids"]

@@ -359,15 +359,75 @@ class Journal:
 
     def verify_storage(self) -> int:
         self.writer.assert_owner()
-        actual = tree_bytes(self.writer.root, check=self.writer.check_deadline)
-        if self.accounted_bytes is not None:
-            info = self.writer.root.stat(follow_symlinks=False)
+        if self.accounted_bytes is None:
+            # Shared legacy/B2 callers retain their original synchronous scan.
+            return tree_bytes(self.writer.root, check=self.writer.check_deadline)
+        # Only the existing periodic slot may run during this writer action.
+        # Pin all old bytes; newly appended periodic files are outside that sum
+        # and are verified freshly, exactly, before accepting any accounting.
+        before_bytes, before_seq, before_head = (
+            self.accounted_bytes,
+            self.seq,
+            self.last_hash,
+        )
+        before_mono = self.last_mono
+        events_root = self.writer.root / "events"
+
+        def checkpoint():
+            self.writer.check_deadline()
+            self.writer.service_periodic()
+            self.writer.assert_owner()
+
+        def appended_sample(path):
+            if path.parent != events_root or not path.name.endswith(".json"):
+                return False
+            token = path.name[:-5]
+            if len(token) != 20 or not token.isascii() or not token.isdigit():
+                return False
+            ordinal = int(token)
+            if ordinal <= before_seq:
+                return False
             self.contract.require(
-                (info.st_dev, info.st_ino) == self.root_identity
-                and actual == self.accounted_bytes,
+                before_seq < ordinal <= self.seq,
                 "S12_PUBLIC_STORAGE_ACCOUNTING_MISMATCH",
             )
-        return actual
+            return True
+
+        actual_old = tree_bytes(
+            self.writer.root, check=checkpoint, exclude_file=appended_sample
+        )
+        # No more periodic servicing while validating this now-pinned tail.
+        # A pending observation remains bounded in its existing single slot.
+        end, head, accounted = self.seq, self.last_hash, self.accounted_bytes
+        tail_bytes, previous, mono = 0, before_head, before_mono
+        for seq in range(before_seq + 1, end + 1):
+            self.writer.check_deadline()
+            raw = io.read(events_root / f"{seq:020d}.json")
+            obj = self.contract.parse(raw, self.contract.EVENT)
+            self.contract.require(
+                obj["seq"] == seq
+                and obj["previous_event_sha256"] == previous
+                and obj["campaign_start_sha256"] == self.start_hash
+                and obj["segment_id"] == self.segment
+                and obj["epoch_id"] == self.epoch
+                and obj["mono_ns"] >= mono
+                and obj["kind"] == "RESOURCE"
+                and obj["body"]["cause"] == "PERIODIC",
+                "S12_PUBLIC_STORAGE_ACCOUNTING_MISMATCH",
+            )
+            tail_bytes = self.contract.checked(tail_bytes + len(raw))
+            previous, mono = self.contract.digest(obj), obj["mono_ns"]
+        info = self.writer.root.stat(follow_symlinks=False)
+        self.writer.assert_owner()
+        self.contract.require(
+            (info.st_dev, info.st_ino) == self.root_identity
+            and actual_old == before_bytes
+            and before_bytes + tail_bytes == accounted == self.accounted_bytes
+            and (end, head) == (self.seq, self.last_hash)
+            and previous == head,
+            "S12_PUBLIC_STORAGE_ACCOUNTING_MISMATCH",
+        )
+        return accounted
 
     def reconcile_storage(self) -> int:
         """Same physical scan, outside a guarded action ONLY when quiescent.
@@ -763,12 +823,19 @@ class MeasurementPrefix:
 
     def build(self, *, closure_reserve=0):
         o.uint(closure_reserve)
-        # No sample/event producer remains during this construction.
-        size = 3
+        # No sample/event producer remains during this construction. Count
+        # bytes AND perform the first exact original-source verification in the
+        # same traversal; do not replace it with a metadata/cache assertion.
+        size, last = 3, None
         for event in read_events(self.root, self.start_hash):
+            last = event
+            if event["seq"] == self.seq:
+                o.require(o.digest(event) == self.head)
             size += len(c.canonical(event))
             if size > self.LIMIT:
                 return False  # Original validated factory remains the fallback.
+        o.require(last is not None and last["seq"] >= self.seq)
+        o.require((last["seq"], o.digest(last)) == self.endpoint())
         journal = self.journal
         current = journal.reconcile_storage()
         if (
@@ -778,7 +845,6 @@ class MeasurementPrefix:
             > journal.block_byte_budget
         ):
             return False  # Preserve the full selected finalization metadata reserve.
-        self.verify_original()
         self.hash = self.journal.stream_array(
             self.path.name, read_events(self.root, self.start_hash)
         )
@@ -880,6 +946,7 @@ def tree_bytes(
     exclude: frozenset[str] = frozenset(),
     *,
     check: Callable[[], None] = lambda: None,
+    exclude_file: Callable[[Path], bool] = lambda path: False,
 ) -> int:
     """Actual logical file bytes, including failed writes, without reading bodies."""
     check()
@@ -891,10 +958,16 @@ def tree_bytes(
                 continue
             info = entry.stat(follow_symlinks=False)
             if stat.S_ISDIR(info.st_mode):
-                total = o.checked(total + tree_bytes(Path(entry.path), check=check))
+                total = o.checked(
+                    total
+                    + tree_bytes(
+                        Path(entry.path), check=check, exclude_file=exclude_file
+                    )
+                )
             else:
                 o.require(stat.S_ISREG(info.st_mode) and info.st_nlink == 1)
-                total = o.checked(total + info.st_size)
+                if not exclude_file(Path(entry.path)):
+                    total = o.checked(total + info.st_size)
     return total
 
 

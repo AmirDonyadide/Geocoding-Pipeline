@@ -1,12 +1,13 @@
 """Public O-r2 reconciliation. Unclean histories never resume network work."""
 
 from __future__ import annotations
+import hashlib
 
 from collections import deque
 from collections.abc import Callable, Iterable, Iterator
 from pathlib import Path
 from typing import Any
-from itertools import zip_longest
+from itertools import islice, zip_longest
 
 from . import s12_public_journal as journal
 from . import s12_public_operations as o
@@ -191,29 +192,49 @@ def work_ledger(
     verify_receipt: Callable[[dict[str, Any], dict[str, Any]], None],
     *,
     contract: Any = o,
+    batch_size: int = 1,
 ) -> Iterator[dict[str, Any]]:
-    """At most five attempts for one row are resident; never a full work map."""
+    """Bounded attempt joins; legacy/B2 callers retain the one-work default."""
     o = contract
-    for work in work_factory():
-        begins: list[int] = []
-        final: dict[int, dict[str, Any]] = {}
-        for event in event_factory():
-            b = event["body"]
-            if b.get("work_id") != work["work_id"]:
-                continue
-            if event["kind"] == "BEGIN_DURABLE":
-                begins.append(b["attempt"])
-                o.require(
-                    begins == list(range(1, len(begins) + 1)) and len(begins) <= 5
-                )
-            elif event["kind"] == "ATTEMPT_FINALIZED":
-                o.require(
-                    b["attempt"] in begins
-                    and b["attempt"] not in final
-                    and b["outcome"]["kind"] == work["kind"]
-                )
-                verify_receipt(work, b)
-                final[b["attempt"]] = b
+    o.require(type(batch_size) is int and 1 <= batch_size <= 128)
+
+    def evidence():
+        source = iter(work_factory())
+        fingerprint = None
+        while batch := list(islice(source, batch_size)):
+            states = {w["work_id"]: (w, [], {}) for w in batch}
+            o.require(len(states) == len(batch))
+            transcript = hashlib.sha256()
+            for event in event_factory():
+                if batch_size > 1:
+                    transcript.update(c.canonical(event))
+                b = event["body"]
+                if b.get("work_id") not in states:
+                    continue
+                work, begins, final = states[b["work_id"]]
+                if event["kind"] == "BEGIN_DURABLE":
+                    begins.append(b["attempt"])
+                    o.require(
+                        begins == list(range(1, len(begins) + 1)) and len(begins) <= 5
+                    )
+                elif event["kind"] == "ATTEMPT_FINALIZED":
+                    o.require(
+                        b["attempt"] in begins
+                        and b["attempt"] not in final
+                        and b["outcome"]["kind"] == work["kind"]
+                    )
+                    verify_receipt(work, b)
+                    final[b["attempt"]] = b
+            if batch_size > 1:
+                digest = transcript.digest()
+                if fingerprint is None:
+                    fingerprint = digest
+                else:
+                    o.require(digest == fingerprint)
+            for work in batch:
+                yield states[work["work_id"]]
+
+    for work, begins, final in evidence():
         selected = None
         last_outcome = None
         delay = None

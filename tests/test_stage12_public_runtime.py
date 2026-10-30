@@ -26,7 +26,7 @@ from test_stage12_public_operational_audit import capture
 from stage12_synthetic import body
 
 
-@pytest.mark.parametrize("count", [4, 5, 9, 35])
+@pytest.mark.parametrize("count", [4, 5, 9, 35, 131])
 def test_1804272_repeat_join_batches_metadata_but_reopens_each_pair(
     tmp_path, monkeypatch, count
 ):
@@ -93,7 +93,7 @@ def test_1804272_repeat_join_batches_metadata_but_reopens_each_pair(
             )
     assert list(j.read_array(root / "repeat_comparison.json")) == expected
     assert comparisons == len(expected) > 0
-    assert traversals == (comparisons + 31) // 32
+    assert traversals == (comparisons + 127) // 128
     assert (
         payload_reads >= 2 * comparisons
     )  # Fresh raw bytes for both sides of every pair.

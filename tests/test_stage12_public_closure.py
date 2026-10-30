@@ -519,7 +519,7 @@ def test_reused_ledger_content_is_validated_at_every_consumer(
     assert not (root / "_WRITER_RELEASED.json").exists()
 
 
-@pytest.mark.parametrize("count", [2, 5, 6, 35])
+@pytest.mark.parametrize("count", [2, 5, 6, 35, 131])
 def test_reopening_comparison_join_is_bounded_and_revalidates_each_body(
     tmp_path, monkeypatch, count
 ):
@@ -568,6 +568,6 @@ def test_reopening_comparison_join_is_bounded_and_revalidates_each_body(
     monkeypatch.setattr(validation, "shapes", checked)
     monkeypatch.setattr(response, "decompress", decoded)
     assert reopen(root, data) == report["blocks"][0]
-    assert len(passes) == (count - 1 + 31) // 32
+    assert len(passes) == (count - 1 + 127) // 128
     assert len(decompressions) >= 2 * (count - 1)
     assert set(bodies) == set(range(1, count + 1))

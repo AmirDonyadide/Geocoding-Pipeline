@@ -465,7 +465,7 @@ def reopen_completed(root, profile, plan, start, *, validation_sha256=None):
     )
     o.require(o.digest(state["last_event"]) == snapshot["last_event_sha256"])
     for calculated, retained in zip_longest(
-        recovery.work_ledger(works, events, receipt),
+        recovery.work_ledger(works, events, receipt, batch_size=128),
         journal.read_array(root / "work_ledger.json"),
     ):
         o.require(
@@ -490,24 +490,18 @@ def reopen_completed(root, profile, plan, start, *, validation_sha256=None):
         )
         return validation.shapes(raw, work, version=adapter.VERSION)
 
+    from .s12_public_work_index import WorkIndex
+
+    work_index = WorkIndex(
+        works, lambda key: read_object(root / "work" / f"{key:020d}.json"), plan
+    )
+
     def pairs():
-        for work in works():
-            prior = next(
-                (
-                    w
-                    for w in works()
-                    if w["work_id"] < work["work_id"]
-                    and (w["fixture_id"], w["result_limit"])
-                    == (work["fixture_id"], work["result_limit"])
-                ),
-                None,
-            )
-            if prior is not None:
-                yield prior, work
+        yield from work_index.pairs(1)
 
     expected_comparisons = 0
     pair_rows = iter(pairs())
-    while batch := list(islice(pair_rows, 32)):
+    while batch := list(islice(pair_rows, 128)):
         # Same bounded metadata join as capture-side comparisons. Consume the
         # entire validated prefix; every receipt/body still reopens per pair.
         ids = {w["work_id"] for pair in batch for w in pair}
@@ -552,6 +546,7 @@ def reopen_completed(root, profile, plan, start, *, validation_sha256=None):
             all(x["equal"] for x in comparisons),
         ),
         monitoring_closed=lambda: True,
+        work_index=work_index,
     )
     o.require(recomputed == block)
     closed = [e for e in events() if e["kind"] == "BLOCK_CLOSED"]

@@ -154,10 +154,14 @@ def block_report(
     verified_receipt: Callable[[dict[str, Any], dict[str, Any]], dict[str, Any]],
     repeat_evidence: Callable[[], tuple[str, bool]],
     monitoring_closed: Callable[[], bool],
+    work_index=None,
 ) -> dict[str, Any]:
     """Read source evidence, never a mutable aggregate cache or trimmed window."""
     o.validate_plan(plan, profile)
     block = plan["blocks"][block_id - 1]
+    if work_index is not None:
+        o.require(work_index.manifest == plan["work_manifest_sha256"])
+        work_index.verify()
 
     prefix_hash = None
     last_seq = 0
@@ -213,6 +217,8 @@ def block_report(
     periodic_seen = False
 
     def work_for(work_id: int) -> dict[str, Any]:
+        if work_index is not None:
+            return work_index.row(work_id)
         row = next((r for r in works() if r["work_id"] == work_id), None)
         o.require(row is not None)
         return row
@@ -700,6 +706,8 @@ def block_report(
         "resource_sampling_complete": resources_ok and timing_ok,
     }
     o.validate_type(result, "BlockReport")
+    if work_index is not None:
+        work_index.verify()
     return result
 
 
