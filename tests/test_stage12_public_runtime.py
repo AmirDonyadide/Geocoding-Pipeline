@@ -663,3 +663,129 @@ def test_envelope_integrated_real_transport_fake_socket(monkeypatch, status):
         "complete",
     ]
     assert result.payload == (raw if status == 200 else None)
+
+
+def failed_public_pair(tmp_path, monkeypatch, fault=None):
+    """Invented empty features; exact warning text, no retained service replay."""
+    from safe_geocoding_pipeline.preprocessing.stages import s12_public_journal as j
+    from test_stage12_public_scheduler import repair_common
+
+    p, plan, start, rows, runtime = inputs(6, 20)
+    p["states"][0].update(connections=1, admitted_operations=1)
+    fixture = berlin_work()["fixture_id"]
+    for row, size in zip(rows, (1, 1, 3, 3, 5, 5)):
+        row.update(
+            fixture_id=fixture,
+            retry_spacing_key=fixture,
+            result_limit=size,
+            repetition=(row["work_id"] - 1) % 2,
+        )
+    rebind(p, plan, start, rows)
+    clock = FakeClock()
+    calls = []
+    root = tmp_path / "failed_public"
+
+    def send(row, target, hooks):
+        calls.append(row["work_id"])
+        hooks.started(clock.now_ns())
+        hooks.emit(lambda: None, lambda: None)
+        obj = warning_body()
+        obj["geocoding"]["query"]["size"] = row["result_limit"]
+        value = capture(c.canonical(obj))
+        hooks.completed(value)
+        return value
+
+    original_stream = j.Journal.stream_array
+
+    def stream(self, name, source):
+        if name == "repeat_comparison.json":
+            if fault == "invalid_pair":
+                # Change a successful synthetic receipt's raw evidence just
+                # before comparison. Full reopen must reject, never compare [].
+                path = root / "attempts/call_0001_attempt_1/call_0001_attempt_1.zst"
+                path.write_bytes(b"synthetic corruption")
+            if fault == "cleanup":
+
+                def failed_write(*a, **kw):
+                    raise OSError("SECONDARY_CLEANUP")
+
+                monkeypatch.setattr(io, "write", failed_write)
+                raise ValueError("PRIMARY_COMPARISON")
+        return original_stream(self, name, source)
+
+    monkeypatch.setattr(j.Journal, "stream_array", stream)
+    report = cli.run_operations_block(
+        p,
+        plan,
+        start,
+        clock=clock,
+        dispatch=send,
+        output=root,
+        epoch=H,
+        public_validation=v.Validation(),
+        ascending_sizes=True,
+        **repair_common(rows, runtime),
+    )
+    return root, report, calls, start
+
+
+def test_1804093_rejected_pair_is_false_and_failure_closes_truthfully(
+    monkeypatch, tmp_path
+):
+    from safe_geocoding_pipeline.preprocessing.stages import s12_public_journal as j
+    from safe_geocoding_pipeline.preprocessing.stages import (
+        s12_public_recovery as recovery,
+    )
+
+    root, report, calls, start = failed_public_pair(tmp_path, monkeypatch)
+    assert calls == [1, 2, 3]
+    assert report["disposition"] == "STOPPED" and not report["report_complete"]
+    assert report["campaign_counts"]["durable_valid_data"]["value"] == 2
+    assert report["campaign_counts"]["durable_terminal_failure"]["value"] == 1
+    # Scientific processed-work counts accepted observations, not HTTP 200s:
+    # one rejected plus three unbegun observations remain unprocessed.
+    assert report["campaign_counts"]["unprocessed_data"]["value"] == 4
+    assert list(j.read_array(root / "repeat_comparison.json")) == [
+        {"first_work_id": 1, "next_work_id": 2, "equal": True},
+        {"first_work_id": 3, "next_work_id": 4, "equal": False},
+        {"first_work_id": 5, "next_work_id": 6, "equal": False},
+    ]
+    assert (root / "_SEGMENT_SEALED").exists()
+    state = recovery.replay(j.read_events(root, o.digest(start)))
+    assert state["closed"] and state["breaker_reason"] == "TERMINAL_FAILURE"
+    block = io.metadata(io.read(root / "block_report.json"))
+    assert not r.qualifies(block, smoke=True)
+    for n in calls:
+        path = root / "attempts" / audit.name_for(n, 1)
+        row = io.metadata(io.read(path / "work.json"))
+        terminal = audit.reopen(
+            path,
+            path.name,
+            validator=v.Validation().validator(row, path),
+            context=oa.DataContext(v.Validation()),
+        )
+        assert terminal["outcome"] == (
+            "SUCCESS_ZERO_CANDIDATES" if n < 3 else "CONTRACT_FAILURE"
+        )
+        assert (
+            io.metadata(io.read(path / (path.name + "_finish.json")))["status"] == 200
+        )
+
+
+@pytest.mark.parametrize("fault", ["invalid_pair", "cleanup"])
+def test_1804093_comparison_or_cleanup_failure_never_erases_terminal(
+    monkeypatch, tmp_path, fault
+):
+    from safe_geocoding_pipeline.preprocessing.stages import s12_public_journal as j
+
+    root, report, calls, start = failed_public_pair(tmp_path, monkeypatch, fault)
+    assert calls == [1, 2, 3]
+    assert report["disposition"] == "RECOVERY_BLOCKED"
+    assert not report["report_complete"]
+    assert not (root / "_SEGMENT_SEALED").exists()
+    events = list(j.read_events(root, o.digest(start)))
+    stop = next(e for e in events if e["kind"] == "STOP")
+    assert stop["body"]["why"] == "TERMINAL"
+    assert stop["body"]["primary_reason"] == "TERMINAL_FAILURE"
+    assert sum(e["kind"] == "ATTEMPT_FINALIZED" for e in events) == 3
+    assert not any(e["kind"] == "SEGMENT_CLOSE" for e in events)

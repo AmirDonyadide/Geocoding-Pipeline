@@ -6,7 +6,9 @@ import json
 import os
 import re
 import stat
-from collections.abc import Callable, Mapping
+import threading
+from contextlib import contextmanager
+from collections.abc import Callable, Iterator, Mapping
 from pathlib import Path
 from typing import Any
 
@@ -18,6 +20,34 @@ from . import s12_response as response
 from . import s12_retrieval_contract as c
 
 CHECKPOINT_SEAL = "_SEALED"
+_checkpoints = threading.local()
+
+
+@contextmanager
+def cooperative_io(callback: Callable[[], None]) -> Iterator[None]:
+    """Opt-in sole-writer safe points; never interrupt a partially written file.
+
+    The callback may persist a pending resource sample, not another audit or
+    controller mutation. It is disabled recursively and absent in legacy paths.
+    """
+    previous = getattr(_checkpoints, "callback", None)
+    _checkpoints.callback = callback
+    try:
+        yield
+    finally:
+        _checkpoints.callback = previous
+
+
+def _checkpoint() -> None:
+    callback = getattr(_checkpoints, "callback", None)
+    if callback is not None:
+        _checkpoints.callback = None
+        try:
+            callback()
+        finally:
+            _checkpoints.callback = callback
+
+
 BINDING_KEYS = tuple(
     """
 request_execution_id query_semantic_id retrieval_policy_id materialization_contract_sha256
@@ -45,6 +75,7 @@ def reserve(path: Path) -> None:
     accepted.check_parent(path)
     path.mkdir(mode=0o700)
     fsync_directory(path.parent)
+    _checkpoint()
 
 
 def write(path: Path, raw: bytes) -> None:
@@ -58,14 +89,17 @@ def write(path: Path, raw: bytes) -> None:
     finally:
         os.close(fd)
     fsync_directory(path.parent)
+    _checkpoint()
 
 
 def read(path: Path, *, limit: int = 64 * 1024 * 1024) -> bytes:
     private_directory(path.parent)
     try:
-        return accepted.read_private(path, limit=limit)
+        raw = accepted.read_private(path, limit=limit)
     except Exception:
         raise c.Stage12Error("S12_PRIVATE_FILE_INVALID") from None
+    _checkpoint()
+    return raw
 
 
 def pairs(items: list[tuple[str, Any]]) -> dict[str, Any]:

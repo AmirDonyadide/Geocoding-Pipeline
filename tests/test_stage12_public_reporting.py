@@ -576,3 +576,46 @@ def test_T14_unknown_timing_work_is_rejected_and_duplicate_tail_stays_bounded(tm
         assert result["latencies"][name] == dict(
             n=7, p50_ms=None, p95_ms=None, p99_ms=None, max_ms=None
         )
+
+
+@pytest.mark.parametrize(
+    "damage", ["missing_final", "backward_observation", "startup_gap"]
+)
+def test_1804093_sampling_lifecycle_missing_and_out_of_order_stays_incomplete(
+    tmp_path, damage
+):
+    report, root, (profile, plan, start, rows, _) = run_offline(tmp_path, count=1)
+    events = [
+        e
+        for e in j.read_events(root, o.digest(start))
+        if e["seq"] <= report["blocks"][0]["input_last_event_seq"]
+    ]
+    assert events[-1]["body"]["cause"] == "PERIODIC"
+    if damage == "missing_final":
+        events.pop()
+    elif damage == "startup_gap":
+        events[-1]["body"]["observed_mono_ns"] += 100_000_001
+        events[-1]["mono_ns"] = events[-1]["body"]["observed_mono_ns"]
+    else:
+        # Two explicit sample observations in one epoch; no scheduled timestamps.
+        import copy
+
+        previous = copy.deepcopy(events[-1])
+        previous["body"]["observed_mono_ns"] = 10
+        previous["mono_ns"] = 10
+        events.insert(-1, previous)
+        events[-1]["body"]["observed_mono_ns"] = 9
+        events[-1]["mono_ns"] = 10
+    block = r.block_report(
+        plan,
+        profile,
+        1,
+        events=lambda: iter(events),
+        works=lambda: iter(rows),
+        verified_receipt=lambda *_: {"outcome": c.SUCCESS[1]},
+        repeat_evidence=lambda: (H, True),
+        monitoring_closed=lambda: True,
+    )
+    assert not block["resource_sampling_complete"]
+    assert block["status"] == "INCOMPLETE"
+    assert "INSUFFICIENT_MEASUREMENT" in block["reasons"]

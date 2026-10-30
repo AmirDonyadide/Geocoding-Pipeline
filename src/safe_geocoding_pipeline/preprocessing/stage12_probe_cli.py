@@ -16,7 +16,7 @@ import subprocess
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 
 from safe_geocoding_pipeline.execution_policy import require_goethe_nhr_slurm
 
@@ -830,7 +830,7 @@ def run_operations_block(
                     output / "work" / f"{row['work_id']:020d}.json", c.canonical(row)
                 )
 
-        writer.call(store_work)
+        writer.cooperative(store_work)
 
         def works():
             for i in range(1, total_rows + 1):
@@ -1180,6 +1180,20 @@ def run_operations_block(
             # No false seal or invented controller state. Read-only recovery evidence.
             return incomplete()
 
+        comparison_last_seq, comparison_head = writer.call(
+            lambda: (log.seq, log.last_hash)
+        )
+
+        def comparison_events() -> Iterator[dict[str, Any]]:
+            # Attempts are drained. Concurrent periodic records add no outcomes;
+            # validate a pinned prefix, not an ever-growing chain on each pair.
+            for event in events():
+                yield event
+                if event["seq"] == comparison_last_seq:
+                    po.require(po.digest(event) == comparison_head)
+                    return
+            po.require(False, "PUBLIC_PROBE_EVIDENCE_WRITE_FAILED")
+
         def comparisons():
             # Exact original structural tuple equality; one pair resident at a time.
             for row in works():
@@ -1199,18 +1213,19 @@ def run_operations_block(
                 )
                 if predecessor is None:
                     continue
+                finals = {}
+                for event in comparison_events():
+                    b = event["body"]
+                    if (
+                        event["kind"] == "ATTEMPT_FINALIZED"
+                        and b["work_id"] in (predecessor["work_id"], row["work_id"])
+                        and b["outcome"]["value"] in c.SUCCESS
+                    ):
+                        po.require(b["work_id"] not in finals)
+                        finals[b["work_id"]] = b
                 shapes = []
                 for current in (predecessor, row):
-                    final = next(
-                        (
-                            e["body"]
-                            for e in events()
-                            if e["kind"] == "ATTEMPT_FINALIZED"
-                            and e["body"]["work_id"] == current["work_id"]
-                            and e["body"]["outcome"]["value"] in c.SUCCESS
-                        ),
-                        None,
-                    )
+                    final = finals.get(current["work_id"])
                     if final is None:
                         shapes.append(None)
                         continue
@@ -1238,9 +1253,7 @@ def run_operations_block(
                     "equal": shapes[0] is not None and shapes[0] == shapes[1],
                 }
 
-        comparison_hash = writer.call(
-            lambda: log.write_array("repeat_comparison.json", comparisons())
-        )
+        comparison_hash = log.stream_array("repeat_comparison.json", comparisons())
         # Drain/join the independent bounded sample slot before recording the
         # last sample. No sample may race report-prefix capture or writer release.
         po.require(coordinator.stop_sampling(), "PUBLIC_PROBE_EVIDENCE_WRITE_FAILED")
@@ -1312,26 +1325,20 @@ def run_operations_block(
                     row["state"] = "UNUSED_RESERVED_CONTROL"
                 yield row
 
-        ledger_hash = writer.call(lambda: log.write_array("work_ledger.json", ledger()))
-        remaining_hash = writer.call(
-            lambda: log.write_array(
-                "remaining_work_ledger.json",
-                (
-                    r
-                    for r in ledger()
-                    if r["state"] in ("UNBEGUN", "RETRY_DUE", "UNUSED_RESERVED_CONTROL")
-                ),
-            )
+        ledger_hash = log.stream_array("work_ledger.json", ledger())
+        remaining_hash = log.stream_array(
+            "remaining_work_ledger.json",
+            (
+                r
+                for r in ledger()
+                if r["state"] in ("UNBEGUN", "RETRY_DUE", "UNUSED_RESERVED_CONTROL")
+            ),
         )
-        event_hash = writer.call(
-            lambda: log.write_array(
-                "event_inventory.json", pj.evidence_inventory(output, "events")
-            )
+        event_hash = log.stream_array(
+            "event_inventory.json", pj.evidence_inventory(output, "events")
         )
-        attempt_hash = writer.call(
-            lambda: log.write_array(
-                "attempt_inventory.json", pj.evidence_inventory(output, "attempts")
-            )
+        attempt_hash = log.stream_array(
+            "attempt_inventory.json", pj.evidence_inventory(output, "attempts")
         )
         authority.require(
             "writer_release",
@@ -1411,7 +1418,22 @@ def run_operations_block(
             }
         )
         return campaign
-    except Exception:
+    except (Exception, KeyboardInterrupt):
+        # Preserve the primary terminal reason if read-only derivation or later
+        # cleanup also fails. An uncertain writer is never reused for a seal.
+        if not writer.failed.is_set() and not log.segment_closed:
+            try:
+                log.event(
+                    "STOP",
+                    {
+                        "why": "AUDIT_IO",
+                        "primary_reason": coordinator.primary_reason,
+                        "trigger_event_seq": None,
+                    },
+                    closure=True,
+                )
+            except BaseException:
+                pass
         coordinator.audit_failed()
         return incomplete()
     finally:

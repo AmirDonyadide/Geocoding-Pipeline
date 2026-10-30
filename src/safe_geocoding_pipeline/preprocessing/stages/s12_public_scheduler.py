@@ -108,6 +108,7 @@ class Coordinator:
         self.wake = threading.Event()
         self.state = "PREPARED"
         self.stop_reason: str | None = None
+        self.primary_reason: str | None = None
         self.pending: list[Pending] = []
         self.slots: dict[tuple[int, int], Slot] = {}
         self.begin_in_progress = False
@@ -269,13 +270,16 @@ class Coordinator:
 
     def audit_failed(self) -> None:
         with self.safety:
-            self.state, self.stop_reason = "RECOVERY_BLOCKED", "AUDIT_IO"
+            self.state = "RECOVERY_BLOCKED"
+            if self.stop_reason is None:
+                self.stop_reason = "AUDIT_IO"
             self.wake.set()
 
     def terminal(self, why: str, primary: str | None = None) -> None:
         with self.safety:
             if self.stop_reason is None:
                 self.stop_reason = why
+                self.primary_reason = primary
                 self.state = (
                     "QUARANTINED"
                     if why in ("DRIFT", "IDENTITY_STALE", "PRIVACY")
@@ -314,21 +318,22 @@ class Coordinator:
         )
 
     def sample_if_due(self) -> None:
-        if self.sample_stop.is_set() or self.stop_reason:
+        if self.sample_stop.is_set() or self.writer.failed.is_set():
             return
         if not self.sample_slot.acquire(blocking=False):
             return
         try:
             if (
                 self.sample_stop.is_set()
-                or self.stop_reason
+                or self.writer.failed.is_set()
                 or self.clock.now_ns() < self.last_sample_ns + self.sample_lead_ns
             ):
                 return
             # Periodic work cannot spend the reserved closure tail. Other
             # producers still face the writer's exact event/storage checks.
             if self.journal.normal_event_headroom() <= self.journal.closure_events:
-                self.terminal("BUDGET")
+                if not self.stop_reason:
+                    self.terminal("BUDGET")
                 return
             self._resource("PERIODIC", cancel_periodic=True)
         finally:
@@ -339,7 +344,7 @@ class Coordinator:
 
         def sample() -> None:
             try:
-                while not self.sample_stop.is_set() and not self.stop_reason:
+                while not self.sample_stop.is_set() and not self.writer.failed.is_set():
                     self.sample_if_due()
                     self.sample_stop.wait(
                         max(0, self.next_wakeup_ns() - self.clock.now_ns()) / 1e9
@@ -386,7 +391,9 @@ class Coordinator:
         available = (
             self.free_bytes() if cause in ("PERIODIC", "START_RESERVE") else None
         )
-        if cancel_periodic and (self.sample_stop.is_set() or self.stop_reason):
+        if cancel_periodic and (
+            self.sample_stop.is_set() or self.writer.failed.is_set()
+        ):
             return
         # A periodic observation changes no admission state. It owns its own
         # slot; only hard mutation records hold the admission barrier.
@@ -404,7 +411,13 @@ class Coordinator:
             if cause != "PERIODIC":
                 self.safety_barriers += 1
         try:
-            self.journal.event("RESOURCE", body, closure=self.stop_reason is not None)
+            self.journal.event(
+                "RESOURCE",
+                body,
+                # Background collection never spends the reserved closure tail.
+                closure=self.stop_reason is not None and not cancel_periodic,
+                periodic=cause == "PERIODIC",
+            )
         finally:
             with self.safety:
                 if cause != "PERIODIC":
@@ -654,7 +667,7 @@ class Coordinator:
             self.resource("QUEUE_REMOVE")
             self.resource("START_RESERVE")
             try:
-                slot.begin_hash = self.writer.call(lambda: begin(pending))
+                slot.begin_hash = self.writer.cooperative(lambda: begin(pending))
                 self.contract.validate_type(slot.begin_hash, "D")
                 with self.safety:
                     self.charged[kind] += 1
@@ -924,7 +937,7 @@ class Coordinator:
             times["reopened"] = self.clock.now_ns()
             return result
 
-        terminal, receipt = self.writer.call(commit)
+        terminal, receipt = self.writer.cooperative(commit)
         kind = slot.pending.work["kind"]
         outcome, reason = (
             terminal["outcome"],

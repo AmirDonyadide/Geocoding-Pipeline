@@ -1471,3 +1471,98 @@ def test_T14_sampler_is_joined_before_final_prefix_and_writer_release(
         max(e["mono_ns"] for e in events[:end] if e["kind"] == "AUDIT_TIMING")
         <= events[end - 1]["body"]["observed_mono_ns"]
     )
+
+
+def test_1804093_audit_safe_points_drain_only_one_periodic_slot(monkeypatch, tmp_path):
+    import threading
+
+    ctl, clock, start = sampling_controller(tmp_path, lambda: 2**42)
+    io.write(ctl.writer.root / "synthetic", b"synthetic")
+    entered, release, queued, checkpoint, done = [threading.Event() for _ in range(5)]
+    original_submit = ctl.writer.submit
+
+    def submit(action, *, periodic=False):
+        future = original_submit(action, periodic=periodic)
+        if periodic:
+            queued.set()
+        return future
+
+    monkeypatch.setattr(ctl.writer, "submit", submit)
+    ordinary = []
+
+    def audit_transaction():
+        entered.set()
+        for _ in range(3):
+            assert checkpoint.wait(1)
+            checkpoint.clear()
+            # A completed read is a safe point; the caller holds no safety mutex.
+            assert ctl.safety.acquire(blocking=False)
+            ctl.safety.release()
+            io.read(ctl.writer.root / "synthetic")
+            done.set()
+        assert release.wait(1)
+
+    result = []
+    thread = threading.Thread(
+        target=lambda: result.append(ctl.writer.cooperative(audit_transaction))
+    )
+    thread.start()
+    assert entered.wait(1)
+    ordinary_future = ctl.writer.submit(lambda: ordinary.append(threading.get_ident()))
+    try:
+        for n in range(1, 4):
+            clock.advance(50_000_000)
+            queued.clear()
+            sample = threading.Thread(target=ctl.sample_if_due)
+            sample.start()
+            assert queued.wait(1)
+            assert ctl.sample_slot.locked()
+            done.clear()
+            checkpoint.set()
+            assert done.wait(1)
+            sample.join(1)
+            assert not sample.is_alive()
+            assert ctl.last_sample_ns == n * 50_000_000
+            assert ordinary == []  # Never reenter another audit/mutation.
+        release.set()
+        thread.join(1)
+        ordinary_future.result(1)
+        assert result == [None] and ordinary == [ctl.writer.thread.ident]
+        assert ctl.stop_sampling()
+        ctl.resource("PERIODIC")
+        events = list(j.read_events(ctl.writer.root, o.digest(start)))
+        times = [
+            e["body"]["observed_mono_ns"]
+            for e in events
+            if e["kind"] == "RESOURCE" and e["body"]["cause"] == "PERIODIC"
+        ]
+        assert times == [50_000_000, 100_000_000, 150_000_000, 150_000_000]
+        assert not ctl.writer.failed.is_set()
+    finally:
+        release.set()
+        checkpoint.set()
+        thread.join(2)
+        ctl.stop_sampling()
+        ctl.writer.abort()
+
+
+def test_1804093_terminal_drain_still_samples_and_preserves_primary(tmp_path):
+    ctl, clock, start = sampling_controller(tmp_path, lambda: 2**42)
+    try:
+        ctl.terminal("TERMINAL", "TERMINAL_FAILURE")
+        clock.advance(50_000_000)
+        ctl.sample_if_due()
+        assert ctl.last_sample_ns == clock.now_ns()
+        ctl.audit_failed()
+        assert ctl.state == "RECOVERY_BLOCKED"
+        assert ctl.stop_reason == "TERMINAL"
+        assert ctl.primary_reason == "TERMINAL_FAILURE"
+        events = list(j.read_events(ctl.writer.root, o.digest(start)))
+        assert events[-1]["kind"] == "RESOURCE"
+        assert (
+            next(e["body"] for e in events if e["kind"] == "STOP")["primary_reason"]
+            == "TERMINAL_FAILURE"
+        )
+    finally:
+        ctl.stop_sampling()
+        ctl.writer.abort()

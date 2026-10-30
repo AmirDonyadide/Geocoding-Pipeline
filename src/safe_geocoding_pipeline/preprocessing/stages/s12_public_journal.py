@@ -34,7 +34,11 @@ class Writer:
         io.reserve(root)
         io.write(root / "_WRITER_RESERVED", b"")
         self.root, self.guard_ms, self.stop = root, guard_ms, stop
+        # Same total bound: admitted-operation slots, mutation slot, sample slot.
         self.mailbox: queue.Queue[Any] = queue.Queue(maxsize=slots + 2)
+        self.periodic: queue.Queue[Any] = queue.Queue(maxsize=1)
+        self.mailbox_capacity = threading.BoundedSemaphore(slots + 2)
+        self.wake = threading.Event()
         self.failed = threading.Event()
         self.closed = False
         self.storage_guard: Callable[[], None] = lambda: None
@@ -45,41 +49,90 @@ class Writer:
 
     def _work(self) -> None:
         while True:
-            item = self.mailbox.get()
+            self.wake.clear()
+            try:
+                self.service_periodic()
+            except BaseException:
+                # The failed sample Future and stop latch already carry failure.
+                # Drain queued transactions as failures instead of abandoning them.
+                pass
+            try:
+                item = self.mailbox.get_nowait()
+            except queue.Empty:
+                self.wake.wait()
+                continue
             if item is None:
                 return
-            action, future = item
-            try:
-                o.require(
-                    not self.failed.is_set(), "PUBLIC_PROBE_EVIDENCE_WRITE_FAILED"
-                )
-                result = action()
-                self.storage_guard()
-            except BaseException as error:
-                self.failed.set()
-                self.stop()
-                future.set_exception(error)
-            else:
-                future.set_result(result)
+            self.mailbox_capacity.release()
+            self._execute(item)
 
-    def submit(self, action: Callable[[], T]) -> Future[T]:
+    def _execute(self, item: Any) -> None:
+        action, future = item
+        try:
+            o.require(not self.failed.is_set(), "PUBLIC_PROBE_EVIDENCE_WRITE_FAILED")
+            result = action()
+            o.require(not self.failed.is_set(), "PUBLIC_PROBE_EVIDENCE_WRITE_FAILED")
+            self.storage_guard()
+        except BaseException as error:
+            self.failed.set()
+            self.stop()
+            future.set_exception(error)
+        else:
+            future.set_result(result)
+
+    def service_periodic(self) -> None:
+        """Only the writer can drain the one sample slot, at a safe boundary.
+
+        No ordinary transaction is reentrant. An indivisible slow I/O remains
+        observable as a late sample; this never fabricates an acquisition time.
+        """
+        o.require(threading.current_thread() is self.thread)
+        if self.failed.is_set():
+            raise OSError("PUBLIC_PROBE_EVIDENCE_WRITE_FAILED")
+        try:
+            item = self.periodic.get_nowait()
+        except queue.Empty:
+            return
+        self.mailbox_capacity.release()
+        self._execute(item)
+        if self.failed.is_set():
+            # Do not masquerade as a response-validation Stage12Error inside
+            # a validator that intentionally classifies contract rejections.
+            raise OSError("PUBLIC_PROBE_EVIDENCE_WRITE_FAILED")
+
+    def cooperative(self, action: Callable[[], T]) -> T:
+        def run() -> T:
+            with io.cooperative_io(self.service_periodic):
+                return action()
+
+        return self.call(run)
+
+    def submit(self, action: Callable[[], T], *, periodic: bool = False) -> Future[T]:
         o.require(
             not self.closed and not self.failed.is_set(),
             "PUBLIC_PROBE_EVIDENCE_WRITE_FAILED",
         )
         future: Future[T] = Future()
+        acquired = self.mailbox_capacity.acquire(blocking=False)
         try:
-            self.mailbox.put_nowait((action, future))
+            if not acquired:
+                raise queue.Full
+            (self.periodic if periodic else self.mailbox).put_nowait((action, future))
+            self.wake.set()
         except queue.Full:
+            if acquired:
+                self.mailbox_capacity.release()
             self.failed.set()
             self.stop()
             raise c.Stage12Error("PUBLIC_PROBE_EVIDENCE_WRITE_FAILED") from None
         return future
 
-    def call(self, action: Callable[[], T]) -> T:
+    def call(self, action: Callable[[], T], *, periodic: bool = False) -> T:
         o.require(threading.current_thread() is not self.thread)
         try:
-            return self.submit(action).result(timeout=self.guard_ms / 1000)
+            return self.submit(action, periodic=periodic).result(
+                timeout=self.guard_ms / 1000
+            )
         except BaseException:
             self.failed.set()
             self.stop()
@@ -103,6 +156,7 @@ class Writer:
         result = self.call(write)
         self.closed = True
         self.mailbox.put_nowait(None)
+        self.wake.set()
         self.thread.join(timeout=self.guard_ms / 1000)
         o.require(not self.thread.is_alive(), "PUBLIC_PROBE_EVIDENCE_WRITE_FAILED")
         return result
@@ -112,6 +166,7 @@ class Writer:
         self.closed = True
         try:
             self.mailbox.put_nowait(None)
+            self.wake.set()
         except queue.Full:
             return
         self.thread.join(timeout=self.guard_ms / 1000)
@@ -260,6 +315,64 @@ class Journal:
         self.contract.require(self.contract.manifest_digest(read_array(path)) == fingerprint.hexdigest())
         return fingerprint.hexdigest()
 
+    def stream_array(self, name: str, rows: Iterator[dict[str, Any]]) -> str:
+        """Derive one row on the caller, persist it on the sole writer.
+
+        Expensive validation/joins never occupy one guarded writer transaction.
+        There is one <=64 KiB row in flight. Partial files remain on failure;
+        only a fully fsynced, reopened exact array returns an evidence identity.
+        """
+        self.contract.require(threading.current_thread() is not self.writer.thread)
+        self.contract.require(Path(name).name == name and name not in (".", ".."))
+        path = self.writer.root / name
+        state: dict[str, Any] = {"fd": None}
+        fingerprint = hashlib.sha256()
+
+        def put(raw: bytes) -> None:
+            self.writer.assert_owner()
+            self.check_storage(len(raw))
+            if state["fd"] is None:
+                io.private_directory(path.parent)
+                state["fd"] = os.open(
+                    path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600
+                )
+            view = memoryview(raw)
+            while view:
+                written = os.write(state["fd"], view)
+                self.contract.require(written > 0, "PUBLIC_PROBE_EVIDENCE_WRITE_FAILED")
+                view = view[written:]
+            fingerprint.update(raw)
+
+        def close() -> None:
+            if state["fd"] is not None:
+                try:
+                    os.fsync(state["fd"])
+                finally:
+                    os.close(state["fd"])
+                    state["fd"] = None
+                io.fsync_directory(path.parent)
+
+        try:
+            self.writer.call(lambda: put(b"["))
+            for i, row in enumerate(rows):
+                raw = c.canonical(row)[:-1]
+                self.contract.require(len(raw) <= 65536)
+                self.writer.call(lambda: put((b"," if i else b"") + raw))
+            self.writer.call(lambda: put(b"]\n"))
+            self.writer.call(close)
+            self.contract.require(
+                self.contract.manifest_digest(read_array(path))
+                == fingerprint.hexdigest()
+            )
+            return fingerprint.hexdigest()
+        except BaseException:
+            if not self.writer.failed.is_set():
+                try:
+                    self.writer.call(close)
+                except BaseException:
+                    pass  # Keep the original derivation/validation failure.
+            raise
+
     def open_segment(self, segment: int, epoch: str, body: dict[str, Any]) -> str:
         self.contract.validate_type(epoch, "N32")
         self.contract.require(self.segment_closed and segment == self.segment + 1)
@@ -267,7 +380,18 @@ class Journal:
         self.segment_closed, self.last_mono = False, 0
         return self.event("SEGMENT_OPEN", body)
 
-    def event(self, kind: str, body: dict[str, Any], *, closure: bool = False) -> str:
+    def event(
+        self,
+        kind: str,
+        body: dict[str, Any],
+        *,
+        closure: bool = False,
+        periodic: bool = False,
+    ) -> str:
+        self.contract.require(
+            not periodic or (kind == "RESOURCE" and body["cause"] == "PERIODIC")
+        )
+
         # Serializing this call through the writer is the seq allocation boundary.
         def append() -> str:
             self.writer.assert_owner()
@@ -320,7 +444,7 @@ class Journal:
                 self.segment_closed = True
             return self.last_hash
 
-        return self.writer.call(append)
+        return self.writer.call(append, periodic=periodic)
 
 
 def predecessor_root(root: Path) -> Path | None:
