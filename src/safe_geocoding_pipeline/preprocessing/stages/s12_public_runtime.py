@@ -384,6 +384,9 @@ class Authority:
 
 def reopen_completed(root, profile, plan, start, *, validation_sha256=None):
     """Existing event/receipt/ledger/report readers, no trusted aggregate shortcut."""
+    io._checkpoint()
+    root_info = root.stat(follow_symlinks=False)
+    root_identity = (root.resolve(), root_info.st_dev, root_info.st_ino)
     adapter = validation_for(validation_sha256 or o.digest(validation.descriptor()))
 
     def works():
@@ -412,7 +415,16 @@ def reopen_completed(root, profile, plan, start, *, validation_sha256=None):
             context=oa.DataContext(adapter),
         )
 
-    snapshot = o.parse(io.read(root / "snapshot.json"), o.SNAPSHOT)
+    o.require(io.read(root / "campaign_start.json") == c.canonical(start))
+    o.require(
+        start["profile_sha256"] == o.digest(profile)
+        and start["plan_sha256"] == o.digest(plan)
+    )
+    o.verify_work_manifest(works, plan)
+    snapshot_raw = io.read(root / "snapshot.json")
+    snapshot = o.parse(snapshot_raw, o.SNAPSHOT)
+    campaign_raw = io.read(root / "campaign_report.json")
+    campaign = o.parse(campaign_raw, o.REPORT)
     o.require(
         snapshot["disposition"] == "COMPLETED"
         and io.read(root / "_SEGMENT_SEALED", limit=0) == b""
@@ -524,12 +536,56 @@ def reopen_completed(root, profile, plan, start, *, validation_sha256=None):
     )
     if projection is not None:
         projection.verify_original()
-        # The projection never substitutes for mutable original evidence.
-        for area in ("events", "attempts"):
-            o.require(
-                o.manifest_digest(journal.evidence_inventory(root, area))
-                == snapshot[area[:-1] + "_inventory_sha256"]
-            )
+    recovery.snapshot_evidence(
+        root,
+        snapshot,
+        state,
+        closed[0]["body"]["report_sha256"],
+        check=io._checkpoint,
+    )
+    o.require(
+        next(
+            journal.read_array(
+                root / "remaining_work_ledger.json", check=io._checkpoint
+            ),
+            None,
+        )
+        is None
+    )
+    expected_campaign = reporting.campaign_report(
+        start,
+        event_inventory_sha256=snapshot["event_inventory_sha256"],
+        attempt_inventory_sha256=snapshot["attempt_inventory_sha256"],
+        snapshots=[o.digest(snapshot)],
+        blocks=[block],
+        disposition="COMPLETED",
+        scientific_identity_verified=False,
+        reconciliation_reasons=[],
+        plan=plan,
+    )
+    o.require(campaign == expected_campaign and campaign["report_complete"])
+    o.require(
+        journal.tree_bytes(
+            root,
+            frozenset(
+                {
+                    "snapshot.json",
+                    "_SEGMENT_SEALED",
+                    "campaign_report.json",
+                    "_WRITER_RELEASED.json",
+                }
+            ),
+            check=io._checkpoint,
+        )
+        == snapshot["controller"]["stored_bytes"]
+    )
+    o.verify_work_manifest(works, plan)
+    o.require(io.read(root / "snapshot.json") == snapshot_raw)
+    o.require(io.read(root / "campaign_report.json") == campaign_raw)
+    o.require(io.read(root / "campaign_start.json") == c.canonical(start))
+    after = root.stat(follow_symlinks=False)
+    o.require((root.resolve(), after.st_dev, after.st_ino) == root_identity)
+    io._checkpoint()
     return block
 
 

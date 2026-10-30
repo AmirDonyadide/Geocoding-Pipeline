@@ -41,6 +41,8 @@ class Writer:
         self.wake = threading.Event()
         self.failed = threading.Event()
         self.closed = False
+        self.submission_lock = threading.Lock()
+        self.closure_fence = None
         self.failures = None
         self.charge_write: Callable[[Path, int], None] = lambda path, size: None
         self.storage_guard: Callable[[], None] = lambda: None
@@ -76,7 +78,7 @@ class Writer:
             o.require(not self.failed.is_set(), "PUBLIC_PROBE_EVIDENCE_WRITE_FAILED")
             self.check_deadline()
             with (
-                io.cooperative_io(self.check_deadline),
+                io.cooperative_io(self.publication_checkpoint),
                 io.charged_writes(self.charge_write),
             ):
                 result = action()
@@ -124,6 +126,15 @@ class Writer:
         return self.call(run)
 
     def submit(self, action: Callable[[], T], *, periodic: bool = False) -> Future[T]:
+        with self.submission_lock:
+            if self.closure_fence is not None:
+                o.require(
+                    threading.get_ident() == self.closure_fence.owner and not periodic,
+                    "PUBLIC_PROBE_EVIDENCE_WRITE_FAILED",
+                )
+            return self._submit(action, periodic=periodic)
+
+    def _submit(self, action: Callable[[], T], *, periodic: bool = False) -> Future[T]:
         o.require(
             not self.closed and not self.failed.is_set(),
             "PUBLIC_PROBE_EVIDENCE_WRITE_FAILED",
@@ -142,6 +153,27 @@ class Writer:
             self.stop()
             raise c.Stage12Error("PUBLIC_PROBE_EVIDENCE_WRITE_FAILED") from None
         return future
+
+    def publication_checkpoint(self) -> None:
+        self.check_deadline()
+        # Opt-in only: shared B2/legacy transactions retain their existing
+        # cooperative semantics. A late closure action must stop before the
+        # next I/O boundary after its caller has poisoned the writer.
+        if self.closure_fence is not None:
+            o.require(not self.failed.is_set(), "PUBLIC_PROBE_EVIDENCE_WRITE_FAILED")
+
+    def freeze_closure(self):
+        """Exclude producers, then drain their already submitted actions.
+
+        Called only after operation drain and sampler join/final observation.
+        The lock protects queue admission, never disk I/O or waiting.
+        """
+        fence = ClosureFence(self)
+        with self.submission_lock:
+            o.require(self.closure_fence is None)
+            self.closure_fence = fence
+        self.call(self.closure_fence.check)
+        return self.closure_fence
 
     def call(self, action: Callable[[], T], *, periodic: bool = False) -> T:
         o.require(threading.current_thread() is not self.thread)
@@ -191,6 +223,36 @@ class Writer:
         except queue.Full:
             return
         self.thread.join(timeout=min(self.guard_ms / 1000, self.remaining_seconds()))
+
+
+class ClosureFence:
+    """Ephemeral ownership/root binding, never evidence-validation authority."""
+
+    def __init__(self, writer):
+        self.writer = writer
+        self.owner = threading.get_ident()
+        self.path = writer.root.resolve()
+        info = writer.root.stat(follow_symlinks=False)
+        self.identity = (info.st_dev, info.st_ino)
+
+    def check(self):
+        writer = self.writer
+        writer.check_deadline()
+        o.require(
+            writer.closure_fence is self
+            and not writer.closed
+            and not writer.failed.is_set()
+            and threading.get_ident() in (self.owner, writer.thread.ident),
+            "PUBLIC_PROBE_EVIDENCE_WRITE_FAILED",
+        )
+        io.private_directory(writer.root)
+        info = writer.root.stat(follow_symlinks=False)
+        o.require(
+            stat.S_ISDIR(info.st_mode)
+            and writer.root.resolve() == self.path
+            and (info.st_dev, info.st_ino) == self.identity,
+            "PUBLIC_PROBE_EVIDENCE_WRITE_FAILED",
+        )
 
 
 class Journal:
@@ -306,6 +368,36 @@ class Journal:
                 "S12_PUBLIC_STORAGE_ACCOUNTING_MISMATCH",
             )
         return actual
+
+    def reconcile_storage(self) -> int:
+        """Same physical scan, outside a guarded action ONLY when quiescent.
+
+        A live writer without an exclusive closure fence uses the old path.
+        No size/mtime observation substitutes for content validation.
+        """
+        fence = self.writer.closure_fence
+        if fence is None:
+            return self.writer.call(self.verify_storage)
+        fence.check()
+        before = self.writer.call(lambda: (self.root_identity, self.accounted_bytes))
+        actual = tree_bytes(self.writer.root, check=self.writer.check_deadline)
+
+        def bind():
+            fence.check()
+            self.contract.require(
+                before == (self.root_identity, self.accounted_bytes)
+                and (
+                    self.accounted_bytes is None
+                    or (
+                        self.root_identity == fence.identity
+                        and actual == self.accounted_bytes
+                    )
+                ),
+                "S12_PUBLIC_STORAGE_ACCOUNTING_MISMATCH",
+            )
+            return actual
+
+        return self.writer.call(bind)
 
     @property
     def stored_bytes(self) -> int:
@@ -678,7 +770,7 @@ class MeasurementPrefix:
             if size > self.LIMIT:
                 return False  # Original validated factory remains the fallback.
         journal = self.journal
-        current = journal.writer.call(journal.verify_storage)
+        current = journal.reconcile_storage()
         if (
             journal.prior_bytes + current + size + closure_reserve
             > journal.storage_budget

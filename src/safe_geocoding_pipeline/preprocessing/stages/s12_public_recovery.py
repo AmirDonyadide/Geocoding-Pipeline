@@ -298,28 +298,195 @@ def unclean_reconciliation(
     }
 
 
-def write_snapshot(
-    writer: journal.Writer, snapshot: dict[str, Any], *, verify: Callable[[], None]
-) -> str:
+def snapshot_evidence(
+    root: Path,
+    snapshot: dict[str, Any],
+    state: dict[str, Any],
+    block_hash: str,
+    *,
+    check: Callable[[], None],
+) -> tuple[str, str | None]:
+    """Fresh exact original-content checks, shared by publication and reopening.
+
+    Fixed-size bindings only. Inventory/ledger rows stream; no campaign cache.
+    The supplied state/report head must come from a freshly validated chain.
+    """
+    check()
     o.validate(snapshot, o.SNAPSHOT)
-    state = snapshot["controller"]
-    o.require(not state["resume_eligible"] or snapshot["disposition"] == "PAUSED_CLEAN")
     o.require(
-        snapshot["disposition"] not in ("STOPPED", "QUARANTINED", "RECOVERY_BLOCKED")
-        or not state["resume_eligible"]
+        c.sha(io.read(root / "campaign_start.json")).hex()
+        == snapshot["campaign_start_sha256"]
+    )
+    last = state["last_event"]
+    o.require(
+        state["closed"]
+        and last["kind"] == "SEGMENT_CLOSE"
+        and last["body"]["disposition"] == snapshot["disposition"]
+        and last["segment_id"] == snapshot["segment_id"]
+        and last["seq"] == snapshot["last_event_seq"]
+        and o.digest(last) == snapshot["last_event_sha256"]
+        and last["body"]["closure_evidence_sha256"]
+        == snapshot["closure_evidence_sha256"]
+    )
+    ctl = snapshot["controller"]
+    for name in (
+        "state_id",
+        "block_id",
+        "last_ticket",
+        "consecutive_retryable",
+        "recent",
+        "overload_carry",
+        "breaker_reason",
+        "cooldown_delay_ms",
+        "active_duration_ms",
+    ):
+        o.require(ctl[name] == state[name])
+    o.require(
+        ctl["event_count"] == last["seq"]
+        and ctl["charged_data_attempts"] + ctl["charged_control_attempts"]
+        == state["begins_charged"]
+        and (not ctl["resume_eligible"] or snapshot["disposition"] == "PAUSED_CLEAN")
+    )
+    if snapshot["disposition"] in ("COMPLETED", "PAUSED_CLEAN"):
+        o.require(not state["unfinished"] and state["breaker_reason"] is None)
+    for name, expected in (
+        ("event_inventory.json", snapshot["event_inventory_sha256"]),
+        ("attempt_inventory.json", snapshot["attempt_inventory_sha256"]),
+        ("work_ledger.json", snapshot["work_ledger_sha256"]),
+        ("remaining_work_ledger.json", ctl["remaining_work_ledger_sha256"]),
+    ):
+        o.require(
+            o.manifest_digest(journal.read_array(root / name, check=check)) == expected
+        )
+    for area in ("events", "attempts"):
+        o.require(
+            o.manifest_digest(journal.evidence_inventory(root, area))
+            == snapshot[area[:-1] + "_inventory_sha256"]
+        )
+    report = io.metadata(io.read(root / "block_report.json"))
+    o.validate_type(report, "BlockReport")
+    o.require(o.digest(report) == block_hash and report["block_id"] == ctl["block_id"])
+    comparison = c.sha(io.read(root / "repeat_comparison.json")).hex()
+    o.require(snapshot["closure_evidence_sha256"] in (None, comparison))
+    projection = root / "measurement_event_prefix.json"
+    projection_hash = c.sha(io.read(projection)).hex() if projection.exists() else None
+    check()
+    return comparison, projection_hash
+
+
+def write_snapshot(
+    writer: journal.Writer,
+    snapshot: dict[str, Any],
+    *,
+    verify: Callable[[], tuple[dict[str, Any], str]],
+    log: journal.Journal,
+    state_binding: Callable[[], tuple],
+) -> str:
+    """Prepare/validate/persist/revalidate/commit under one cumulative budget.
+
+    Expensive original reads run on the coordinator; each persistence action
+    still has the unchanged writer guard. No prepared token grants authority.
+    A timeout may leave an unsealed partial file, never a follow-on seal/release.
+    """
+    fence = writer.closure_fence
+    o.require(fence is not None and log.writer is writer)
+    fence.check()
+    o.validate(snapshot, o.SNAPSHOT)
+    raw = c.canonical(snapshot)
+    frozen = (
+        log.start_hash,
+        log.segment,
+        log.epoch,
+        log.seq,
+        log.last_hash,
+        log.segment_closed,
+        state_binding(),
+    )
+    o.require(
+        frozen[5]
+        and frozen[:2] == (snapshot["campaign_start_sha256"], snapshot["segment_id"])
+        and frozen[3:5] == (snapshot["last_event_seq"], snapshot["last_event_sha256"])
     )
 
-    def transaction() -> str:
-        verify()
-        raw = c.canonical(snapshot)
-        io.write(writer.root / "snapshot.json", raw)
-        o.require(io.read(writer.root / "snapshot.json") == raw)
-        verify()
-        io.write(writer.root / "_SEGMENT_SEALED", b"")
-        o.require(io.read(writer.root / "_SEGMENT_SEALED", limit=0) == b"")
-        return c.sha(raw).hex()
+    def bound():
+        fence.check()
+        o.require(c.canonical(snapshot) == raw)
+        o.require(
+            frozen
+            == (
+                log.start_hash,
+                log.segment,
+                log.epoch,
+                log.seq,
+                log.last_hash,
+                log.segment_closed,
+                state_binding(),
+            )
+        )
 
-    return writer.call(transaction)
+    def validate(extra_bytes):
+        bound()
+        state, report_hash = verify()
+        o.require(state["last_event"]["epoch_id"] == frozen[2])
+        identities = snapshot_evidence(
+            writer.root,
+            snapshot,
+            state,
+            report_hash,
+            check=writer.check_deadline,
+        )
+        o.require(
+            log.prior_bytes + log.reconcile_storage()
+            == snapshot["controller"]["stored_bytes"] + extra_bytes
+        )
+        bound()
+        return identities, c.canonical(state["last_event"])
+
+    try:
+        for name in (
+            "snapshot.json",
+            "_SEGMENT_SEALED",
+            "campaign_report.json",
+            "_WRITER_RELEASED.json",
+        ):
+            o.require(not (writer.root / name).exists())
+        with io.cooperative_io(writer.check_deadline):
+            prepared = validate(0)
+
+            def persist():
+                bound()
+                writer.assert_owner()
+                io.write(writer.root / "snapshot.json", raw)
+                o.require(io.read(writer.root / "snapshot.json") == raw)
+                bound()
+
+            writer.call(persist)
+            o.require(validate(len(raw)) == prepared)
+
+            def commit():
+                bound()
+                writer.assert_owner()
+                o.require(io.read(writer.root / "snapshot.json") == raw)
+                o.require(
+                    io.read(
+                        writer.root
+                        / "events"
+                        / f"{snapshot['last_event_seq']:020d}.json"
+                    )
+                    == prepared[1]
+                )
+                bound()
+                io.write(writer.root / "_SEGMENT_SEALED", b"")
+                o.require(io.read(writer.root / "_SEGMENT_SEALED", limit=0) == b"")
+                bound()
+
+            writer.call(commit)
+            return c.sha(raw).hex()
+    except BaseException:
+        # No recovery/cleanup path may finish an uncertain publication.
+        writer.failed.set()
+        writer.stop()
+        raise
 
 
 def clean_continuation(

@@ -1374,6 +1374,30 @@ def run_operations_block(
                 coordinator.stop_sampling(), "PUBLIC_PROBE_EVIDENCE_WRITE_FAILED"
             )
             coordinator.resource("PERIODIC")
+
+            # The final actual observation retains its existing ordering/window.
+            # Freeze producer admission only after operations and sampler drain.
+            def closure_state():
+                with coordinator.safety:
+                    po.require(
+                        not coordinator.slots
+                        and not coordinator.safety_barriers
+                        and coordinator.sample_stop.is_set()
+                        and (
+                            coordinator.sample_thread is None
+                            or not coordinator.sample_thread.is_alive()
+                        )
+                    )
+                    return (
+                        coordinator.state,
+                        coordinator.state_id,
+                        coordinator.last_ticket,
+                        coordinator.stop_reason,
+                        coordinator.pause_pending,
+                    )
+
+            closure_state()
+            writer.freeze_closure()
             closed_monitor = not coordinator.monitored or any(
                 e["kind"] == "MONITOR_RESULT" and e["body"]["interval_closed"]
                 for e in events()
@@ -1474,7 +1498,7 @@ def run_operations_block(
                 {"start": start, "disposition": disposition},
             )
             operation = "CLOSURE"
-            writer.call(log.verify_storage)
+            stored_bytes = log.prior_bytes + log.reconcile_storage()
             snapshot = {
                 "schema_version": po.SNAPSHOT,
                 "campaign_start_sha256": po.digest(start),
@@ -1491,7 +1515,7 @@ def run_operations_block(
                     "charged_control_attempts": coordinator.charged["SERVICE_CONTROL"],
                     "administrative_operations": 0,
                     "active_duration_ms": state["active_duration_ms"],
-                    "stored_bytes": log.stored_bytes,
+                    "stored_bytes": stored_bytes,
                     "event_count": log.seq,
                     "last_ticket": state["last_ticket"],
                     "consecutive_retryable": state["consecutive_retryable"],
@@ -1512,14 +1536,42 @@ def run_operations_block(
                 "sealed_utc": clock.utc(),
                 "disposition": disposition,
             }
-            if measurement_prefix is not None:
-                measurement_prefix.verify_original()
+
+            def original_closure_evidence():
+                # Fresh original event and receipt validation in each stage;
+                # no projection/cache is authority for snapshot publication.
+                po.verify_work_manifest(works, plan)
+                report_head = None
+
+                def original_events():
+                    nonlocal report_head
+                    for event in pj.read_events(output, po.digest(start)):
+                        body = event["body"]
+                        if (
+                            event["kind"] == "BLOCK_CLOSED"
+                            and body["block_id"] == block_id
+                        ):
+                            report_head = body["report_sha256"]
+                        if event["kind"] == "ATTEMPT_FINALIZED":
+                            row = io.metadata(
+                                io.read(
+                                    output / "work" / f"{body['work_id']:020d}.json"
+                                )
+                            )
+                            po.require(row["work_id"] == body["work_id"])
+                            verify_receipt(row, body)
+                        yield event
+
+                original = recovery.replay(original_events())
+                po.require(report_head is not None)
+                return original, report_head
+
             snap_hash = recovery.write_snapshot(
                 writer,
                 snapshot,
-                verify=lambda: recovery.replay(
-                    pj.read_events(output, po.digest(start))
-                ),
+                verify=original_closure_evidence,
+                log=log,
+                state_binding=closure_state,
             )
             reports = {block_id: report}
             snapshots = [snap_hash]
