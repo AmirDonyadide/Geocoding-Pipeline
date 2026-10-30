@@ -26,7 +26,7 @@ from test_stage12_public_operational_audit import capture
 from stage12_synthetic import body
 
 
-@pytest.mark.parametrize("count", [4, 5, 9])
+@pytest.mark.parametrize("count", [4, 5, 9, 35])
 def test_1804272_repeat_join_batches_metadata_but_reopens_each_pair(
     tmp_path, monkeypatch, count
 ):
@@ -93,7 +93,7 @@ def test_1804272_repeat_join_batches_metadata_but_reopens_each_pair(
             )
     assert list(j.read_array(root / "repeat_comparison.json")) == expected
     assert comparisons == len(expected) > 0
-    assert traversals == (comparisons + 3) // 4
+    assert traversals == (comparisons + 31) // 32
     assert (
         payload_reads >= 2 * comparisons
     )  # Fresh raw bytes for both sides of every pair.
@@ -870,3 +870,42 @@ def test_1804093_comparison_or_cleanup_failure_never_erases_terminal(
     assert stop["body"]["primary_reason"] == "TERMINAL_FAILURE"
     assert sum(e["kind"] == "ATTEMPT_FINALIZED" for e in events) == 3
     assert not any(e["kind"] == "SEGMENT_CLOSE" for e in events)
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        None,
+        "rate2",
+        "ascending",
+        "exploratory",
+        "rate20",
+        "legacy_labels",
+        "missing_criteria",
+    ],
+)
+def test_scale120_lower_wrapper_is_explicit_same_rate_and_preserves_legacy(mutation):
+    cfg = config_test_only()
+    r.validate_config(cfg)
+    cfg["version"] = r.LOWER_VERSION
+    cfg["campaigns"] = cfg["campaigns"][:2]
+    item = cfg["campaigns"][1]
+    item["label"] = "confirmatory1"
+    item["profile"]["states"][0]["rate"] = {"num": 1, "den": 1}
+    item["plan"]["operations_profile_sha256"] = o.digest(item["profile"])
+    r.validate_config(cfg)
+    if mutation == "rate2":
+        item["profile"]["states"][0]["rate"]["num"] = 2
+    elif mutation == "ascending":
+        item["ascending_sizes"] = True
+    elif mutation == "exploratory":
+        item["plan"]["blocks"][0]["evaluation"] = "EXPLORATORY"
+    elif mutation == "rate20":
+        item["label"] = "rate20"
+    elif mutation == "legacy_labels":
+        cfg["version"] = r.VERSION
+    elif mutation == "missing_criteria":
+        item["plan"]["blocks"][0]["criteria"] = None
+    if mutation:
+        with pytest.raises(c.Stage12Error):
+            r.validate_config(cfg)

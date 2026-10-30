@@ -1566,3 +1566,77 @@ def test_1804093_terminal_drain_still_samples_and_preserves_primary(tmp_path):
     finally:
         ctl.stop_sampling()
         ctl.writer.abort()
+
+
+@pytest.mark.parametrize("ack_ns", [80_000_000, 120_000_000])
+def test_scale120_sampler_does_not_idle_again_after_overdue_ack(
+    tmp_path, monkeypatch, ack_ns
+):
+    ctl, clock, start = sampling_controller(tmp_path, lambda: 2**42)
+    event = ctl.journal.event
+    delayed = False
+
+    def persist(kind, body, **kw):
+        nonlocal delayed
+        value = event(kind, body, **kw)
+        if kind == "RESOURCE" and body["cause"] == "PERIODIC" and not delayed:
+            delayed = True
+            clock.advance(ack_ns)
+        return value
+
+    monkeypatch.setattr(ctl.journal, "event", persist)
+    try:
+        clock.advance(50_000_000)
+        assert ctl.sample_if_due()
+        # The coordinator's busy-slot poll remains bounded, but the dedicated
+        # collector has just released its slot and must not add this idle delay.
+        assert ctl.next_wakeup_ns() > clock.now_ns()
+        assert ctl.sampler_wakeup_ns(True) == clock.now_ns()
+        assert ctl.sample_if_due()
+        samples = [
+            e["body"]["observed_mono_ns"]
+            for e in j.read_events(ctl.writer.root, o.digest(start))
+            if e["kind"] == "RESOURCE" and e["body"]["cause"] == "PERIODIC"
+        ]
+        assert samples == [50_000_000, 50_000_000 + ack_ns]
+        assert (samples[1] - samples[0] <= 100_000_000) == (ack_ns <= 100_000_000)
+        metrics = ctl.sampling_snapshot()
+        assert metrics["persistence_ack"][2] == ack_ns
+        assert metrics["overdue_after_ack"][0] == 1
+        assert ctl.sampler_wakeup_ns(True) == clock.now_ns() + 50_000_000
+        with ctl.sample_slot:
+            assert not ctl.sample_if_due()
+        assert ctl.sampling_snapshot()["slot_busy"][0] == 1
+        assert ctl.sampler_wakeup_ns(False) > clock.now_ns()
+    finally:
+        ctl.stop_sampling()
+        ctl.writer.abort()
+
+
+def test_scale120_sampling_diagnostics_separate_actual_observation_and_ack(tmp_path):
+    clock = None
+
+    def free():
+        clock.advance(13_000_000)
+        return 2**42
+
+    ctl, clock, start = sampling_controller(tmp_path, free)
+    try:
+        clock.advance(50_000_000)
+        assert ctl.sample_if_due()
+        assert ctl.last_sample_ns == 63_000_000  # Actual acquisition, not due time.
+        metrics = ctl.sampling_snapshot()
+        assert metrics["resource_observation"] == [1, 13_000_000, 13_000_000]
+        assert metrics["persistence_ack"][2] == 0
+        assert metrics["safety_wait"][2] == 0
+        assert set(metrics) == {
+            "wake_lateness",
+            "slot_busy",
+            "resource_observation",
+            "safety_wait",
+            "persistence_ack",
+            "overdue_after_ack",
+        }
+    finally:
+        ctl.stop_sampling()
+        ctl.writer.abort()

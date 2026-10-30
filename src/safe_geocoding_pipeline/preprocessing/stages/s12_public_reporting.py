@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+from array import array
 from itertools import islice
 
 from collections.abc import Callable, Iterable, Iterator
@@ -13,7 +14,12 @@ from . import s12_public_operations as o
 from . import s12_retrieval_contract as c
 
 
-_TIMING_JOIN_WORKS = 8  # Fixed engineering bound, unrelated to live rates or C/T/N.
+_TIMING_JOIN_WORKS = 64  # Fixed engineering bound, unrelated to live rates or C/T/N.
+
+_EXACT_VALUE_BOUND = (
+    1024  # Fixed uint64 values per metric; overflow uses streaming search.
+)
+_COUNT_JOIN_WORKS = 64  # <=64 * (five begin/final ordinals + timing counts).
 
 
 def count(value: int | None, lower: int = 0) -> dict[str, int | None]:
@@ -39,12 +45,17 @@ def exact_stats(
 ) -> dict[str, dict[str, Any]]:
     """Search all exact nearest ranks together, with constant-size state.
 
-    Each round reopens the validated source. A transcript digest also rejects a
-    source that changes between rounds; no event/value cache survives a scan.
-    At most three search intervals per metric and uint64-bit rounds are needed.
+    Every traversal reopens the validated source. For small numeric populations,
+    retain <=1024 uint64 values per metric ONLY during this call, revalidate the
+    full ordered transcript on a second pass, then select exact ranks. Overflow
+    discards the buffers and uses the original bounded interval search. No event,
+    response, reusable index or campaign-sized cache is retained.
     """
+    o.require(0 < len(names) <= 4 and len(set(names)) == len(names))
+    numeric = {name: array("Q") for name in names}
 
-    def scan(middles):
+    def scan(middles, *, collect=False):
+        nonlocal numeric
         counts = dict.fromkeys(names, 0)
         maxima = dict.fromkeys(names, 0)
         below = {name: dict.fromkeys(middles.get(name, ()), 0) for name in names}
@@ -52,6 +63,13 @@ def exact_stats(
         for name, value in values():
             o.require(name in counts)
             o.uint(value)
+            if collect and numeric is not None:
+                if len(numeric[name]) < _EXACT_VALUE_BOUND:
+                    numeric[name].append(value)
+                else:
+                    numeric = (
+                        None  # Fixed bound exceeded: no partial quantile shortcut.
+                    )
             fingerprint.update(bytes([names.index(name)]))
             fingerprint.update(value.to_bytes(8, "big"))
             counts[name] = o.checked(counts[name] + 1)
@@ -60,7 +78,25 @@ def exact_stats(
                 below[name][middle] += value <= middle
         return counts, maxima, fingerprint.digest(), below
 
-    counts, maxima, fingerprint, _ = scan({})
+    counts, maxima, fingerprint, _ = scan({}, collect=True)
+    if numeric is not None and any(value > 1 for value in maxima.values()):
+        n, maximum, digest, _ = scan({})
+        o.require((n, maximum, digest) == (counts, maxima, fingerprint))
+        result = {}
+        for name in names:
+            ordered = sorted(numeric.pop(name))
+            result[name] = {
+                "n": counts[name],
+                **{
+                    f"p{q}_ms": ordered[(q * counts[name] + 99) // 100 - 1]
+                    if counts[name]
+                    else None
+                    for q in (50, 95, 99)
+                },
+                "max_ms": maxima[name] if counts[name] else None,
+            }
+        return result
+    numeric = None
     bounds = {name: {q: [0, maxima[name]] for q in (50, 95, 99)} for name in names}
     while True:
         middles = {
@@ -278,12 +314,33 @@ def block_report(
             counts["breakers"] += b["why"] == "BREAKER"
             reasons.add("STOPPED")
     timing_unique = True
-    # Per-work checks retain at most five attempt ordinals, including unused controls.
-    for row in works():
-        if row["block_id"] != block_id:
-            continue
-        begun, finished = [], []
-        timing_ordinals = {}
+
+    def work_evidence():
+        # Fixed metadata bound. Consume and validate the ENTIRE same prefix for
+        # every batch; keep no reusable index or campaign-sized event cache.
+        selected = (row for row in works() if row["block_id"] == block_id)
+        while batch := list(islice(selected, _COUNT_JOIN_WORKS)):
+            states = {row["work_id"]: ([], [], {}, []) for row in batch}
+            o.require(len(states) == len(batch))
+            for event in source():
+                b = event["body"]
+                if b.get("work_id") not in states:
+                    continue
+                begun, finished, timings, finals = states[b["work_id"]]
+                if event["kind"] == "AUDIT_TIMING":
+                    o.require(1 <= b["attempt"] <= 5)
+                    timings[b["attempt"]] = timings.get(b["attempt"], 0) + 1
+                elif event["kind"] == "BEGIN_DURABLE":
+                    o.require(len(begun) < 5)
+                    begun.append(b["attempt"])
+                elif event["kind"] == "ATTEMPT_FINALIZED":
+                    o.require(len(finished) < 5)
+                    finished.append(b["attempt"])
+                    finals.append(b)
+            for row in batch:
+                yield row, *states[row["work_id"]]
+
+    for row, begun, finished, timing_ordinals, final_events in work_evidence():
         outcomes = []
         if row["kind"] == "DATA":
             cell = (
@@ -291,55 +348,40 @@ def block_report(
                 row["result_limit"],
             )
             cells.setdefault(cell, [0, 0])[0] += 1
-        for event in source():
-            b = event["body"]
-            if b.get("work_id") != row["work_id"]:
-                continue
-            if event["kind"] == "AUDIT_TIMING":
-                o.require(1 <= b["attempt"] <= 5)
-                timing_ordinals[b["attempt"]] = timing_ordinals.get(b["attempt"], 0) + 1
-            elif event["kind"] == "BEGIN_DURABLE":
-                o.require(len(begun) < 5)
-                begun.append(b["attempt"])
-            elif event["kind"] == "ATTEMPT_FINALIZED":
-                o.require(len(finished) < 5)
-                finished.append(b["attempt"])
-                try:
-                    terminal = verified_receipt(row, b)
-                    o.require(
-                        b["outcome"]
-                        == {"kind": row["kind"], "value": terminal["outcome"]}
-                    )
-                except (c.Stage12Error, OSError):
-                    receipts_ok = False
-                    outcomes.append(None)
-                    unknown_counts.update(
-                        (
-                            "http_completions",
-                            "http_200",
-                            "durable_retryable",
-                            "durable_terminal_failure",
-                            "unknown_delivery",
-                        )
-                    )
-                    if row["kind"] == "DATA":
-                        unknown_counts.update(
-                            ("durable_valid_data", "durable_valid_zero")
-                        )
-                        unknown_cells.add(cell)
-                    continue
-                outcome = terminal["outcome"]
-                outcomes.append(outcome)
-                counts["http_completions"] += b["status"] is not None
-                counts["http_200"] += b["status"] == 200
-                counts["durable_retryable"] += outcome == "TECHNICAL_FAILURE_RETRYABLE"
-                counts["durable_terminal_failure"] += (
-                    outcome in o.FAILURES and outcome != "TECHNICAL_FAILURE_RETRYABLE"
+        for b in final_events:
+            try:
+                terminal = verified_receipt(row, b)
+                o.require(
+                    b["outcome"] == {"kind": row["kind"], "value": terminal["outcome"]}
                 )
-                if row["kind"] == "DATA" and outcome in c.SUCCESS:
-                    counts["durable_valid_data"] += 1
-                    counts["durable_valid_zero"] += outcome == c.SUCCESS[1]
-                    cells[cell][1] += 1
+            except (c.Stage12Error, OSError):
+                receipts_ok = False
+                outcomes.append(None)
+                unknown_counts.update(
+                    (
+                        "http_completions",
+                        "http_200",
+                        "durable_retryable",
+                        "durable_terminal_failure",
+                        "unknown_delivery",
+                    )
+                )
+                if row["kind"] == "DATA":
+                    unknown_counts.update(("durable_valid_data", "durable_valid_zero"))
+                    unknown_cells.add(cell)
+                continue
+            outcome = terminal["outcome"]
+            outcomes.append(outcome)
+            counts["http_completions"] += b["status"] is not None
+            counts["http_200"] += b["status"] == 200
+            counts["durable_retryable"] += outcome == "TECHNICAL_FAILURE_RETRYABLE"
+            counts["durable_terminal_failure"] += (
+                outcome in o.FAILURES and outcome != "TECHNICAL_FAILURE_RETRYABLE"
+            )
+            if row["kind"] == "DATA" and outcome in c.SUCCESS:
+                counts["durable_valid_data"] += 1
+                counts["durable_valid_zero"] += outcome == c.SUCCESS[1]
+                cells[cell][1] += 1
         o.require(
             begun == list(range(1, len(begun) + 1))
             and len(begun) <= 5
@@ -418,8 +460,8 @@ def block_report(
                 )
 
     def values() -> Iterator[tuple[str, int]]:
-        # Fixed eight-work join, rebuilt on EVERY percentile scan. No event or
-        # campaign-sized cache survives; at most 8 * 5 starts/timings/transports
+        # Fixed 64-work join, rebuilt on EVERY percentile scan. No event or
+        # campaign-sized cache survives; at most 64 * 5 starts/timings/transports
         # are retained. Every batch consumes the same fully validated prefix.
         selected = (row for row in works() if row["block_id"] == block_id)
         while batch := list(islice(selected, _TIMING_JOIN_WORKS)):

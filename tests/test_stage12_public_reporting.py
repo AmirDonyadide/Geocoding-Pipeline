@@ -83,6 +83,9 @@ def test_1804272_bounded_join_matches_single_work_and_preserves_failures(
 def test_1804272_join_scan_count_and_fixed_memory_bound(tmp_path, monkeypatch, count):
     import sys
 
+    # Preserve the original eight-work implementation-bound regression.
+    monkeypatch.setattr(r, "_TIMING_JOIN_WORKS", 8)
+    monkeypatch.setattr(r, "_COUNT_JOIN_WORKS", 1)
     campaign, root, (profile, plan, start, rows, _) = run_offline(tmp_path, count=count)
     events = [
         e
@@ -753,3 +756,131 @@ def test_1804093_sampling_lifecycle_missing_and_out_of_order_stays_incomplete(
     assert not block["resource_sampling_complete"]
     assert block["status"] == "INCOMPLETE"
     assert "INSUFFICIENT_MEASUREMENT" in block["reasons"]
+
+
+@pytest.mark.parametrize(
+    "case", ["ordinary", "missing_receipt", "missing_timing", "resumed_epoch"]
+)
+def test_scale120_batched_counts_exact_equivalence_and_bounds(
+    tmp_path, monkeypatch, case
+):
+    import copy
+
+    campaign, root, (profile, plan, start, rows, _) = run_offline(tmp_path, count=65)
+    events = [
+        e
+        for e in j.read_events(root, o.digest(start))
+        if e["seq"] <= campaign["blocks"][0]["input_last_event_seq"]
+    ]
+    if case == "missing_timing":
+        events = [
+            e
+            for e in events
+            if not (e["kind"] == "AUDIT_TIMING" and e["body"]["work_id"] == 64)
+        ]
+    if case == "resumed_epoch":
+        opening = copy.deepcopy(events[0])
+        opening["seq"] = events[-1]["seq"]
+        events.insert(-1, opening)
+    calls = 0
+
+    def source():
+        nonlocal calls
+        calls += 1
+        yield from events
+
+    def receipt(row, _):
+        if case == "missing_receipt" and row["work_id"] == 64:
+            raise c.Stage12Error("S12_CAPTURE_INCOMPLETE")
+        return {"outcome": c.SUCCESS[1]}
+
+    def report():
+        return r.block_report(
+            plan,
+            profile,
+            1,
+            events=source,
+            works=lambda: iter(rows),
+            verified_receipt=receipt,
+            repeat_evidence=lambda: (H, True),
+            monitoring_closed=lambda: True,
+        )
+
+    monkeypatch.setattr(r, "_COUNT_JOIN_WORKS", 1)
+    monkeypatch.setattr(r, "_TIMING_JOIN_WORKS", 8)
+    before = report()
+    old_calls = calls
+    calls = 0
+    monkeypatch.setattr(r, "_COUNT_JOIN_WORKS", 64)
+    monkeypatch.setattr(r, "_TIMING_JOIN_WORKS", 64)
+    after = report()
+    assert after == before
+    assert calls < old_calls // 4
+    if case == "missing_receipt":
+        assert after["counts"]["durable_valid_data"] == {
+            "value": None,
+            "confirmed_min": 64,
+        }
+        assert after["rates"]["durable_data_per_s"] is None
+    if case == "resumed_epoch":
+        assert after["duration_ns"] is None
+        assert after["status"] == "INCOMPLETE"
+
+
+@pytest.mark.parametrize("length", [0, 1, 1024, 1025])
+def test_scale120_exact_numeric_buffer_boundary_matches_search(monkeypatch, length):
+    names = tuple(o.TYPES["Latencies"])
+    calls = 0
+
+    def source():
+        nonlocal calls
+        calls += 1
+        for i in range(length):
+            yield names[0], (i * 37) % 4096
+            yield names[2], 2**64 - 1 if i % 7 else 0
+        # Other metrics deliberately remain empty.
+
+    monkeypatch.setattr(r, "_EXACT_VALUE_BOUND", 0)
+    expected = r.exact_stats(source, names)
+    calls = 0
+    monkeypatch.setattr(r, "_EXACT_VALUE_BOUND", 1024)
+    actual = r.exact_stats(source, names)
+    assert actual == expected
+    if length == 1:
+        assert calls == 1  # Both generated values are zero; no search required.
+    elif 1 < length <= 1024:
+        assert calls == 2
+    elif length > 1024:
+        assert calls > 2
+
+
+def test_scale120_exact_numeric_buffer_rejects_reordered_second_pass():
+    calls = 0
+
+    def values():
+        nonlocal calls
+        calls += 1
+        return iter([3, 9, 4] if calls == 1 else [4, 9, 3])
+
+    with pytest.raises(c.Stage12Error):
+        r.stat(values)
+
+
+def test_scale120_fast_numeric_heap_is_fixed_and_small():
+    import tracemalloc
+
+    names = tuple(o.TYPES["Latencies"])
+
+    def values():
+        for n in range(1024):
+            for name in names:
+                yield name, 2**64 - n - 1
+
+    tracemalloc.start()
+    try:
+        result = r.exact_stats(values, names)
+        _, peak = tracemalloc.get_traced_memory()
+    finally:
+        tracemalloc.stop()
+    assert peak < 256 * 1024  # Includes arrays, Python sort temporaries and results.
+    assert all(value["n"] == 1024 for value in result.values())

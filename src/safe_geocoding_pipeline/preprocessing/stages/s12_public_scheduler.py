@@ -144,6 +144,20 @@ class Coordinator:
         self.sample_stop = threading.Event()
         self.sample_thread: threading.Thread | None = None
         self.sample_join_failed = False
+        # Supplementary fixed-size diagnostics; never authority for sampling
+        # completeness. Each cell is [count, total_ns, max_ns], saturated uint64.
+        self.sample_metrics_lock = threading.Lock()
+        self.sample_metrics = {
+            name: [0, 0, 0]
+            for name in (
+                "wake_lateness",
+                "slot_busy",
+                "resource_observation",
+                "safety_wait",
+                "persistence_ack",
+                "overdue_after_ack",
+            )
+        }
         self.resources = profile["resources"]
         # The public driver supplies the source-reconciled ascending-size gate.
         # A bare capability coordinator cannot silently omit that barrier.
@@ -324,25 +338,55 @@ class Coordinator:
             *(due for due in deadlines if due > now),
         )
 
-    def sample_if_due(self) -> None:
+    def sample_metric(self, name: str, elapsed_ns: int = 0) -> None:
+        # Static names only, no paths, exception text, request data or event list.
+        with self.sample_metrics_lock:
+            cell = self.sample_metrics[name]
+            value = max(0, elapsed_ns)
+            cell[:] = (
+                min(2**64 - 1, cell[0] + 1),
+                min(2**64 - 1, cell[1] + value),
+                min(2**64 - 1, max(cell[2], value)),
+            )
+
+    def sampling_snapshot(self) -> dict:
+        with self.sample_metrics_lock:
+            return {name: list(cell) for name, cell in self.sample_metrics.items()}
+
+    def sampler_wakeup_ns(self, collected: bool) -> int:
+        # A successful collector released the sample slot. If acknowledgement
+        # consumed the headroom, collect again immediately; do not add another
+        # idle guard interval. Busy/unavailable slots retain bounded polling.
+        if collected:
+            now = self.clock.now_ns()
+            with self.safety:
+                due = self.last_sample_ns + self.sample_lead_ns
+            if due < now:
+                self.sample_metric("overdue_after_ack", now - due)
+            return max(now, due)
+        return self.next_wakeup_ns()
+
+    def sample_if_due(self) -> bool:
         if self.sample_stop.is_set() or self.writer.failed.is_set():
-            return
+            return False
         if not self.sample_slot.acquire(blocking=False):
-            return
+            self.sample_metric("slot_busy")
+            return False
         try:
             if (
                 self.sample_stop.is_set()
                 or self.writer.failed.is_set()
                 or self.clock.now_ns() < self.last_sample_ns + self.sample_lead_ns
             ):
-                return
+                return False
             # Periodic work cannot spend the reserved closure tail. Other
             # producers still face the writer's exact event/storage checks.
             if self.journal.normal_event_headroom() <= self.journal.closure_events:
                 if not self.stop_reason:
                     self.terminal("BUDGET")
-                return
+                return False
             self._resource("PERIODIC", cancel_periodic=True)
+            return True
         finally:
             self.sample_slot.release()
 
@@ -354,10 +398,12 @@ class Coordinator:
         def sample() -> None:
             try:
                 while not self.sample_stop.is_set() and not self.writer.failed.is_set():
-                    self.sample_if_due()
-                    self.sample_stop.wait(
-                        max(0, self.next_wakeup_ns() - self.clock.now_ns()) / 1e9
-                    )
+                    collected = self.sample_if_due()
+                    wake = self.sampler_wakeup_ns(collected)
+                    if not self.sample_stop.wait(
+                        max(0, wake - self.clock.now_ns()) / 1e9
+                    ):
+                        self.sample_metric("wake_lateness", self.clock.now_ns() - wake)
             except BaseException as error:
                 if self.failures is not None:
                     self.failures.record("SAMPLER", error, writer=self.writer)
@@ -404,16 +450,20 @@ class Coordinator:
 
     def _resource(self, cause: str, *, cancel_periodic: bool = False) -> None:
         # Filesystem sampling cannot hold the immediate stop/emission lock.
+        observation_started = self.clock.now_ns() if cause == "PERIODIC" else None
         available = (
             self.free_bytes() if cause in ("PERIODIC", "START_RESERVE") else None
         )
+        observation_done = self.clock.now_ns() if cause == "PERIODIC" else None
         if cancel_periodic and (
             self.sample_stop.is_set() or self.writer.failed.is_set()
         ):
             return
         # A periodic observation changes no admission state. It owns its own
         # slot; only hard mutation records hold the admission barrier.
+        safety_started = self.clock.now_ns() if cause == "PERIODIC" else None
         with self.safety:
+            safety_acquired = self.clock.now_ns() if cause == "PERIODIC" else None
             body = {
                 "observed_mono_ns": self.clock.now_ns(),
                 "cause": cause,
@@ -426,6 +476,12 @@ class Coordinator:
             }
             if cause != "PERIODIC":
                 self.safety_barriers += 1
+        if cause == "PERIODIC":
+            self.sample_metric(
+                "resource_observation", observation_done - observation_started
+            )
+            self.sample_metric("safety_wait", safety_acquired - safety_started)
+        persistence_started = self.clock.now_ns() if cause == "PERIODIC" else None
         try:
             self.journal.event(
                 "RESOURCE",
@@ -435,6 +491,10 @@ class Coordinator:
                 periodic=cause == "PERIODIC",
             )
         finally:
+            if cause == "PERIODIC":
+                self.sample_metric(
+                    "persistence_ack", self.clock.now_ns() - persistence_started
+                )
             with self.safety:
                 if cause != "PERIODIC":
                     self.safety_barriers -= 1

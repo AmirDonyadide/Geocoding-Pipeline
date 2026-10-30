@@ -1317,8 +1317,8 @@ def run_operations_block(
 
             def comparisons():
                 pairs = iter(comparison_pairs())
-                while batch := list(islice(pairs, 4)):
-                    # Fixed metadata only: <=4 pairs / <=8 work IDs. Raw payloads
+                while batch := list(islice(pairs, 32)):
+                    # Fixed metadata only: <=32 pairs / <=64 work IDs. Raw payloads
                     # and structural tuples are still verified one pair at a time.
                     ids = {r["work_id"] for pair in batch for r in pair}
                     finals = {}

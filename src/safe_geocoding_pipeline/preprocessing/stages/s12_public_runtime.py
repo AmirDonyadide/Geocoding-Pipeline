@@ -33,6 +33,7 @@ from . import s12_transport as transport
 from safe_geocoding_pipeline.execution_policy import require_goethe_nhr_slurm
 
 VERSION = "stage12_public_runtime_configuration_v1"
+LOWER_VERSION = "stage12_public_lower_rate_configuration_v1"
 FIELDS = set(
     "version scope task_id output_directory window_start window_end maximum_attempts active_seconds review_wait_seconds transport resources sources campaigns public_validation_sha256".split()
 )
@@ -118,7 +119,7 @@ def validation_for(identity):
 def validate_config(config):
     o.require(
         set(config) == FIELDS
-        and config["version"] == VERSION
+        and config["version"] in (VERSION, LOWER_VERSION)
         and config["scope"] == o.SCOPE
     )
     o.validate_type(config["task_id"], "N32")
@@ -162,24 +163,33 @@ def validate_config(config):
     )
     for value in sources.values():
         o.validate_type(value, "D")
-    o.require(
-        [x["label"] for x in config["campaigns"]]
-        == ["capability_subset", "rate20", "rate40"]
+    lower = config["version"] == LOWER_VERSION
+    labels = (
+        ["capability_subset", "confirmatory1"]
+        if lower
+        else ["capability_subset", "rate20", "rate40"]
     )
+    o.require([x["label"] for x in config["campaigns"]] == labels)
+    # This prospective wrapper selects one same-rate confirmation. It never
+    # promotes exploratory evidence into an upward-rate qualification.
+
     total = 0
     for item in config["campaigns"]:
         o.require(set(item) == {"label", "profile", "plan", "work", "ascending_sizes"})
         p, plan = item["profile"], item["plan"]
         o.require(type(item["ascending_sizes"]) is bool)
-        rate = {"capability_subset": 1, "rate20": 20, "rate40": 40}[item["label"]]
+        rate = {"capability_subset": 1, "confirmatory1": 1, "rate20": 20, "rate40": 40}[
+            item["label"]
+        ]
+        smoke = item["label"] == "capability_subset"
         o.require(
             len(p["states"]) == 1
             and p["states"][0]["rate"] == {"num": rate, "den": 1}
             and len(plan["blocks"]) == 1
             and plan["experiment_kind"] == "PERFORMANCE"
-            and item["ascending_sizes"] == (rate == 1)
+            and item["ascending_sizes"] == smoke
             and plan["blocks"][0]["evaluation"]
-            == ("EXPLORATORY" if rate == 1 else "CONFIRMATORY")
+            == ("EXPLORATORY" if smoke else "CONFIRMATORY")
         )
         o.require(
             p["resources"] == config["resources"]
@@ -497,7 +507,7 @@ def reopen_completed(root, profile, plan, start, *, validation_sha256=None):
 
     expected_comparisons = 0
     pair_rows = iter(pairs())
-    while batch := list(islice(pair_rows, 4)):
+    while batch := list(islice(pair_rows, 32)):
         # Same bounded metadata join as capture-side comparisons. Consume the
         # entire validated prefix; every receipt/body still reopens per pair.
         ids = {w["work_id"] for pair in batch for w in pair}
@@ -644,7 +654,7 @@ def qualifies(block, *, smoke=False, advance40=False):
     return True
 
 
-def progression(root, label, block, clock, envelope, seconds):
+def progression(root, label, block, clock, envelope, seconds, *, next_rate=None):
     """No automatic reviewed disposition: wait for the actual non-author review."""
     expected = {
         "version": "stage12_public_progression_review_v1",
@@ -652,7 +662,9 @@ def progression(root, label, block, clock, envelope, seconds):
         "task_root": str(root),
         "prior_label": label,
         "prior_block_report_sha256": o.digest(block),
-        "next_rate": 20 if label == "capability_subset" else 40,
+        "next_rate": next_rate
+        if next_rate is not None
+        else (20 if label == "capability_subset" else 40),
         "reviewer": "/root/public_followup_review",
         "disposition": "PASS",
     }
@@ -876,9 +888,9 @@ def execute(
             verified_complete.append(item["label"])
             if not qualifies(block, smoke=item["label"] == "capability_subset"):
                 break
-            if item["label"].startswith("rate"):
-                verified_rates.append(int(item["label"][4:]))
-            if item["label"] == "rate40":
+            if item["label"] != "capability_subset":
+                verified_rates.append(profile["states"][0]["rate"]["num"])
+            if item["label"] in ("rate40", "confirmatory1"):
                 break
             if item["label"] == "rate20" and not qualifies(block, advance40=True):
                 break
@@ -889,6 +901,7 @@ def execute(
                 clock,
                 envelope,
                 config["review_wait_seconds"],
+                **({"next_rate": 1} if config["version"] == LOWER_VERSION else {}),
             )
             io.write(
                 output / (item["label"] + "_PROGRESSION_ACCEPTED.json"),
