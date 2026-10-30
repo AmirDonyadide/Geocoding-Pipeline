@@ -2,6 +2,8 @@
 
 import json
 import threading
+import importlib.util
+from pathlib import Path
 import pytest
 
 from safe_geocoding_pipeline.preprocessing.stages import s12_public_journal as j
@@ -12,6 +14,166 @@ from safe_geocoding_pipeline.preprocessing.stages import s12_storage as io
 from test_stage12_public_journal import setup
 from test_stage12_public_operations_v2 import H, FakeClock, offline  # noqa: F401
 from test_stage12_public_runtime import failed_public_pair
+
+
+def diagnostic_asset():
+    path = (
+        Path(__file__).resolve().parents[1]
+        / "scripts/stage12_client_overhead_diagnostic.py"
+    )
+    spec = importlib.util.spec_from_file_location(
+        "stage12_bounded_diagnostic_test", path
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+@pytest.mark.parametrize("limit", [-1, True, 1.5])
+def test_diagnostic_artifact_budget_rejects_invalid_limit(limit):
+    with pytest.raises(ValueError):
+        diagnostic_asset().ArtifactBudget(limit)
+
+
+def test_diagnostic_artifact_budget_is_bounded_concurrent_and_sticky():
+    budget = diagnostic_asset().ArtifactBudget(200)
+    threads = [
+        threading.Thread(target=lambda: [budget.charge(1) for _ in range(50)])
+        for _ in range(4)
+    ]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    assert budget.snapshot() == {
+        "charged_upper_bytes": 200,
+        "limit_bytes": 200,
+        "exceeded": False,
+    }
+    with pytest.raises(RuntimeError, match="SYNTHETIC_ARTIFACT_LIMIT"):
+        budget.charge(1)
+    budget.charge(0)
+    assert budget.snapshot() == {
+        "charged_upper_bytes": 200,
+        "limit_bytes": 200,
+        "exceeded": True,
+    }
+    for bad in (-1, True, 1.5):
+        with pytest.raises(ValueError):
+            budget.charge(bad)
+
+
+@pytest.mark.parametrize("kind", ["write", "array", "stream", "empty_array"])
+def test_diagnostic_accounting_covers_artifact_write_paths(tmp_path, kind):
+    module = diagnostic_asset()
+    writer, log, _ = setup(tmp_path)
+    budget = module.ArtifactBudget(4096)
+    before = j.tree_bytes(writer.root)
+    originals = module.install_artifact_accounting(io, j, budget)
+    try:
+        rows = [{"ordinal": 1}, {"ordinal": 2}]
+        if kind == "write":
+            writer.call(lambda: io.write(writer.root / "synthetic", b"synthetic"))
+        elif kind == "stream":
+            log.stream_array("rows.json", iter(rows))
+        else:
+            writer.call(
+                lambda: log.write_array(
+                    "rows.json", iter([] if kind == "empty_array" else rows)
+                )
+            )
+        delta = j.tree_bytes(writer.root) - before
+        # Buffered array accounting reserves one extra separator at most.
+        assert delta <= budget.snapshot()["charged_upper_bytes"] <= delta + 1
+        assert not budget.snapshot()["exceeded"]
+    finally:
+        io.write, module.os.write, j.Journal.write_array = originals
+        writer.abort()
+
+
+def test_diagnostic_reserves_before_failure_and_rejects_before_write(
+    monkeypatch, tmp_path
+):
+    module = diagnostic_asset()
+    budget = module.ArtifactBudget(5)
+    calls = []
+
+    def partial(path, raw):
+        calls.append(len(raw))
+        path.write_bytes(raw[:1])
+        raise OSError(5, "invented failure")
+
+    monkeypatch.setattr(io, "write", partial)
+    originals = module.install_artifact_accounting(io, j, budget)
+    try:
+        with pytest.raises(OSError):
+            io.write(tmp_path / "partial", b"abc")
+        assert budget.snapshot()["charged_upper_bytes"] == 3
+        with pytest.raises(RuntimeError, match="SYNTHETIC_ARTIFACT_LIMIT"):
+            io.write(tmp_path / "denied", b"abc")
+        assert calls == [3] and not (tmp_path / "denied").exists()
+        assert budget.snapshot()["exceeded"]
+    finally:
+        io.write, module.os.write, j.Journal.write_array = originals
+
+
+def test_diagnostic_partial_os_writes_keep_conservative_reservations(
+    monkeypatch, tmp_path
+):
+    module = diagnostic_asset()
+    writer, log, _ = setup(tmp_path)
+    budget = module.ArtifactBudget(4096)
+    before = j.tree_bytes(writer.root)
+    original = module.os.write
+    monkeypatch.setattr(module.os, "write", lambda fd, raw: original(fd, raw[:1]))
+    originals = module.install_artifact_accounting(io, j, budget)
+    try:
+        log.stream_array("rows.json", iter([{"ordinal": 1}]))
+        assert (
+            budget.snapshot()["charged_upper_bytes"]
+            > j.tree_bytes(writer.root) - before
+        )
+        assert list(j.read_array(writer.root / "rows.json")) == [{"ordinal": 1}]
+    finally:
+        io.write, module.os.write, j.Journal.write_array = originals
+        writer.abort()
+
+
+def test_diagnostic_watchdog_has_no_history_traversal():
+    import ast
+    import inspect
+
+    tree = ast.parse(inspect.getsource(diagnostic_asset()))
+    watchdog = next(
+        n
+        for n in ast.walk(tree)
+        if isinstance(n, ast.FunctionDef) and n.name == "watchdog"
+    )
+    calls = {
+        n.func.attr
+        for n in ast.walk(watchdog)
+        if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+    }
+    assert not calls & {
+        "rglob",
+        "glob",
+        "walk",
+        "stat",
+        "scandir",
+        "read_events",
+        "realpath",
+    }
+    assert "snapshot" in calls and "getrusage" in calls
+    # Exactly one final inventory, outside the recurring watchdog.
+    assert (
+        sum(
+            isinstance(n, ast.Call)
+            and isinstance(n.func, ast.Attribute)
+            and n.func.attr == "rglob"
+            for n in ast.walk(tree)
+        )
+        == 1
+    )
 
 
 def periodic(log, n):

@@ -23,6 +23,74 @@ import time
 from datetime import datetime, timedelta, timezone
 
 
+class ArtifactBudget:
+    """Conservative logical bytes, no path cache or recurring directory scan.
+
+    Reserve before every reviewed artifact write. Partial/failed writes retain
+    the whole reservation. One MiB of the fixed128MiB cap is left for bounded
+    final metrics, watchdog notice and outer logs. This is diagnostic accounting,
+    never campaign evidence or a replacement for the client's storage checks.
+    """
+
+    def __init__(self, limit=127 * 2**20):
+        if type(limit) is not int or limit < 0:
+            raise ValueError("SYNTHETIC_ARTIFACT_ACCOUNTING_INVALID")
+        self.limit = limit
+        self.charged = 0
+        self.exceeded = False
+        self.lock = threading.Lock()
+
+    def charge(self, size):
+        if type(size) is not int or size < 0:
+            raise ValueError("SYNTHETIC_ARTIFACT_ACCOUNTING_INVALID")
+        with self.lock:
+            if size > self.limit - self.charged:
+                self.exceeded = True
+                raise RuntimeError("SYNTHETIC_ARTIFACT_LIMIT")
+            self.charged += size
+
+    def snapshot(self):
+        with self.lock:
+            return {
+                "charged_upper_bytes": self.charged,
+                "limit_bytes": self.limit,
+                "exceeded": self.exceeded,
+            }
+
+
+def install_artifact_accounting(io, journal, budget):
+    """Cover actual source write paths in BOTH pinned client versions.
+
+    io.write uses buffered file writes; stream_array uses os.write. The legacy
+    write_array uses its own buffered stream, so charge its fixed delimiters and
+    canonical rows as consumed. No event-history traversal is added. Returns
+    originals for isolated unit-test restoration; production replay exits once.
+    """
+    old_write, old_append, old_array = io.write, os.write, journal.Journal.write_array
+
+    def write(path, raw):
+        budget.charge(len(raw))
+        return old_write(path, raw)
+
+    def append(fd, raw):
+        budget.charge(len(raw))
+        return old_append(fd, raw)
+
+    def array(self, name, rows):
+        budget.charge(3)
+
+        def charged_rows():
+            for row in rows:
+                # Includes one conservative separator byte for the first row.
+                budget.charge(len(journal.c.canonical(row)))
+                yield row
+
+        return old_array(self, name, charged_rows())
+
+    io.write, os.write, journal.Journal.write_array = write, append, array
+    return old_write, old_append, old_array
+
+
 def deny_linux_network():
     """Kernel guard for Goethe, in addition to Python audit/provider denial.
 
@@ -112,6 +180,8 @@ def main():
             Path(__file__).parent,
         )
     )
+    guard_metrics = {"open_checks": 0, "realpath_ns": 0}
+    guard_lock = threading.Lock()
 
     def denied(*_a, **_k):
         raise PermissionError("SYNTHETIC_DIAGNOSTIC_ACCESS_DENIED")
@@ -125,7 +195,12 @@ def main():
         ):
             denied()
         if event == "open" and isinstance(values[0], (str, bytes)):
+            guard_start = time.monotonic_ns()
             path = os.path.realpath(os.fsdecode(values[0]))
+            guard_elapsed = time.monotonic_ns() - guard_start
+            with guard_lock:
+                guard_metrics["open_checks"] += 1
+                guard_metrics["realpath_ns"] += guard_elapsed
             if any(
                 x in Path(path).parts for x in (".ssh", ".config", "credentials")
             ) or any(x.startswith(".env") for x in Path(path).parts):
@@ -160,9 +235,11 @@ def main():
     transport.Secret.runtime = denied
     transport.Secret.private_file = denied
     sys.addaudithook(audit)
+    artifact_budget = ArtifactBudget()
+    install_artifact_accounting(io, j, artifact_budget)
     watchdog_stop = threading.Event()
     watchdog_start = time.monotonic()
-    watchdog_metrics = {"checks": 0, "storage_scan_ns": 0}
+    watchdog_metrics = {"checks": 0, "storage_scans": 0}
 
     def watchdog():
         while not watchdog_stop.wait(0.25):
@@ -174,14 +251,8 @@ def main():
                 else ("MEMORY" if rss_bytes >= 768 * 2**20 else None)
             )
             watchdog_metrics["checks"] += 1
-            if watchdog_metrics["checks"] % 4 == 0:
-                t = time.monotonic_ns()
-                total = sum(
-                    p.stat().st_size for p in args.output.rglob("*") if p.is_file()
-                )
-                watchdog_metrics["storage_scan_ns"] += time.monotonic_ns() - t
-                if total >= 128 * 2**20:
-                    reason = "ARTIFACTS"
+            if artifact_budget.snapshot()["exceeded"]:
+                reason = "ARTIFACTS"
             if reason:
                 (args.output / "HARD_LIMIT.json").write_text(
                     json.dumps({"reason": reason})
@@ -526,6 +597,10 @@ def main():
     artifact_bytes = sum(
         p.stat().st_size for p in args.output.rglob("*") if p.is_file()
     )
+    artifact_state = artifact_budget.snapshot()
+    with guard_lock:
+        guard_state = dict(guard_metrics)
+    accounting_consistent = artifact_bytes <= artifact_state["charged_upper_bytes"]
     payload = {
         "scope": data["scope"],
         "network_guard": network_guard,
@@ -556,7 +631,12 @@ def main():
         "max_gap_ns": maxgap,
         "rss_lifetime_peak_bytes": rss_bytes,
         "artifact_bytes": artifact_bytes,
-        "bounds_met": rss_bytes < 768 * 2**20 and artifact_bytes < 128 * 2**20,
+        "bounds_met": (
+            rss_bytes < 768 * 2**20
+            and artifact_bytes < 128 * 2**20
+            and accounting_consistent
+            and not artifact_state["exceeded"]
+        ),
         "metrics_fields": ["calls", "inclusive_ns", "max_ns", "yielded_rows"],
         "metrics": metrics,
         "reopen_ns": reopen_ns,
@@ -564,6 +644,11 @@ def main():
         "full_reopen_pass": reopened,
         "reopen_exception_family": reopen_family,
         "watchdog": watchdog_metrics,
+        "artifact_accounting": artifact_state,
+        "artifact_accounting_consistent": accounting_consistent,
+        "artifact_inventory_scans": 1,
+        "artifact_bytes_excludes": "BOUNDED_FINAL_MEASUREMENTS_AND_OUTER_LOGS",
+        "read_guard": guard_state,
         "aggregation_overhead_ns": metric_overhead_ns,
         "exception_family": exception_family,
         "first_instrumented_error": first_instrumented_error,
@@ -571,7 +656,11 @@ def main():
         "diagnostics": diagnostics.snapshot() if diagnostics else None,
         "complete_seal": (args.output / "campaign/_SEGMENT_SEALED").exists(),
     }
-    (args.output / "MEASUREMENTS.json").write_text(json.dumps(payload, indent=2) + "\n")
+    measurement_bytes = (json.dumps(payload, indent=2) + "\n").encode("utf-8")
+    # Leave the other half of the fixed one-MiB margin for bounded notices/logs.
+    if len(measurement_bytes) > 512 * 1024:
+        raise RuntimeError("SYNTHETIC_MEASUREMENT_LIMIT")
+    (args.output / "MEASUREMENTS.json").write_bytes(measurement_bytes)
     print(
         json.dumps(
             {
@@ -601,6 +690,7 @@ def main():
         and gaps == 0
         and payload["complete_seal"]
         and phase_elapsed_ns <= 180 * 10**9
+        and not artifact_budget.snapshot()["exceeded"]
     )
     return 0 if passed else 1
 
