@@ -114,7 +114,35 @@ def write(path: Path, raw: bytes) -> None:
     _checkpoint()
 
 
+def has_read_view() -> bool:
+    return getattr(_checkpoints, "read_view", None) is not None
+
+
+@contextmanager
+def read_view(view) -> Iterator[None]:
+    """Default-off coordinator hook; original private reads remain the authority."""
+    c.require(not has_read_view(), "S12_PUBLIC_SOURCE_CHANGED")
+    _checkpoints.read_view = view
+    try:
+        yield
+    finally:
+        _checkpoints.read_view = None
+
+
+def record_read_output(path: Path, digest: str) -> None:
+    view = getattr(_checkpoints, "read_view", None)
+    if view is not None:
+        view.output(path, digest)
+
+
 def read(path: Path, *, limit: int = 64 * 1024 * 1024) -> bytes:
+    view = getattr(_checkpoints, "read_view", None)
+    if view is not None:
+        return view.read(path, limit=limit, original=original_read)
+    return original_read(path, limit=limit)
+
+
+def original_read(path: Path, *, limit: int = 64 * 1024 * 1024) -> bytes:
     private_directory(path.parent)
     try:
         raw = accepted.read_private(path, limit=limit)

@@ -402,6 +402,7 @@ def write_snapshot(
     verify: Callable[[], tuple[dict[str, Any], str]],
     log: journal.Journal,
     state_binding: Callable[[], tuple],
+    read_stage=None,
 ) -> str:
     """Prepare/validate/persist/revalidate/commit under one cumulative budget.
 
@@ -473,6 +474,9 @@ def write_snapshot(
             o.require(not (writer.root / name).exists())
         with io.cooperative_io(writer.check_deadline):
             prepared = validate(0)
+            if read_stage is not None:
+                read_stage.finish()
+                bound()
 
             def persist():
                 bound()
@@ -482,7 +486,14 @@ def write_snapshot(
                 bound()
 
             writer.call(persist)
-            o.require(validate(len(raw)) == prepared)
+            if read_stage is None:
+                o.require(validate(len(raw)) == prepared)
+            else:
+                from .s12_public_fresh_reads import FreshReads
+
+                with FreshReads(writer.root, check=fence.check):
+                    o.require(validate(len(raw)) == prepared)
+                bound()
 
             def commit():
                 bound()

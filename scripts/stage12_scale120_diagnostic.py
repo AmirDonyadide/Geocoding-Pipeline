@@ -323,13 +323,56 @@ def main():
 
     finalizing = False
     reopening = False
+    diagnostic_scanning = False
+    stage_metrics = {}
+    stage_local = threading.local()
+
+    def stage_call(tag, action, *a, **kw):
+        # Fixed static tags and a bounded nesting stack, never an event trace.
+        stack = getattr(stage_local, "stack", [])
+        stage_local.stack = stack
+        assert len(stack) < 32
+        entry = [time.monotonic_ns(), time.thread_time_ns(), 0, 0]
+        stack.append(entry)
+        try:
+            return action(*a, **kw)
+        finally:
+            wall = time.monotonic_ns() - entry[0]
+            cpu = time.thread_time_ns() - entry[1]
+            stack.pop()
+            if stack:
+                stack[-1][2] += wall
+                stack[-1][3] += cpu
+            with lock:
+                value = stage_metrics.setdefault(tag, [0, 0, 0, 0, 0])
+                value[0] += 1
+                value[1] += wall
+                value[2] += cpu
+                value[3] += wall - entry[2]
+                value[4] += cpu - entry[3]
+
+    def stage_wrap(owner, name, tag):
+        original = getattr(owner, name)
+
+        def measured(*a, **kw):
+            return stage_call(tag, original, *a, **kw)
+
+        setattr(owner, name, measured)
 
     def add(tag, elapsed, items=0):
         nonlocal metric_overhead_ns
         begin = time.monotonic_ns()
-        bucket = 8 if reopening else 7 if finalizing else min(6, (attempts + 19) // 20)
+        bucket = (
+            9
+            if diagnostic_scanning
+            else 8
+            if reopening
+            else 7
+            if finalizing
+            else min(6, (attempts + 19) // 20)
+        )
         with lock:
-            cell = metrics.setdefault(tag, [[0, 0, 0, 0] for _ in range(9)])[bucket]
+            cell = metrics.setdefault(tag, [[0, 0, 0, 0] for _ in range(10)])[bucket]
             cell[0] += 1
             cell[1] += elapsed
             cell[2] = max(cell[2], elapsed)
@@ -402,6 +445,60 @@ def main():
             add(tag, time.monotonic_ns() - t)
 
     io.read = read
+    original_reader = io.original_read
+
+    def physical_read(path, **kw):
+        t = time.monotonic_ns()
+        raw = original_reader(path, **kw)
+        add("physical_original_read_bytes", time.monotonic_ns() - t, len(raw))
+        return raw
+
+    io.original_read = physical_read
+    original_array, original_os_read = j.read_array, os.read
+    array_local = threading.local()
+
+    def stream_read(fd, count):
+        t = time.monotonic_ns()
+        raw = original_os_read(fd, count)
+        if getattr(array_local, "active", False):
+            add("array_stream_read_bytes", time.monotonic_ns() - t, len(raw))
+        return raw
+
+    def array_reads(*a, **kw):
+        iterator = iter(original_array(*a, **kw))
+        first = True
+        while True:
+            previous = getattr(array_local, "active", False)
+            array_local.active = True
+            t = time.monotonic_ns()
+            try:
+                row = next(iterator)
+            except StopIteration:
+                return
+            finally:
+                array_local.active = previous
+                if first:
+                    add("array_stream_traversals", time.monotonic_ns() - t)
+                    first = False
+            yield row
+
+    os.read = stream_read
+    j.read_array = array_reads
+    from safe_geocoding_pipeline.preprocessing.stages.s12_public_fresh_reads import (
+        FreshReads,
+    )
+
+    for owner, name, tag in (
+        (FreshReads, "__enter__", "fresh_stage_load"),
+        (FreshReads, "finish", "fresh_stage_finish"),
+        (j.MeasurementPrefix, "build", "prefix"),
+        (j.MeasurementPrefix, "verify_original", "prefix_original_check"),
+        (reporting, "block_report", "report"),
+        (recovery, "write_snapshot", "snapshot_all"),
+        (recovery, "snapshot_evidence", "snapshot_evidence"),
+        (j.Journal, "reconcile_storage", "storage_reconciliation"),
+    ):
+        stage_wrap(owner, name, tag)
     oldwrite = io.write
 
     def persisted(path, raw):
@@ -414,7 +511,7 @@ def main():
         }.get(path.name, "other_artifact_persistence")
         t = time.monotonic_ns()
         try:
-            return oldwrite(path, raw)
+            return stage_call(tag, oldwrite, path, raw)
         finally:
             add(tag, time.monotonic_ns() - t)
 
@@ -517,8 +614,20 @@ def main():
 
         t = time.monotonic_ns()
         try:
-            return oldstream(
-                self, name, compared() if name == "repeat_comparison.json" else rows
+            stage = {
+                "repeat_comparison.json": "comparisons",
+                "work_ledger.json": "work_ledger",
+                "remaining_work_ledger.json": "remaining_ledger",
+                "event_inventory.json": "event_inventory_prepare",
+                "attempt_inventory.json": "attempt_inventory_prepare",
+                "measurement_event_prefix.json": "stream_projection",
+            }.get(name, "other_stream")
+            return stage_call(
+                stage,
+                oldstream,
+                self,
+                name,
+                compared() if name == "repeat_comparison.json" else rows,
             )
         finally:
             add(
@@ -654,6 +763,7 @@ def main():
     reopening = True
     reopen_start = time.monotonic_ns()
     reopened = False
+    opener_invoked_ns = opener_completed_ns = None
     reopen_family = None
     try:
         from safe_geocoding_pipeline.preprocessing.stages import (
@@ -664,7 +774,10 @@ def main():
             phase_deadline = recovery.Deadline(Clock(), epoch + 500 * 10**9)
             with io.cooperative_io(phase_deadline.check):
                 phase_deadline.check()
-                runtime.reopen_completed(
+                opener_invoked_ns = time.monotonic_ns()
+                stage_call(
+                    "actual_opener",
+                    runtime.reopen_completed,
                     args.output / "campaign",
                     data["profile"],
                     data["plan"],
@@ -674,11 +787,20 @@ def main():
                     ),
                 )
                 phase_deadline.check()
+                opener_completed_ns = time.monotonic_ns()
             reopened = True
     except BaseException as error:
-        reopen_family = "OS_ERROR" if isinstance(error, OSError) else "UNCLASSIFIED"
+        note_error("actual_reopen", error)
+        reopen_family = (
+            "CUMULATIVE_DEADLINE"
+            if isinstance(error, recovery.FinalizationExpired)
+            else "OS_ERROR"
+            if isinstance(error, OSError)
+            else "UNCLASSIFIED"
+        )
     reopen_ns = time.monotonic_ns() - reopen_start
     phase_elapsed_ns = time.monotonic_ns() - epoch
+    diagnostic_scanning = True
     events = j.read_events(args.output / "campaign", o.digest(data["start"]))
     last = None
     gaps = samples = finals = event_count = 0
@@ -771,9 +893,22 @@ def main():
             "attempt81_100",
             "attempt101_120",
             "finalization",
-            "reopening",
+            "actual_reopening",
+            "post_run_diagnostic_scan",
         ],
         "metrics": metrics,
+        "physical_read_units": "physical_original_read_bytes: calls are completed original file reads; yielded_rows is byte count. Cache hits excluded. array_stream_read_bytes reports actual bytes returned by os.read within read_array (calls include EOF); array_stream_traversals counts initiated traversals including empty/failed ones. read_* tags are logical calls.",
+        "stage_metrics_fields": [
+            "calls",
+            "inclusive_wall_ns",
+            "inclusive_thread_cpu_ns",
+            "exclusive_same_thread_wall_ns",
+            "exclusive_same_thread_cpu_ns",
+        ],
+        "stage_metrics": stage_metrics,
+        "stage_metrics_limitations": "Exclusive subtracts nested stage_call only; other work remains charged to caller. Writer thread work overlaps coordinator waits. Post-run scans are separate; no instrumentation time subtracted.",
+        "opener_invoked_mono_ns": opener_invoked_ns,
+        "opener_completed_mono_ns": opener_completed_ns,
         "reopen_ns": reopen_ns,
         "phase_through_reopen_ns": phase_elapsed_ns,
         "remaining_phase_ns": 500 * 10**9 - phase_elapsed_ns,

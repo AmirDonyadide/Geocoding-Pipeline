@@ -393,6 +393,16 @@ class Authority:
 
 
 def reopen_completed(root, profile, plan, start, *, validation_sha256=None):
+    """A new bounded original-source stage; no publication cache is accepted."""
+    from .s12_public_fresh_reads import FreshReads
+
+    with FreshReads(root, check=io._checkpoint):
+        return _reopen_completed(
+            root, profile, plan, start, validation_sha256=validation_sha256
+        )
+
+
+def _reopen_completed(root, profile, plan, start, *, validation_sha256=None):
     """Existing event/receipt/ledger/report readers, no trusted aggregate shortcut."""
     io._checkpoint()
     root_info = root.stat(follow_symlinks=False)

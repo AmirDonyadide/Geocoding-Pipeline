@@ -1389,239 +1389,268 @@ def run_operations_block(
 
             closure_state()
             writer.freeze_closure()
-            closed_monitor = not coordinator.monitored or any(
-                e["kind"] == "MONITOR_RESULT" and e["body"]["interval_closed"]
-                for e in events()
-            )
+            from .stages.s12_public_fresh_reads import FreshReads
+
             operation = "REPORT"
-            prefix = pj.MeasurementPrefix(log)
-            if prefix.build(
-                closure_reserve=profile["resources"]["fixed_campaign_disk_bound_bytes"]
-            ):
-                measurement_prefix = prefix
-            report = pr.block_report(
-                plan,
-                profile,
-                block_id,
-                events=events,
-                works=works,
-                verified_receipt=verify_receipt,
-                repeat_evidence=lambda: (
-                    comparison_hash,
-                    all(
-                        r["equal"]
-                        for r in pj.read_array(output / "repeat_comparison.json")
-                    ),
-                ),
-                monitoring_closed=lambda: closed_monitor,
-                work_index=work_index,
-            )
-            if measurement_prefix is not None:
-                measurement_prefix.verify_original()
-            block_hash = writer.call(lambda: log.write("block_report.json", report))
-            log.event(
-                "BLOCK_CLOSED",
-                {
-                    "block_id": block_id,
-                    "report_sha256": block_hash,
-                    "result": report["status"],
+            with FreshReads(
+                output,
+                check=writer.closure_fence.check,
+                outputs={
+                    "measurement_event_prefix.json",
+                    "block_report.json",
+                    "work_ledger.json",
+                    "remaining_work_ledger.json",
+                    "event_inventory.json",
+                    "attempt_inventory.json",
                 },
-                closure=True,
-            )
-            operation = "RECONCILIATION"
-
-            def ledger():
-                for row in recovery.work_ledger(
-                    works, events, verify_receipt, batch_size=128
-                ):
-                    if (
-                        report["counts"]["unprocessed_data"]["value"] == 0
-                        and row["work_id"] in block["reserved_control_ids"]
-                        and not row["charged_ordinals"]
-                    ):
-                        row["state"] = "UNUSED_RESERVED_CONTROL"
-                    yield row
-
-            ledger_hash = log.stream_array("work_ledger.json", ledger())
-
-            def verified_ledger():
-                # This is a freshly derived, fsynced and reopened stream, never
-                # an authority token or an unbounded in-memory ledger cache.
-                # Each reuse checks every actual canonical byte before yielding
-                # and again while consuming; mutations cannot produce totality.
-                path = output / "work_ledger.json"
-                po.require(
-                    po.manifest_digest(pj.read_array(path, check=writer.check_deadline))
-                    == ledger_hash
+                events={f"events/{log.seq + ordinal:020d}.json" for ordinal in (1, 2)},
+            ) as read_stage:
+                closed_monitor = not coordinator.monitored or any(
+                    e["kind"] == "MONITOR_RESULT" and e["body"]["interval_closed"]
+                    for e in events()
                 )
-                fingerprint = hashlib.sha256(b"[")
-                for i, row in enumerate(
-                    pj.read_array(path, check=writer.check_deadline)
+                operation = "REPORT"
+                prefix = pj.MeasurementPrefix(log)
+                if prefix.build(
+                    closure_reserve=profile["resources"][
+                        "fixed_campaign_disk_bound_bytes"
+                    ]
                 ):
-                    po.validate_type(row, "WorkLedgerRow")
-                    if i:
-                        fingerprint.update(b",")
-                    fingerprint.update(c.canonical(row)[:-1])
-                    yield row
-                fingerprint.update(b"]\n")
-                po.require(fingerprint.hexdigest() == ledger_hash)
+                    measurement_prefix = prefix
+                report = pr.block_report(
+                    plan,
+                    profile,
+                    block_id,
+                    events=events,
+                    works=works,
+                    verified_receipt=verify_receipt,
+                    repeat_evidence=lambda: (
+                        comparison_hash,
+                        all(
+                            r["equal"]
+                            for r in pj.read_array(output / "repeat_comparison.json")
+                        ),
+                    ),
+                    monitoring_closed=lambda: closed_monitor,
+                    work_index=work_index,
+                )
+                if measurement_prefix is not None:
+                    measurement_prefix.verify_original()
+                block_hash = writer.call(lambda: log.write("block_report.json", report))
+                io.record_read_output(output / "block_report.json", block_hash)
+                log.event(
+                    "BLOCK_CLOSED",
+                    {
+                        "block_id": block_id,
+                        "report_sha256": block_hash,
+                        "result": report["status"],
+                    },
+                    closure=True,
+                )
+                operation = "RECONCILIATION"
 
-            total = recovery.required_work_complete(plan, works, verified_ledger)
-            if (
-                not total
-                and not coordinator.stop_reason
-                and not coordinator.pause_pending
-                and block_id == len(plan["blocks"])
-            ):
-                coordinator.terminal("BUDGET")
-            disposition = (
-                coordinator.state
-                if coordinator.state in ("STOPPED", "QUARANTINED", "RECOVERY_BLOCKED")
-                else "PAUSED_CLEAN"
-                if coordinator.pause_pending or block_id < len(plan["blocks"])
-                else "COMPLETED"
-            )
-            log.event(
-                "SEGMENT_CLOSE",
-                {
-                    "disposition": disposition,
+                def ledger():
+                    for row in recovery.work_ledger(
+                        works, events, verify_receipt, batch_size=128
+                    ):
+                        if (
+                            report["counts"]["unprocessed_data"]["value"] == 0
+                            and row["work_id"] in block["reserved_control_ids"]
+                            and not row["charged_ordinals"]
+                        ):
+                            row["state"] = "UNUSED_RESERVED_CONTROL"
+                        yield row
+
+                ledger_hash = log.stream_array("work_ledger.json", ledger())
+
+                def verified_ledger():
+                    # This is a freshly derived, fsynced and reopened stream, never
+                    # an authority token or an unbounded in-memory ledger cache.
+                    # Each reuse checks every actual canonical byte before yielding
+                    # and again while consuming; mutations cannot produce totality.
+                    path = output / "work_ledger.json"
+                    po.require(
+                        po.manifest_digest(
+                            pj.read_array(path, check=writer.check_deadline)
+                        )
+                        == ledger_hash
+                    )
+                    fingerprint = hashlib.sha256(b"[")
+                    for i, row in enumerate(
+                        pj.read_array(path, check=writer.check_deadline)
+                    ):
+                        po.validate_type(row, "WorkLedgerRow")
+                        if i:
+                            fingerprint.update(b",")
+                        fingerprint.update(c.canonical(row)[:-1])
+                        yield row
+                    fingerprint.update(b"]\n")
+                    po.require(fingerprint.hexdigest() == ledger_hash)
+
+                total = recovery.required_work_complete(plan, works, verified_ledger)
+                if (
+                    not total
+                    and not coordinator.stop_reason
+                    and not coordinator.pause_pending
+                    and block_id == len(plan["blocks"])
+                ):
+                    coordinator.terminal("BUDGET")
+                disposition = (
+                    coordinator.state
+                    if coordinator.state
+                    in ("STOPPED", "QUARANTINED", "RECOVERY_BLOCKED")
+                    else "PAUSED_CLEAN"
+                    if coordinator.pause_pending or block_id < len(plan["blocks"])
+                    else "COMPLETED"
+                )
+                log.event(
+                    "SEGMENT_CLOSE",
+                    {
+                        "disposition": disposition,
+                        "closure_evidence_sha256": comparison_hash
+                        if closed_monitor
+                        else None,
+                        "last_ticket": coordinator.last_ticket,
+                    },
+                    closure=True,
+                )
+                state = recovery.replay(events())
+
+                remaining_hash = log.stream_array(
+                    "remaining_work_ledger.json",
+                    (
+                        r
+                        for r in verified_ledger()
+                        if r["state"]
+                        in ("UNBEGUN", "RETRY_DUE", "UNUSED_RESERVED_CONTROL")
+                    ),
+                )
+                event_hash = log.stream_array(
+                    "event_inventory.json", pj.evidence_inventory(output, "events")
+                )
+                attempt_hash = log.stream_array(
+                    "attempt_inventory.json", pj.evidence_inventory(output, "attempts")
+                )
+                authority.require(
+                    "writer_release",
+                    writer_release_evidence,
+                    {"start": start, "disposition": disposition},
+                )
+                operation = "CLOSURE"
+                stored_bytes = log.prior_bytes + log.reconcile_storage()
+                snapshot = {
+                    "schema_version": po.SNAPSHOT,
+                    "campaign_start_sha256": po.digest(start),
+                    "segment_id": log.segment,
+                    "last_event_seq": log.seq,
+                    "last_event_sha256": log.last_hash,
+                    "event_inventory_sha256": event_hash,
+                    "attempt_inventory_sha256": attempt_hash,
+                    "work_ledger_sha256": ledger_hash,
+                    "controller": {
+                        "state_id": coordinator.state_id,
+                        "block_id": block_id,
+                        "charged_data_attempts": coordinator.charged["DATA"],
+                        "charged_control_attempts": coordinator.charged[
+                            "SERVICE_CONTROL"
+                        ],
+                        "administrative_operations": 0,
+                        "active_duration_ms": state["active_duration_ms"],
+                        "stored_bytes": stored_bytes,
+                        "event_count": log.seq,
+                        "last_ticket": state["last_ticket"],
+                        "consecutive_retryable": state["consecutive_retryable"],
+                        "recent": state["recent"],
+                        "overload_carry": state["overload_carry"],
+                        "breaker_reason": state["breaker_reason"],
+                        "cooldown_delay_ms": state["cooldown_delay_ms"],
+                        "remaining_work_ledger_sha256": remaining_hash,
+                        "monitoring_state": "CLOSED_VERIFIED"
+                        if coordinator.monitored and closed_monitor
+                        else "PUBLIC_GAPS_ONLY"
+                        if not coordinator.monitored
+                        else "UNVERIFIED",
+                        "resume_eligible": disposition == "PAUSED_CLEAN",
+                    },
                     "closure_evidence_sha256": comparison_hash
                     if closed_monitor
                     else None,
-                    "last_ticket": coordinator.last_ticket,
-                },
-                closure=True,
-            )
-            state = recovery.replay(events())
-
-            remaining_hash = log.stream_array(
-                "remaining_work_ledger.json",
-                (
-                    r
-                    for r in verified_ledger()
-                    if r["state"] in ("UNBEGUN", "RETRY_DUE", "UNUSED_RESERVED_CONTROL")
-                ),
-            )
-            event_hash = log.stream_array(
-                "event_inventory.json", pj.evidence_inventory(output, "events")
-            )
-            attempt_hash = log.stream_array(
-                "attempt_inventory.json", pj.evidence_inventory(output, "attempts")
-            )
-            authority.require(
-                "writer_release",
-                writer_release_evidence,
-                {"start": start, "disposition": disposition},
-            )
-            operation = "CLOSURE"
-            stored_bytes = log.prior_bytes + log.reconcile_storage()
-            snapshot = {
-                "schema_version": po.SNAPSHOT,
-                "campaign_start_sha256": po.digest(start),
-                "segment_id": log.segment,
-                "last_event_seq": log.seq,
-                "last_event_sha256": log.last_hash,
-                "event_inventory_sha256": event_hash,
-                "attempt_inventory_sha256": attempt_hash,
-                "work_ledger_sha256": ledger_hash,
-                "controller": {
-                    "state_id": coordinator.state_id,
-                    "block_id": block_id,
-                    "charged_data_attempts": coordinator.charged["DATA"],
-                    "charged_control_attempts": coordinator.charged["SERVICE_CONTROL"],
-                    "administrative_operations": 0,
-                    "active_duration_ms": state["active_duration_ms"],
-                    "stored_bytes": stored_bytes,
-                    "event_count": log.seq,
-                    "last_ticket": state["last_ticket"],
-                    "consecutive_retryable": state["consecutive_retryable"],
-                    "recent": state["recent"],
-                    "overload_carry": state["overload_carry"],
-                    "breaker_reason": state["breaker_reason"],
-                    "cooldown_delay_ms": state["cooldown_delay_ms"],
-                    "remaining_work_ledger_sha256": remaining_hash,
-                    "monitoring_state": "CLOSED_VERIFIED"
-                    if coordinator.monitored and closed_monitor
-                    else "PUBLIC_GAPS_ONLY"
-                    if not coordinator.monitored
-                    else "UNVERIFIED",
-                    "resume_eligible": disposition == "PAUSED_CLEAN",
-                },
-                "closure_evidence_sha256": comparison_hash if closed_monitor else None,
-                "writer_release_evidence_sha256": writer_release_evidence,
-                "sealed_utc": clock.utc(),
-                "disposition": disposition,
-            }
-
-            def original_closure_evidence():
-                # Fresh original event and receipt validation in each stage;
-                # no projection/cache is authority for snapshot publication.
-                po.verify_work_manifest(works, plan)
-                report_head = None
-
-                def original_events():
-                    nonlocal report_head
-                    for event in pj.read_events(output, po.digest(start)):
-                        body = event["body"]
-                        if (
-                            event["kind"] == "BLOCK_CLOSED"
-                            and body["block_id"] == block_id
-                        ):
-                            report_head = body["report_sha256"]
-                        if event["kind"] == "ATTEMPT_FINALIZED":
-                            row = io.metadata(
-                                io.read(
-                                    output / "work" / f"{body['work_id']:020d}.json"
-                                )
-                            )
-                            po.require(row["work_id"] == body["work_id"])
-                            verify_receipt(row, body)
-                        yield event
-
-                original = recovery.replay(original_events())
-                po.require(report_head is not None)
-                return original, report_head
-
-            snap_hash = recovery.write_snapshot(
-                writer,
-                snapshot,
-                verify=original_closure_evidence,
-                log=log,
-                state_binding=closure_state,
-            )
-            reports = {block_id: report}
-            snapshots = [snap_hash]
-            node = predecessor
-            while node is not None:
-                previous = po.parse(io.read(node / "snapshot.json"), po.SNAPSHOT)
-                prior_report = io.metadata(io.read(node / "block_report.json"))
-                po.validate_type(prior_report, "BlockReport")
-                reports.setdefault(prior_report["block_id"], prior_report)
-                snapshots.append(po.digest(previous))
-                node = pj.predecessor_root(node)
-            campaign = pr.campaign_report(
-                start,
-                event_inventory_sha256=event_hash,
-                attempt_inventory_sha256=attempt_hash,
-                snapshots=list(reversed(snapshots)),
-                blocks=[reports[k] for k in sorted(reports)],
-                disposition=disposition,
-                scientific_identity_verified=coordinator.monitored
-                and closed_monitor
-                and not coordinator.stop_reason,
-                reconciliation_reasons=[]
-                if disposition == "COMPLETED" and len(reports) == len(plan["blocks"])
-                else ["INCOMPLETE_WORK"],
-                plan=plan,
-            )
-            writer.call(lambda: log.write("campaign_report.json", campaign))
-            writer.release(
-                {
                     "writer_release_evidence_sha256": writer_release_evidence,
-                    "snapshot_sha256": snap_hash,
+                    "sealed_utc": clock.utc(),
+                    "disposition": disposition,
                 }
-            )
-            return campaign
+
+                def original_closure_evidence():
+                    # Fresh original event and receipt validation in each stage;
+                    # no projection/cache is authority for snapshot publication.
+                    po.verify_work_manifest(works, plan)
+                    report_head = None
+
+                    def original_events():
+                        nonlocal report_head
+                        for event in pj.read_events(output, po.digest(start)):
+                            body = event["body"]
+                            if (
+                                event["kind"] == "BLOCK_CLOSED"
+                                and body["block_id"] == block_id
+                            ):
+                                report_head = body["report_sha256"]
+                            if event["kind"] == "ATTEMPT_FINALIZED":
+                                row = io.metadata(
+                                    io.read(
+                                        output / "work" / f"{body['work_id']:020d}.json"
+                                    )
+                                )
+                                po.require(row["work_id"] == body["work_id"])
+                                verify_receipt(row, body)
+                            yield event
+
+                    original = recovery.replay(original_events())
+                    po.require(report_head is not None)
+                    return original, report_head
+
+                snap_hash = recovery.write_snapshot(
+                    writer,
+                    snapshot,
+                    verify=original_closure_evidence,
+                    log=log,
+                    state_binding=closure_state,
+                    read_stage=read_stage,
+                )
+                reports = {block_id: report}
+                snapshots = [snap_hash]
+                node = predecessor
+                while node is not None:
+                    previous = po.parse(io.read(node / "snapshot.json"), po.SNAPSHOT)
+                    prior_report = io.metadata(io.read(node / "block_report.json"))
+                    po.validate_type(prior_report, "BlockReport")
+                    reports.setdefault(prior_report["block_id"], prior_report)
+                    snapshots.append(po.digest(previous))
+                    node = pj.predecessor_root(node)
+                campaign = pr.campaign_report(
+                    start,
+                    event_inventory_sha256=event_hash,
+                    attempt_inventory_sha256=attempt_hash,
+                    snapshots=list(reversed(snapshots)),
+                    blocks=[reports[k] for k in sorted(reports)],
+                    disposition=disposition,
+                    scientific_identity_verified=coordinator.monitored
+                    and closed_monitor
+                    and not coordinator.stop_reason,
+                    reconciliation_reasons=[]
+                    if disposition == "COMPLETED"
+                    and len(reports) == len(plan["blocks"])
+                    else ["INCOMPLETE_WORK"],
+                    plan=plan,
+                )
+                writer.call(lambda: log.write("campaign_report.json", campaign))
+                writer.release(
+                    {
+                        "writer_release_evidence_sha256": writer_release_evidence,
+                        "snapshot_sha256": snap_hash,
+                    }
+                )
+                return campaign
     except (Exception, KeyboardInterrupt) as error:
         diagnostics.record(
             operation, error, writer=writer, deadline=finalization_deadline

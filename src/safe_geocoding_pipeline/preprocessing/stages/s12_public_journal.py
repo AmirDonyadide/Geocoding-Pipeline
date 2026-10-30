@@ -594,6 +594,7 @@ class Journal:
                 )
                 == fingerprint.hexdigest()
             )
+            io.record_read_output(path, fingerprint.hexdigest())
             return fingerprint.hexdigest()
         except BaseException as error:
             if self.writer.failures is not None:
@@ -680,7 +681,11 @@ class Journal:
                 self.segment_closed = True
             return self.last_hash
 
-        return self.writer.call(append, periodic=periodic)
+        result = self.writer.call(append, periodic=periodic)
+        io.record_read_output(
+            self.writer.root / "events" / f"{self.seq:020d}.json", result
+        )
+        return result
 
 
 def predecessor_root(root: Path) -> Path | None:
