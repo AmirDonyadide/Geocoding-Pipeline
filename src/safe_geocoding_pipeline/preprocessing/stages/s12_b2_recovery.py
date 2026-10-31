@@ -2,20 +2,117 @@
 
 from __future__ import annotations
 import json
+import hashlib
 from . import s12_b2_contract as b
 from . import s12_b2_operations as o
 from . import s12_b2_reporting as reporting
+from . import s12_b2_inventory as metadata
 from . import s12_public_journal as j
 from . import s12_public_recovery as replay_engine
 from . import s12_storage as io
 
 
-def events(root, start):
-    return j.read_events(root, b.digest(start), contract=o)
+def events(root, start, plan):
+    """Fresh original event chain, finite disk ordering, no population list."""
+    last, segment, epoch, mono, closed, seq = None, 0, None, 0, True, 0
+    amounts = plan["budgets"]
+    for node in metadata.lineage(root, amounts["administrative_operations"]):
+        for path in metadata.ordered_files(
+            node / "events",
+            max_files=amounts["event_count"],
+            max_scratch_bytes=b.parse(io.read(node / "profile.json"), o.PROFILE)[
+                "resources"
+            ]["fixed_campaign_disk_bound_bytes"],
+        ):
+            seq += 1
+            b.require(
+                seq <= amounts["event_count"]
+                and path.parent == node / "events"
+                and path.name == f"{seq:020d}.json",
+                "B2_EVENT_MEMBERSHIP",
+            )
+            raw = io.read(path)
+            obj = o.parse(raw, o.EVENT)
+            b.require(
+                obj["seq"] == seq
+                and obj["previous_event_sha256"] == last
+                and obj["campaign_start_sha256"] == b.digest(start),
+                "B2_EVENT_CHAIN",
+            )
+            if obj["kind"] == "SEGMENT_OPEN":
+                b.require(
+                    closed
+                    and obj["segment_id"] == segment + 1
+                    and obj["epoch_id"] != epoch,
+                    "B2_EVENT_CHAIN",
+                )
+                segment, epoch, mono, closed = (
+                    obj["segment_id"],
+                    obj["epoch_id"],
+                    0,
+                    False,
+                )
+            b.require(
+                not closed
+                and obj["segment_id"] == segment
+                and obj["epoch_id"] == epoch
+                and obj["mono_ns"] >= mono,
+                "B2_EVENT_CHAIN",
+            )
+            if obj["kind"] == "SEGMENT_CLOSE":
+                closed = True
+            last, mono = b.sha(raw).hex(), obj["mono_ns"]
+            yield obj
 
 
-def inventory(root, area):
-    return j.evidence_inventory(root, area, contract=o)
+def _segment_inventory(node, area, plan):
+    b.require(area in ("events", "attempts"), "B2_METADATA_ROLE")
+    role = "event_inventory.json" if area == "events" else "attempt_inventory.json"
+    bound = metadata.array_bounds(plan, role)
+    admission = b.parse(
+        io.read(node / "segment_admission.json"), "stage12_segment_admission_b2_v1"
+    )
+    segment = admission["segment_id"]
+    for path in metadata.ordered_files(
+        node / area,
+        max_files=bound["max_rows"],
+        max_scratch_bytes=b.parse(io.read(node / "profile.json"), o.PROFILE)[
+            "resources"
+        ]["fixed_campaign_disk_bound_bytes"],
+    ):
+        yield {
+            "path": f"segments/{segment:020d}/{area}/{path.relative_to(node / area)}",
+            "sha256": b.sha(io.read(path)).hex(),
+        }
+
+
+def inventory(root, area, plan):
+    role = "event_inventory.json" if area == "events" else "attempt_inventory.json"
+    max_rows, count = metadata.array_bounds(plan, role)["max_rows"], 0
+    for node in metadata.lineage(root, plan["budgets"]["administrative_operations"]):
+        for row in _segment_inventory(node, area, plan):
+            count += 1
+            b.require(count <= max_rows, "B2_INVENTORY_BOUND")
+            yield row
+
+
+def inventory_heads(root, area, plan):
+    """All exact canonical prefix hashes in one fresh original traversal."""
+    role = "event_inventory.json" if area == "events" else "attempt_inventory.json"
+    max_rows, count = metadata.array_bounds(plan, role)["max_rows"], 0
+    fingerprint = hashlib.sha256(b"[")
+    heads = {}
+    for node in metadata.lineage(root, plan["budgets"]["administrative_operations"]):
+        for row in _segment_inventory(node, area, plan):
+            b.require(count < max_rows, "B2_INVENTORY_BOUND")
+            if count:
+                fingerprint.update(b",")
+            fingerprint.update(b.canonical(row)[:-1])
+            count += 1
+        prefix = fingerprint.copy()
+        prefix.update(b"]\n")
+        heads[str(node)] = prefix.hexdigest()
+    return heads
 
 
 def reopen(
@@ -58,183 +155,7 @@ def reopen(
         "privacy_permission_sha256",
     ):
         b.require(snap[key] == start[key], "WINDOW_TRANSFER_FORBIDDEN")
-    node = root
-    previous = None
-    seen = set()
-    while node is not None:
-        b.require(str(node) not in seen, "B2_RECOVERY_CYCLE")
-        seen.add(str(node))
-        b.require(
-            len(seen) <= plan["budgets"]["administrative_operations"],
-            "B2_RECOVERY_CYCLE",
-        )
-        current = b.parse(io.read(node / "snapshot.json"), o.SNAPSHOT)
-        for name, obj in (("profile.json", profile), ("plan.json", plan)):
-            b.require(io.read(node / name) == b.canonical(obj), "B2_RECOVERY_BINDING")
-        b.require(
-            o.manifest_digest(j.read_array(node / "work.json"))
-            == plan["work_manifest_sha256"],
-            "B2_WORK_MANIFEST",
-        )
-        b.require(
-            io.read(node / "campaign_start.json") == b.canonical(start)
-            and io.read(node / "_SEGMENT_SEALED", limit=0) == b"",
-            "B2_RECOVERY_UNSEALED",
-        )
-        for name, field in (
-            ("event_inventory.json", "event_inventory_sha256"),
-            ("attempt_inventory.json", "attempt_inventory_sha256"),
-            ("work_ledger.json", "work_ledger_sha256"),
-            ("operations_report.json", "operations_report_sha256"),
-        ):
-            b.require(
-                b.sha(io.read(node / name)).hex() == current[field],
-                "B2_RECOVERY_INVENTORY",
-            )
-        for area, field in (
-            ("events", "event_inventory_sha256"),
-            ("attempts", "attempt_inventory_sha256"),
-        ):
-            b.require(
-                o.manifest_digest(inventory(node, area)) == current[field],
-                "B2_RECOVERY_INVENTORY",
-            )
-        report = b.parse(io.read(node / "operations_report.json"), o.REPORT)
-        measured = b.parse(
-            io.read(node / "measurement_report.json"),
-            "stage12_development_measurement_report_b2_v1",
-        )
-        b.require(
-            report["measurement_report_sha256"] == b.digest(measured)
-            and measured["resource_sampling_complete"]
-            and measured["receipts_complete"]
-            and report["segment_closure_sha256"] == current["segment_closure_sha256"],
-            "B2_RECOVERY_REPORT",
-        )
-        release = io.metadata(io.read(node / "_WRITER_RELEASED.json"))
-        b.require(
-            release
-            == {
-                "snapshot_sha256": b.digest(current),
-                "writer_release_evidence_sha256": current[
-                    "writer_release_evidence_sha256"
-                ],
-            },
-            "B2_WRITER_UNCERTAIN",
-        )
-        from . import s12_b2_evidence as evidence
-        from .s12_b2_pipeline import bootstrap_spent
-
-        admission = b.parse(
-            io.read(node / "segment_admission.json"), "stage12_segment_admission_b2_v1"
-        )
-        evidence.release_authority(
-            authority.records,
-            current["writer_release_evidence_sha256"],
-            campaign_id=start["campaign_id"],
-            segment_nonce=admission["segment_nonce"],
-            now=current["sealed_utc"],
-            authority=authority,
-        )
-        spent = bootstrap_spent(
-            authority.records,
-            current["bootstrap_acquisition_sha256"],
-            plan,
-            profile,
-            start,
-        )
-        b.require(
-            spent
-            == {
-                "operations": current["controller"]["administrative_operations"],
-                "duration_ms": current["controller"]["administrative_duration_ms"],
-                "bytes": current["controller"]["administrative_bytes"],
-            },
-            "B2_ADMIN_ACCOUNTING",
-        )
-        b.require(
-            io.read(node / "administrative_ledger.json")
-            == authority.records.raw(current["bootstrap_acquisition_sha256"]),
-            "B2_ADMIN_BINDING",
-        )
-        closure = authority.records.get(
-            current["segment_closure_sha256"], "segment_closure"
-        )
-        b.require(
-            closure["resource_report_sha256"] == b.digest(measured)
-            and closure["attempt_inventory_sha256"]
-            == current["attempt_inventory_sha256"]
-            and closure["controller_reconciliation_sha256"]
-            == current["work_ledger_sha256"]
-            and closure["campaign_start_sha256"]
-            == start["scientific_campaign_start_sha256"]
-            and closure["window_plan_sha256"] == start["window_plan_sha256"]
-            and closure["preflight_sha256"] == admission["preflight_observation_sha256"]
-            and closure["segment_nonce"] == admission["segment_nonce"]
-            and closure["disposition"] == "CLOSED_OBSERVATIONAL",
-            "B2_RECOVERY_CLOSURE",
-        )
-        prefix = lambda node=node, n=measured["input_last_event_seq"]: (
-            e for e in events(node, start) if e["seq"] <= n
-        )
-        prefix_index = reporting.Index(
-            scratch.parent / (scratch.name + "_prefix_" + str(current["segment_id"])),
-            prefix,
-            works,
-            verify_receipt,
-            max_bytes=profile["resources"]["fixed_campaign_disk_bound_bytes"],
-        )
-        try:
-            recomputed = reporting.measurement(
-                prefix_index,
-                profile,
-                plan,
-                start,
-                attempt_inventory=current["attempt_inventory_sha256"],
-                administrative_spent=measured["administrative_spent"],
-                disposition=current["disposition"],
-            )
-            b.require(recomputed == measured, "B2_RECOVERY_REPORT")
-        finally:
-            prefix_index.close()
-        authority.require(
-            "prior_segment_closure", current["segment_closure_sha256"], current
-        )
-        if previous is not None:
-            b.require(
-                previous["predecessor_closure_sha256"]
-                == current["segment_closure_sha256"]
-                and previous["segment_id"] == current["segment_id"] + 1,
-                "B2_PREDECESSOR_MISMATCH",
-            )
-        previous = current
-        node = j.predecessor_root(node)
-    b.require(
-        previous["segment_id"] == 1 and previous["predecessor_closure_sha256"] is None,
-        "B2_PREDECESSOR_MISMATCH",
-    )
-    source = lambda: events(root, start)
-    state = replay_engine.replay(source(), contract=o)
-    b.require(
-        state["closed"]
-        and not state["unfinished"]
-        and state["breaker_reason"] is None
-        and state["last_event"]["seq"] == snap["last_event_seq"]
-        and b.digest(state["last_event"]) == snap["last_event_sha256"],
-        "B2_UNCLEAN_RECOVERY_BLOCKED",
-    )
-    for key in (
-        "state_id",
-        "block_id",
-        "last_ticket",
-        "consecutive_retryable",
-        "recent",
-        "overload_carry",
-        "breaker_reason",
-        "cooldown_delay_ms",
-        "active_duration_ms",
-    ):
-        b.require(snap["controller"][key] == state[key], "B2_CONTROLLER_MISMATCH")
+    source = lambda: events(root, start, plan)
     index = reporting.Index(
         scratch,
         source,
@@ -243,6 +164,214 @@ def reopen(
         max_bytes=profile["resources"]["fixed_campaign_disk_bound_bytes"],
     )
     try:
+        original_inventories = {
+            area: inventory_heads(root, area, plan) for area in ("events", "attempts")
+        }
+        node = root
+        previous = None
+        seen = set()
+        while node is not None:
+            b.require(str(node) not in seen, "B2_RECOVERY_CYCLE")
+            seen.add(str(node))
+            b.require(
+                len(seen) <= plan["budgets"]["administrative_operations"],
+                "B2_RECOVERY_CYCLE",
+            )
+            current = b.parse(io.read(node / "snapshot.json"), o.SNAPSHOT)
+            for name, obj in (("profile.json", profile), ("plan.json", plan)):
+                b.require(
+                    io.read(node / name) == b.canonical(obj), "B2_RECOVERY_BINDING"
+                )
+            b.require(
+                o.manifest_digest(metadata.read_role(node, "work.json", plan))
+                == plan["work_manifest_sha256"],
+                "B2_WORK_MANIFEST",
+            )
+            b.require(
+                io.read(node / "campaign_start.json") == b.canonical(start)
+                and io.read(node / "_SEGMENT_SEALED", limit=0) == b"",
+                "B2_RECOVERY_UNSEALED",
+            )
+            for name, field in (
+                ("event_inventory.json", "event_inventory_sha256"),
+                ("attempt_inventory.json", "attempt_inventory_sha256"),
+                ("work_ledger.json", "work_ledger_sha256"),
+                ("operations_report.json", "operations_report_sha256"),
+            ):
+                b.require(
+                    (
+                        b.sha(io.read(node / name)).hex()
+                        if name == "operations_report.json"
+                        else o.manifest_digest(metadata.read_role(node, name, plan))
+                    )
+                    == current[field],
+                    "B2_RECOVERY_INVENTORY",
+                )
+            for area, field in (
+                ("events", "event_inventory_sha256"),
+                ("attempts", "attempt_inventory_sha256"),
+            ):
+                b.require(
+                    original_inventories[area][str(node)] == current[field],
+                    "B2_RECOVERY_INVENTORY",
+                )
+            report = b.parse(io.read(node / "operations_report.json"), o.REPORT)
+            measured = b.parse(
+                io.read(node / "measurement_report.json"),
+                "stage12_development_measurement_report_b2_v1",
+            )
+            b.require(
+                report["measurement_report_sha256"] == b.digest(measured)
+                and measured["resource_sampling_complete"]
+                and measured["receipts_complete"]
+                and report["segment_closure_sha256"]
+                == current["segment_closure_sha256"],
+                "B2_RECOVERY_REPORT",
+            )
+            release = io.metadata(io.read(node / "_WRITER_RELEASED.json"))
+            b.require(
+                release
+                == {
+                    "snapshot_sha256": b.digest(current),
+                    "writer_release_evidence_sha256": current[
+                        "writer_release_evidence_sha256"
+                    ],
+                },
+                "B2_WRITER_UNCERTAIN",
+            )
+            from . import s12_b2_evidence as evidence
+            from .s12_b2_pipeline import bootstrap_spent
+
+            admission = b.parse(
+                io.read(node / "segment_admission.json"),
+                "stage12_segment_admission_b2_v1",
+            )
+            opened = [
+                event
+                for event in index.all()
+                if event["kind"] == "SEGMENT_OPEN"
+                and event["segment_id"] == current["segment_id"]
+            ]
+            b.require(
+                len(opened) == 1
+                and admission["segment_id"] == current["segment_id"]
+                and admission["operations_campaign_sha256"] == b.digest(start)
+                and admission["campaign_start_sha256"]
+                == start["scientific_campaign_start_sha256"]
+                and admission["epoch_id"] == opened[0]["epoch_id"]
+                and b.digest(admission)
+                == opened[0]["body"]["segment_admission_sha256"],
+                "B2_SEGMENT_BINDING",
+            )
+            evidence.release_authority(
+                authority.records,
+                current["writer_release_evidence_sha256"],
+                campaign_id=start["campaign_id"],
+                segment_nonce=admission["segment_nonce"],
+                now=current["sealed_utc"],
+                authority=authority,
+            )
+            spent = bootstrap_spent(
+                authority.records,
+                current["bootstrap_acquisition_sha256"],
+                plan,
+                profile,
+                start,
+            )
+            b.require(
+                spent
+                == {
+                    "operations": current["controller"]["administrative_operations"],
+                    "duration_ms": current["controller"]["administrative_duration_ms"],
+                    "bytes": current["controller"]["administrative_bytes"],
+                },
+                "B2_ADMIN_ACCOUNTING",
+            )
+            b.require(
+                io.read(node / "administrative_ledger.json")
+                == authority.records.raw(current["bootstrap_acquisition_sha256"]),
+                "B2_ADMIN_BINDING",
+            )
+            closure = authority.records.get(
+                current["segment_closure_sha256"], "segment_closure"
+            )
+            b.require(
+                closure["resource_report_sha256"] == b.digest(measured)
+                and closure["attempt_inventory_sha256"]
+                == current["attempt_inventory_sha256"]
+                and closure["controller_reconciliation_sha256"]
+                == current["work_ledger_sha256"]
+                and closure["campaign_start_sha256"]
+                == start["scientific_campaign_start_sha256"]
+                and closure["window_plan_sha256"] == start["window_plan_sha256"]
+                and closure["preflight_sha256"]
+                == admission["preflight_observation_sha256"]
+                and closure["segment_nonce"] == admission["segment_nonce"]
+                and closure["disposition"] == "CLOSED_OBSERVATIONAL",
+                "B2_RECOVERY_CLOSURE",
+            )
+            prefix_index = index.prefix(measured["input_last_event_seq"])
+            recomputed = reporting.measurement(
+                prefix_index,
+                profile,
+                plan,
+                start,
+                attempt_inventory=current["attempt_inventory_sha256"],
+                administrative_spent=measured["administrative_spent"],
+                disposition=current["disposition"],
+                defer_source_validation=True,
+            )
+            b.require(recomputed == measured, "B2_RECOVERY_REPORT")
+            # The original epoch's BEGIN charges, including controls, must fit
+            # that exact planned slot. No cumulative counter is reset.
+            from . import s12_b2_planning as planning
+
+            slot = planning.planned_slot(authority.records, plan, admission)
+            charges = sum(
+                1
+                for event in index.all()
+                if event["segment_id"] == current["segment_id"]
+                and event["kind"] == "BEGIN_DURABLE"
+            )
+            b.require(charges <= slot["max_attempts"], "B2_SEGMENT_ATTEMPTS")
+            authority.require(
+                "prior_segment_closure", current["segment_closure_sha256"], current
+            )
+            if previous is not None:
+                b.require(
+                    previous["predecessor_closure_sha256"]
+                    == current["segment_closure_sha256"]
+                    and previous["segment_id"] == current["segment_id"] + 1,
+                    "B2_PREDECESSOR_MISMATCH",
+                )
+            previous = current
+            node = j.predecessor_root(node)
+        b.require(
+            previous["segment_id"] == 1
+            and previous["predecessor_closure_sha256"] is None,
+            "B2_PREDECESSOR_MISMATCH",
+        )
+        state = replay_engine.replay(index.all(), contract=o)
+        b.require(
+            state["closed"]
+            and not state["unfinished"]
+            and state["breaker_reason"] is None
+            and state["last_event"]["seq"] == snap["last_event_seq"]
+            and b.digest(state["last_event"]) == snap["last_event_sha256"],
+            "B2_UNCLEAN_RECOVERY_BLOCKED",
+        )
+        for key in (
+            "state_id",
+            "block_id",
+            "last_ticket",
+            "consecutive_retryable",
+            "recent",
+            "overload_carry",
+            "breaker_reason",
+            "cooldown_delay_ms",
+            "active_duration_ms",
+        ):
+            b.require(snap["controller"][key] == state[key], "B2_CONTROLLER_MISMATCH")
         b.require(
             o.manifest_digest(index.ledger()) == snap["work_ledger_sha256"],
             "B2_LEDGER_MISMATCH",
@@ -278,7 +407,22 @@ def reopen(
             "B2_ATTEMPT_ACCOUNTING",
         )
         b.require(snap["disposition"] != "COMPLETED" or complete, "B2_WORK_TOTALITY")
-    finally:
+        # Fresh original membership/content again before accepting any prior
+        # prefix view. No stage-local index survives to authorize another stage.
+        b.require(
+            all(
+                inventory_heads(root, area, plan) == original_inventories[area]
+                for area in ("events", "attempts")
+            ),
+            "B2_RECOVERY_INVENTORY",
+        )
+    except BaseException:
+        try:
+            index.close()
+        except BaseException:
+            pass  # A second source/close failure cannot replace the first.
+        raise
+    else:
         index.close()
     # Return factories which reread immutable ledgers; no population cache.
     return {
@@ -291,7 +435,7 @@ def reopen(
         "overload_carry": state["overload_carry"],
         "cooldown_trigger": state["cooldown_trigger"],
         "block_durations_ms": state["block_durations_ms"],
-        "ledger": lambda: j.read_array(root / "work_ledger.json"),
+        "ledger": lambda: metadata.read_role(root, "work_ledger.json", plan),
     }
 
 

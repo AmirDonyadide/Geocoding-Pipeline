@@ -488,6 +488,8 @@ def campaign_port(w, phase, values, *, output, closure=None, publication=None):
     }
     # Exact synthetic campaign identity must use the actual adapter inventory.
     assert b.digest(inv) == start["runtime_inventory_sha256"]
+    config["runtime"]["phase_memory_bytes"] = profile["resources"]["job_memory_bytes"]
+    config["runtime"]["phase_disk_capacity_bytes"] = plan["budgets"]["storage_bytes"]
     config["runtime"]["campaign"] = {
         "profile_sha256": w.put(profile),
         "plan_sha256": w.put(plan),

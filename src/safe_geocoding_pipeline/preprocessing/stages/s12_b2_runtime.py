@@ -26,6 +26,7 @@ import time
 from . import s12_b2_contract as b
 from . import s12_b2_catalog as catalogs
 from . import s12_b2_evidence as evidence
+from . import s12_b2_inventory as inventory
 from . import s12_b2_operations as operations
 from . import s12_b2_phase_io as phase_io
 from . import s12_b2_pipeline as pipeline
@@ -735,6 +736,23 @@ class RuntimePort:
         )
         b.require(_PHASE_LOCK.acquire(blocking=False), "B2_RUNTIME_PHASE_BUSY")
         self._stack.callback(_PHASE_LOCK.release)
+        # Library-created SQLite/DuckDB/Arrow scratch must be private while
+        # open, not only after final writers normalize modes. This process-
+        # global setting is scoped by the already exclusive phase lock.
+        prior_umask = os.umask(0o077)
+        self._stack.callback(os.umask, prior_umask)
+        try:
+            self._bind_session_owned(phase, config, output, scratch, authority_hash)
+        except BaseException:
+            try:
+                self._stack.close()
+            except BaseException:
+                pass  # Preserve the initiating bind failure.
+            self._key = None
+            self._closed = True
+            raise
+
+    def _bind_session_owned(self, phase, config, output, scratch, authority_hash):
         self.output = under(output, self.settings["output_parent"])
         self.scratch = under(scratch, self.settings["scratch_parent"])
         b.require(
@@ -833,6 +851,9 @@ class RuntimePort:
             "B2_RUNTIME_TEMP_DIRECTORY",
         )
         tempfile.tempdir = str(temporary)
+        self._stack.enter_context(
+            inventory.ordering_scope(temporary, self.observe_ordering)
+        )
         self._stack.enter_context(io.cooperative_io(self.check_deadline))
         if self.phase in {
             "preflight",
@@ -873,6 +894,22 @@ class RuntimePort:
             "PERMISSION_REVOKED",
         )
         return x["evidence_sha256"]
+
+    def observe_ordering(self, force=False):
+        """Physical ordering spill checks in ALL phases, including reopen.
+
+        Ordinary checks respect the selected interval. Creation/pre-commit/
+        pre-cleanup boundaries force an in-lifetime observation so linked DBs
+        and rollback journals cannot vanish before accounting sees them.
+        """
+        self.check_deadline()
+        if (
+            force
+            or self.clock.now_ns() - self._last_generation_check
+            >= self.settings["phase_generation_check_ms"] * 1_000_000
+        ):
+            return self.reconcile_generation()
+        return None
 
     def reconcile_generation(self):
         """Bounded original filesystem accounting; never a physical reservation.
@@ -1123,6 +1160,13 @@ class RuntimePort:
         )
         admission = self.records.get(spec["admission_sha256"], "segment_admission")
         operations.validate_plan(plan, profile)
+        b.require(
+            profile["resources"]["job_memory_bytes"]
+            <= self.settings["phase_memory_bytes"]
+            and plan["budgets"]["storage_bytes"]
+            <= self.settings["phase_disk_capacity_bytes"],
+            "B2_RUNTIME_CAMPAIGN_CAPACITY",
+        )
         b.require(
             plan["population_scope"] == self.population_scope, "B2_POPULATION_SCOPE"
         )

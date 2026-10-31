@@ -4,6 +4,7 @@ from __future__ import annotations
 import os
 from itertools import zip_longest
 from . import s12_b2_contract as b
+from . import s12_b2_inventory as metadata
 from . import s12_b2_catalog as catalog_module
 from . import s12_b2_calibration as cal
 from . import s12_b2_audit as audit
@@ -200,7 +201,7 @@ class CampaignReader:
             "create table selected(q blob primary key,work integer,ordinal integer,receipt text)"
         )
         for work, ledger in zip_longest(
-            self.works(), journal.read_array(segment / "work_ledger.json")
+            self.works(), metadata.read_role(segment, "work_ledger.json", self.plan)
         ):
             b.require(
                 work is not None
@@ -239,7 +240,7 @@ class CampaignReader:
         )
 
     def works(self):
-        return journal.read_array(self.segment / "work.json")
+        return metadata.read_role(self.segment, "work.json", self.plan)
 
     def locate(self, work, ordinal):
         node = self.segment

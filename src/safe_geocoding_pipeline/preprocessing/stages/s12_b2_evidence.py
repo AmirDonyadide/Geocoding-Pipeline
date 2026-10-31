@@ -647,6 +647,7 @@ class Gate:
             self.slot["administrative_bounds"] == profile["administrative"],
             "B2_ADMIN_BOUND",
         )
+        return self.slot
 
     def interrupt(self, notice_hash):
         self.records.raw(notice_hash)

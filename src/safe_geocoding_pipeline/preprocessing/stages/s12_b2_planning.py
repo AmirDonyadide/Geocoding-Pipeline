@@ -261,13 +261,54 @@ def verify_workload(
         < slot["dispatch_until"]
         <= window["dispatch_until"]
         and slot["dispatch_from"] <= admission["admitted_utc"] < slot["dispatch_until"]
-        and plan["budgets"]["data_attempts"] + plan["budgets"]["control_http_attempts"]
-        <= slot["max_attempts"],
+        and 0
+        < slot["max_attempts"]
+        <= plan["budgets"]["data_attempts"] + plan["budgets"]["control_http_attempts"],
         "B2_SEGMENT_UNPLANNED",
     )
     authority.require(
         "planned_slot",
         window["planned_segment_plan_sha256"],
         {"slot": slot, "plan": plan, "admission": admission},
+    )
+    return slot
+
+
+def planned_slot(records, plan, admission):
+    """Resolve the immutable slot without granting authority or changing intent."""
+    window = records.get(plan["window_plan_sha256"], "window_plan")
+    schedule = records.get(window["planned_segment_plan_sha256"], "window_segment_plan")
+    matches = [
+        x
+        for x in schedule["planned_campaigns"]
+        if x["workload_kind"] == plan["workload_kind"]
+        and x["repetition"] == plan["repetition"]
+        and (
+            x["result_limit"] == plan["result_limit"]
+            if plan["workload_kind"] != "DIRECT_N"
+            else x["result_limit"] is None
+            and plan["result_limit"] in x["candidate_limits"]
+        )
+    ]
+    b.require(len(matches) == 1, "B2_SEGMENT_UNPLANNED")
+    campaign = matches[0]
+    slots = campaign["segment_slots"]
+    b.require(
+        campaign["planned_data"] == plan["budgets"]["data_observations"]
+        and [x["slot_id"] for x in slots] == list(range(1, len(slots) + 1))
+        and 1 <= admission["segment_id"] <= len(slots),
+        "B2_SEGMENT_UNPLANNED",
+    )
+    slot = slots[admission["segment_id"] - 1]
+    b.require(
+        0
+        < slot["max_attempts"]
+        <= plan["budgets"]["data_attempts"] + plan["budgets"]["control_http_attempts"]
+        and window["dispatch_from"]
+        <= slot["dispatch_from"]
+        < slot["dispatch_until"]
+        <= window["dispatch_until"]
+        and slot["dispatch_from"] <= admission["admitted_utc"] < slot["dispatch_until"],
+        "B2_SEGMENT_UNPLANNED",
     )
     return slot

@@ -81,7 +81,10 @@ class SyntheticGate:
         self.check()
 
     def validate_workload(self, *args):
+        from safe_geocoding_pipeline.preprocessing.stages import s12_b2_planning
+
         self.check()
+        return s12_b2_planning.planned_slot(self.records, args[2], args[4])
 
     def interrupt(self, h):
         self.notice = h

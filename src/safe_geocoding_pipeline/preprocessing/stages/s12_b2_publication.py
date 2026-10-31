@@ -17,6 +17,7 @@ from . import s09_reference_io as accepted_io
 from . import s11_semantic_io as upio
 from . import s12_publication as v1pub
 from . import s12_b2_contract as b
+from . import s12_b2_inventory as metadata
 from . import s12_b2_operations as o
 from . import s12_b2_audit as audit
 from . import s12_b2_evidence as evidence
@@ -214,7 +215,7 @@ def assemble(
     sql.execute(
         "create table final_event(work ubigint, ordinal ubigint, delay ubigint)"
     )
-    for event in recovery.events(segment, start):
+    for event in recovery.events(segment, start, plan):
         if event["kind"] == "ATTEMPT_FINALIZED":
             sql.execute(
                 "insert into final_event values(?,?,?)",
@@ -240,10 +241,8 @@ def assemble(
             node = j.predecessor_root(node)
         b.require(False, "B2_RECEIPT_MISSING")
 
-    from . import s12_public_journal as j
-
-    work_factory = lambda: j.read_array(segment / "work.json")
-    ledger_factory = lambda: j.read_array(segment / "work_ledger.json")
+    work_factory = lambda: metadata.read_role(segment, "work.json", plan)
+    ledger_factory = lambda: metadata.read_role(segment, "work_ledger.json", plan)
     from itertools import zip_longest
 
     data_count = 0
@@ -541,9 +540,11 @@ def scientific_reopen(
                 "schema": b.digest(b.assets()[b.SCHEMA]),
             }
         ),
-        "adopted_checkpoint_inventory_sha256": b.sha(
-            io.read(Path(retained["operational_root"]) / "attempt_inventory.json")
-        ).hex(),
+        "adopted_checkpoint_inventory_sha256": o.manifest_digest(
+            metadata.read_role(
+                Path(retained["operational_root"]), "attempt_inventory.json", plan
+            )
+        ),
     }
     b.require(all(bind[k] == v for k, v in expected.items()), "B2_PUBLICATION_BINDING")
     b.require(
@@ -1292,9 +1293,9 @@ def publish_campaign(
             "summary_sha256": b.digest(summary),
             "calibration_protocol_sha256": hashes["stage12_calibration_protocol_b2_v1"],
             "workload_sha256": b.digest(plan),
-            "adopted_checkpoint_inventory_sha256": b.sha(
-                io.read(segment / "attempt_inventory.json")
-            ).hex(),
+            "adopted_checkpoint_inventory_sha256": o.manifest_digest(
+                metadata.read_role(segment, "attempt_inventory.json", plan)
+            ),
             "owner_freeze_sha256": b.digest(n_decision) if final else None,
             "window_plan_sha256": start["window_plan_sha256"],
             "campaign_closure_sha256": campaign_closure_hash,

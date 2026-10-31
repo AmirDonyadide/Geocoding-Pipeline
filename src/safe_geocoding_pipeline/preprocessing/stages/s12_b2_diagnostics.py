@@ -173,6 +173,8 @@ def attempt_summary(segment, start_hash):
     """
     from . import s12_b2_operations as o
     from . import s12_public_journal as j
+    from . import s12_b2_inventory as metadata
+    from . import s12_b2_recovery as recovery
     from . import s12_public_operational_audit as oa
     from . import s12_public_reporting as stats
     from . import s12_storage as io
@@ -233,7 +235,10 @@ def attempt_summary(segment, start_hash):
             node = j.predecessor_root(node)
         raise c.Stage12Error("B2_RECEIPT_MISSING")
 
-    for event in j.read_events(segment, start_hash, contract=o):
+    plan = b.parse(io.read(segment / "plan.json"), o.PLAN)
+    start = b.parse(io.read(segment / "campaign_start.json"), o.START)
+    b.require(b.digest(start) == start_hash, "B2_START_BINDING")
+    for event in recovery.events(segment, start, plan):
         x = event["body"]
         if event["kind"] == "ATTEMPT_STARTED":
             # Kind is encoded by the corresponding finalized outcome; starts
@@ -318,8 +323,8 @@ def attempt_summary(segment, start_hash):
         row["retained_compressed_bytes"] += sum(v["bytes"] for v in raw_entries)
     # Stream the retained ledger: no population-sized work-kind lookup.
     for work, ledger in zip(
-        j.read_array(segment / "work.json"),
-        j.read_array(segment / "work_ledger.json"),
+        metadata.read_role(segment, "work.json", plan),
+        metadata.read_role(segment, "work_ledger.json", plan),
         strict=True,
     ):
         b.require(work["work_id"] == ledger["work_id"], "B2_WORK_TOTALITY")

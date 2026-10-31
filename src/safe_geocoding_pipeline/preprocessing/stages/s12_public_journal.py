@@ -340,7 +340,7 @@ class Journal:
             while node is not None:
                 self.contract.require(str(node) not in seen)
                 seen.add(str(node))
-                self.prior_bytes += tree_bytes(node)
+                self.prior_bytes += tree_bytes(node, check=self.writer.check_deadline)
                 node = predecessor_root(node)
         writer.storage_guard = lambda: self.check_storage(0)
 

@@ -11,6 +11,7 @@ from . import s12_b2_operations as o
 from . import s12_b2_catalog as catalog
 from . import s12_public_reporting as statistics
 from . import s12_retrieval_contract as c
+from . import s12_storage as io
 
 
 class Index:
@@ -33,107 +34,120 @@ class Index:
             verify_receipt,
         )
         self.db = catalog.connect(path)
-        self.db.execute("pragma page_size=4096")
-        self.db.execute("pragma max_page_count=" + str(max(1, max_bytes // 4096)))
-        self.db.executescript(
-            "create table event(seq integer primary key, kind text, work integer, attempt integer, epoch text, body blob);create index event_work on event(work,seq);create table work(id integer primary key, body blob);create table verified(work integer,attempt integer,valid integer,terminal blob,primary key(work,attempt));"
-        )
-        for work in works():
-            self.db.execute(
-                "insert into work values(?,?)", (work["work_id"], b.canonical(work))
+        try:
+            self.db.execute("pragma page_size=4096")
+            self.db.execute("pragma max_page_count=" + str(max(1, max_bytes // 4096)))
+            self.db.executescript(
+                "create table event(seq integer primary key, kind text, work integer, attempt integer, epoch text, body blob);create index event_work on event(work,seq);create table work(id integer primary key, body blob);create table verified(work integer,attempt integer,valid integer,terminal blob,primary key(work,attempt));"
             )
-        self.work_hash = o.manifest_digest(works())
-
-        def indexed_events():
-            for event in events():
+            for work in works():
+                io._checkpoint()
                 self.db.execute(
-                    "insert into event values(?,?,?,?,?,?)",
-                    (
-                        event["seq"],
-                        event["kind"],
-                        event["body"].get("work_id"),
-                        event["body"].get("attempt"),
-                        event["epoch_id"],
-                        b.canonical(event),
-                    ),
+                    "insert into work values(?,?)", (work["work_id"], b.canonical(work))
                 )
-                yield event
+            self.work_hash = o.manifest_digest(works())
 
-        self.event_hash = o.manifest_digest(indexed_events())
-        self.db.commit()
-        for work in self.rows():
-            for event in self.for_work(work["work_id"]):
-                if event["kind"] != "ATTEMPT_FINALIZED":
-                    continue
-                body = event["body"]
-                terminal = None
-                try:
-                    terminal = verify_receipt(work, body)
-                    begins = [
-                        e["body"]
-                        for e in self.for_work(work["work_id"])
-                        if e["kind"] == "BEGIN_DURABLE"
-                        and e["body"]["attempt"] == body["attempt"]
-                    ]
-                    b.require(
-                        type(terminal) is dict
-                        and terminal["outcome"] == body["outcome"]["value"]
-                        and len(begins) == 1
-                        and terminal["begin_sha256"] == begins[0]["begin_sha256"],
-                        "B2_RECEIPT_ASSOCIATION",
+            def indexed_events():
+                for event in events():
+                    io._checkpoint()
+                    self.db.execute(
+                        "insert into event values(?,?,?,?,?,?)",
+                        (
+                            event["seq"],
+                            event["kind"],
+                            event["body"].get("work_id"),
+                            event["body"].get("attempt"),
+                            event["epoch_id"],
+                            b.canonical(event),
+                        ),
                     )
-                    if work["kind"] == "SERVICE_CONTROL":
-                        timing = terminal["_control_timing"]
-                        starts = [
-                            e
+                    yield event
+
+            self.event_hash = o.manifest_digest(indexed_events())
+            self.db.commit()
+            for work in self.rows():
+                for event in self.for_work(work["work_id"]):
+                    if event["kind"] != "ATTEMPT_FINALIZED":
+                        continue
+                    body = event["body"]
+                    terminal = None
+                    try:
+                        terminal = verify_receipt(work, body)
+                        begins = [
+                            e["body"]
                             for e in self.for_work(work["work_id"])
-                            if e["kind"] == "ATTEMPT_STARTED"
-                            and e["body"]["attempt"] == body["attempt"]
-                        ]
-                        done = [
-                            e
-                            for e in self.for_work(work["work_id"])
-                            if e["kind"] == "NETWORK_DONE"
+                            if e["kind"] == "BEGIN_DURABLE"
                             and e["body"]["attempt"] == body["attempt"]
                         ]
                         b.require(
-                            len(starts) == len(done) == 1
-                            and timing["epoch_id"]
-                            == starts[0]["epoch_id"]
-                            == done[0]["epoch_id"]
-                            and timing["started_mono_ns"]
-                            == starts[0]["body"]["started_mono_ns"]
-                            and timing["started_mono_ns"]
-                            <= timing["completed_mono_ns"]
-                            <= done[0]["body"]["completed_mono_ns"],
-                            "B2_CONTROL_TIMING",
+                            type(terminal) is dict
+                            and terminal["outcome"] == body["outcome"]["value"]
+                            and len(begins) == 1
+                            and terminal["begin_sha256"] == begins[0]["begin_sha256"],
+                            "B2_RECEIPT_ASSOCIATION",
                         )
-                    valid = 1
-                except (c.Stage12Error, OSError, KeyError, ValueError):
-                    valid = 0
-                self.db.execute(
-                    "insert into verified values(?,?,?,?)",
-                    (
-                        work["work_id"],
-                        body["attempt"],
-                        valid,
-                        b.canonical(terminal) if valid else None,
-                    ),
-                )
-        self.db.commit()
+                        if work["kind"] == "SERVICE_CONTROL":
+                            timing = terminal["_control_timing"]
+                            starts = [
+                                e
+                                for e in self.for_work(work["work_id"])
+                                if e["kind"] == "ATTEMPT_STARTED"
+                                and e["body"]["attempt"] == body["attempt"]
+                            ]
+                            done = [
+                                e
+                                for e in self.for_work(work["work_id"])
+                                if e["kind"] == "NETWORK_DONE"
+                                and e["body"]["attempt"] == body["attempt"]
+                            ]
+                            b.require(
+                                len(starts) == len(done) == 1
+                                and timing["epoch_id"]
+                                == starts[0]["epoch_id"]
+                                == done[0]["epoch_id"]
+                                and timing["started_mono_ns"]
+                                == starts[0]["body"]["started_mono_ns"]
+                                and timing["started_mono_ns"]
+                                <= timing["completed_mono_ns"]
+                                <= done[0]["body"]["completed_mono_ns"],
+                                "B2_CONTROL_TIMING",
+                            )
+                        valid = 1
+                    except (c.Stage12Error, OSError, KeyError, ValueError):
+                        valid = 0
+                    self.db.execute(
+                        "insert into verified values(?,?,?,?)",
+                        (
+                            work["work_id"],
+                            body["attempt"],
+                            valid,
+                            b.canonical(terminal) if valid else None,
+                        ),
+                    )
+            self.db.commit()
+
+        except BaseException:
+            try:
+                self.db.close()
+            except BaseException:
+                pass
+            raise
 
     def rows(self):
         for (raw,) in self.db.execute("select body from work order by id"):
+            io._checkpoint()
             yield json.loads(raw)
 
     def all(self):
         for (raw,) in self.db.execute("select body from event order by seq"):
+            io._checkpoint()
             yield json.loads(raw)
 
     def for_work(self, work_id):
         for (raw,) in self.db.execute(
             "select body from event where work=? order by seq", (work_id,)
         ):
+            io._checkpoint()
             yield json.loads(raw)
 
     def verified(self, work_id, attempt):
@@ -215,18 +229,116 @@ class Index:
             b.validate_type(row, "WorkLedgerRow")
             yield row
 
+    def exact_statistics(self, values, names):
+        """Exact uint64 nearest ranks in the already bounded stage index.
+
+        At most four metrics for each of five attempts/work. BLOB big-endian
+        values preserve unsigned ordering, including values above SQLite INT64.
+        No numeric population is retained in Python or reused for another view.
+        """
+        b.require(
+            0 < len(names) <= 4 and len(set(names)) == len(names), "B2_METRIC_NAME"
+        )
+        self.db.execute("create table if not exists metric(name text,value blob)")
+        self.db.execute("create index if not exists metric_order on metric(name,value)")
+        self.db.execute("delete from metric")
+        maximum = 20 * self.db.execute("select count(*) from work").fetchone()[0]
+        count = 0
+        for name, value in values():
+            io._checkpoint()
+            b.require(name in names and count < maximum, "B2_METRIC_BOUND")
+            b.uint(value)
+            self.db.execute(
+                "insert into metric values(?,?)", (name, value.to_bytes(8, "big"))
+            )
+            count += 1
+        self.db.commit()
+        result = {}
+        for name in names:
+            io._checkpoint()
+            n = self.db.execute(
+                "select count(*) from metric where name=?", (name,)
+            ).fetchone()[0]
+            metric = {"n": n}
+            for q in (50, 95, 99, 100):
+                ordinal = (q * n + 99) // 100 - 1
+                raw = (
+                    self.db.execute(
+                        "select value from metric where name=? order by value limit 1 offset ?",
+                        (name, ordinal),
+                    ).fetchone()
+                    if n
+                    else None
+                )
+                metric["max_ms" if q == 100 else f"p{q}_ms"] = (
+                    int.from_bytes(raw[0], "big") if raw else None
+                )
+            result[name] = metric
+        return result
+
+    def prefix(self, last_seq):
+        b.uint(last_seq, True)
+        b.require(
+            self.db.execute("select 1 from event where seq=?", (last_seq,)).fetchone(),
+            "B2_REPORT_PREFIX",
+        )
+        view = Prefix.__new__(Prefix)
+        view.db, view.last_seq = self.db, last_seq
+        view.event_hash = o.manifest_digest(view.all())
+        return view
+
     def verify_sources(self):
         b.require(
             o.manifest_digest(self.events()) == self.event_hash
-            and o.manifest_digest(self.works()) == self.work_hash,
+            and o.manifest_digest(self.works()) == self.work_hash
+            and o.manifest_digest(self.all()) == self.event_hash
+            and o.manifest_digest(self.rows()) == self.work_hash,
             "B2_REPORT_SOURCE_CHANGED",
         )
+        # A stage-local index never grants indefinite receipt trust. Validate
+        # the same original receipt again before accepting its derived output.
+        for work in self.rows():
+            for event in self.for_work(work["work_id"]):
+                if event["kind"] == "ATTEMPT_FINALIZED":
+                    old = self.verified(work["work_id"], event["body"]["attempt"])
+                    if old is not None:
+                        b.require(
+                            self.verify(work, event["body"]) == old,
+                            "B2_REPORT_SOURCE_CHANGED",
+                        )
 
     def close(self):
         try:
             self.verify_sources()
         finally:
             self.db.close()
+
+
+class Prefix(Index):
+    """Same-stage validated projection; later events/receipts are invisible."""
+
+    def all(self):
+        for (raw,) in self.db.execute(
+            "select body from event where seq<=? order by seq", (self.last_seq,)
+        ):
+            io._checkpoint()
+            yield json.loads(raw)
+
+    def for_work(self, work_id):
+        for (raw,) in self.db.execute(
+            "select body from event where work=? and seq<=? order by seq",
+            (work_id, self.last_seq),
+        ):
+            io._checkpoint()
+            yield json.loads(raw)
+
+    def verified(self, work_id, attempt):
+        if not self.db.execute(
+            "select 1 from event where work=? and attempt=? and kind='ATTEMPT_FINALIZED' and seq<=?",
+            (work_id, attempt, self.last_seq),
+        ).fetchone():
+            return None
+        return super().verified(work_id, attempt)
 
 
 def measurement(
@@ -238,6 +350,7 @@ def measurement(
     attempt_inventory: str,
     administrative_spent: dict,
     disposition: str,
+    defer_source_validation: bool = False,
 ):
     o.validate_plan(plan, profile)
     counts = dict.fromkeys(o.COUNT_KEYS, 0)
@@ -253,6 +366,7 @@ def measurement(
     last_observed = None
     sample_period = 100_000_000
     epochs = set()
+    state_sample_epochs = set()
     first = last = None
     tail = None
     mutations = {}
@@ -329,6 +443,8 @@ def measurement(
             timings += 1
         elif k == "RESOURCE":
             mutations[x["cause"]] = mutations.get(x["cause"], 0) + 1
+            if x["cause"] == "STATE_CHANGE":
+                state_sample_epochs.add(event["epoch_id"])
             if (
                 x["cause"] in ("PERIODIC", "START_RESERVE")
                 and x["free_allocated_disk_bytes"] is None
@@ -383,7 +499,7 @@ def measurement(
         and tail
         and tail["kind"] == "RESOURCE"
         and tail["body"]["cause"] == "PERIODIC"
-        and mutations.get("STATE_CHANGE", 0) == len(epochs)
+        and state_sample_epochs == epochs
         and mutations.get("START_RESERVE", 0)
         == mutations.get("QUEUE_REMOVE", 0)
         == counts["begins_charged"]
@@ -455,7 +571,7 @@ def measurement(
                             // 1000000,
                         )
 
-    latencies = statistics.exact_stats(values, tuple(o.TYPES["Latencies"]))
+    latencies = index.exact_statistics(values, tuple(o.TYPES["Latencies"]))
     timing_ok = timings == finals == network
     if not receipts_ok or not timing_ok:
         for metric in latencies.values():
@@ -510,5 +626,8 @@ def measurement(
         "administrative_spent": administrative_spent,
     }
     b.validate(report)
-    index.verify_sources()
+    if defer_source_validation:
+        b.require(isinstance(index, Prefix), "B2_REPORT_PREFIX")
+    else:
+        index.verify_sources()
     return report

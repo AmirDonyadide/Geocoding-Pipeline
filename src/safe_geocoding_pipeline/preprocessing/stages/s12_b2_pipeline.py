@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import ExitStack
 from pathlib import Path
 from dataclasses import dataclass
 from typing import Callable
@@ -12,6 +13,7 @@ from . import s12_b2_contract as b
 from . import s12_b2_operations as o
 from . import s12_b2_audit as audit
 from . import s12_b2_reporting as reporting
+from . import s12_b2_inventory as metadata
 from . import s12_b2_recovery as recovery
 from . import s12_b2_evidence as evidence
 from . import s12_response as response
@@ -199,6 +201,8 @@ def run_segment(
     predecessor: Path | None = None,
     pause_requested: Callable | None = None,
     notice: Callable | None = None,
+    phase_check: Callable[[], None] | None = None,
+    phase_remaining_seconds: Callable[[], float] | None = None,
 ):
     """No defaults for authority, live resource values, response rules or transport.
 
@@ -206,6 +210,9 @@ def run_segment(
     it must return a retained closure digest, never a bare success boolean.
     Synthetic callers supply unmistakably test-only records and adapters.
     """
+    phase_entered_ns = clock.now_ns()
+    if phase_check is not None:
+        phase_check()
     catalog.verify()
     gate.validate_campaign(start, plan, admission)
     o.verify_authorities(profile, plan, start, gate)
@@ -254,7 +261,7 @@ def run_segment(
         {"interpretation": start["response_interpretation_sha256"]},
     )
     o.verify_work_manifest(work_factory, plan)
-    gate.validate_workload(
+    slot = gate.validate_workload(
         catalog,
         profile,
         plan,
@@ -262,6 +269,13 @@ def run_segment(
         admission,
         output.parent / (output.name + "_selection.sqlite"),
     )
+    b.require(
+        type(slot) is dict
+        and type(slot.get("max_attempts")) is int
+        and slot["max_attempts"] > 0,
+        "B2_SEGMENT_UNPLANNED",
+    )
+    segment_attempt_limit = slot["max_attempts"]
     recipes = {x["recipe_id"]: x for x in plan["control_recipes"]}
     b.require(set(control_adapters) == set(recipes), "B2_CONTROL_ADAPTER_REQUIRED")
 
@@ -373,6 +387,27 @@ def run_segment(
         now=clock.utc(),
         authority=gate,
     )
+    carried_ms = (
+        rebase["snapshot"]["controller"]["active_duration_ms"]
+        if rebase is not None
+        else 0
+    )
+    remaining_ms = plan["budgets"]["active_duration_ms"] - carried_ms
+    b.require(remaining_ms > 0, "B2_PHASE_DEADLINE")
+    phase_deadline_ns = phase_entered_ns + remaining_ms * 1_000_000
+
+    def cumulative_check():
+        b.require(clock.now_ns() < phase_deadline_ns, "B2_PHASE_DEADLINE")
+        if phase_check is not None:
+            phase_check()
+
+    def cumulative_remaining():
+        remaining = max(0, phase_deadline_ns - clock.now_ns()) / 1e9
+        if phase_remaining_seconds is not None:
+            remaining = min(remaining, phase_remaining_seconds())
+        return remaining
+
+    cumulative_check()
     ctl = scheduler.Coordinator(
         profile,
         plan,
@@ -389,19 +424,25 @@ def run_segment(
         rebase=rebase,
         contract=o,
         segment_body={"segment_admission_sha256": b.digest(admission)},
+        original_events=lambda node, binding: recovery.events(node, binding, plan),
+        cumulative_check=cumulative_check,
+        cumulative_remaining=cumulative_remaining,
     )
     gate.require("retrieval_limit", start["retrieval_policy_id"], plan)
     ctl.size_ready = lambda pending: (
         pending.work["kind"] == "SERVICE_CONTROL"
         or pending.work["result_limit"] == plan["result_limit"]
     )
+    segment_initial_charge = sum(ctl.charged.values())
     writer, log = ctl.writer, ctl.journal
     records = {}
     last_response = clock.utc()
 
     def events():
-        return recovery.events(output, start)
+        return recovery.events(output, start, plan)
 
+    checkpoints = ExitStack()
+    checkpoints.enter_context(io.cooperative_io(cumulative_check))
     try:
         ctl.start_sampling()
         writer.call(lambda: io.reserve(output / "attempts"))
@@ -417,9 +458,7 @@ def run_segment(
                     secret_guard=lambda raw: response.secret_guard(raw, key),
                 )
             )
-        writer.call(
-            lambda: log.write_array("work.json", o.work_rows(work_factory(), plan))
-        )
+        metadata.stream_array(log, "work.json", o.work_rows(work_factory(), plan), plan)
         log.event(
             "PREFLIGHT_OBSERVED",
             {
@@ -660,6 +699,11 @@ def run_segment(
                             },
                             closure=True,
                         )
+                if (
+                    sum(ctl.charged.values()) - segment_initial_charge
+                    >= segment_attempt_limit
+                ):
+                    ctl.pause_pending = True
                 if pause_requested is not None and pause_requested():
                     ctl.pause_pending = True
                 with ctl.safety:
@@ -745,51 +789,52 @@ def run_segment(
             resume_index.close()
         b.require(ctl.stop_sampling(), "B2_SAMPLER_UNCERTAIN")
         ctl.resource("PERIODIC")
-        attempt_hash = o.manifest_digest(recovery.inventory(output, "attempts"))
-        index = writer.call(
-            lambda: reporting.Index(
-                output / "report_index.sqlite",
-                events,
-                work_factory,
-                verify_receipt,
-                max_bytes=profile["resources"]["fixed_campaign_disk_bound_bytes"],
-            )
+        attempt_hash = o.manifest_digest(recovery.inventory(output, "attempts", plan))
+        writer.check_deadline()
+        index = reporting.Index(
+            output.parent / (output.name + "_report_index.sqlite"),
+            events,
+            work_factory,
+            verify_receipt,
+            max_bytes=profile["resources"]["fixed_campaign_disk_bound_bytes"],
         )
         try:
             disposition = (
                 ctl.state
                 if ctl.stop_reason
-                else "PAUSED_CLEAN"
-                if ctl.pause_pending
                 else "COMPLETED"
+                if all(row["state"] == "DURABLE_SUCCESS" for row in index.ledger())
+                else "PAUSED_CLEAN"
             )
-            measured = writer.call(
-                lambda: reporting.measurement(
-                    index,
-                    profile,
-                    plan,
-                    start,
-                    attempt_inventory=attempt_hash,
-                    administrative_spent=spent,
-                    disposition=disposition,
-                )
+            writer.check_deadline()
+            measured = reporting.measurement(
+                index,
+                profile,
+                plan,
+                start,
+                attempt_inventory=attempt_hash,
+                administrative_spent=spent,
+                disposition=disposition,
             )
             writer.call(lambda: log.write("measurement_report.json", measured))
-            ledger_hash = writer.call(
-                lambda: log.write_array("work_ledger.json", index.ledger())
+            ledger_hash = metadata.stream_array(
+                log, "work_ledger.json", index.ledger(), plan
             )
-            remaining_hash = writer.call(
-                lambda: log.write_array(
-                    "remaining_work_ledger.json",
-                    (
-                        r
-                        for r in index.ledger()
-                        if r["state"] in ("UNBEGUN", "RETRY_DUE")
-                    ),
-                )
+            remaining_hash = metadata.stream_array(
+                log,
+                "remaining_work_ledger.json",
+                (r for r in index.ledger() if r["state"] in ("UNBEGUN", "RETRY_DUE")),
+                plan,
             )
-        finally:
-            writer.call(index.close)
+        except BaseException:
+            try:
+                index.close()
+            except BaseException:
+                pass  # Preserve the initiating failure; partial evidence stays.
+            raise
+        else:
+            index.close()
+            writer.check_deadline()
         b.require(
             not ctl.stop_reason
             and measured["resource_sampling_complete"]
@@ -886,15 +931,17 @@ def run_segment(
             closure=True,
         )
         state = replay_engine.replay(events(), contract=o)
-        event_hash = writer.call(
-            lambda: log.write_array(
-                "event_inventory.json", recovery.inventory(output, "events")
-            )
+        event_hash = metadata.stream_array(
+            log,
+            "event_inventory.json",
+            recovery.inventory(output, "events", plan),
+            plan,
         )
-        attempt_hash = writer.call(
-            lambda: log.write_array(
-                "attempt_inventory.json", recovery.inventory(output, "attempts")
-            )
+        attempt_hash = metadata.stream_array(
+            log,
+            "attempt_inventory.json",
+            recovery.inventory(output, "attempts", plan),
+            plan,
         )
         final = {
             k: v
@@ -1004,6 +1051,7 @@ def run_segment(
         raise
     finally:
         ctl.stop_sampling()
+        checkpoints.close()
 
 
 def prepare_bootstrap(

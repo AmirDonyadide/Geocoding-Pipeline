@@ -9,6 +9,7 @@ from __future__ import annotations
 import threading
 import time
 from collections import deque
+from contextlib import nullcontext
 from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 from pathlib import Path
@@ -19,6 +20,7 @@ from . import s12_public_journal as journal
 from . import s12_public_operations as o
 from . import s12_retrieval_contract as c
 from . import s12_transport as transport
+from . import s12_storage as io
 
 
 class Clock(Protocol):
@@ -88,6 +90,9 @@ class Coordinator:
         contract: Any = o,
         segment_body: dict[str, Any] | None = None,
         diagnostics: Any = None,
+        original_events: Callable | None = None,
+        cumulative_check: Callable[[], None] | None = None,
+        cumulative_remaining: Callable[[], float] | None = None,
     ):
         self.failures = diagnostics
         self.contract = contract
@@ -189,97 +194,125 @@ class Coordinator:
         self.writer = journal.Writer(
             root, self.capacity, self.resources["writer_guard_ms"], self.audit_failed
         )
-        self.writer.failures = diagnostics
-        self.contract.require((predecessor is None) == (rebase is None))
-        self.journal = journal.Journal(
-            self.writer,
-            start,
-            clock,
-            event_budget=plan["budgets"]["event_count"],
-            storage_budget=plan["budgets"]["storage_bytes"],
-            closure_events=closure_events,
-            predecessor=predecessor,
-            contract=contract,
-        )
-        self.journal.block_start_seq = self.journal.seq
-        self.journal.block_byte_budget = self.block["budget"]["storage_bytes"]
-        self.journal.block_event_budget = self.block["budget"]["event_count"]
-        if predecessor is not None:
-            from . import s12_storage as io
-
-            node = predecessor
-            while node is not None:
-                prior = self.contract.parse(
-                    io.read(node / "snapshot.json"), self.contract.SNAPSHOT
-                )
-                if prior["controller"]["block_id"] == block_id:
-                    self.journal.prior_block_bytes += journal.tree_bytes(node)
-                node = journal.predecessor_root(node)
-            current_block = None
-            for event in journal.read_events(
-                predecessor, self.contract.digest(start), contract=contract
+        try:
+            with (
+                io.cooperative_io(cumulative_check)
+                if cumulative_check is not None
+                else nullcontext()
             ):
-                if event["kind"] == "SEGMENT_OPEN":
-                    current_block = event["body"]["block_id"]
-                if current_block == block_id:
-                    self.journal.prior_block_events += 1
-        if rebase is not None:
-            previous = rebase["snapshot"]["controller"]
-            self.charged = {
-                "DATA": previous["charged_data_attempts"],
-                "SERVICE_CONTROL": previous["charged_control_attempts"],
-            }
-            if block_id == previous["block_id"]:
-                self.state_id = rebase["state_id"]
-                self.block_charged = rebase["block_charged"].copy()
-            self.cooldown_delay_ms = rebase["cooldown_delay_ms"]
-            self.consecutive = rebase["consecutive_retryable"]
-            self.recent = deque(
-                (
-                    (x["ticket"], x["retryable"], x["elapsed_ms"])
-                    for x in rebase["recent"]
-                ),
-                maxlen=20,
-            )
-            self.last_ticket = self.finalized_ticket = previous["last_ticket"]
-            self.prior_active_ms = previous["active_duration_ms"]
-            self.prior_block_ms = rebase["block_durations_ms"].get(block_id, 0)
-        self.journal.open_segment(
-            self.journal.segment + 1,
-            epoch,
-            {
-                **(segment_body or {}),
-                "authority_sha256": segment_authority,
-                "predecessor_snapshot_sha256": self.contract.digest(rebase["snapshot"])
-                if rebase
-                else None,
-                "writer_exclusion_evidence_sha256": writer_exclusion_evidence,
-                "block_id": block_id,
-                "state_id": self.state_id,
-            },
-        )
-        # The durable SEGMENT_OPEN timestamp follows all gates and any delayed
-        # journal opening. It is also the epoch used by deterministic replay.
-        self.opened_ns = self.last_sample_ns = self.journal.last_mono
-        if rebase is not None:
-            self.next_start_ns = self.next_emit_ns = self.contract.checked(
-                self.opened_ns + self.spacing
-            )
-            self.cooldown_until = self.contract.checked(
-                self.opened_ns + self.cooldown_delay_ms * 1_000_000
-            )
-            self.overloads = deque(
-                (self.opened_ns, (entry["work_id"], entry["attempt"]))
-                for entry in rebase["overload_carry"]
-            )
-        self.state = "VERIFYING" if self.monitored else "RUNNING"
-        if rebase is not None and self.cooldown_until > clock.now_ns():
-            self.state = "COOLDOWN"
-            self.journal.event(
-                "COOLDOWN",
-                {"until_mono_ns": self.cooldown_until, **rebase["cooldown_trigger"]},
-            )
-        self.resource("STATE_CHANGE")
+                self.writer.failures = diagnostics
+                if cumulative_check is not None:
+                    self.writer.check_deadline = cumulative_check
+                if cumulative_remaining is not None:
+                    self.writer.remaining_seconds = cumulative_remaining
+                self.contract.require((predecessor is None) == (rebase is None))
+                self.journal = journal.Journal(
+                    self.writer,
+                    start,
+                    clock,
+                    event_budget=plan["budgets"]["event_count"],
+                    storage_budget=plan["budgets"]["storage_bytes"],
+                    closure_events=closure_events,
+                    predecessor=predecessor,
+                    contract=contract,
+                )
+                self.journal.block_start_seq = self.journal.seq
+                self.journal.block_byte_budget = self.block["budget"]["storage_bytes"]
+                self.journal.block_event_budget = self.block["budget"]["event_count"]
+                if predecessor is not None:
+                    node = predecessor
+                    while node is not None:
+                        prior = self.contract.parse(
+                            io.read(node / "snapshot.json"), self.contract.SNAPSHOT
+                        )
+                        if prior["controller"]["block_id"] == block_id:
+                            self.journal.prior_block_bytes += journal.tree_bytes(
+                                node, check=io._checkpoint
+                            )
+                        node = journal.predecessor_root(node)
+                    current_block = None
+                    prior_events = (
+                        original_events(predecessor, start)
+                        if original_events is not None
+                        else journal.read_events(
+                            predecessor, self.contract.digest(start), contract=contract
+                        )
+                    )
+                    for event in prior_events:
+                        if event["kind"] == "SEGMENT_OPEN":
+                            current_block = event["body"]["block_id"]
+                        if current_block == block_id:
+                            self.journal.prior_block_events += 1
+                if rebase is not None:
+                    previous = rebase["snapshot"]["controller"]
+                    self.charged = {
+                        "DATA": previous["charged_data_attempts"],
+                        "SERVICE_CONTROL": previous["charged_control_attempts"],
+                    }
+                    if block_id == previous["block_id"]:
+                        self.state_id = rebase["state_id"]
+                        self.block_charged = rebase["block_charged"].copy()
+                    self.cooldown_delay_ms = rebase["cooldown_delay_ms"]
+                    self.consecutive = rebase["consecutive_retryable"]
+                    self.recent = deque(
+                        (
+                            (x["ticket"], x["retryable"], x["elapsed_ms"])
+                            for x in rebase["recent"]
+                        ),
+                        maxlen=20,
+                    )
+                    self.last_ticket = self.finalized_ticket = previous["last_ticket"]
+                    self.prior_active_ms = previous["active_duration_ms"]
+                    self.prior_block_ms = rebase["block_durations_ms"].get(block_id, 0)
+                self.journal.open_segment(
+                    self.journal.segment + 1,
+                    epoch,
+                    {
+                        **(segment_body or {}),
+                        "authority_sha256": segment_authority,
+                        "predecessor_snapshot_sha256": self.contract.digest(
+                            rebase["snapshot"]
+                        )
+                        if rebase
+                        else None,
+                        "writer_exclusion_evidence_sha256": writer_exclusion_evidence,
+                        "block_id": block_id,
+                        "state_id": self.state_id,
+                    },
+                )
+                # The durable SEGMENT_OPEN timestamp follows all gates and any delayed
+                # journal opening. It is also the epoch used by deterministic replay.
+                self.opened_ns = self.last_sample_ns = self.journal.last_mono
+                if rebase is not None:
+                    self.next_start_ns = self.next_emit_ns = self.contract.checked(
+                        self.opened_ns + self.spacing
+                    )
+                    self.cooldown_until = self.contract.checked(
+                        self.opened_ns + self.cooldown_delay_ms * 1_000_000
+                    )
+                    self.overloads = deque(
+                        (self.opened_ns, (entry["work_id"], entry["attempt"]))
+                        for entry in rebase["overload_carry"]
+                    )
+                self.state = "VERIFYING" if self.monitored else "RUNNING"
+                if rebase is not None and self.cooldown_until > clock.now_ns():
+                    self.state = "COOLDOWN"
+                    self.journal.event(
+                        "COOLDOWN",
+                        {
+                            "until_mono_ns": self.cooldown_until,
+                            **rebase["cooldown_trigger"],
+                        },
+                    )
+                self.resource("STATE_CHANGE")
+        except BaseException:
+            # Constructor failure cannot leave an independently usable writer.
+            # Abort preserves uncertain/partial evidence and creates no seal.
+            try:
+                self.writer.abort()
+            except BaseException:
+                pass  # Preserve the constructor failure; never release/seal.
+            raise
 
     @property
     def selected(self) -> dict[str, Any]:

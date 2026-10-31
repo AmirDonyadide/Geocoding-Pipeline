@@ -394,6 +394,10 @@ def _execute(phase: str, session: Session, resources):
             predecessor=port.predecessor,
             pause_requested=port.pause_requested,
             notice=port.notice,
+            phase_check=port.check_deadline,
+            phase_remaining_seconds=lambda: (
+                max(0, port.deadline - port.clock.now_ns()) / 1e9
+            ),
         )
     elif phase == "close-campaign":
         profile, plan, start, science, admission, works = port.campaign_inputs()
