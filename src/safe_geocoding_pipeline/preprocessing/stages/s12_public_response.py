@@ -109,6 +109,16 @@ def messages(obj, *, berlin=False):
 
 
 def shapes(raw, work, *, version=VERSION):
+    return _shapes(raw, work, version=version, ordinary=False)
+
+
+def ordinary_shapes(raw, size):
+    """Strict public control shapes: no request can acquire a warning exception."""
+    c.require(type(size) is int and 0 < size <= 40, "RESPONSE_CONTRACT_INVALID")
+    return _shapes(raw, {"result_limit": size}, version=VERSION, ordinary=True)
+
+
+def _shapes(raw, work, *, version, ordinary):
     c.require(version in (VERSION, FAMILY_VERSION), "RESPONSE_CONTRACT_INVALID")
     obj = response.Parser(raw).parse().value
     response.envelope(obj)
@@ -123,7 +133,11 @@ def shapes(raw, work, *, version=VERSION):
         geo = obj["geocoding"]
         c.require(type(geo) is dict, "RESPONSE_CONTRACT_INVALID")
         response.envelope(geo, messages=False, bbox=False)
-        berlin = eligible(work, version) and geo.get("warnings") == [WARNING]
+        berlin = (
+            not ordinary
+            and eligible(work, version)
+            and geo.get("warnings") == [WARNING]
+        )
         messages(geo, berlin=berlin)
         for key in ("version", "attribution"):
             if key in geo:

@@ -340,11 +340,14 @@ def control_result(
     payload: bytes | None,
     recipe: dict[str, Any],
     adapter: o.ControlAdapter,
-    key: bytes,
+    key: bytes | None,
+    *,
+    reopening: bool = False,
 ) -> tuple[str, str, str, bytes | None, bytes | None]:
     validate_transport(record)
+    o.require(bool(key) or (reopening and key is None), "ENVIRONMENT_AUTH_MISSING")
     privacy = False
-    if payload is not None:
+    if payload is not None and key is not None:
         try:
             response.secret_guard(payload, key)
         except c.Stage12Error:
@@ -373,7 +376,8 @@ def control_result(
             "RESPONSE_CONTRACT_INVALID",
         )
         verification = adapter.validate(recipe, payload)
-        response.secret_guard(verification, key)
+        if key is not None:
+            response.secret_guard(verification, key)
         io.metadata(verification)
     except c.Stage12Error as error:
         if str(error) == "SECRET_ECHO_DETECTED":
@@ -460,8 +464,12 @@ def finish_control(
 
 
 def reopen_control(
-    root: Path, adapter: o.ControlAdapter, *, key: bytes, sealed: bool = True
+    root: Path, adapter: o.ControlAdapter, *, key: bytes | None, sealed: bool = True
 ) -> dict[str, Any]:
+    # Capture always requires the actual runtime key. A sealed retrospective
+    # reopening checks original bytes/receipt/validator again without accessing
+    # credentials, matching DATA replay. No unsealed keyless publication.
+    o.require(key is not None or sealed, "ENVIRONMENT_AUTH_MISSING")
     begin = o.parse(io.read(root / "begin.json"), o.CONTROL_BEGIN)
     finish = o.parse(io.read(root / "finish.json"), o.CONTROL_FINISH)
     record, recipe = (
@@ -501,7 +509,7 @@ def reopen_control(
             and finish["raw_inventory_sha256"] == o.digest(expected)
         )
         result, outcome, reason, _, verification = control_result(
-            record, raw, recipe, adapter, key
+            record, raw, recipe, adapter, key, reopening=True
         )
         o.require(
             (result, outcome, reason)
@@ -522,7 +530,7 @@ def reopen_control(
         )
         if finish["reason"] != "SECRET_ECHO_DETECTED":
             result, outcome, reason, _, _ = control_result(
-                record, None, recipe, adapter, key
+                record, None, recipe, adapter, key, reopening=True
             )
             o.require(
                 (result, outcome, reason)

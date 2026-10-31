@@ -10,7 +10,13 @@ from .stages import s12_retrieval_contract as c
 
 def result_exit_status(config, result):
     """Keep legacy completion semantics; require both lower-profile phases."""
-    if config["version"] == runtime.LOWER_VERSION:
+    if config["version"] == runtime.MATRIX_VERSION:
+        passed = (
+            result["full_frozen_capability_matrix_completed"] is True
+            and result["completed_phases"] == [x["label"] for x in config["campaigns"]]
+            and result["qualified_public_rates"] == []
+        )
+    elif config["version"] == runtime.LOWER_VERSION:
         passed = result["completed_phases"] == [
             "capability_subset",
             "confirmatory1",

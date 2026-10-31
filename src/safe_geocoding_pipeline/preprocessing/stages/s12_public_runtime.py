@@ -34,6 +34,7 @@ from safe_geocoding_pipeline.execution_policy import require_goethe_nhr_slurm
 
 VERSION = "stage12_public_runtime_configuration_v1"
 LOWER_VERSION = "stage12_public_lower_rate_configuration_v1"
+MATRIX_VERSION = "stage12_public_diverse_capability_configuration_v1"
 FIELDS = set(
     "version scope task_id output_directory window_start window_end maximum_attempts active_seconds review_wait_seconds transport resources sources campaigns public_validation_sha256".split()
 )
@@ -55,12 +56,13 @@ class Clock:
 
 
 class Envelope:
-    def __init__(self, clock, attempts, seconds):
+    def __init__(self, clock, attempts, seconds, *, matrix=False):
         o.require(
-            type(attempts) is int
-            and 0 < attempts <= 400
+            type(matrix) is bool
+            and type(attempts) is int
+            and 0 < attempts <= (2960 if matrix else 400)
             and type(seconds) is int
-            and 0 < seconds <= 1800
+            and 0 < seconds <= (7200 if matrix else 1800)
         )
         self.clock = clock
         self.cap = attempts
@@ -68,6 +70,8 @@ class Envelope:
         self.deadline = self.started + seconds * 10**9
         self.attempts = 0
         self.lock = threading.Lock()
+        self.matrix = matrix
+        self.last_started = self.last_emitted = None
 
     def check(self):
         o.require(self.clock.now_ns() < self.deadline, "S12_PUBLIC_WINDOW_CLOSED")
@@ -83,6 +87,14 @@ class Envelope:
 
         class Hooks:
             def started(self, ns):
+                if owner.matrix:
+                    with owner.lock:
+                        o.require(
+                            owner.last_started is None
+                            or ns - owner.last_started >= 10**9,
+                            "S12_PUBLIC_ATTEMPT_BUDGET",
+                        )
+                        owner.last_started = ns
                 hooks.started(ns)
 
             def signal(self, *args):
@@ -99,7 +111,19 @@ class Envelope:
                     owner.check()
                     deadline()
 
-                hooks.emit(write, check)
+                def paced_write():
+                    if owner.matrix:
+                        with owner.lock:
+                            now = owner.clock.now_ns()
+                            o.require(
+                                owner.last_emitted is None
+                                or now - owner.last_emitted >= 10**9,
+                                "S12_PUBLIC_ATTEMPT_BUDGET",
+                            )
+                            owner.last_emitted = now
+                    write()
+
+                hooks.emit(paced_write, check)
 
         return Hooks()
 
@@ -117,17 +141,18 @@ def validation_for(identity):
 
 
 def validate_config(config):
+    matrix = config.get("version") == MATRIX_VERSION
     o.require(
-        set(config) == FIELDS
-        and config["version"] in (VERSION, LOWER_VERSION)
+        set(config) == (FIELDS | {"capability"} if matrix else FIELDS)
+        and config["version"] in (VERSION, LOWER_VERSION, MATRIX_VERSION)
         and config["scope"] == o.SCOPE
     )
     o.validate_type(config["task_id"], "N32")
     for key in ("maximum_attempts", "active_seconds", "review_wait_seconds"):
         o.uint(config[key], True)
     o.require(
-        config["maximum_attempts"] == 400
-        and 0 < config["active_seconds"] <= 1680
+        config["maximum_attempts"] == (2960 if matrix else 400)
+        and 0 < config["active_seconds"] <= (7200 if matrix else 1680)
         and 0 < config["review_wait_seconds"] <= 180
     )
     for k in ("window_start", "window_end"):
@@ -159,7 +184,9 @@ def validate_config(config):
     ).validate()
     sources = config["sources"]
     o.require(
-        set(sources) == {"owner", "policy_freeze", "operator", "selection", "transport"}
+        set(sources)
+        == {"owner", "policy_freeze", "operator", "selection", "transport"}
+        | ({"size_allowance"} if matrix else set())
     )
     for value in sources.values():
         o.validate_type(value, "D")
@@ -169,6 +196,10 @@ def validate_config(config):
         if lower
         else ["capability_subset", "rate20", "rate40"]
     )
+    if matrix:
+        from . import s12_public_matrix as matrix_rules
+
+        labels = [x[0] for x in matrix_rules.fragments()]
     o.require([x["label"] for x in config["campaigns"]] == labels)
     # This prospective wrapper selects one same-rate confirmation. It never
     # promotes exploratory evidence into an upward-rate qualification.
@@ -178,16 +209,23 @@ def validate_config(config):
         o.require(set(item) == {"label", "profile", "plan", "work", "ascending_sizes"})
         p, plan = item["profile"], item["plan"]
         o.require(type(item["ascending_sizes"]) is bool)
-        rate = {"capability_subset": 1, "confirmatory1": 1, "rate20": 20, "rate40": 40}[
-            item["label"]
-        ]
-        smoke = item["label"] == "capability_subset"
+        rate = (
+            1
+            if matrix
+            else {
+                "capability_subset": 1,
+                "confirmatory1": 1,
+                "rate20": 20,
+                "rate40": 40,
+            }[item["label"]]
+        )
+        smoke = matrix or item["label"] == "capability_subset"
         o.require(
             len(p["states"]) == 1
             and p["states"][0]["rate"] == {"num": rate, "den": 1}
             and len(plan["blocks"]) == 1
             and plan["experiment_kind"] == "PERFORMANCE"
-            and item["ascending_sizes"] == smoke
+            and item["ascending_sizes"] == (False if matrix else smoke)
             and plan["blocks"][0]["evaluation"]
             == ("EXPLORATORY" if smoke else "CONFIRMATORY")
         )
@@ -198,7 +236,7 @@ def validate_config(config):
         # Confirmatory templates are validated after binding the actual reviewed
         # partial parent; no made-up content hash is supplied for that evidence.
         check = deepcopy(plan)
-        if item["label"] != "capability_subset":
+        if not matrix and item["label"] != "capability_subset":
             o.require(check["capability_parent_sha256"] is None)
             criteria = plan["blocks"][0]["criteria"]
             o.validate_type(criteria, "Criteria")
@@ -227,10 +265,11 @@ def validate_config(config):
         total += (
             plan["budgets"]["data_attempts"] + plan["budgets"]["control_http_attempts"]
         )
-        o.require(
-            not plan["control_recipes"]
-            and all(w["kind"] == "DATA" for w in item["work"])
-        )
+        if not matrix:
+            o.require(
+                not plan["control_recipes"]
+                and all(w["kind"] == "DATA" for w in item["work"])
+            )
         o.require(
             plan["window_start"] == config["window_start"]
             and plan["window_end"] == config["window_end"]
@@ -244,7 +283,9 @@ def validate_config(config):
                 for s in p["states"]
             )
         )
-    o.require(total <= 400)
+    o.require(total <= (2960 if matrix else 400))
+    if matrix:
+        matrix_rules.validate_matrix(config)
 
 
 def runtime_inventory(validation_sha256=None):
@@ -356,6 +397,11 @@ class Authority:
             "writer_release": sources["owner"],
             "dispatch": sources["owner"],
         }
+        if self.config["version"] == MATRIX_VERSION and purpose == "control_recipe":
+            from . import s12_public_matrix as matrix
+
+            hashes[purpose] = o.digest(matrix.check_descriptor())
+            o.require(context in plan["control_recipes"])
         o.require(
             purpose in hashes and evidence_sha256 == hashes[purpose],
             "S12_PUBLIC_AUTHORITY_SCOPE",
@@ -392,17 +438,26 @@ class Authority:
         )
 
 
-def reopen_completed(root, profile, plan, start, *, validation_sha256=None):
+def reopen_completed(
+    root, profile, plan, start, *, validation_sha256=None, control_adapters=None
+):
     """A new bounded original-source stage; no publication cache is accepted."""
     from .s12_public_fresh_reads import FreshReads
 
     with FreshReads(root, check=io._checkpoint):
         return _reopen_completed(
-            root, profile, plan, start, validation_sha256=validation_sha256
+            root,
+            profile,
+            plan,
+            start,
+            validation_sha256=validation_sha256,
+            control_adapters=control_adapters,
         )
 
 
-def _reopen_completed(root, profile, plan, start, *, validation_sha256=None):
+def _reopen_completed(
+    root, profile, plan, start, *, validation_sha256=None, control_adapters=None
+):
     """Existing event/receipt/ledger/report readers, no trusted aggregate shortcut."""
     io._checkpoint()
     root_info = root.stat(follow_symlinks=False)
@@ -424,6 +479,32 @@ def _reopen_completed(root, profile, plan, start, *, validation_sha256=None):
     def receipt(work, event):
         name = audit.name_for(work["work_id"], event["attempt"])
         path = root / "attempts" / name
+        if work["kind"] == "SERVICE_CONTROL":
+            o.require(
+                control_adapters is not None and work["recipe_id"] in control_adapters
+            )
+            control = control_adapters[work["recipe_id"]]
+            recipe = next(
+                r
+                for r in plan["control_recipes"]
+                if r["recipe_id"] == work["recipe_id"]
+            )
+            begin = read_object(path / "begin.json")
+            o.require(read_object(path / "recipe.json") == recipe)
+            o.require(
+                begin["campaign_start_sha256"] == o.digest(start)
+                and begin["profile_sha256"] == o.digest(profile)
+                and begin["plan_sha256"] == o.digest(plan)
+                and begin["work_id"] == work["work_id"]
+                and begin["attempt"] == event["attempt"]
+                and begin["request_target_sha256"]
+                == c.sha(control.target(recipe)).hex()
+            )
+            o.require(
+                c.sha(io.read(path / "inventory.json")).hex()
+                == event["receipt_inventory_sha256"]
+            )
+            return oa.reopen_control(path, control, key=None)
         o.require(
             c.sha(io.read(path / (name + "_receipt.json"))).hex()
             == event["receipt_inventory_sha256"]
@@ -619,7 +700,15 @@ def _reopen_completed(root, profile, plan, start, *, validation_sha256=None):
 
 
 def plan_work(root, plan):
-    for i in range(1, plan["budgets"]["data_observations"] + 1):
+    total = sum(
+        plan["budgets"][key]
+        for key in (
+            "data_observations",
+            "required_control_observations",
+            "reserved_control_observations",
+        )
+    )
+    for i in range(1, total + 1):
         yield read_object(root / "work" / f"{i:020d}.json")
 
 
@@ -713,6 +802,9 @@ def execute(
 
     require_goethe_nhr_slurm("stage12 explicit O-r2 public diagnostic")
     validate_config(config)
+    matrix_mode = config["version"] == MATRIX_VERSION
+    if matrix_mode:
+        from . import s12_public_matrix as matrix
     clock = clock or Clock()
     resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
     assets.verify(repository)
@@ -736,7 +828,9 @@ def execute(
         "PUBLIC_PROBE_OUTPUT_SCOPE_INVALID",
     )
     io.reserve(output)  # task-global exclusive reservation, no second invocation/resume
-    envelope = Envelope(clock, config["maximum_attempts"], config["active_seconds"])
+    envelope = Envelope(
+        clock, config["maximum_attempts"], config["active_seconds"], matrix=matrix_mode
+    )
     io.write(
         output / "_RUN_RESERVED.json",
         c.canonical(
@@ -793,6 +887,8 @@ def execute(
     results = []
     verified_complete = []
     verified_rates = []
+    matrix_complete = False
+    matrix_passed = 0
     parent = None
     initial_cpu = time.process_time_ns()
     rss0 = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
@@ -805,9 +901,10 @@ def execute(
             envelope.check()
             authority.recheck()
             plan = deepcopy(item["plan"])
-            if item["label"] != "capability_subset":
+            if not matrix_mode and item["label"] != "capability_subset":
                 plan["capability_parent_sha256"] = parent
             profile = item["profile"]
+            controls = matrix.adapters(plan) if matrix_mode else {}
             o.validate_plan(plan, profile)
             start = {
                 "schema_version": o.START,
@@ -851,7 +948,7 @@ def execute(
                 dispatch=dispatch,
                 runtime_inventory=runtime,
                 runtime_key=key.value,
-                control_adapters={},
+                control_adapters=controls,
                 monitor=None,
                 free_bytes=free,
                 segment_authority=source,
@@ -887,10 +984,32 @@ def execute(
                     plan,
                     start,
                     validation_sha256=config["public_validation_sha256"],
+                    control_adapters=controls,
                 )
                 phase_deadline.check()
             runtime_operation = "RUNTIME"
             verified_complete.append(item["label"])
+            if matrix_mode:
+                with io.cooperative_io(phase_deadline.check):
+                    comparisons = matrix.verify_controls(phase, plan)
+                    phase_deadline.check()
+                if not matrix.gate(block, item, config["capability"]):
+                    break
+                io.write(
+                    output / (item["label"] + "_CAPABILITY_GATE.json"),
+                    c.canonical(
+                        {
+                            "version": "stage12_public_matrix_phase_gate_v1",
+                            "configuration_sha256": o.digest(config),
+                            "block_report_sha256": o.digest(block),
+                            "control_comparisons": comparisons,
+                            "disposition": "PASS_EXACT_PHASE_NOT_RATE_QUALIFICATION",
+                            "cumulative_attempts": envelope.attempts,
+                        }
+                    ),
+                )
+                matrix_passed += 1
+                continue
             if not qualifies(block, smoke=item["label"] == "capability_subset"):
                 break
             if item["label"] != "capability_subset":
@@ -914,6 +1033,15 @@ def execute(
             )
             if item["label"] == "capability_subset":
                 parent = o.digest(block)
+        if matrix_mode and matrix_passed == len(config["campaigns"]):
+            runtime_operation = "RUNTIME_REOPEN"
+            with io.cooperative_io(envelope.check):
+                reconciliation = matrix.reconcile(config, output, envelope.check)
+                o.require(reconciliation["actual_attempts"] == envelope.attempts)
+                envelope.check()
+            io.write(output / "matrix_reconciliation.json", c.canonical(reconciliation))
+            envelope.check()
+            matrix_complete = True
     except (Exception, KeyboardInterrupt) as error:
         runtime_failure = error
         diagnostics.record(runtime_operation, error)
@@ -940,7 +1068,7 @@ def execute(
             "scope": o.SCOPE,
             "scientific_identity_verified": False,
             "continuous_service_state": "NOT_VERIFIED",
-            "full_frozen_capability_matrix_completed": False,
+            "full_frozen_capability_matrix_completed": matrix_complete,
             "attempts_dispatched_or_uncertain": envelope.attempts,
             "maximum_attempts": config["maximum_attempts"],
             "elapsed_ns": clock.now_ns() - envelope.started,
