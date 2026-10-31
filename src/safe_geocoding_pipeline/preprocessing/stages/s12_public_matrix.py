@@ -241,7 +241,10 @@ def validate_matrix(config):
     o.require(config["capability"] == binding(config["sources"]["size_allowance"]))
     o.require(
         config["public_validation_sha256"]
-        == o.digest(validation.descriptor(validation.FAMILY_VERSION))
+        in {
+            o.digest(validation.descriptor(version))
+            for version in (validation.FAMILY_VERSION, validation.CORPUS_VERSION)
+        }
     )
     expected = fragments()
     o.require(len(config["campaigns"]) == len(expected))

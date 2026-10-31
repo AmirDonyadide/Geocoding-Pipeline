@@ -133,7 +133,7 @@ def read_object(path):
 
 
 def validation_for(identity):
-    for version in (validation.VERSION, validation.FAMILY_VERSION):
+    for version in validation.VERSIONS:
         adapter = validation.Validation(version)
         if o.digest(adapter.descriptor()) == identity:
             return adapter
@@ -158,7 +158,8 @@ def validate_config(config):
     for k in ("window_start", "window_end"):
         o.validate_type(config[k], "Z")
     o.require(config["window_start"] < config["window_end"])
-    validation_for(config["public_validation_sha256"])
+    adapter = validation_for(config["public_validation_sha256"])
+    o.require(adapter.VERSION != validation.CORPUS_VERSION or matrix)
     t = config["transport"]
     o.require(
         set(t)

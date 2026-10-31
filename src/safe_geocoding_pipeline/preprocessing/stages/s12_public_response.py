@@ -9,6 +9,7 @@ from . import s12_probe as probe
 from . import s12_response as response
 from . import s12_retrieval_contract as c
 from . import s12_storage as io
+from . import s12_public_corpus_policy as corpus
 
 # Public constants do not activate/import the inactive scientific successor.
 BASE_SCIENTIFIC_SHA256 = (
@@ -19,12 +20,17 @@ SIZE1_TARGET = b"/v1/search?boundary.country=DE&size=1&text=Berlin"
 
 VERSION = "stage12_public_observation_validation_v1"
 FAMILY_VERSION = "stage12_public_observation_validation_v2"
+CORPUS_VERSION = "stage12_public_observation_validation_v3"
 FAMILY_SIZES = (1, 3, 5, 10, 20, 40)
 SCOPE = "PUBLIC_SHAPES_WITH_EXACT_BERLIN_LIMITATION_SCIENTIFIC_IDENTITY_UNVERIFIED"
+CORPUS_SCOPE = (
+    "PUBLIC_SHAPES_WITH_EXACT_CORPUS_LIMITATION_SCIENTIFIC_IDENTITY_UNVERIFIED"
+)
+VERSIONS = (VERSION, FAMILY_VERSION, CORPUS_VERSION)
 
 
 def descriptor(version=VERSION):
-    c.require(version in (VERSION, FAMILY_VERSION), "RESPONSE_CONTRACT_INVALID")
+    c.require(version in VERSIONS, "RESPONSE_CONTRACT_INVALID")
     value = {
         "version": VERSION,
         "scope": SCOPE,
@@ -65,11 +71,57 @@ def descriptor(version=VERSION):
             },
             echo_basis="PROSPECTIVE_OWNER_PUBLIC_POLICY_NOT_OBSERVED_RECURRENCE",
         )
+    if version == CORPUS_VERSION:
+        check_corpus()
+        targets = corpus.allowlist()
+        del value["exception_target_ascii"]
+        value.update(
+            version=CORPUS_VERSION,
+            scope=CORPUS_SCOPE,
+            approved_matrix_manifest_sha256=corpus.MANIFEST_SHA256,
+            fixture_inventory_sha256=corpus.FIXTURE_SHA256,
+            request_allowlist=targets,
+            request_allowlist_sha256=c.sha(c.canonical(targets)).hex(),
+            request_allowlist_count=len(targets),
+            request_eligibility="EXACT_GET_FULL_TEXT_DATA_FIXTURE_AND_PLANNED_TARGET_ONLY",
+            echo={
+                "text": "EXACT_BOUND_REQUEST_TEXT_NO_NORMALIZATION",
+                "size": "EXACT_REQUEST_INTEGER_TOKEN",
+                "boundary.country": "EXACT_BOUND_ALPHA3_SINGLETON_NO_DEFAULT",
+            },
+            echo_basis="PROSPECTIVE_OWNER_CORPUS_POLICY_NOT_OBSERVED_RECURRENCE",
+            limitation_receipt_version="stage12_public_limitation_receipt_v2",
+            protected_and_controls="INELIGIBLE_UNCHANGED_STRICT_VALIDATION",
+        )
     return value
 
 
+def check_corpus():
+    """The fixed table cannot silently follow a later fixture/corpus edit."""
+    c.require(
+        c.sha(c.canonical(probe.fixtures())).hex() == corpus.FIXTURE_SHA256,
+        "RESPONSE_CONTRACT_INVALID",
+    )
+
+
+def corpus_entry(work):
+    if work.get("kind") != "DATA":
+        return None
+    entry = corpus.entry(work.get("fixture_id"), work.get("result_limit"))
+    if entry is None:
+        return None
+    check_corpus()
+    c.require(
+        target(work) == entry["target_ascii"].encode("ascii"),
+        "RESPONSE_CONTRACT_INVALID",
+    )
+    return entry
+
+
 def eligible(work, version):
-    c.require(version in (VERSION, FAMILY_VERSION), "RESPONSE_CONTRACT_INVALID")
+    c.require(version in VERSIONS, "RESPONSE_CONTRACT_INVALID")
+    if version == CORPUS_VERSION:
+        return corpus_entry(work) is not None
     size = work["result_limit"]
     sizes = (1,) if version == VERSION else FAMILY_SIZES
     return (
@@ -119,7 +171,7 @@ def ordinary_shapes(raw, size):
 
 
 def _shapes(raw, work, *, version, ordinary):
-    c.require(version in (VERSION, FAMILY_VERSION), "RESPONSE_CONTRACT_INVALID")
+    c.require(version in VERSIONS, "RESPONSE_CONTRACT_INVALID")
     obj = response.Parser(raw).parse().value
     response.envelope(obj)
     c.require(
@@ -133,12 +185,12 @@ def _shapes(raw, work, *, version, ordinary):
         geo = obj["geocoding"]
         c.require(type(geo) is dict, "RESPONSE_CONTRACT_INVALID")
         response.envelope(geo, messages=False, bbox=False)
-        berlin = (
+        allowed_warning = (
             not ordinary
             and eligible(work, version)
             and geo.get("warnings") == [WARNING]
         )
-        messages(geo, berlin=berlin)
+        messages(geo, berlin=allowed_warning)
         for key in ("version", "attribution"):
             if key in geo:
                 c.require(type(geo[key]) is str, "RESPONSE_CONTRACT_INVALID")
@@ -152,13 +204,18 @@ def _shapes(raw, work, *, version, ordinary):
                 and all(ch not in value.token for ch in ".eE"),
                 "RESPONSE_CONTRACT_INVALID",
             )
-        if berlin:
+        if allowed_warning:
             query = geo.get("query")
+            expected_text, expected_country = "Berlin", ["DEU"]
+            if version == CORPUS_VERSION:
+                entry = corpus_entry(work)
+                expected_text = entry["text"]
+                expected_country = entry["country_echo"]
             c.require(
                 type(query) is dict
-                and query.get("text") == "Berlin"
+                and query.get("text") == expected_text
                 and query.get("size") == response.Number(str(work["result_limit"]))
-                and query.get("boundary.country") == ["DEU"],
+                and query.get("boundary.country") == expected_country,
                 "RESPONSE_CONTRACT_INVALID",
             )
             layers = query.get("layers")
@@ -217,6 +274,7 @@ class Validation:
     def __init__(self, version=VERSION):
         descriptor(version)  # Reject unknown versions before evidence use.
         self.VERSION = version
+        self.SCOPE = CORPUS_SCOPE if version == CORPUS_VERSION else SCOPE
 
     def descriptor(self):
         return descriptor(self.VERSION)
@@ -238,7 +296,7 @@ class Validation:
             except (c.Stage12Error, KeyError, TypeError, AttributeError):
                 pass
         applied = bool(valid and observed and eligible(work, self.VERSION))
-        return {
+        value = {
             "version": "stage12_public_limitation_receipt_v1",
             "validation_sha256": c.sha(c.canonical(self.descriptor())).hex(),
             "work_sha256": c.sha(c.canonical(work)).hex(),
@@ -255,6 +313,18 @@ class Validation:
             "harmlessness_established": False,
             "live_determinism_established": False,
         }
+        if self.VERSION == CORPUS_VERSION:
+            entry = corpus_entry(work)
+            value.update(
+                version="stage12_public_limitation_receipt_v2",
+                approved_matrix_manifest_sha256=corpus.MANIFEST_SHA256,
+                fixture_inventory_sha256=corpus.FIXTURE_SHA256,
+                request_allowlist_sha256=c.sha(c.canonical(corpus.allowlist())).hex(),
+                eligible_request_target_sha256=entry["target_sha256"]
+                if entry is not None
+                else None,
+            )
+        return value
 
     def verify_limitation(self, root, work, record):
         value = io.metadata(io.read(root / "public_limitation.json"))
@@ -265,6 +335,15 @@ class Validation:
             and value["validation_sha256"] == base["validation_sha256"],
             "S12_CAPTURE_BINDING_INVALID",
         )
+        if self.VERSION == CORPUS_VERSION:
+            for key in (
+                "version",
+                "approved_matrix_manifest_sha256",
+                "fixture_inventory_sha256",
+                "request_allowlist_sha256",
+                "eligible_request_target_sha256",
+            ):
+                c.require(value[key] == base[key], "S12_CAPTURE_BINDING_INVALID")
         for k in (
             "scientific_identity_verified",
             "scientific_publication_authorized",
