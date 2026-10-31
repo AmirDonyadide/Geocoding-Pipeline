@@ -31,6 +31,7 @@ PHASES = (
     "build-catalog",
     "preflight",
     "plan-calibration",
+    "prepare-bootstrap",
     "run-campaign",
     "close-campaign",
     "evaluate-calibration",
@@ -52,6 +53,14 @@ class Session:
     authorization_sha256: str
 
     def require(self, phase):
+        if hasattr(self.port, "bind_session"):
+            self.port.bind_session(
+                phase,
+                self.configuration,
+                self.output,
+                self.scratch,
+                self.authorization_sha256,
+            )
         b.require(phase in PHASES, "B2_PHASE_INVALID")
         b.validate_type(self.authorization_sha256, "D")
         b.require(
@@ -79,8 +88,21 @@ class Session:
 
 
 def execute(phase: str, session: Session):
-    with ExitStack() as resources:
-        return _execute(phase, session, resources)
+    # Port cleanup cannot replace an initiating failure. Successful return still
+    # requires cleanup/source validation to succeed; no result is printed early.
+    try:
+        with ExitStack() as resources:
+            result = _execute(phase, session, resources)
+    except BaseException:
+        try:
+            if hasattr(session.port, "close"):
+                session.port.close()
+        except BaseException:
+            pass
+        raise
+    if hasattr(session.port, "close"):
+        session.port.close()
+    return result
 
 
 def catalog_for(session, resources):
@@ -310,6 +332,15 @@ def _execute(phase: str, session: Session, resources):
             secret_guard=port.secret_guard,
         )
         result = {"calibration_plan_sha256": core, "scientific_N_selected": False}
+    elif phase == "prepare-bootstrap":
+        # A bootstrap cannot name a future admission hash. Acquire the finite
+        # reviewed preflight records first, then bind the returned actual hash
+        # in a separately scoped admission/preflight configuration.
+        result = {
+            "bootstrap_acquisition_sha256": port.prepare_bootstrap(),
+            "admission_issued": False,
+            "dispatch_authorized": False,
+        }
     elif phase == "preflight":
         # Bootstrap is the sole writer before the campaign's sole writer exists.
         values = port.campaign_inputs()

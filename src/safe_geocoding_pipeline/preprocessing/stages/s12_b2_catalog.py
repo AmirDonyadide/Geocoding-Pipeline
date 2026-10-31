@@ -39,6 +39,9 @@ def connect(path: Path):
     db.execute("pragma mmap_size=0")
     db.execute("pragma foreign_keys=ON")
     db.execute("pragma synchronous=FULL")
+    # The optional phase guard also runs during long SQLite joins/sorts. It is
+    # absent outside a cooperative runtime phase; no query/result is changed.
+    db.set_progress_handler(lambda: (io._checkpoint(), 0)[1], 1000)
     return db
 
 
@@ -117,6 +120,8 @@ class Catalog:
         create table hypothesis(h blob primary key, q blob not null references semantic(q), u blob not null references context(u)) without rowid;
         create table mapping(h blob primary key references hypothesis(h), q blob not null references semantic(q)) without rowid;
         create table family(u blob not null references context(u), h blob references hypothesis(h), name text not null, primary key(u,name)) without rowid;
+        create index mapping_query on mapping(q,h);
+        create index hypothesis_context on hypothesis(u,h);
         create table membership(q blob not null references semantic(q), cell blob not null, source blob not null, primary key(q,cell,source)) without rowid;
         create index membership_cell on membership(cell,source);
         create table stratum(q blob primary key references semantic(q), body blob not null, ordering blob not null) without rowid;
