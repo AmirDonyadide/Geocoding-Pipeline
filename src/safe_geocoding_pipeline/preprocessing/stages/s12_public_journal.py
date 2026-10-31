@@ -500,13 +500,21 @@ class Journal:
             - self.closure_events
         )
 
+    def _readback(self, path: Path, raw: bytes) -> bytes:
+        # Public metadata already has an exact expected length. A tighter read
+        # bound rejects every extra/truncated byte as before, while avoiding a
+        # 64MiB requested read for each small event. Shared B2 defaults unchanged.
+        if self.contract is o:
+            return io.read(path, limit=min(len(raw), 64 * 1024 * 1024))
+        return io.read(path)
+
     def write(self, name: str, value: Any) -> str:
         self.writer.assert_owner()
         self.contract.require(Path(name).name == name and name not in (".", ".."))
         raw = c.canonical(value)
         self.check_storage(len(raw))
         io.write(self.writer.root / name, raw)
-        self.contract.require(io.read(self.writer.root / name) == raw)
+        self.contract.require(self._readback(self.writer.root / name, raw) == raw)
         return c.sha(raw).hex()
 
     def write_array(self, name: str, rows: Iterator[dict[str, Any]]) -> str:
@@ -685,7 +693,7 @@ class Journal:
             self.check_storage(len(raw))
             path = self.writer.root / "events" / f"{obj['seq']:020d}.json"
             io.write(path, raw)
-            self.contract.require(io.read(path) == raw)
+            self.contract.require(self._readback(path, raw) == raw)
             self.seq, self.last_hash, self.last_mono = (
                 obj["seq"],
                 c.sha(raw).hex(),

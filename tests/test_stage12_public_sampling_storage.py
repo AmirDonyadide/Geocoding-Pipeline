@@ -147,3 +147,30 @@ def test_accounted_scan_rejects_interleaved_tampering(tmp_path, monkeypatch, mut
     finally:
         ctl.stop_sampling()
         ctl.writer.abort()
+
+
+def test_public_event_readback_has_exact_bound_and_rejects_extra_byte(
+    tmp_path, monkeypatch
+):
+    from test_stage12_public_scheduler import controller
+
+    ctl, _ = controller(tmp_path)
+    old = io.read
+    seen = []
+
+    def read(path, **kw):
+        if path.parent.name == "events":
+            seen.append((path.stat().st_size, kw.get("limit")))
+            # An extra byte is never hidden by a small read bound.
+            with path.open("ab") as stream:
+                stream.write(b"x")
+        return old(path, **kw)
+
+    monkeypatch.setattr(io, "read", read)
+    try:
+        with pytest.raises(Exception):
+            ctl.resource("PERIODIC")
+        assert seen and all(size == limit for size, limit in seen)
+        assert ctl.writer.failed.is_set()
+    finally:
+        ctl.writer.abort()

@@ -231,3 +231,69 @@ def test_root_replacement_during_physical_read_fails(tmp_path, monkeypatch):
         with pytest.raises(c.Stage12Error):
             reader.read(root / "1")
         assert reader.closed
+
+
+@pytest.mark.parametrize("case", ["valid", "malformed", "secret"])
+def test_public_finish_original_reader_matches_default_exact_files(
+    tmp_path, monkeypatch, case
+):
+    from contextlib import nullcontext
+    from safe_geocoding_pipeline.preprocessing import stage12_probe_cli as cli
+    from safe_geocoding_pipeline.preprocessing.stages import (
+        s12_public_operational_audit as audit,
+    )
+    from test_stage12_public_operations_v2 import inputs, KEY, FakeClock
+    from test_stage12_public_operational_audit import capture
+    from stage12_synthetic import body
+
+    from datetime import datetime, timezone
+
+    class FixedUTC:
+        @staticmethod
+        def now(_tz):
+            return datetime(2026, 1, 1, tzinfo=timezone.utc)
+
+    monkeypatch.setattr(audit.audit, "datetime", FixedUTC)
+    profile, plan, start, rows, runtime = inputs()
+    raw = (
+        body([])
+        if case == "valid"
+        else b'{"broken":'
+        if case == "malformed"
+        else b'{"key":"' + KEY + b'"}'
+    )
+    record = audit.transport_record(rows[0], 1, capture(raw), FakeClock().utc())
+    results = []
+    files = []
+    for enabled in (False, True):
+        root = tmp_path / ("bounded" if enabled else "default")
+        audit.begin_data(root, profile, plan, start, rows[0], 1, runtime)
+        with r.PublicReader(root) if enabled else nullcontext() as reader:
+            with io.public_originals(reader) if enabled else nullcontext():
+                results.append(
+                    audit.finish_data(
+                        root, rows[0], record, raw, key=KEY, validator=cli.public_shapes
+                    )
+                )
+        files.append({x.name: x.read_bytes() for x in root.iterdir() if x.is_file()})
+    assert results[0] == results[1] and files[0] == files[1]
+
+
+def test_comparison_parent_reader_never_caches_event_bytes(tmp_path):
+    root = tmp_path / "campaign"
+    root.mkdir(mode=0o700)
+    attempts = root / "attempts"
+    events = root / "events"
+    attempts.mkdir(mode=0o700)
+    events.mkdir(mode=0o700)
+    io.write(attempts / "receipt", b"fixed")
+    path = events / "event"
+    io.write(path, b"first")
+    with f.FreshReads(attempts, reader_root=root) as view:
+        assert io.read(path) == b"first"
+        path.write_bytes(b"other")
+        assert io.read(path) == b"other"
+        assert set(view.hashes) == {"receipt"} and set(view.cache) == {"receipt"}
+    assert not io.has_read_view() and io.public_original_reader() is None
+    with pytest.raises(c.Stage12Error):
+        f.FreshReads(attempts, reader_root=tmp_path)

@@ -7,6 +7,7 @@ The writer owns filesystem transactions; the coordinator owns all admissions.
 from __future__ import annotations
 
 import threading
+import time
 from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass, field, replace
@@ -141,6 +142,9 @@ class Coordinator:
         # One bounded periodic-sample slot, separate from result/mutation slots.
         # Its owner may wait for the sole writer, never with safety held.
         self.sample_slot = threading.Lock()
+        self.sample_condition = threading.Condition()
+        self.sample_busy = False
+        self.coordinator_thread = threading.get_ident()
         self.sample_stop = threading.Event()
         self.sample_thread: threading.Thread | None = None
         self.sample_join_failed = False
@@ -369,9 +373,11 @@ class Coordinator:
     def sample_if_due(self) -> bool:
         if self.sample_stop.is_set() or self.writer.failed.is_set():
             return False
-        if not self.sample_slot.acquire(blocking=False):
-            self.sample_metric("slot_busy")
-            return False
+        with self.sample_condition:
+            if not self.sample_slot.acquire(blocking=False):
+                self.sample_metric("slot_busy")
+                return False
+            self.sample_busy = True
         try:
             if (
                 self.sample_stop.is_set()
@@ -388,7 +394,44 @@ class Coordinator:
             self._resource("PERIODIC", cancel_periodic=True)
             return True
         finally:
-            self.sample_slot.release()
+            with self.sample_condition:
+                self.sample_slot.release()
+                self.sample_busy = False
+                self.sample_condition.notify_all()
+
+    def yield_to_sample(self, check: Callable[[], None]) -> None:
+        """Coordinator-only comparison safe point, never another sample owner.
+
+        Keep CPU-intensive derivation out of an outstanding sample's writer
+        action. Wait time remains inside the original cumulative budget. The
+        condition never transfers/releases the sample slot or cancels I/O.
+        """
+        self.contract.require(
+            threading.get_ident() == self.coordinator_thread
+            and not self.safety._is_owned()
+            and not self.mutation.locked()
+        )
+        check()
+        deadline = time.monotonic() + min(
+            self.resources["writer_guard_ms"] / 1000,
+            self.writer.remaining_seconds(),
+        )
+        with self.sample_condition:
+            while self.sample_busy:
+                check()
+                if self.writer.failed.is_set():
+                    raise OSError("PUBLIC_PROBE_EVIDENCE_WRITE_FAILED")
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    self.writer.failed.set()
+                    self.audit_failed()
+                    raise TimeoutError("PUBLIC_PROBE_EVIDENCE_WRITE_FAILED")
+                self.sample_condition.wait(
+                    min(remaining, self.resources["scheduler_guard_ms"] / 1000)
+                )
+        check()
+        if self.writer.failed.is_set():
+            raise OSError("PUBLIC_PROBE_EVIDENCE_WRITE_FAILED")
 
     def start_sampling(self) -> None:
         self.contract.require(
@@ -443,8 +486,16 @@ class Coordinator:
 
     def resource(self, cause: str) -> None:
         if cause == "PERIODIC":
-            with self.sample_slot:
+            self.sample_slot.acquire()
+            with self.sample_condition:
+                self.sample_busy = True
+            try:
                 self._resource(cause)
+            finally:
+                with self.sample_condition:
+                    self.sample_slot.release()
+                    self.sample_busy = False
+                    self.sample_condition.notify_all()
         else:
             self._resource(cause)
 

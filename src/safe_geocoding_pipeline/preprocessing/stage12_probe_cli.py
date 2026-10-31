@@ -1036,17 +1036,20 @@ def run_operations_block(
             row, root = slot.pending.work, attempt_root(*slot.key)
             record = records[slot.key]
             if row["kind"] == "DATA":
-                return oa.finish_data(
-                    root,
-                    row,
-                    record,
-                    slot.capture.payload,
-                    key=runtime_key,
-                    validator=public_shapes
-                    if public_validation is None
-                    else public_validation.validator(row, root),
-                    validation=public_validation,
-                )
+                from .stages.s12_public_reader import PublicReader
+
+                with PublicReader(root) as reader, io.public_originals(reader):
+                    return oa.finish_data(
+                        root,
+                        row,
+                        record,
+                        slot.capture.payload,
+                        key=runtime_key,
+                        validator=public_shapes
+                        if public_validation is None
+                        else public_validation.validator(row, root),
+                        validation=public_validation,
+                    )
             recipe = recipes[row["recipe_id"]]
             return oa.finish_control(
                 root,
@@ -1287,7 +1290,11 @@ def run_operations_block(
             return incomplete()
 
         operation = "COMPARISON"
-        with io.cooperative_io(finalization_deadline.check):
+
+        def comparison_checkpoint():
+            coordinator.yield_to_sample(finalization_deadline.check)
+
+        with io.cooperative_io(comparison_checkpoint):
             finalization_deadline.check()
             writer.call(log.verify_storage)
             comparison_last_seq, comparison_head = writer.call(
@@ -1376,7 +1383,9 @@ def run_operations_block(
             # accepting its output identity. No stage survives into closure.
             with coordinator.safety:
                 po.require(not coordinator.slots)
-            with FreshReads(output / "attempts", check=finalization_deadline.check):
+            with FreshReads(
+                output / "attempts", check=comparison_checkpoint, reader_root=output
+            ):
                 comparison_hash = log.stream_array(
                     "repeat_comparison.json", comparisons()
                 )

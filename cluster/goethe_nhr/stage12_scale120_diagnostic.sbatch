@@ -28,6 +28,9 @@ readonly stage12_python="${stage12_project}/runtimes/stage06/stage06_development
 [[ -z "$(git -C "${STAGE12_DIAGNOSTIC_CHECKOUT}" status --porcelain)" ]]
 [[ -z "$(git -C "${STAGE12_DIAGNOSTIC_CHECKOUT}" symbolic-ref -q HEAD || true)" ]]
 [[ "$(realpath -e -- "${STAGE12_DIAGNOSTIC_CHECKOUT}")" == "${STAGE12_DIAGNOSTIC_CHECKOUT}" ]]
+export SAFE_EXECUTION_SITE=goethe-nhr
+PYTHONPATH="${STAGE12_DIAGNOSTIC_CHECKOUT}/src" "${stage12_python}" -B -c \
+  'from safe_geocoding_pipeline.execution_policy import require_goethe_nhr_slurm; require_goethe_nhr_slurm("stage12 synthetic complete validation")'
 [[ "$(sha256sum "${STAGE12_DIAGNOSTIC_INPUT}" | cut -d' ' -f1)" == "${STAGE12_DIAGNOSTIC_INPUT_SHA256}" ]]
 [[ -x "${stage12_python}" && ! -e "${STAGE12_DIAGNOSTIC_OUTPUT}" ]]
 mkdir -m 0700 "${STAGE12_DIAGNOSTIC_OUTPUT}"

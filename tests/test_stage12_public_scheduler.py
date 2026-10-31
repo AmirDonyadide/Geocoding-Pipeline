@@ -1640,3 +1640,84 @@ def test_scale120_sampling_diagnostics_separate_actual_observation_and_ack(tmp_p
     finally:
         ctl.stop_sampling()
         ctl.writer.abort()
+
+
+@pytest.mark.parametrize("failure", [None, "deadline", "writer", "timeout"])
+def test_comparison_sample_wait_never_owns_or_releases_slot(tmp_path, failure):
+    import threading
+    from safe_geocoding_pipeline.preprocessing.stages.s12_public_recovery import (
+        FinalizationExpired,
+    )
+
+    ctl, _ = controller(tmp_path)
+    entered = threading.Event()
+    release = threading.Event()
+
+    def sample_owner():
+        with ctl.sample_condition:
+            assert ctl.sample_slot.acquire(blocking=False)
+            ctl.sample_busy = True
+        entered.set()
+        release.wait(1)
+        with ctl.sample_condition:
+            ctl.sample_slot.release()
+            ctl.sample_busy = False
+            ctl.sample_condition.notify_all()
+
+    thread = threading.Thread(target=sample_owner)
+    thread.start()
+    assert entered.wait(1)
+    error = FinalizationExpired()
+
+    def check():
+        if failure == "deadline":
+            raise error
+        if failure == "writer":
+            ctl.writer.failed.set()
+
+    try:
+        if failure == "timeout":
+            ctl.writer.remaining_seconds = lambda: 0.005
+        if failure:
+            with pytest.raises((FinalizationExpired, OSError, TimeoutError)):
+                ctl.yield_to_sample(check)
+            assert ctl.sample_slot.locked() and ctl.sample_busy
+            if failure == "timeout":
+                assert ctl.writer.failed.is_set()
+        else:
+            timer = threading.Timer(0.01, release.set)
+            timer.start()
+            ctl.yield_to_sample(check)
+            timer.join()
+            assert not ctl.sample_busy
+    finally:
+        release.set()
+        thread.join(1)
+        ctl.writer.abort()
+
+
+def test_comparison_sample_wait_rejects_wrong_thread_and_held_mutation(tmp_path):
+    import threading
+
+    ctl, _ = controller(tmp_path)
+    errors = []
+
+    def foreign():
+        try:
+            ctl.yield_to_sample(lambda: None)
+        except c.Stage12Error:
+            errors.append(1)
+
+    try:
+        thread = threading.Thread(target=foreign)
+        thread.start()
+        thread.join(1)
+        assert errors == [1]
+        with ctl.safety:
+            with pytest.raises(c.Stage12Error):
+                ctl.yield_to_sample(lambda: None)
+        with ctl.mutation:
+            with pytest.raises(c.Stage12Error):
+                ctl.yield_to_sample(lambda: None)
+    finally:
+        ctl.writer.abort()

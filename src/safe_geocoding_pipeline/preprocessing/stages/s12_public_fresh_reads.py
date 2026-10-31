@@ -34,8 +34,19 @@ class FreshReads:
         boundary=None,
         outputs=frozenset(),
         events=(),
+        reader_root=None,
     ):
         self.root = Path(root).absolute()
+        self.reader_root = (
+            self.root if reader_root is None else Path(reader_root).absolute()
+        )
+        # Comparison may read its independently hash-validated event prefix
+        # through the same bounded ORIGINAL reader. Only attempts enter the
+        # provisional byte view; other campaign files are freshly read each time.
+        o.require(
+            self.reader_root == self.root
+            or (self.root.name == "attempts" and self.reader_root == self.root.parent)
+        )
         self.check = check
         self.boundary = boundary or check
         self.outputs = frozenset(outputs) | frozenset(events)
@@ -114,7 +125,7 @@ class FreshReads:
             self.boundary()
             from .s12_public_reader import PublicReader
 
-            self.reader = PublicReader(self.root, check=self.check)
+            self.reader = PublicReader(self.reader_root, check=self.check)
             self.original_scope = io.public_originals(self.reader)
             self.original_scope.__enter__()
             self.directories, self.inputs = self._tree()
