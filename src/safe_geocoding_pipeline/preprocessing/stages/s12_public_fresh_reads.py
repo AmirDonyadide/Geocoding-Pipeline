@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import os
 import stat
+import sys
 import threading
 from pathlib import Path
 
@@ -46,6 +47,8 @@ class FreshReads:
         self.cached_bytes = 0
         self.state = "NEW"
         self.hook = None
+        self.reader = None
+        self.original_scope = None
 
     def _owner(self):
         o.require(threading.get_ident() == self.owner)
@@ -109,6 +112,11 @@ class FreshReads:
         self.state = "LOADING"
         try:
             self.boundary()
+            from .s12_public_reader import PublicReader
+
+            self.reader = PublicReader(self.root, check=self.check)
+            self.original_scope = io.public_originals(self.reader)
+            self.original_scope.__enter__()
             self.directories, self.inputs = self._tree()
             for key in sorted(self.inputs):
                 self._remember(key, io.read(self.root / key))
@@ -119,7 +127,7 @@ class FreshReads:
             self.state = "ACTIVE"
             return self
         except BaseException:
-            self.abort()
+            self.abort(suppress_cleanup=True)
             raise
 
     def _same_set(self):
@@ -185,26 +193,48 @@ class FreshReads:
             self.state = "INVALID"
             raise
         finally:
+            primary = sys.exc_info()[0] is not None
+            try:
+                self._close_originals()
+            except BaseException:
+                self.state = "INVALID"
+                if not primary:
+                    raise
+            finally:
+                self.cache.clear()
+                self.hashes.clear()
+                self.directories.clear()
+                self.inputs.clear()
+                self.cached_bytes = 0
+
+    def _close_originals(self):
+        if self.original_scope is not None:
+            self.original_scope.__exit__(None, None, None)
+            self.original_scope = None
+        reader, self.reader = self.reader, None
+        if reader is not None:
+            reader.close()
+
+    def abort(self, *, suppress_cleanup=False):
+        if self.hook is not None:
+            self.hook.__exit__(None, None, None)
+            self.hook = None
+        self.state = "INVALID"
+        try:
+            self._close_originals()
+        except BaseException:
+            if not suppress_cleanup:
+                raise
+        finally:
             self.cache.clear()
             self.hashes.clear()
             self.directories.clear()
             self.inputs.clear()
             self.cached_bytes = 0
 
-    def abort(self):
-        if self.hook is not None:
-            self.hook.__exit__(None, None, None)
-            self.hook = None
-        self.state = "INVALID"
-        self.cache.clear()
-        self.hashes.clear()
-        self.directories.clear()
-        self.inputs.clear()
-        self.cached_bytes = 0
-
     def __exit__(self, kind, error, traceback):
         if kind is not None:
-            self.abort()
+            self.abort(suppress_cleanup=True)
         elif self.state == "ACTIVE":
             self.finish()
         else:
@@ -215,18 +245,29 @@ WORK_ROWS_BOUND = 4096
 
 
 def _work_read(path):
-    """Original file reader, within a separately checked private work anchor."""
+    """Fresh original bytes; cooperative errors keep their initiating family."""
     from . import s12_retrieval_contract as c
 
-    try:
-        raw = io.accepted.read_private(path)
-    except Exception:
-        raise c.Stage12Error("S12_PRIVATE_FILE_INVALID") from None
+    reader = io.public_original_reader()
+    if reader is not None:
+        raw = reader.read(path)
+    else:
+        try:
+            raw = io.accepted.read_private(path)
+        except Exception:
+            raise c.Stage12Error("S12_PRIVATE_FILE_INVALID") from None
     io._checkpoint()
     return raw
 
 
 def work_manifest_digest(root, count):
+    from .s12_public_reader import PublicReader
+
+    with PublicReader(root, direct_work=True) as reader, io.public_originals(reader):
+        return _work_manifest_digest(root, count)
+
+
+def _work_manifest_digest(root, count):
     """Fresh, bounded two-pass work validation; no state survives an attempt.
 
     Fuse repeated ancestor checks only. Both passes use the existing exact
@@ -256,6 +297,9 @@ def work_manifest_digest(root, count):
             )
 
         def membership():
+            reader = io.public_original_reader()
+            if reader is not None:
+                reader.check_path()
             bound()
             names = set()
             with os.scandir(root) as entries:
@@ -272,7 +316,8 @@ def work_manifest_digest(root, count):
         hashes = []
         digest = hashlib.sha256(b"[")
         for key in range(1, count + 1):
-            bound()
+            # PublicReader checks the same configured root binding immediately
+            # before and after the original read; do not duplicate its precheck.
             raw = _work_read(root / f"{key:020d}.json")
             # Parse and check canonical form once; the exact validated bytes
             # are also the manifest contribution, avoiding recanonicalization.
@@ -285,7 +330,6 @@ def work_manifest_digest(root, count):
         digest.update(b"]\n")
         membership()
         for key, expected_hash in enumerate(hashes, 1):
-            bound()
             raw = _work_read(root / f"{key:020d}.json")
             o.require(
                 hashlib.sha256(raw).digest() == expected_hash,

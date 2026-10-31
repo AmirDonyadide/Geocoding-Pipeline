@@ -142,7 +142,28 @@ def read(path: Path, *, limit: int = 64 * 1024 * 1024) -> bytes:
     return original_read(path, limit=limit)
 
 
+@contextmanager
+def public_originals(reader):
+    """Explicit public validation scope; default shared reader unchanged."""
+    c.require(
+        getattr(_checkpoints, "original_view", None) is None,
+        "S12_PUBLIC_SOURCE_CHANGED",
+    )
+    _checkpoints.original_view = reader
+    try:
+        yield
+    finally:
+        _checkpoints.original_view = None
+
+
+def public_original_reader():
+    return getattr(_checkpoints, "original_view", None)
+
+
 def original_read(path: Path, *, limit: int = 64 * 1024 * 1024) -> bytes:
+    reader = public_original_reader()
+    if reader is not None and reader.contains(path):
+        return reader.read(path, limit=limit)
     private_directory(path.parent)
     try:
         raw = accepted.read_private(path, limit=limit)
