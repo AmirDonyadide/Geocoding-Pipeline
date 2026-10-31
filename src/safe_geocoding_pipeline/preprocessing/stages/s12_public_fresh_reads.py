@@ -25,9 +25,18 @@ class FreshReads:
     finish/abort. Byte overflow skips caching, never source verification.
     """
 
-    def __init__(self, root, *, check=io._checkpoint, outputs=frozenset(), events=()):
+    def __init__(
+        self,
+        root,
+        *,
+        check=io._checkpoint,
+        boundary=None,
+        outputs=frozenset(),
+        events=(),
+    ):
         self.root = Path(root).absolute()
         self.check = check
+        self.boundary = boundary or check
         self.outputs = frozenset(outputs) | frozenset(events)
         self.owner = threading.get_ident()
         self.cache = {}
@@ -99,10 +108,12 @@ class FreshReads:
         o.require(not io.has_read_view())
         self.state = "LOADING"
         try:
+            self.boundary()
             self.directories, self.inputs = self._tree()
             for key in sorted(self.inputs):
                 self._remember(key, io.read(self.root / key))
             self._same_set()
+            self.boundary()
             self.hook = io.read_view(self)
             self.hook.__enter__()
             self.state = "ACTIVE"
@@ -158,6 +169,7 @@ class FreshReads:
         self.hook = None
         try:
             self._owner()
+            self.boundary()
             self._same_set()
             for key, expected in sorted(self.hashes.items()):
                 self.check()
@@ -166,6 +178,7 @@ class FreshReads:
                     "S12_PUBLIC_SOURCE_CHANGED",
                 )
             self._same_set()
+            self.boundary()
             self.check()
             self.state = "VERIFIED"
         except BaseException:

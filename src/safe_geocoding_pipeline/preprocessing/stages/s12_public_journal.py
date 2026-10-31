@@ -235,7 +235,12 @@ class ClosureFence:
         info = writer.root.stat(follow_symlinks=False)
         self.identity = (info.st_dev, info.st_ino)
 
-    def check(self):
+    def check_live(self):
+        """Cheap live ownership/health/root checks inside a validation stage.
+
+        Full ancestor/path checks still bracket the stage and existing snapshot
+        validation/persist/seal bounds. This grants no content-validation authority.
+        """
         writer = self.writer
         writer.check_deadline()
         o.require(
@@ -245,14 +250,23 @@ class ClosureFence:
             and threading.get_ident() in (self.owner, writer.thread.ident),
             "PUBLIC_PROBE_EVIDENCE_WRITE_FAILED",
         )
-        io.private_directory(writer.root)
         info = writer.root.stat(follow_symlinks=False)
         o.require(
             stat.S_ISDIR(info.st_mode)
-            and writer.root.resolve() == self.path
+            and stat.S_IMODE(info.st_mode) == 0o700
+            and info.st_uid == os.geteuid()
             and (info.st_dev, info.st_ino) == self.identity,
             "PUBLIC_PROBE_EVIDENCE_WRITE_FAILED",
         )
+
+    def check(self):
+        self.check_live()
+        io.private_directory(self.writer.root)
+        o.require(
+            self.writer.root.resolve() == self.path,
+            "PUBLIC_PROBE_EVIDENCE_WRITE_FAILED",
+        )
+        self.check_live()
 
 
 class Journal:

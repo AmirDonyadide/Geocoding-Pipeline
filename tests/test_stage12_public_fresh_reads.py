@@ -595,3 +595,110 @@ def test_outside_output_does_not_enter_source_bindings(tmp_path):
         with pytest.raises(c.Stage12Error):
             stage.output(inner, c.sha(b"unexpected").hex())
         inner.unlink()
+
+
+def _closure_fence(root):
+    from types import SimpleNamespace
+    from safe_geocoding_pipeline.preprocessing.stages import s12_public_journal as j
+
+    writer = SimpleNamespace(
+        root=root,
+        check_deadline=lambda: None,
+        closed=False,
+        failed=threading.Event(),
+        thread=SimpleNamespace(ident=-1),
+    )
+    fence = j.ClosureFence(writer)
+    writer.closure_fence = fence
+    return fence
+
+
+def test_fence_full_checks_bracket_fresh_stage_and_live_checks_remain(
+    tmp_path, monkeypatch
+):
+    root = source(tmp_path)
+    fence = _closure_fence(root)
+    counts = {"boundary": 0, "live": 0}
+    full, live = fence.check, fence.check_live
+
+    def boundary():
+        counts["boundary"] += 1
+        full()
+
+    def checked():
+        counts["live"] += 1
+        live()
+
+    with f.FreshReads(root, check=checked, boundary=boundary):
+        for _ in range(1000):
+            assert io.read(root / "a") == b"abc"
+        assert counts["boundary"] == 2
+    assert counts["boundary"] == 4 and counts["live"] >= 1000
+
+
+@pytest.mark.parametrize("stage", ["entry", "loaded", "finish_entry", "finish_exit"])
+def test_fresh_boundary_failure_unhooks_and_invalidates(tmp_path, stage):
+    root = source(tmp_path)
+    expected = ["entry", "loaded", "finish_entry", "finish_exit"].index(stage) + 1
+    calls = 0
+
+    def boundary():
+        nonlocal calls
+        calls += 1
+        if calls == expected:
+            raise c.Stage12Error("S12_PUBLIC_CUMULATIVE_DEADLINE")
+
+    view = f.FreshReads(root, boundary=boundary)
+    with pytest.raises(c.Stage12Error):
+        with view:
+            assert io.read(root / "a") == b"abc"
+    assert view.state == "INVALID" and not view.cache and not io.has_read_view()
+
+
+@pytest.mark.parametrize(
+    "change", ["poison", "closed", "ownership", "root", "mode", "deadline"]
+)
+def test_fence_live_rejects_state_changes_during_cached_reads(tmp_path, change):
+    root = source(tmp_path)
+    fence = _closure_fence(root)
+    with pytest.raises((c.Stage12Error, OSError)):
+        with f.FreshReads(root, check=fence.check_live, boundary=fence.check):
+            if change == "poison":
+                fence.writer.failed.set()
+            elif change == "closed":
+                fence.writer.closed = True
+            elif change == "ownership":
+                fence.writer.closure_fence = None
+            elif change == "root":
+                root.rename(tmp_path / "moved")
+                root.mkdir(mode=0o700)
+            elif change == "mode":
+                root.chmod(0o755)
+            else:
+
+                def expired():
+                    raise c.Stage12Error("S12_PUBLIC_CUMULATIVE_DEADLINE")
+
+                fence.writer.check_deadline = expired
+            io.read(root / "a")
+    assert not io.has_read_view()
+
+
+def test_full_boundary_detects_ancestor_symlink_with_same_root_inode(tmp_path):
+    from safe_geocoding_pipeline.preprocessing.stages.s09_reference_contract import (
+        Stage09Error,
+    )
+
+    parent = tmp_path / "parent"
+    parent.mkdir(mode=0o700)
+    root = source(parent)
+    fence = _closure_fence(root)
+    with pytest.raises(Stage09Error, match="PUBLICATION_ANCESTOR_INVALID"):
+        with f.FreshReads(root, check=fence.check_live, boundary=fence.check):
+            moved = tmp_path / "moved"
+            parent.rename(moved)
+            parent.symlink_to(moved, target_is_directory=True)
+            # Inode check alone cannot certify ancestors. Full finish boundary
+            # must reject before any result or publication can be accepted.
+            fence.check_live()
+    assert not io.has_read_view()

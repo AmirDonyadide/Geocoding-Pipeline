@@ -491,7 +491,9 @@ def write_snapshot(
             else:
                 from .s12_public_fresh_reads import FreshReads
 
-                with FreshReads(writer.root, check=fence.check):
+                with FreshReads(
+                    writer.root, check=fence.check_live, boundary=fence.check
+                ):
                     o.require(validate(len(raw)) == prepared)
                 bound()
 

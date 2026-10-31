@@ -1415,7 +1415,8 @@ def run_operations_block(
             operation = "REPORT"
             with FreshReads(
                 output,
-                check=writer.closure_fence.check,
+                check=writer.closure_fence.check_live,
+                boundary=writer.closure_fence.check,
                 outputs={
                     "measurement_event_prefix.json",
                     "block_report.json",
