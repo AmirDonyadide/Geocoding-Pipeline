@@ -27,6 +27,7 @@ from . import s12_b2_contract as b
 from . import s12_b2_catalog as catalogs
 from . import s12_b2_evidence as evidence
 from . import s12_b2_inventory as inventory
+from . import s12_b2_local_preparation as local
 from . import s12_b2_operations as operations
 from . import s12_b2_phase_io as phase_io
 from . import s12_b2_pipeline as pipeline
@@ -136,6 +137,12 @@ class OfflineGuard:
                 _AUDIT_INSTALLED = True
             _AUDIT_ACTIVE += 1
         self.closed = False
+
+    def assert_active(self):
+        b.require(
+            not self.closed and _AUDIT_ACTIVE > 0 and _AUDIT_INSTALLED,
+            "LP1_DENIAL_NOT_ACTIVE",
+        )
 
     def close(self):
         global _AUDIT_ACTIVE
@@ -350,6 +357,9 @@ class Authority:
         b.require(
             type(purpose) is str and type(context) is dict, "B2_RUNTIME_AUTHORITY_SCOPE"
         )
+        if self.port is not None and self.port.local_only:
+            if local.local_authority_check(self.port, purpose, digest, context):
+                return
         root = self._root()
         if purpose.startswith("phase_"):
             b.require(
@@ -590,9 +600,28 @@ class RuntimePort:
     def __init__(self, config, *, _test=None):
         self.config, self.settings = config, config["runtime"]
         r = self.settings
-        b.require(
-            set(r) == RUNTIME_FIELDS and r["version"] == VERSION, "B2_RUNTIME_CONFIG"
+        self.local_only = r.get("version") == local.RUNTIME_VERSION
+        self.resource_binding = r.get("resource_retention")
+        successor_fields = (
+            {"resource_retention"} if self.resource_binding is not None else set()
         )
+        b.require(
+            set(r)
+            == (
+                RUNTIME_FIELDS | local.EXTRA_FIELDS
+                if self.local_only
+                else RUNTIME_FIELDS
+            )
+            | successor_fields
+            and r["version"] == (local.RUNTIME_VERSION if self.local_only else VERSION),
+            "B2_RUNTIME_CONFIG",
+        )
+        if self.local_only:
+            local.validate_config(config)
+        if self.resource_binding is not None:
+            from . import s12_b2_resources as resources
+
+            resources.shape(self.resource_binding, resources.RUNTIME_BINDING_SCHEMA)
         b.require(
             r["mode"] in ("OFFLINE_ONLY", "EXACT_AUTHORIZED_DISPATCH"),
             "B2_RUNTIME_CONFIG",
@@ -600,7 +629,14 @@ class RuntimePort:
         self.mode, self.phase = r["mode"], r["phase"]
         from ..stage12_development_cli import PHASES
 
-        b.require(self.phase in PHASES, "B2_PHASE_INVALID")
+        b.require(
+            self.phase in PHASES
+            and (
+                self.local_only
+                or self.phase not in ("build-workload", "offline-preflight")
+            ),
+            "B2_PHASE_INVALID",
+        )
         if _test is None:
             b.require(r["population_scope"] == b.DEVELOPMENT, "B2_POPULATION_SCOPE")
             from ...execution_policy import require_goethe_nhr_slurm
@@ -617,10 +653,16 @@ class RuntimePort:
         )
         self._stack, self._closed = ExitStack(), False
         self._key = None
+        self.offline_guard = None
+        self._local_context = None
         self.work = None
         self._campaign = None
         self._reader = None
         self._catalog = None
+        self.resource_ledger = None
+        self.resource_model = None
+        self.resource_command = None
+        self.resource_command_deadline = None
         self._test = _test
         self._generation_roots = None
         self._checking_generation = False
@@ -651,7 +693,9 @@ class RuntimePort:
         )
         self.authority.port = self
         self._source_check()
-        if self.phase in PREPARATION:
+        if self.local_only:
+            self.gate = local.Gate(self)
+        elif self.phase in PREPARATION:
             b.require(
                 self.mode == "OFFLINE_ONLY"
                 and r["gate"] is None
@@ -680,7 +724,10 @@ class RuntimePort:
         self.segment = None
         self.output = self.scratch = None
         if self.mode == "OFFLINE_ONLY":
-            self._stack.callback(OfflineGuard().close)
+            guard = OfflineGuard()
+            self.offline_guard = local.Denial(guard) if self.local_only else guard
+            if not self.local_only:
+                self._stack.callback(self.offline_guard.close)
 
     def _source_check(self):
         self.check_deadline()
@@ -710,19 +757,33 @@ class RuntimePort:
             b.require(h == entry["sha256"], "B2_RUNTIME_INPUT_CHANGED")
 
     def check_deadline(self):
+        now = self.clock.now_ns()
         b.require(
             not self._closed
-            and self.clock.now_ns() < self.deadline
+            and now < self.deadline
+            and (
+                self.resource_command_deadline is None
+                or now < self.resource_command_deadline
+            )
             and self.clock.utc() < self.phase_until,
             "B2_RUNTIME_DEADLINE",
         )
         peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
         used = peak if sys.platform == "darwin" else peak * 1024
         b.require(
-            used <= self.settings["phase_memory_bytes"], "B2_RUNTIME_MEMORY_LIMIT"
+            used <= self.settings["phase_memory_bytes"]
+            and (
+                self.resource_command is None
+                or used <= self.resource_command["max_memory_bytes"]
+            ),
+            "B2_RUNTIME_MEMORY_LIMIT",
         )
         if (
-            self.phase in PREPARATION
+            (
+                self.local_only
+                or self.phase in PREPARATION
+                or self.resource_command is not None
+            )
             and self._generation_roots is not None
             and not self._checking_generation
             and self.clock.now_ns() - self._last_generation_check
@@ -748,6 +809,8 @@ class RuntimePort:
                 self._stack.close()
             except BaseException:
                 pass  # Preserve the initiating bind failure.
+            if self.local_only and self.offline_guard is not None:
+                self.offline_guard.close()
             self._key = None
             self._closed = True
             raise
@@ -770,6 +833,8 @@ class RuntimePort:
             },
         )
         self.check_deadline()
+        if self.local_only:
+            self.gate.check()
         self.authority.require(
             "resources",
             self.settings["resource_evidence_sha256"],
@@ -821,6 +886,7 @@ class RuntimePort:
             all(not x.is_relative_to(y) for x in roots for y in roots if x != y),
             "B2_RUNTIME_PATH",
         )
+        self._bind_resource_command()
         self._generation_roots = roots
         b.require(not self._generation_paths(), "B2_RUNTIME_GENERATION_EXISTS")
         io.reserve(temporary)
@@ -987,6 +1053,12 @@ class RuntimePort:
                             and total <= self.settings["phase_generation_bound_bytes"],
                             "B2_RUNTIME_GENERATION_BOUND",
                         )
+            if self.resource_command is not None:
+                b.require(
+                    total <= self.resource_command["max_generated_bytes"]
+                    and files <= self.resource_command["max_generated_inodes"],
+                    "B2_RS1_COMMAND_BOUND",
+                )
             self._last_generation_check = self.clock.now_ns()
             return {"bytes": total, "entries": files}
         finally:
@@ -1150,8 +1222,7 @@ class RuntimePort:
             },
             "B2_RUNTIME_CAMPAIGN",
         )
-        profile = self.records.get(spec["profile_sha256"], "development_operations")
-        plan = self.records.get(spec["plan_sha256"], "development_workload_plan")
+        profile, plan = RuntimePort._profile_plan(self, spec)
         start = self.records.get(
             spec["start_sha256"], "development_operations_campaign"
         )
@@ -1177,20 +1248,27 @@ class RuntimePort:
                 plan,
                 self.check_deadline,
             )
-        actual_inventory = {
-            "version": "stage12_development_runtime_inventory_v1",
-            "population_scope": self.population_scope,
-            "python_version": platform.python_version(),
-            "platform": platform.system(),
-            "source_inventory_sha256": b.digest(self.settings["source_files"]),
-            "continuous_service_state": "NOT_VERIFIED",
-            "resource_sampling_is_service_monitoring": False,
-            "scientific_identity_verified": False,
-        }
+        actual_inventory = self._actual_runtime_inventory()
         self.runtime_inventory = io.metadata(
             self.records.raw(spec["runtime_inventory_sha256"])
         )
         b.require(self.runtime_inventory == actual_inventory, "B2_RUNTIME_INVENTORY")
+        if profile["schema_version"] == "stage12_development_operations_b2_rs1_v1":
+            from . import s12_b2_resources as resources
+
+            model = profile["resource_retention_model"]
+            b.require(
+                self.resource_ledger is not None
+                and self.resource_model == model
+                and self.resource_binding["model_sha256"] == b.digest(model),
+                "B2_RS1_COMMAND_BINDING",
+            )
+            resources.validate_plan_model(model, plan)
+        else:
+            b.require(
+                self.resource_ledger is None and self.resource_model is None,
+                "B2_RS1_COMMAND_BINDING",
+            )
         b.uint(spec["pause_after_ms"], True)
         b.require(
             spec["pause_after_ms"]
@@ -1223,6 +1301,119 @@ class RuntimePort:
         self._campaign = (profile, plan, start, science, admission, self.work.rows)
         self._rules()
         return self._campaign
+
+    def _actual_runtime_inventory(self):
+        return {
+            "version": "stage12_development_runtime_inventory_v1",
+            "population_scope": self.population_scope,
+            "python_version": platform.python_version(),
+            "platform": platform.system(),
+            "source_inventory_sha256": b.digest(self.settings["source_files"]),
+            "continuous_service_state": "NOT_VERIFIED",
+            "resource_sampling_is_service_monitoring": False,
+            "scientific_identity_verified": False,
+        }
+
+    def _profile_plan(self, spec):
+        from . import s12_b2_resources as resources
+
+        profile_raw = self.records.raw(spec["profile_sha256"])
+        plan_raw = self.records.raw(spec["plan_sha256"])
+        profile_value = io.metadata(profile_raw)
+        plan_value = io.metadata(plan_raw)
+        profile = (
+            resources.parse(profile_raw, resources.PROFILE)
+            if profile_value.get("schema_version") == resources.PROFILE
+            else b.parse(profile_raw, b.REGISTRY["names"]["PROFILE"])
+        )
+        plan = (
+            resources.parse(plan_raw, resources.PLAN)
+            if plan_value.get("schema_version") == resources.PLAN
+            else b.parse(plan_raw, b.REGISTRY["names"]["PLAN"])
+        )
+        return profile, plan
+
+    def _bind_resource_command(self):
+        """Reserve the reviewed command before any derived namespace exists."""
+        if self.resource_binding is None:
+            return
+        b.require(self.resource_ledger is None, "B2_RS1_COMMAND_BINDING")
+        from . import s12_b2_resources as resources
+
+        raw = self.records.raw(self.resource_binding["model_sha256"])
+        model = resources.parse(raw, resources.MODEL)
+        b.require(
+            b.sha(raw).hex() == self.resource_binding["model_sha256"],
+            "B2_RS1_MODEL_CHANGED",
+        )
+        runtime_inventory = self._actual_runtime_inventory()
+        resources.authority_check(
+            model,
+            self.records,
+            self.authority,
+            now=self.clock.utc(),
+            source_hash=b.digest(self.settings["source_files"]),
+            runtime_hash=b.digest(runtime_inventory),
+            workload_hash=model["workload_sha256"],
+        )
+        filesystem = os.statvfs(self.output.parent)
+        b.require(
+            model["capacity_bytes"] <= self.settings["phase_disk_capacity_bytes"]
+            and model["capacity_bytes"] <= filesystem.f_bavail * filesystem.f_frsize
+            and model["capacity_inodes"] <= filesystem.f_favail,
+            "B2_RS1_CAPACITY_UNAVAILABLE",
+        )
+        plan_binding = None
+        if self.settings["campaign"] is not None:
+            profile, plan = RuntimePort._profile_plan(self, self.settings["campaign"])
+            operations.validate_plan(plan, profile)
+            b.require(
+                profile.get("schema_version")
+                == "stage12_development_operations_b2_rs1_v1"
+                and profile["resource_retention_model"] == model,
+                "B2_RS1_PLAN_BINDING",
+            )
+            resources.validate_plan_model(model, plan)
+            plan_binding = resources.workload_binding(plan)
+        command_id = self.resource_binding["command_id"]
+        b.require(command_id <= len(model["commands"]), "B2_RS1_COMMAND_EXHAUSTED")
+        command = model["commands"][command_id - 1]
+        b.require(
+            command["phase"] == self.phase
+            and command["scope_sha256"]
+            == resources.command_scope(self.config, plan_binding=plan_binding),
+            "B2_RS1_COMMAND_BINDING",
+        )
+        b.require(
+            command["max_duration_ms"] <= self.settings["phase_duration_ms"]
+            and command["max_memory_bytes"] <= self.settings["phase_memory_bytes"]
+            and command["max_generated_bytes"]
+            <= self.settings["phase_generation_bound_bytes"]
+            and command["max_generated_inodes"]
+            <= self.settings["phase_generation_max_files"],
+            "B2_RS1_COMMAND_BOUND",
+        )
+        self.resource_command = command
+        self.resource_command_deadline = self.clock.now_ns() + (
+            command["max_duration_ms"] * 1_000_000
+        )
+        self.check_deadline()
+        ledger_root = Path(self.settings["output_parent"]) / ("rs1_" + b.digest(model))
+        b.require(
+            ledger_root not in {self.output, self.scratch}
+            and not self.output.is_relative_to(ledger_root)
+            and not self.scratch.is_relative_to(ledger_root),
+            "B2_RUNTIME_PATH",
+        )
+        self.resource_ledger = resources.CommandLedger(
+            ledger_root,
+            model,
+            command_id=command_id,
+            phase=self.phase,
+            scope_hash=command["scope_sha256"],
+            check=self.check_deadline,
+        )
+        self.resource_model = model
 
     def _rules(self):
         if self.response_rules is not None:
@@ -1556,6 +1747,8 @@ class RuntimePort:
                 if self.work is not None:
                     self.work.verify()
                 self._source_check()
+                if self.local_only:
+                    self.gate.check()
                 self.reconcile_generation()
             except BaseException as error:
                 primary = error
@@ -1572,7 +1765,18 @@ class RuntimePort:
             except BaseException as error:
                 if primary is None:
                     primary = error
+            try:
+                if primary is None and self.resource_ledger is not None:
+                    self.resource_ledger.finish(
+                        roots=list(self._generation_roots),
+                        max_entries=self.settings["phase_generation_max_files"],
+                    )
+            except BaseException as error:
+                if primary is None:
+                    primary = error
             finally:
+                if self.local_only and self.offline_guard is not None:
+                    self.offline_guard.close()
                 self._key = None
                 self._closed = True
             if primary is not None:

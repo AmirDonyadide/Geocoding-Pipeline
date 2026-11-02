@@ -22,6 +22,7 @@ from .stages import s12_b2_evidence as evidence
 from .stages import s12_b2_phase_io as phase_io
 from .stages import s12_b2_catalog as catalogs
 from .stages import s12_b2_lineage as lineage
+from .stages import s12_b2_local_preparation as local
 from contextlib import ExitStack
 from .stages import s12_public_journal as journal
 from .stages import s12_storage as io
@@ -29,6 +30,8 @@ from .stages import s12_retrieval_contract as c
 
 PHASES = (
     "build-catalog",
+    "build-workload",
+    "offline-preflight",
     "preflight",
     "plan-calibration",
     "prepare-bootstrap",
@@ -268,6 +271,12 @@ def _execute(phase: str, session: Session, resources):
     session.require(phase)
     port = session.port
     config = session.configuration
+    if getattr(port, "local_only", False) and phase in {
+        "prepare-bootstrap",
+        "build-workload",
+        "offline-preflight",
+    }:
+        return local.execute_metadata(phase, session, resources, catalog_for)
     if phase == "build-catalog":
         b.require(
             port.population_scope == b.DEVELOPMENT, "B2_ACCEPTED_POPULATION_REQUIRED"
@@ -288,6 +297,8 @@ def _execute(phase: str, session: Session, resources):
             interpretation_sha256=config["witness_interpretation_sha256"],
         )
         resources.callback(projection.close)
+        if getattr(port, "local_only", False):
+            resources.enter_context(local.lineage_scope(port, projection))
         catalog = catalogs.build_accepted(
             session.output,
             Path(config["stage11_root"]),

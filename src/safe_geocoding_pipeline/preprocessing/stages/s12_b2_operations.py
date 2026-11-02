@@ -39,7 +39,27 @@ interval, rate_le, manifest_digest = (
 )
 
 
+def _rs1():
+    # Imported lazily: the O1/public import graph and descriptor bytes stay
+    # unchanged unless an explicit RS1 record is supplied.
+    from . import s12_b2_resources
+
+    return s12_b2_resources
+
+
 def validate_profile(profile: dict[str, Any]) -> None:
+    if profile.get("schema_version") == "stage12_development_operations_b2_rs1_v1":
+        rs1 = _rs1()
+        rs1.validate_record(profile)
+        legacy = dict(profile)
+        legacy.pop("resource_retention_model")
+        legacy["schema_version"] = PROFILE
+        _validate_profile_o1(legacy)
+        return
+    _validate_profile_o1(profile)
+
+
+def _validate_profile_o1(profile: dict[str, Any]) -> None:
     validate(profile, PROFILE)
     require(profile["rule_bundle_sha256"] == RULE_BUNDLE, "B2_POLICY_MISMATCH")
     require(profile["resource_sample_period_ms"] == 100, "B2_SAMPLING_RULE")
@@ -117,7 +137,49 @@ def budget(value: dict[str, Any]) -> None:
 
 
 def validate_plan(plan: dict[str, Any], profile: dict[str, Any]) -> None:
-    validate_profile(profile)
+    rs1_version = (
+        plan.get("schema_version") == "stage12_development_workload_plan_b2_rs1_v1"
+    )
+    if rs1_version:
+        rs1 = _rs1()
+        rs1.validate_record(plan)
+        require(
+            profile.get("schema_version") == "stage12_development_operations_b2_rs1_v1"
+            and plan["operations_profile_sha256"] == digest(profile)
+            and plan["resource_retention_model_sha256"]
+            == digest(profile["resource_retention_model"]),
+            "B2_RS1_PLAN_BINDING",
+        )
+        require(
+            plan["resource_workload_sha256"] == rs1.workload_binding(plan),
+            "B2_RS1_PLAN_BINDING",
+        )
+        validate_profile(profile)
+        rs1.validate_plan_model(profile["resource_retention_model"], plan)
+        require(
+            profile["resource_retention_model"]["physical_peak_bound_bytes"]
+            <= profile["resources"]["allocated_disk_bytes"]
+            and profile["resource_retention_model"]["physical_peak_bound_bytes"]
+            <= plan["budgets"]["storage_bytes"],
+            "B2_RS1_CAPACITY",
+        )
+        legacy_profile = dict(profile)
+        legacy_profile.pop("resource_retention_model")
+        legacy_profile["schema_version"] = PROFILE
+        legacy_plan = dict(plan)
+        legacy_plan.pop("resource_retention_model_sha256")
+        legacy_plan.pop("resource_workload_sha256")
+        legacy_plan["schema_version"] = PLAN
+        legacy_plan["operations_profile_sha256"] = digest(legacy_profile)
+        _validate_plan_common(legacy_plan, legacy_profile, scalar_storage=False)
+        return
+    _validate_plan_common(plan, profile, scalar_storage=True)
+
+
+def _validate_plan_common(
+    plan: dict[str, Any], profile: dict[str, Any], *, scalar_storage: bool
+) -> None:
+    _validate_profile_o1(profile)
     validate(plan, PLAN)
     require(plan["operations_profile_sha256"] == digest(profile), "B2_PLAN_BINDING")
     require(
@@ -144,15 +206,16 @@ def validate_plan(plan: dict[str, Any], profile: dict[str, Any]) -> None:
         < amounts["active_duration_ms"],
         "B2_SHUTDOWN_BOUND",
     )
-    require(
-        amounts["storage_bytes"] <= r["allocated_disk_bytes"]
-        and r["fixed_campaign_disk_bound_bytes"]
-        + (amounts["data_attempts"] + amounts["control_http_attempts"])
-        * r["per_attempt_disk_bound_bytes"]
-        + profile["administrative"]["max_total_bytes"]
-        <= amounts["storage_bytes"],
-        "B2_STORAGE_BOUND",
-    )
+    require(amounts["storage_bytes"] <= r["allocated_disk_bytes"], "B2_STORAGE_BOUND")
+    if scalar_storage:
+        require(
+            r["fixed_campaign_disk_bound_bytes"]
+            + (amounts["data_attempts"] + amounts["control_http_attempts"])
+            * r["per_attempt_disk_bound_bytes"]
+            + profile["administrative"]["max_total_bytes"]
+            <= amounts["storage_bytes"],
+            "B2_STORAGE_BOUND",
+        )
     block = plan["blocks"][0]
     require(
         block["block_id"] == 1
