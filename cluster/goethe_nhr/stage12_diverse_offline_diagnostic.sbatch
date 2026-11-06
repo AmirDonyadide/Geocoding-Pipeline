@@ -6,7 +6,7 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=2
 #SBATCH --mem=6G
-#SBATCH --time=00:12:00
+#SBATCH --time=02:10:00
 #SBATCH --no-requeue
 set -euo pipefail
 umask 077
@@ -37,10 +37,13 @@ export LANG=C.UTF-8 LC_ALL=C.UTF-8 OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1
 PYTHONPATH="${STAGE12_DIAGNOSTIC_CHECKOUT}/src" "${stage12_python}" -B -c \
   'from safe_geocoding_pipeline.execution_policy import require_goethe_nhr_slurm; require_goethe_nhr_slurm("stage12 denied synthetic matrix diagnostic")'
 set +e
-timeout --signal=TERM --kill-after=5s 610s "${stage12_python}" -B \
+# The internal non-resetting 7,200-second deadline determines success. This
+# outer allowance permits only failure collection/termination, never late PASS.
+timeout --signal=TERM --kill-after=5s 7210s "${stage12_python}" -B \
   "${STAGE12_DIAGNOSTIC_CHECKOUT}/scripts/stage12_diverse_offline_diagnostic.py" \
   --input "${STAGE12_DIAGNOSTIC_INPUT}" --input-sha256 "${STAGE12_DIAGNOSTIC_INPUT_SHA256}" \
-  --source "${STAGE12_DIAGNOSTIC_CHECKOUT}" --output "${STAGE12_DIAGNOSTIC_OUTPUT}"
+  --source "${STAGE12_DIAGNOSTIC_CHECKOUT}" --source-sha "${STAGE12_DIAGNOSTIC_SHA}" \
+  --output "${STAGE12_DIAGNOSTIC_OUTPUT}"
 stage12_exit=$?
 set -e
 exit "${stage12_exit}"

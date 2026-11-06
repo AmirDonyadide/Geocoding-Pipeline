@@ -1,9 +1,10 @@
 """Finite complete matrix replay; explicit synthetic authority/transport only.
 
 Production scheduler, writer, capture, comparisons, closure and openers execute
-unchanged. This does not invoke the live CLI or contact a service. A 20/sec
-synthetic profile keeps the complete 584-observation path in the diagnostic
-600-second envelope; it provides no evidence of public service capacity.
+unchanged. This does not invoke the live CLI or contact a service. The 20/sec
+synthetic profile is an invented transport input. The prospective 7,200-second
+whole-process deadline includes setup and actual whole-task reopening; neither
+that allowance nor the synthetic pace establishes public service capacity.
 """
 
 from __future__ import annotations
@@ -26,13 +27,20 @@ import threading
 import time
 
 SCOPE = "INVENTED_SYNTHETIC_MATRIX_REPLAY_NO_SERVICE_AUTHORITY"
-MAX_SECONDS = 600
+MAX_SECONDS = 7200
 MAX_BYTES = 256 * 2**20
 MAX_FILES = 50000
 MAX_RSS = 768 * 2**20
 MIN_PERIODIC_PER_PHASE = 200
 MIN_PERIODIC_SIZE40 = 900
 H = hashlib.sha256(SCOPE.encode()).hexdigest()
+CHECKPOINT_LIMITS = {
+    "interval_ms": 5000,
+    "max_files": 1500,
+    "max_file_bytes": 32768,
+    "ring_records": 4096,
+    "records_per_checkpoint": 128,
+}
 
 
 def main():
@@ -44,6 +52,7 @@ def main():
     parser.add_argument("--input", type=Path, required=True)
     parser.add_argument("--input-sha256", required=True)
     parser.add_argument("--source", type=Path, required=True)
+    parser.add_argument("--source-sha", required=True)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     os.umask(0o077)
@@ -51,6 +60,12 @@ def main():
     assert hashlib.sha256(raw).hexdigest() == args.input_sha256
     data = json.loads(raw)
     assert data["scope"] == SCOPE
+    assert data["source_sha"] == args.source_sha
+    assert len(args.source_sha) == 40 and all(
+        ch in "0123456789abcdef" for ch in args.source_sha
+    )
+    assert data["version"] == "stage12_complete_matrix_synthetic_input_v2"
+    assert data["checkpoints"] == CHECKPOINT_LIMITS
     assert data["limits"] == {
         "seconds": MAX_SECONDS,
         "bytes": MAX_BYTES,
@@ -61,6 +76,8 @@ def main():
         "minimum_periodic_per_phase": MIN_PERIODIC_PER_PHASE,
         "minimum_periodic_size40": MIN_PERIODIC_SIZE40,
     }
+    from stage12_diagnostic_checkpoints import Checkpoints
+
     source = args.source.resolve()
     assert not args.output.exists()
     args.output.mkdir(mode=0o700)
@@ -79,6 +96,9 @@ def main():
         s12_storage as storage,
         s12_transport as transport,
     )
+
+    assert contract.canonical(data) == raw
+    matrix.validate_matrix(data["configuration"])
 
     spec = importlib.util.spec_from_file_location(
         "scale120_guard", source / "scripts/stage12_scale120_diagnostic.py"
@@ -148,12 +168,28 @@ def main():
     budget = guard.ArtifactBudget(MAX_BYTES - 2**20)
     guard.install_artifact_accounting(storage, journal, budget)
 
+    # This independent supplementary writer never calls the campaign writer.
+    # It charges each complete selected chunk BEFORE writing; failed/partial
+    # writes retain the entire allocation. Both writers share the diagnostic
+    # byte/file ceiling, not a scientific evidence stream or sampler slot.
+    checkpoints = Checkpoints(
+        args.output / "diagnostic_checkpoints",
+        clock_ns=time.monotonic_ns,
+        budget_charge=budget.charge,
+        interval_seconds=CHECKPOINT_LIMITS["interval_ms"] / 1000,
+        max_files=CHECKPOINT_LIMITS["max_files"],
+        max_bytes=CHECKPOINT_LIMITS["max_file_bytes"],
+        ring_size=CHECKPOINT_LIMITS["ring_records"],
+        chunk_records=CHECKPOINT_LIMITS["records_per_checkpoint"],
+    )
+
     def limit_check():
         if time.monotonic_ns() >= started + MAX_SECONDS * 10**9:
             raise recovery.FinalizationExpired()
         rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
         assert (rss if sys.platform == "darwin" else rss * 1024) < MAX_RSS
         assert not budget.snapshot()["exceeded"]
+        checkpoints.check()
 
     def watchdog():
         while not stop_watchdog.wait(0.25):
@@ -270,6 +306,9 @@ def main():
             if len(sample_records) == sample_records.maxlen:
                 sample_records_dropped += 1
             sample_records.append(row)
+        # Bounded memory-only submission after slot release. The independent
+        # checkpoint thread performs all supplementary disk work.
+        checkpoints.record(row)
 
     def measured(tag, fn):
         def run(*a, **kw):
@@ -366,6 +405,7 @@ def main():
                 time.sleep(0.005)
             hold_done = True
             collection_stage = "COMPARISON_STORAGE_AND_SOURCE_SETUP"
+            checkpoints.set_phase(active_phase, collection_stage)
         return old_call(self, action, *a, **kw)
 
     journal.Writer.call = hold_call
@@ -469,6 +509,8 @@ def main():
             active_stage = "PHASE_EXECUTION"
             collection_stage = "CAPTURE"
             last_phase_report_complete = None
+            checkpoints.set_phase(active_phase, collection_stage)
+            checkpoints.flush(timeout=5)
             limit_check()
             phase_started = clock.now_ns()
             storage.write(
@@ -534,6 +576,7 @@ def main():
             last_phase_report_complete = report["report_complete"]
             assert report["disposition"] == "COMPLETED" and report["report_complete"]
             active_stage = "PHASE_REOPEN"
+            checkpoints.set_phase(active_phase, active_stage)
             reopen_begin = clock.now_ns()
             with storage.cooperative_io(check):
                 block = runtime.reopen_completed(
@@ -575,7 +618,12 @@ def main():
                 args.output / (item["label"] + "_DIAGNOSTIC_COMPLETED.json"),
                 contract.canonical(phase_metrics[-1]),
             )
+            checkpoints.set_phase(active_phase, "PHASE_COMPLETE_AFTER_ACTUAL_REOPEN")
+            checkpoints.flush(timeout=5)
+            limit_check()
         active_stage = "AGGREGATE_REOPEN_AND_COMPARISON"
+        checkpoints.set_phase(None, active_stage)
+        checkpoints.flush(timeout=5)
         with storage.cooperative_io(limit_check):
             result = matrix.reconcile(config, output, limit_check)
         assert result["actual_attempts"] == attempts == 584
@@ -594,8 +642,20 @@ def main():
             "phase": None if current is None else current.block["block_id"],
         }
     finally:
-        signal.alarm(0)
-        stop_watchdog.set()
+        # Checkpoint shutdown and final diagnostic accounting are part of the
+        # non-resetting deadline. No successful summary may follow expiry.
+        try:
+            checkpoints.close(timeout=5)
+            limit_check()
+        except BaseException as error:
+            if error_record is None:
+                family, code, number = diagnostics.classify(error)
+                error_record = {
+                    "family": family,
+                    "code": code,
+                    "errno": number,
+                    "phase": None,
+                }
         elapsed = clock.now_ns() - started
         rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
         files = [p for p in args.output.rglob("*") if p.is_file()]
@@ -610,6 +670,7 @@ def main():
             "synthetic_rate": 20,
             "synthetic_latency_ms": 5,
             "elapsed_ns": elapsed,
+            "timing_scope": "THROUGH_CHECKPOINT_CLOSE_BEFORE_SUMMARY_WRITE_AND_STDOUT",
             "cpu_ns": time.process_time_ns() - cpu_started,
             "remaining_ns": MAX_SECONDS * 10**9 - elapsed,
             "process_lifetime_peak_rss_bytes": rss
@@ -644,6 +705,7 @@ def main():
             "sample_record_scope": "SUPPLEMENTARY_BOUNDED_TAIL_ACTUAL_TIMES_NOT_COVERAGE_AUTHORITY",
             "metrics": operation_metrics,
             "failure_diagnostics": failures.snapshot(),
+            "checkpoint_evidence": checkpoints.snapshot(),
             "data_observations": None
             if result is None
             else result["data_observations"],
@@ -659,6 +721,28 @@ def main():
         storage.write(args.output / "summary.json", contract.canonical(summary))
         assert artifact_bytes < MAX_BYTES and len(files) < MAX_FILES
         print(contract.canonical(summary).decode(), end="")
+        sys.stdout.flush()
+        # Keep both internal guards active through potentially blocking output.
+        # This terminal marker is supplementary: exit zero, exact original
+        # reopening and all selected criteria are still required for PASS.
+        limit_check()
+        storage.write(
+            args.output / "DIAGNOSTIC_TERMINAL.json",
+            contract.canonical(
+                {
+                    "scope": SCOPE,
+                    "source_sha": data["source_sha"],
+                    "input_sha256": args.input_sha256,
+                    "after_summary_and_stdout_mono_ns": clock.now_ns(),
+                    "elapsed_ns": clock.now_ns() - started,
+                    "internal_deadline_mono_ns": started + MAX_SECONDS * 10**9,
+                    "complete": result is not None and error_record is None,
+                }
+            ),
+        )
+        limit_check()
+        signal.alarm(0)
+        stop_watchdog.set()
     return 0 if result is not None and error_record is None else 1
 
 
