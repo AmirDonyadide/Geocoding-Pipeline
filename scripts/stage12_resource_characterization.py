@@ -5,6 +5,7 @@ process. No network, provider, subprocess, accepted inputs or source mutation.
 Limits: <=60 seconds, <=128 MiB new files, <=64 files; a single 16 MiB codec
 input is held at a time. Measurements are not worst-case format bounds.
 """
+
 from __future__ import annotations
 
 import ctypes
@@ -53,11 +54,20 @@ def characterize(root):
         "pyarrow": pa.__version__,
         "duckdb": duckdb.__version__,
         "zstd": {"status": "UNAVAILABLE_SYMBOL"},
+        "arrow_libraries": [],
     }
     for library in sorted(Path(pa.__file__).parent.glob("libarrow*")):
         check()
-        if not library.is_file() or library.suffix not in (".so", ".dylib") and ".so." not in library.name:
+        if (
+            not library.is_file()
+            or library.suffix not in (".so", ".dylib")
+            and ".so." not in library.name
+        ):
             continue
+        if len(report["arrow_libraries"]) >= 32:
+            raise RuntimeError("RESOURCE_DIAGNOSTIC_LIBRARY_BOUND")
+        library_identity = identity(library)
+        report["arrow_libraries"].append(library_identity)
         try:
             lib = ctypes.CDLL(str(library))
             bound = lib.ZSTD_compressBound
@@ -68,7 +78,7 @@ def characterize(root):
             report["zstd"] = {
                 "status": "EXPORTED_BOUND_OBSERVED",
                 "version_number": version(),
-                "library": identity(library),
+                "library": library_identity,
                 "input_limit_bytes": response.MAX_BODY,
                 "compress_bound_bytes": bound(response.MAX_BODY),
             }
@@ -84,8 +94,20 @@ def characterize(root):
         check()
         at = time.monotonic_ns()
         encoded = response.compress(raw)
-        assert response.decompress(encoded, length=len(raw), expected_hash=hashlib.sha256(raw).digest()) == raw
-        report["codec_samples"].append({"name": name, "input_bytes": len(raw), "encoded_bytes": len(encoded), "roundtrip_ns": time.monotonic_ns() - at})
+        assert (
+            response.decompress(
+                encoded, length=len(raw), expected_hash=hashlib.sha256(raw).digest()
+            )
+            == raw
+        )
+        report["codec_samples"].append(
+            {
+                "name": name,
+                "input_bytes": len(raw),
+                "encoded_bytes": len(encoded),
+                "roundtrip_ns": time.monotonic_ns() - at,
+            }
+        )
 
     db = catalog.connect(root / "synthetic.sqlite")
     report["sqlite"] = {
@@ -96,8 +118,14 @@ def characterize(root):
         "compile_options": [x[0] for x in db.execute("pragma compile_options")],
     }
     db.execute("create table sample(k integer primary key, payload blob)")
-    db.executemany("insert into sample values(?,?)", ((i, bytes([i % 251]) * 1024) for i in range(128)))
-    report["sqlite"]["during_transaction"] = [{"name": p.name, "bytes": p.stat().st_size} for p in root.glob("synthetic.sqlite*")]
+    db.executemany(
+        "insert into sample values(?,?)",
+        ((i, bytes([i % 251]) * 1024) for i in range(128)),
+    )
+    report["sqlite"]["during_transaction"] = [
+        {"name": p.name, "bytes": p.stat().st_size}
+        for p in root.glob("synthetic.sqlite*")
+    ]
     db.commit()
     report["sqlite"]["page_count"] = db.execute("pragma page_count").fetchone()[0]
     db.close()
@@ -105,10 +133,21 @@ def characterize(root):
     workspace = root / "duckdb"
     workspace.mkdir(mode=0o700)
     con = sqlio.connect(workspace, memory="64MB", threads=1)
-    names = ("memory_limit", "max_temp_directory_size", "checkpoint_threshold", "wal_autocheckpoint")
-    report["duckdb_settings_before_diagnostic_cap"] = dict(con.execute("select name,value from duckdb_settings() where name in (?,?,?,?)", names).fetchall())
+    names = (
+        "memory_limit",
+        "max_temp_directory_size",
+        "checkpoint_threshold",
+        "wal_autocheckpoint",
+    )
+    report["duckdb_settings_before_diagnostic_cap"] = dict(
+        con.execute(
+            "select name,value from duckdb_settings() where name in (?,?,?,?)", names
+        ).fetchall()
+    )
     con.execute("SET max_temp_directory_size='8MiB'")
-    con.execute("create table sample as select i,repeat('synthetic',32) payload from range(256) t(i)")
+    con.execute(
+        "create table sample as select i,repeat('synthetic',32) payload from range(256) t(i)"
+    )
     assert con.execute("select count(*) from sample").fetchone()[0] == 256
     con.execute("checkpoint")
     con.close()
@@ -116,20 +155,39 @@ def characterize(root):
     report["parquet_samples"] = []
     for rows in (1, 40):
         check()
-        table = pa.table({"ordinal": list(range(rows)), "invented": [("invented synthetic Unicode Ω " + str(i)) * 128 for i in range(rows)]})
+        table = pa.table(
+            {
+                "ordinal": list(range(rows)),
+                "invented": [
+                    ("invented synthetic Unicode Ω " + str(i)) * 128
+                    for i in range(rows)
+                ],
+            }
+        )
         p = root / f"synthetic_{rows}.parquet"
         pq.write_table(table, p, compression="zstd")
         p.chmod(0o600)
         assert pq.read_table(p).equals(table)
-        report["parquet_samples"].append({"rows": rows, "arrow_bytes": table.nbytes, "physical_file_bytes": p.stat().st_size, "row_groups": pq.ParquetFile(p).num_row_groups})
+        report["parquet_samples"].append(
+            {
+                "rows": rows,
+                "arrow_bytes": table.nbytes,
+                "physical_file_bytes": p.stat().st_size,
+                "row_groups": pq.ParquetFile(p).num_row_groups,
+            }
+        )
     check()
     report["elapsed_ns"] = int((time.monotonic() - start) * 1e9)
-    report["artifact_bytes_before_report"] = sum(p.stat().st_size for p in root.rglob("*") if p.is_file())
+    report["artifact_bytes_before_report"] = sum(
+        p.stat().st_size for p in root.rglob("*") if p.is_file()
+    )
     report["artifact_files_before_report"] = sum(p.is_file() for p in root.rglob("*"))
     path = root / "RESOURCE_OBSERVATION.json"
     fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     with os.fdopen(fd, "wb") as stream:
-        stream.write((json.dumps(report, sort_keys=True, separators=(",", ":")) + "\n").encode())
+        stream.write(
+            (json.dumps(report, sort_keys=True, separators=(",", ":")) + "\n").encode()
+        )
         stream.flush()
         os.fsync(stream.fileno())
     return report

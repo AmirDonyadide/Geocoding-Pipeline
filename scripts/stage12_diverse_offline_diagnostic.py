@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 from copy import deepcopy
+from collections import deque
 from datetime import datetime, timedelta, timezone
 import hashlib
 import importlib.util
@@ -257,6 +258,18 @@ def main():
     phase_metrics = []
     operation_metrics = {}
     metrics_lock = threading.Lock()
+    sample_records = deque(maxlen=4096)
+    sample_records_dropped = 0
+    sample_local = threading.local()
+    collection_stage = "CAPTURE"
+    last_phase_report_complete = None
+
+    def retain_sample(row):
+        nonlocal sample_records_dropped
+        with metrics_lock:
+            if len(sample_records) == sample_records.maxlen:
+                sample_records_dropped += 1
+            sample_records.append(row)
 
     def measured(tag, fn):
         def run(*a, **kw):
@@ -293,19 +306,52 @@ def main():
 
     def event(self, kind, body, **kw):
         nonlocal phase_periodic
+        enqueue = time.monotonic_ns()
+        phase_at_entry, stage_at_entry = active_phase, collection_stage
         result = old_event(self, kind, body, **kw)
         if kind == "RESOURCE" and body["cause"] == "PERIODIC":
             phase_periodic += 1
             totals["periodic_samples"] += 1
+            timing = kw.get("periodic_timing") or {}
+            row = [
+                phase_at_entry,
+                stage_at_entry,
+                getattr(sample_local, "entered", None),
+                body["observed_mono_ns"],
+                enqueue,
+                timing.get("writer_start_ns"),
+                timing.get("writer_done_ns"),
+                time.monotonic_ns(),
+                None,
+            ]
+            if getattr(sample_local, "entered", None) is None:
+                retain_sample(row)  # Final explicit sample has no sampler entry.
+            else:
+                sample_local.row = row
         return result
 
     journal.Journal.event = event
+    old_sample = scheduler.Coordinator.sample_if_due
+
+    def sampled(self):
+        sample_local.entered = time.monotonic_ns()
+        sample_local.row = None
+        try:
+            return old_sample(self)
+        finally:
+            if sample_local.row is not None:
+                sample_local.row[-1] = time.monotonic_ns()
+                retain_sample(sample_local.row)
+            sample_local.entered = None
+            sample_local.row = None
+
+    scheduler.Coordinator.sample_if_due = sampled
     old_call = journal.Writer.call
     hold_done = False
     sample_target = MIN_PERIODIC_PER_PHASE
 
     def hold_call(self, action, *a, **kw):
-        nonlocal hold_done
+        nonlocal hold_done, collection_stage
         if (
             current is not None
             and not hold_done
@@ -319,6 +365,7 @@ def main():
                 assert current.stop_reason is None
                 time.sleep(0.005)
             hold_done = True
+            collection_stage = "COMPARISON_STORAGE_AND_SOURCE_SETUP"
         return old_call(self, action, *a, **kw)
 
     journal.Writer.call = hold_call
@@ -420,6 +467,8 @@ def main():
             current = None
             active_phase = item["label"]
             active_stage = "PHASE_EXECUTION"
+            collection_stage = "CAPTURE"
+            last_phase_report_complete = None
             limit_check()
             phase_started = clock.now_ns()
             storage.write(
@@ -482,6 +531,7 @@ def main():
                 task_deadline_ns=deadline,
                 diagnostics=failures,
             )
+            last_phase_report_complete = report["report_complete"]
             assert report["disposition"] == "COMPLETED" and report["report_complete"]
             active_stage = "PHASE_REOPEN"
             reopen_begin = clock.now_ns()
@@ -573,6 +623,25 @@ def main():
             "complete": result is not None and error_record is None,
             "error": error_record,
             "phases": phase_metrics,
+            "current_phase_label": active_phase,
+            "current_phase_report_complete": last_phase_report_complete,
+            "current_sampling_metrics": current.sampling_snapshot()
+            if current is not None
+            else None,
+            "sample_record_fields": [
+                "phase",
+                "stage_at_event_enter",
+                "collector_enter_ns",
+                "observed_ns",
+                "event_enter_ns",
+                "writer_start_ns",
+                "writer_done_ns",
+                "event_ack_ns",
+                "collector_return_after_slot_release_ns",
+            ],
+            "sample_records": list(sample_records),
+            "sample_records_dropped": sample_records_dropped,
+            "sample_record_scope": "SUPPLEMENTARY_BOUNDED_TAIL_ACTUAL_TIMES_NOT_COVERAGE_AUTHORITY",
             "metrics": operation_metrics,
             "failure_diagnostics": failures.snapshot(),
             "data_observations": None
