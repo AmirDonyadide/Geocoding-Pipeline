@@ -16,6 +16,7 @@ from typing import Any, TypeVar
 from . import s12_public_operations as o
 from . import s12_retrieval_contract as c
 from . import s12_storage as io
+from .s12_public_timing import safe_call
 
 T = TypeVar("T")
 
@@ -76,7 +77,9 @@ class Writer:
             self._execute(item)
 
     def _execute(self, item: Any) -> None:
-        action, future = item
+        action, future, *extra = item
+        timing = extra[0] if extra else None
+        safe_call(timing, "mark", "writer_entry_ns")
         try:
             o.require(not self.failed.is_set(), "PUBLIC_PROBE_EVIDENCE_WRITE_FAILED")
             self.check_deadline()
@@ -85,10 +88,13 @@ class Writer:
                 io.charged_writes(self.charge_write),
                 io.allocation_controls(self.allocation_controls),
             ):
+                safe_call(timing, "mark", "writer_action_enter_ns")
                 result = action()
+                safe_call(timing, "mark", "writer_action_return_ns")
             self.check_deadline()
             o.require(not self.failed.is_set(), "PUBLIC_PROBE_EVIDENCE_WRITE_FAILED")
             self.storage_guard()
+            safe_call(timing, "mark", "post_action_complete_ns")
         except BaseException as error:
             if self.failures is not None:
                 self.failures.record("WRITER_ACTION", error, writer=self)
@@ -129,26 +135,38 @@ class Writer:
 
         return self.call(run)
 
-    def submit(self, action: Callable[[], T], *, periodic: bool = False) -> Future[T]:
+    def submit(
+        self, action: Callable[[], T], *, periodic: bool = False, timing=None
+    ) -> Future[T]:
         with self.submission_lock:
             if self.closure_fence is not None:
                 o.require(
                     threading.get_ident() == self.closure_fence.owner and not periodic,
                     "PUBLIC_PROBE_EVIDENCE_WRITE_FAILED",
                 )
-            return self._submit(action, periodic=periodic)
+            return self._submit(action, periodic=periodic, timing=timing)
 
-    def _submit(self, action: Callable[[], T], *, periodic: bool = False) -> Future[T]:
+    def _submit(
+        self, action: Callable[[], T], *, periodic: bool = False, timing=None
+    ) -> Future[T]:
         o.require(
             not self.closed and not self.failed.is_set(),
             "PUBLIC_PROBE_EVIDENCE_WRITE_FAILED",
         )
         future: Future[T] = Future()
+        if timing is not None:
+            # This observes FINISHED publication, rather than action return.
+            # The caller may already be awake; an unobserved milestone stays null.
+            future.add_done_callback(
+                lambda _: safe_call(timing, "mark", "future_completion_ns")
+            )
         acquired = self.mailbox_capacity.acquire(blocking=False)
         try:
             if not acquired:
                 raise queue.Full
-            (self.periodic if periodic else self.mailbox).put_nowait((action, future))
+            safe_call(timing, "mark", "enqueue_ns")
+            item = (action, future) if timing is None else (action, future, timing)
+            (self.periodic if periodic else self.mailbox).put_nowait(item)
             self.wake.set()
         except queue.Full:
             if acquired:
@@ -179,16 +197,31 @@ class Writer:
         self.call(self.closure_fence.check)
         return self.closure_fence
 
-    def call(self, action: Callable[[], T], *, periodic: bool = False) -> T:
+    def call(
+        self, action: Callable[[], T], *, periodic: bool = False, timing=None
+    ) -> T:
         o.require(threading.current_thread() is not self.thread)
+        future = None
         try:
             self.check_deadline()
-            result = self.submit(action, periodic=periodic).result(
+            future = (
+                self.submit(action, periodic=periodic)
+                if timing is None
+                else self.submit(action, periodic=periodic, timing=timing)
+            )
+            result = future.result(
                 timeout=min(self.guard_ms / 1000, self.remaining_seconds())
             )
+            safe_call(timing, "mark", "caller_ack_ns")
             self.check_deadline()
             return result
         except BaseException as error:
+            safe_call(timing, "mark", "caller_ack_ns")
+            safe_call(
+                timing,
+                "outcome",
+                "FAILED" if future is not None and future.done() else "UNCERTAIN",
+            )
             if self.failures is not None:
                 self.failures.record("WRITER_WAIT", error, writer=self)
             self.failed.set()
@@ -651,6 +684,7 @@ class Journal:
         closure: bool = False,
         periodic: bool = False,
         periodic_timing: dict[str, int] | None = None,
+        timing=None,
     ) -> str:
         self.contract.require(
             not periodic or (kind == "RESOURCE" and body["cause"] == "PERIODIC")
@@ -659,6 +693,8 @@ class Journal:
             periodic_timing is None
             or (periodic and type(periodic_timing) is dict and not periodic_timing)
         )
+
+        safe_call(timing, "mark", "journal_enter_ns")
 
         # Serializing this call through the writer is the seq allocation boundary.
         def append() -> str:
@@ -695,6 +731,10 @@ class Journal:
                 "kind": kind,
                 "body": body,
             }
+            safe_call(timing, "mark", "segment_id", self.segment)
+            safe_call(timing, "mark", "event_seq", obj["seq"])
+            safe_call(timing, "mark", "event_mono_ns", mono)
+            safe_call(timing, "mark", "event_header_ns", mono)
             self.contract.validate(obj, self.contract.EVENT)
             if kind == "ATTEMPT_FINALIZED":
                 self.contract.require(body["outcome"]["value"] != "UNKNOWN_DELIVERY")
@@ -712,14 +752,20 @@ class Journal:
             )
             if kind == "SEGMENT_CLOSE":
                 self.segment_closed = True
+            safe_call(timing, "mark", "append_complete_ns")
             if periodic_timing is not None:
                 periodic_timing["writer_done_ns"] = self.clock.now_ns()
             return self.last_hash
 
-        result = self.writer.call(append, periodic=periodic)
+        result = (
+            self.writer.call(append, periodic=periodic)
+            if timing is None
+            else self.writer.call(append, periodic=periodic, timing=timing)
+        )
         io.record_read_output(
             self.writer.root / "events" / f"{self.seq:020d}.json", result
         )
+        safe_call(timing, "mark", "journal_ack_ns")
         return result
 
 

@@ -544,6 +544,7 @@ def run_operations_block(
     ascending_sizes: bool = False,
     task_deadline_ns: int | None = None,
     diagnostics: Any = None,
+    timing_observer: Any = None,
 ) -> dict[str, Any]:
     """Explicit O-r2 programmatic boundary; no real adapter or secret provider.
 
@@ -751,6 +752,7 @@ def run_operations_block(
         predecessor=predecessor,
         rebase=rebased,
         diagnostics=diagnostics,
+        timing_observer=timing_observer,
     )
     writer, log = coordinator.writer, coordinator.journal
     log.enable_accounting()
@@ -1723,7 +1725,12 @@ def run_operations_block(
                 begins_lower_bound=0,
             )
     finally:
-        coordinator.stop_sampling()
+        try:
+            coordinator.stop_sampling()
+        finally:
+            from .stages.s12_public_timing import safe_call
+
+            safe_call(timing_observer, "sampling", coordinator.sampling_snapshot())
 
 
 def main() -> int:

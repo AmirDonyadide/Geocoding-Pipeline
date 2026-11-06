@@ -30,6 +30,7 @@ from . import s12_public_reporting as reporting
 from . import s12_retrieval_contract as c
 from . import s12_storage as io
 from . import s12_transport as transport
+from . import s12_public_timing as timing
 from safe_geocoding_pipeline.execution_policy import require_goethe_nhr_slurm
 
 VERSION = "stage12_public_runtime_configuration_v1"
@@ -787,6 +788,12 @@ def progression(root, label, block, clock, envelope, seconds, *, next_rate=None)
     raise c.Stage12Error("S12_PUBLIC_PROGRESSION_REVIEW_UNAVAILABLE")
 
 
+def filesystem_free_bytes(path):
+    """The actual public runtime free-space adapter; no synthetic substitution."""
+    observed = os.statvfs(path)
+    return observed.f_bavail * observed.f_frsize
+
+
 def execute(
     config,
     *,
@@ -797,6 +804,7 @@ def execute(
     git_sha,
     key_provider=transport.Secret.runtime,
     clock=None,
+    timing_observer=None,
 ):
     from ..stage12_probe_cli import run_operations_block
     from .s12_public_diagnostics import Failures, classify
@@ -852,8 +860,7 @@ def execute(
     )
 
     def free():
-        stat = os.statvfs(output)
-        return stat.f_bavail * stat.f_frsize
+        return filesystem_free_bytes(output)
 
     o.require(free() >= r["allocated_disk_bytes"], "S12_PUBLIC_DISK_UNAVAILABLE")
     runtime = runtime_inventory(config["public_validation_sha256"])
@@ -896,8 +903,18 @@ def execute(
     runtime_operation = "RUNTIME"
     runtime_failure = None
     persistence_failed = False
+    timing_init_failed = False
+    if timing_observer is False:
+        timing_observer = None
+    elif timing_observer is None and matrix_mode:
+        try:
+            timing_observer = timing.for_task(config, output)
+        except BaseException:
+            timing_init_failed = True
     try:
-        for item in config["campaigns"]:
+        for phase_id, item in enumerate(config["campaigns"], 1):
+            timing.safe_call(timing_observer, "set_phase", phase_id)
+            timing.safe_call(timing_observer, "boundary")
             runtime_operation = "RUNTIME"
             envelope.check()
             authority.recheck()
@@ -960,10 +977,12 @@ def execute(
                 ascending_sizes=item["ascending_sizes"],
                 task_deadline_ns=phase_deadline.end_ns,
                 diagnostics=diagnostics,
+                timing_observer=timing_observer,
                 pause_requested=lambda: (
                     clock.now_ns() >= envelope.deadline - 80 * 10**9
                 ),
             )
+            timing.safe_call(timing_observer, "boundary")
             results.append(
                 {
                     "label": item["label"],
@@ -1057,6 +1076,17 @@ def execute(
             persistence_failed = True
             diagnostics.record("CLEANUP", cleanup)
     finally:
+        # Independent supplementary cleanup does not poison the campaign writer
+        # or replace a primary exception, even if persistence is uncertain.
+        timing.safe_call(timing_observer, "close")
+        timing_summary = timing.safe_call(timing_observer, "snapshot")
+        timing_complete = not timing_init_failed and (
+            timing_observer is None
+            or (
+                isinstance(timing_summary, dict)
+                and timing_summary.get("persistence_complete") is True
+            )
+        )
         # Supplementary task output, never a campaign seal or writer reuse.
         try:
             io.write(
@@ -1085,7 +1115,17 @@ def execute(
             "T": "UNSELECTED",
             "N": "UNSELECTED",
             "failure_diagnostics": diagnostics.snapshot(),
-            "diagnostic_persistence_complete": not persistence_failed,
+            "diagnostic_persistence_complete": not persistence_failed
+            and timing_complete,
+            "public_path_timing": timing_summary
+            if timing_summary is not None
+            else {
+                "enabled": bool(timing_observer is not None or timing_init_failed),
+                "persistence_complete": not timing_init_failed
+                and timing_observer is None,
+                "initialization_failed": timing_init_failed,
+                "sampling_coverage_proof": False,
+            },
         }
         try:
             io.write(output / "diagnostic_summary.json", c.canonical(summary))

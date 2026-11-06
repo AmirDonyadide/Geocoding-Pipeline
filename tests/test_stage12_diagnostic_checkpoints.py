@@ -322,7 +322,9 @@ def test_serialization_is_also_outside_ring_lock(tmp_path, monkeypatch):
         assert release.wait(2)
         return original(payload)
 
-    monkeypatch.setattr(cp, "_canonical", blocked)
+    from safe_geocoding_pipeline.preprocessing.stages import s12_public_checkpoints
+
+    monkeypatch.setattr(s12_public_checkpoints, "_canonical", blocked)
     writer = cp.Checkpoints(tmp_path / "checkpoints", interval_seconds=0.02)
     writer.record(row())
     assert entered.wait(2)
@@ -332,3 +334,54 @@ def test_serialization_is_also_outside_ring_lock(tmp_path, monkeypatch):
     release.set()
     writer.close(timeout=2)
     assert cp.read_prefix(writer.root)["last_watermark"] == 2
+
+
+def test_public_lossless_checkpoint_survives_hard_exit_without_final_claim(tmp_path):
+    from safe_geocoding_pipeline.preprocessing.stages import (
+        s12_public_checkpoints as cp,
+    )
+    import subprocess
+    import sys
+
+    root = tmp_path / "hard-exit"
+    code = f"""
+import os, socket, time
+from safe_geocoding_pipeline.preprocessing.stages import s12_public_checkpoints as cp
+def denied(*a, **k): raise AssertionError('OFFLINE_DENIED')
+socket.socket = socket.getaddrinfo = denied
+writer=cp.Checkpoints({str(root)!r}, row_schema=cp.PUBLIC_SCHEMA, interval_seconds=.02)
+writer.record([1, 'PERIODIC', 'UNCERTAIN', 1, 2] + [9876543210000000 + n for n in range(22)])
+deadline=time.monotonic()+2
+while writer.snapshot()['persisted_watermark'] != 1:
+    if time.monotonic()>deadline: os._exit(98)
+    time.sleep(.001)
+os._exit(23)
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", code], capture_output=True, timeout=5
+    )
+    assert result.returncode == 23
+    actual = []
+    prefix = cp.read_prefix(root, record_consumer=lambda n, row: actual.append(row))
+    assert prefix["incomplete"] and prefix["reason"] == "NO_FINAL_CHECKPOINT"
+    assert prefix["last_watermark"] == 1
+    assert actual[0][5:] == tuple(9876543210000000 + n for n in range(22))
+    assert prefix["sampling_coverage_proof"] is False
+
+
+def test_legacy_standalone_import_before_src_is_available(tmp_path):
+    root = tmp_path / "standalone"
+    code = f"""
+import importlib.util, socket
+def deny(*a, **k): raise AssertionError('OFFLINE_DENIED')
+socket.socket = socket.getaddrinfo = deny
+spec=importlib.util.spec_from_file_location('cp', {str(MODULE)!r})
+cp=importlib.util.module_from_spec(spec); spec.loader.exec_module(cp)
+writer=cp.Checkpoints({str(root)!r}, interval_seconds=60)
+writer.record({row()!r}); writer.close(timeout=2)
+assert not cp.read_prefix(writer.root)['incomplete']
+"""
+    result = subprocess.run(
+        [sys.executable, "-I", "-S", "-c", code], capture_output=True, timeout=5
+    )
+    assert result.returncode == 0, result.stderr

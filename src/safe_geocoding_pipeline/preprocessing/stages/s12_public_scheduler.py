@@ -21,6 +21,7 @@ from . import s12_public_operations as o
 from . import s12_retrieval_contract as c
 from . import s12_transport as transport
 from . import s12_storage as io
+from .s12_public_timing import safe_call
 
 
 class Clock(Protocol):
@@ -93,8 +94,10 @@ class Coordinator:
         original_events: Callable | None = None,
         cumulative_check: Callable[[], None] | None = None,
         cumulative_remaining: Callable[[], float] | None = None,
+        timing_observer=None,
     ):
         self.failures = diagnostics
+        self.timing_observer = timing_observer
         self.contract = contract
         self.contract.verify_authorities(profile, plan, start, authority)
         self.contract.uint(block_id, True)
@@ -406,12 +409,19 @@ class Coordinator:
         return self.next_wakeup_ns()
 
     def sample_if_due(self) -> bool:
+        timing = None
+        collector_enter = (
+            self.clock.now_ns() if self.timing_observer is not None else None
+        )
         if self.sample_stop.is_set() or self.writer.failed.is_set():
             return False
         with self.sample_condition:
             if not self.sample_slot.acquire(blocking=False):
                 self.sample_metric("slot_busy")
                 return False
+            slot_acquired = (
+                self.clock.now_ns() if self.timing_observer is not None else None
+            )
             self.sample_busy = True
         try:
             if (
@@ -426,13 +436,20 @@ class Coordinator:
                 if not self.stop_reason:
                     self.terminal("BUDGET")
                 return False
-            self._resource("PERIODIC", cancel_periodic=True)
+            timing = safe_call(self.timing_observer, "begin", "PERIODIC", self.clock)
+            safe_call(timing, "mark", "collector_enter_ns", collector_enter)
+            safe_call(timing, "mark", "sampler_slot_acquired_ns", slot_acquired)
+            self._resource("PERIODIC", cancel_periodic=True, timing=timing)
             return True
         finally:
             with self.sample_condition:
                 self.sample_slot.release()
+                slot_released = self.clock.now_ns() if timing is not None else None
                 self.sample_busy = False
                 self.sample_condition.notify_all()
+            safe_call(timing, "mark", "sampler_slot_released_ns", slot_released)
+            safe_call(timing, "mark", "collector_return_ns")
+            safe_call(self.timing_observer, "finish", timing)
 
     def yield_to_sample(self, check: Callable[[], None]) -> None:
         """Coordinator-only comparison safe point, never another sample owner.
@@ -520,36 +537,59 @@ class Coordinator:
         return not self.writer.failed.is_set()
 
     def resource(self, cause: str) -> None:
-        if cause == "PERIODIC":
-            self.sample_slot.acquire()
-            with self.sample_condition:
-                self.sample_busy = True
-            try:
-                self._resource(cause)
-            finally:
+        timing = (
+            safe_call(self.timing_observer, "begin", cause, self.clock)
+            if cause in ("PERIODIC", "START_RESERVE")
+            else None
+        )
+        try:
+            if cause == "PERIODIC":
+                self.sample_slot.acquire()
+                slot_acquired = self.clock.now_ns() if timing is not None else None
                 with self.sample_condition:
-                    self.sample_slot.release()
-                    self.sample_busy = False
-                    self.sample_condition.notify_all()
-        else:
-            self._resource(cause)
+                    self.sample_busy = True
+                safe_call(timing, "mark", "sampler_slot_acquired_ns", slot_acquired)
+                try:
+                    self._resource(cause, timing=timing)
+                finally:
+                    with self.sample_condition:
+                        self.sample_slot.release()
+                        slot_released = (
+                            self.clock.now_ns() if timing is not None else None
+                        )
+                        self.sample_busy = False
+                        self.sample_condition.notify_all()
+                    safe_call(timing, "mark", "sampler_slot_released_ns", slot_released)
+            else:
+                self._resource(cause, timing=timing)
+        finally:
+            safe_call(timing, "mark", "collector_return_ns")
+            safe_call(self.timing_observer, "finish", timing)
 
-    def _resource(self, cause: str, *, cancel_periodic: bool = False) -> None:
+    def _resource(
+        self, cause: str, *, cancel_periodic: bool = False, timing=None
+    ) -> None:
         # Filesystem sampling cannot hold the immediate stop/emission lock.
         observation_started = self.clock.now_ns() if cause == "PERIODIC" else None
+        safe_call(timing, "mark", "free_query_start_ns")
         available = (
             self.free_bytes() if cause in ("PERIODIC", "START_RESERVE") else None
         )
+        safe_call(timing, "mark", "free_query_end_ns")
         observation_done = self.clock.now_ns() if cause == "PERIODIC" else None
         if cancel_periodic and (
             self.sample_stop.is_set() or self.writer.failed.is_set()
         ):
+            safe_call(timing, "outcome", "CANCELLED")
             return
         # A periodic observation changes no admission state. It owns its own
         # slot; only hard mutation records hold the admission barrier.
         safety_started = self.clock.now_ns() if cause == "PERIODIC" else None
+        safe_call(timing, "mark", "safety_wait_start_ns")
         with self.safety:
             safety_acquired = self.clock.now_ns() if cause == "PERIODIC" else None
+            # Copy timestamps while held, and publish to telemetry after release.
+            timing_safety_acquired = self.clock.now_ns() if timing is not None else None
             body = {
                 "observed_mono_ns": self.clock.now_ns(),
                 "cause": cause,
@@ -562,13 +602,21 @@ class Coordinator:
             }
             if cause != "PERIODIC":
                 self.safety_barriers += 1
+            timing_snapshot_complete = (
+                self.clock.now_ns() if timing is not None else None
+            )
+        safe_call(timing, "mark", "safety_acquired_ns", timing_safety_acquired)
+        safe_call(timing, "mark", "observed_ns", body["observed_mono_ns"])
+        safe_call(
+            timing, "mark", "safety_snapshot_complete_ns", timing_snapshot_complete
+        )
         if cause == "PERIODIC":
             self.sample_metric(
                 "resource_observation", observation_done - observation_started
             )
             self.sample_metric("safety_wait", safety_acquired - safety_started)
         persistence_started = self.clock.now_ns() if cause == "PERIODIC" else None
-        timing = {} if cause == "PERIODIC" else None
+        periodic_timing = {} if cause == "PERIODIC" else None
         try:
             self.journal.event(
                 "RESOURCE",
@@ -576,22 +624,24 @@ class Coordinator:
                 # Background collection never spends the reserved closure tail.
                 closure=self.stop_reason is not None and not cancel_periodic,
                 periodic=cause == "PERIODIC",
-                periodic_timing=timing,
+                periodic_timing=periodic_timing,
+                **({"timing": timing} if timing is not None else {}),
             )
         finally:
             if cause == "PERIODIC":
                 self.sample_metric(
                     "persistence_ack", self.clock.now_ns() - persistence_started
                 )
-                if "writer_start_ns" in timing:
+                if "writer_start_ns" in periodic_timing:
                     self.sample_metric(
                         "writer_queue_wait",
-                        timing["writer_start_ns"] - persistence_started,
+                        periodic_timing["writer_start_ns"] - persistence_started,
                     )
-                if "writer_done_ns" in timing:
+                if "writer_done_ns" in periodic_timing:
                     self.sample_metric(
                         "writer_action",
-                        timing["writer_done_ns"] - timing["writer_start_ns"],
+                        periodic_timing["writer_done_ns"]
+                        - periodic_timing["writer_start_ns"],
                     )
             with self.safety:
                 if cause != "PERIODIC":
@@ -599,6 +649,7 @@ class Coordinator:
         if cause == "PERIODIC":
             with self.safety:
                 self.last_sample_ns = body["observed_mono_ns"]
+        safe_call(timing, "outcome", "COMPLETE")
 
     def can_refill(self, target_bound: int, *, monitor_reserve: int = 0) -> bool:
         """Reserve count AND bytes before advancing/materializing the work stream.
