@@ -24,6 +24,21 @@ _checkpoints = threading.local()
 
 
 @contextmanager
+def allocation_controls(controls):
+    """Explicit RS1 opt-in; the public and legacy defaults remain absent."""
+    previous = getattr(_checkpoints, "allocation_controls", None)
+    _checkpoints.allocation_controls = controls
+    try:
+        yield
+    finally:
+        _checkpoints.allocation_controls = previous
+
+
+def current_allocation_controls():
+    return getattr(_checkpoints, "allocation_controls", None)
+
+
+@contextmanager
 def cooperative_io(callback: Callable[[], None]) -> Iterator[None]:
     """Opt-in sole-writer safe points; never interrupt a partially written file.
 
@@ -54,6 +69,9 @@ def charged_writes(callback: Callable[[Path, int], None]) -> Iterator[None]:
 
 
 def charge_write(path: Path, size: int) -> None:
+    controls = current_allocation_controls()
+    if controls is not None:
+        controls.bytes(size)
     callback = getattr(_checkpoints, "charge", None)
     if callback is not None:
         callback(path, size)
@@ -100,6 +118,10 @@ def reserve(path: Path) -> None:
 
 
 def write(path: Path, raw: bytes) -> None:
+    if current_allocation_controls() is not None:
+        from . import s12_b2_allocation_limits as limits
+
+        limits.exclusive(path)
     charge_write(path, len(raw))
     private_directory(path.parent)
     fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)

@@ -32,6 +32,8 @@ def pack(
     size = 0
     stream = None
     directory: Path | None = None
+    controls = io.current_allocation_controls()
+    primary = None
 
     def seal() -> list[dict[str, Any]]:
         assert stream is not None and directory is not None
@@ -70,7 +72,14 @@ def pack(
             c.digest(execution)
             source = io.read(path)
             raw = response.decompress(source, length=length, expected_hash=fingerprint)
-            frame = response.compress(raw)
+            # Default path is byte-identical; only an explicit RS1 runtime
+            # scope supplies selected physical-frame and invocation limits.
+            if controls is None:
+                frame = response.compress(raw)
+            else:
+                from . import s12_b2_allocation_limits as limits
+
+                frame = limits.compressed(raw, response.compress)
             c.require(len(frame) <= MAX_COMPRESSED, "S12_RAW_PACK_INVALID")
             if entries and (
                 len(entries) == MAX_RESPONSES or size + len(frame) > MAX_COMPRESSED
@@ -83,12 +92,19 @@ def pack(
                 number += 1
                 directory = root / f"pack_{number:06d}"
                 io.reserve(directory)
-                fd = os.open(
-                    directory / "raw.zst",
-                    os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
-                    0o600,
-                )
-                stream = os.fdopen(fd, "wb")
+                if controls is None:
+                    fd = os.open(
+                        directory / "raw.zst",
+                        os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+                        0o600,
+                    )
+                    stream = os.fdopen(fd, "wb")
+                else:
+                    stream = limits.PhysicalSink(
+                        directory / "raw.zst",
+                        controls.value["max_raw_pack_bytes"],
+                        "RAW_PACK_FILE",
+                    )
             stream.write(frame)
             entries.append(
                 {
@@ -104,6 +120,15 @@ def pack(
         if entries:
             yield from seal()
         io.fsync_directory(root)
+    except BaseException as error:
+        primary = error
+        raise
     finally:
         if stream is not None and not stream.closed:
-            stream.close()
+            try:
+                stream.close()
+            except BaseException:
+                if controls is None or primary is None:
+                    raise
+                # Selected RS1 native-sink cleanup cannot replace the failure
+                # which interrupted the pack. Its allocation remains charged.

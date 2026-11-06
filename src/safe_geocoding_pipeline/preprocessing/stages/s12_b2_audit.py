@@ -7,6 +7,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 
 from . import s12_b2_contract as b
+from . import s12_b2_allocation_limits as limits
 from . import s12_b2_operations as o
 from . import s12_public_operational_audit as oa
 from . import s12_retrieval_contract as c
@@ -157,7 +158,7 @@ def finish(root, record, raw, *, key: bytes, layers, sources, expected_echo, now
             "B2_CAPTURE_STATUS",
         )
         response_hash, response_bytes = b.sha(raw).hex(), len(raw)
-        io.write(root / "raw.zst", response.compress(raw))
+        io.write(root / "raw.zst", limits.compressed(raw, response.compress))
         decoded = response.decompress(
             io.read(root / "raw.zst"),
             length=response_bytes,
@@ -181,15 +182,12 @@ def finish(root, record, raw, *, key: bytes, layers, sources, expected_echo, now
         "B2_CAPTURE_INCOMPLETE",
     )
     if projection is not None:
-        sink = pa.BufferOutputStream()
-        pq.write_table(
+        encoded = limits.candidate_bytes(
             pa.Table.from_pylist(
                 projection.candidates, schema=b.schema("request_candidate")
-            ),
-            sink,
-            compression="zstd",
+            )
         )
-        io.write(root / "candidates.parquet", sink.getvalue().to_pybytes())
+        io.write(root / "candidates.parquet", encoded)
     receipt = {
         "schema_version": "stage12_data_receipt_b2_v1",
         "begin_sha256": b.digest(begin),
@@ -332,6 +330,7 @@ def reopen(root, *, layers, sources, expected_echo, sealed=True):
 
 
 def begin_control(root, value):
+    limits.claim("CONTROL_BEGIN")
     b.validate(value, o.CONTROL_BEGIN)
     io.reserve(root)
     io.write(root / "begin.json", b.canonical(value))
@@ -370,6 +369,7 @@ def control_timing(root, begin, recipe, record):
 
 def finish_control(root, record, raw, recipe, adapter, *, key):
     """Control validation cannot produce geocoding candidates or service closure."""
+    limits.claim("CONTROL_FINISH")
     begin = b.parse(io.read(root / "begin.json"), o.CONTROL_BEGIN)
     oa.validate_transport(record)
     b.require(
@@ -405,7 +405,7 @@ def finish_control(root, record, raw, recipe, adapter, *, key):
         )
         response_hash = b.sha(raw).hex()
         length = len(raw)
-        io.write(root / "raw.zst", response.compress(raw))
+        io.write(root / "raw.zst", limits.compressed(raw, response.compress))
         try:
             if late:
                 raise c.Stage12Error("TIMEOUT")

@@ -12,6 +12,7 @@ from . import s11_semantic_contract as s11
 from . import s11_semantic_io as s11io
 from . import s11_semantic_publication as s11pub
 from . import s12_b2_contract as b
+from . import s12_b2_allocation_limits as limits
 from . import s12_storage as io
 from . import s12_retrieval_contract as c
 
@@ -27,6 +28,7 @@ ACCEPTED = {
 
 
 def connect(path: Path):
+    limits.sqlite_before(path)
     io.private_directory(path.parent)
     if not path.exists():
         fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY | os.O_NOFOLLOW, 0o600)
@@ -34,6 +36,11 @@ def connect(path: Path):
     else:
         s11io.private(path)
     db = sqlite3.connect(path, check_same_thread=False)
+    try:
+        limits.sqlite_cap(db)
+    except BaseException:
+        db.close()
+        raise
     db.execute("pragma cache_size=-2048")
     db.execute("pragma temp_store=FILE")
     db.execute("pragma mmap_size=0")
@@ -481,7 +488,9 @@ def build_accepted(
     )
     b.uint(memory_bytes, True)
     io.reserve(scratch)
-    db = s11io.connect(scratch, memory=str(memory_bytes) + "B", threads=1)
+    db = limits.duck_connect(
+        s11io.connect, scratch, memory=str(memory_bytes) + "B", threads=1
+    )
     try:
         accepted.register(db)
         upstream.validate(accepted, db)

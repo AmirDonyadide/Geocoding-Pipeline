@@ -9,6 +9,7 @@ from typing import Callable
 from . import s12_b2_contract as b
 from . import s12_b2_operations as o
 from . import s12_b2_catalog as catalog
+from . import s12_b2_allocation_limits as limits
 from . import s12_public_reporting as statistics
 from . import s12_retrieval_contract as c
 from . import s12_storage as io
@@ -36,7 +37,10 @@ class Index:
         self.db = catalog.connect(path)
         try:
             self.db.execute("pragma page_size=4096")
-            self.db.execute("pragma max_page_count=" + str(max(1, max_bytes // 4096)))
+            selected = limits.sqlite_cap(self.db, max_bytes)
+            self.db.execute(
+                "pragma max_page_count=" + str(max(1, (selected or max_bytes) // 4096))
+            )
             self.db.executescript(
                 "create table event(seq integer primary key, kind text, work integer, attempt integer, epoch text, body blob);create index event_work on event(work,seq);create table work(id integer primary key, body blob);create table verified(work integer,attempt integer,valid integer,terminal blob,primary key(work,attempt));"
             )

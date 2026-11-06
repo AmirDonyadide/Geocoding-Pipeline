@@ -621,7 +621,10 @@ class RuntimePort:
         if self.resource_binding is not None:
             from . import s12_b2_resources as resources
 
-            resources.shape(self.resource_binding, resources.RUNTIME_BINDING_SCHEMA)
+            binding = dict(self.resource_binding)
+            if "allocation_limits_sha256" in binding:
+                b.validate_type(binding.pop("allocation_limits_sha256"), "D")
+            resources.shape(binding, resources.RUNTIME_BINDING_SCHEMA)
         b.require(
             r["mode"] in ("OFFLINE_ONLY", "EXACT_AUTHORIZED_DISPATCH"),
             "B2_RUNTIME_CONFIG",
@@ -663,6 +666,7 @@ class RuntimePort:
         self.resource_model = None
         self.resource_command = None
         self.resource_command_deadline = None
+        self.allocation_limits = None
         self._test = _test
         self._generation_roots = None
         self._checking_generation = False
@@ -892,6 +896,8 @@ class RuntimePort:
         io.reserve(temporary)
         # SQLite temp files and Python temp files stay in the same accounted
         # private namespace. One CLI phase owns this process and global setting.
+        if self.allocation_limits is not None:
+            self.allocation_limits.claim("SQLITE")
         db = sqlite3.connect(":memory:")
         self._stack.callback(db.close)
         previous = db.execute("pragma temp_store_directory").fetchone()
@@ -1414,6 +1420,19 @@ class RuntimePort:
             check=self.check_deadline,
         )
         self.resource_model = model
+        selected = self.resource_binding.get("allocation_limits_sha256")
+        if selected is not None:
+            from . import s12_b2_allocation_limits as limits
+
+            value = limits.parse(self.records.raw(selected))
+            limits.validate_binding(value, model, command)
+            self.records.raw(value["review_sha256"])
+            self.records.raw(value["native_bound_evidence_sha256"])
+            self.authority.require(
+                "resource_retention_allocation_limits", selected, value
+            )
+            self.allocation_limits = limits.Controls(value, check=self.check_deadline)
+            self._stack.enter_context(io.allocation_controls(self.allocation_limits))
 
     def _rules(self):
         if self.response_rules is not None:
@@ -1752,6 +1771,14 @@ class RuntimePort:
                 self.reconcile_generation()
             except BaseException as error:
                 primary = error
+            try:
+                if self.allocation_limits is not None:
+                    self.allocation_limits.persist_usage(
+                        Path(self.settings["temporary_root"]) / "allocation_usage.json"
+                    )
+            except BaseException as error:
+                if primary is None:
+                    primary = error
             try:
                 self._stack.close()
             except BaseException as error:

@@ -4,6 +4,7 @@ from __future__ import annotations
 import os
 from itertools import zip_longest
 from . import s12_b2_contract as b
+from . import s12_b2_allocation_limits as limits
 from . import s12_b2_inventory as metadata
 from . import s12_b2_catalog as catalog_module
 from . import s12_b2_calibration as cal
@@ -35,6 +36,7 @@ class PhaseOutput:
         self.writer.call(self._open)
 
     def _open(self):
+        limits.claim("COMPARISON_FILE")
         self.fd = os.open(
             self.root / "comparisons.json",
             os.O_CREAT | os.O_EXCL | os.O_WRONLY | os.O_NOFOLLOW,
@@ -46,6 +48,7 @@ class PhaseOutput:
         self.writer.assert_owner()
         self.guard(raw)
         b.require(self.bytes + len(raw) <= self.maximum, "B2_PHASE_STORAGE_BUDGET")
+        io.charge_write(self.root / "comparisons.json", len(raw))
         view = memoryview(raw)
         while view:
             n = os.write(self.fd, view)

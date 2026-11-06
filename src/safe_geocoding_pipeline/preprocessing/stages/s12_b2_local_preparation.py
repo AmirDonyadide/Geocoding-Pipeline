@@ -166,6 +166,7 @@ def required_source_paths():
     paths |= {
         "docs/scientific_assets/" + DESCRIPTOR + ".json",
         "docs/scientific_assets/stage12_resource_retention_descriptor_b2_rs1_v1.json",
+        "docs/scientific_assets/stage12_allocation_limits_descriptor_b2_rs1_v1.json",
     }
     return frozenset(paths)
 
@@ -351,6 +352,16 @@ def local_authority_check(port, purpose, digest, context):
         "supported_size",
         "administrative_writer",
         "nonsecret_record",
+        "resource_retention",
+        "resource_retention_review",
+        "resource_retention_retry_state_proof",
+        "resource_retention_capacity_record",
+        "resource_retention_capacity_owner_authority",
+        "resource_retention_filesystem_accounting",
+        "resource_retention_codec_inventory",
+        "resource_retention_encoding_inventory",
+        "resource_retention_bound",
+        "resource_retention_allocation_limits",
     }
     b.require(
         purpose in allowed or purpose == "phase_" + port.phase,
@@ -470,6 +481,9 @@ def execute_metadata(phase, session, resources, catalog_for):
         import os
 
         h = hashlib.sha256()
+        from . import s12_b2_allocation_limits as limits
+
+        limits.claim("PREFIX_FILE")
         fd = os.open(
             session.output / name,
             os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
@@ -493,6 +507,7 @@ def execute_metadata(phase, session, resources, catalog_for):
                             "workload_kind": intent["kind"],
                         }
                     )
+                    io.charge_write(session.output / name, len(raw))
                     stream.write(raw)
                     h.update(raw)
                 stream.flush()

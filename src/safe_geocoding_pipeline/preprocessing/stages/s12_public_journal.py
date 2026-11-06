@@ -48,6 +48,9 @@ class Writer:
         self.storage_guard: Callable[[], None] = lambda: None
         self.check_deadline: Callable[[], None] = lambda: None
         self.remaining_seconds: Callable[[], float] = lambda: self.guard_ms / 1000
+        # The owner explicitly installs RS1 controls before constructing its
+        # writer. Thread-local scopes do not otherwise cross a thread boundary.
+        self.allocation_controls = io.current_allocation_controls()
         self.thread = threading.Thread(
             target=self._work, name="stage12-public-writer", daemon=True
         )
@@ -80,6 +83,7 @@ class Writer:
             with (
                 io.cooperative_io(self.publication_checkpoint),
                 io.charged_writes(self.charge_write),
+                io.allocation_controls(self.allocation_controls),
             ):
                 result = action()
             self.check_deadline()

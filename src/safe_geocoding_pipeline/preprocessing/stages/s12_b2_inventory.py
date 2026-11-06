@@ -15,6 +15,7 @@ from contextlib import contextmanager
 from . import s12_b2_contract as b
 from . import s12_b2_operations as o
 from . import s12_b2_catalog as catalog
+from . import s12_b2_allocation_limits as limits
 from . import s12_public_journal as journal
 from . import s12_storage as io
 
@@ -158,6 +159,7 @@ def stream_array(log, name, rows, plan):
         b.require(state["size"] + len(raw) <= bound["max_bytes"], "B2_METADATA_BOUND")
         log.check_storage(len(raw))
         if state["fd"] is None:
+            limits.claim("PREFIX_FILE")
             io.private_directory(path.parent)
             state["fd"] = os.open(
                 path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600
@@ -299,7 +301,10 @@ def ordered_files(root, *, max_files, max_scratch_bytes):
     try:
         observe(True)
         db = catalog.connect(tmp / "members.sqlite")
-        db.execute("pragma max_page_count=" + str(max_scratch_bytes // 4096))
+        selected = limits.sqlite_cap(db, max_scratch_bytes)
+        db.execute(
+            "pragma max_page_count=" + str((selected or max_scratch_bytes) // 4096)
+        )
         db.execute(
             "create table member(path text primary key, dev integer, ino integer, size integer, mt integer, ct integer, mode integer) without rowid"
         )

@@ -6,6 +6,7 @@ arbitrary source region to admin1. Unknown interpretation stays unevaluable.
 """
 
 from . import s12_b2_contract as b
+from . import s12_b2_allocation_limits as limits
 from . import s12_storage as io
 from . import s10_query_contract as s10
 from . import s10_query_input as inputs
@@ -143,7 +144,9 @@ class LineageProjection:
         )
         io.reserve(scratch)
         b.uint(memory_bytes, True)
-        self.db = sqlio.connect(scratch, memory=str(memory_bytes) + "B", threads=1)
+        self.db = limits.duck_connect(
+            sqlio.connect, scratch, memory=str(memory_bytes) + "B", threads=1
+        )
         accepted.register_views(self.db)
         # Explicit external keyed tables; no full reference object collection.
         for name, source, key in [

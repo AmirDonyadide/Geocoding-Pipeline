@@ -17,6 +17,7 @@ from . import s09_reference_io as accepted_io
 from . import s11_semantic_io as upio
 from . import s12_publication as v1pub
 from . import s12_b2_contract as b
+from . import s12_b2_allocation_limits as limits
 from . import s12_b2_inventory as metadata
 from . import s12_b2_operations as o
 from . import s12_b2_audit as audit
@@ -200,10 +201,12 @@ def assemble(
     verify_campaign()
     b.uint(memory_bytes, True)
     io.reserve(scratch)
-    sql = upio.connect(scratch, memory=str(memory_bytes) + "B", threads=1)
+    sql = limits.duck_connect(
+        upio.connect, scratch, memory=str(memory_bytes) + "B", threads=1
+    )
     sql.execute("SET TimeZone='UTC'")
     writers = {
-        name: upio.RelationWriter(
+        name: limits.relation_writer(
             scratch / name,
             b.schema(name),
             batch_rows=128,
@@ -380,7 +383,7 @@ def assemble(
         writers["request_execution"].append(result)
     for name, writer in writers.items():
         writer.close()
-        ordered = upio.RelationWriter(
+        ordered = limits.relation_writer(
             root / name,
             b.schema(name),
             batch_rows=128,
@@ -414,7 +417,7 @@ def assemble(
             pa.field("query_semantic_id", pa.string()),
         ]
     )
-    mapwriter = upio.RelationWriter(
+    mapwriter = limits.relation_writer(
         root / "mapback",
         map_schema,
         batch_rows=128,
@@ -560,7 +563,9 @@ def scientific_reopen(
     candidates = iter(relation_rows(root, "request_candidate"))
     candidate = next(candidates, None)
     io.reserve(scratch)
-    sql = upio.connect(scratch, memory=str(memory_bytes) + "B", threads=1)
+    sql = limits.duck_connect(
+        upio.connect, scratch, memory=str(memory_bytes) + "B", threads=1
+    )
     sql.execute("SET TimeZone='UTC'")
     sql.execute("create table seen(q blob primary key, execution blob unique)")
     sql.execute(

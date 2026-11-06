@@ -400,10 +400,14 @@ def publication_summary(
 
     def stream(name, rows):
         path = output_root / name
+        from . import s12_b2_allocation_limits as limits
+
+        limits.claim("PREFIX_FILE")
         fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY | os.O_NOFOLLOW, 0o600)
         try:
             for row in rows:
                 raw = b.canonical(row)
+                io.charge_write(path, len(raw))
                 view = memoryview(raw)
                 while view:
                     n = os.write(fd, view)

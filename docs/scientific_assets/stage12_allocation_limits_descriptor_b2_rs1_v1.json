@@ -1,0 +1,13 @@
+{
+  "version": "stage12_allocation_limits_descriptor_b2_rs1_v1",
+  "record": "stage12_allocation_limits_b2_rs1_v1",
+  "binding": "Optional allocation_limits_sha256 inside an existing B2-RS1 runtime resource_retention binding. Exact model, command, review and native bound evidence must be present and granted. It is not an executable physical model or capacity record by itself.",
+  "required_positive_integer_fields": ["command_id", "max_compressed_frame_bytes", "max_candidate_buffer_bytes", "max_arrow_batch_bytes", "max_parquet_file_bytes", "max_raw_pack_bytes", "max_python_write_bytes", "sqlite_main_bytes", "duckdb_spill_bytes"],
+  "required_sha256_fields": ["model_sha256", "review_sha256", "native_bound_evidence_sha256"],
+  "invocation_roles": ["SQLITE", "DUCKDB", "PARQUET_FILE", "RAW_PACK_FILE", "COMPRESSED_FRAME", "CANDIDATE_BUFFER", "EXCLUSIVE_FILE", "EVENT_FILE", "PREFIX_FILE", "COMPARISON_FILE", "ADMIN_FILE", "CONTROL_BEGIN", "CONTROL_FINISH"],
+  "invocation_values": "Required uint64 maxima, including explicit zero for unused roles; absent and unknown values reject. Charged before each invocation; failures and partial writes receive no refund. A poisoned or interrupted RS1 command cannot resume or reuse its claim.",
+  "physical_sink": "Selected byte envelope reserved before exclusive open. Every Parquet write, including footer and close writes, is checked before os.write. Failed writes permanently poison that sink and retain partial bytes and full charge. Pack sinks use the same primitive.",
+  "materialized_buffers": "Compressed frames are checked after materialization and before persistence. Candidate Parquet uses a capped materialization sink. Arrow table and writer batch caps are separately checked. These are not a theorem about complete native codec/Arrow workspace or process RSS; the runtime memory ceiling and native bound evidence remain required.",
+  "native_limits": "SQLite max_page_count bounds main-file pages only. DuckDB max_temp_directory_size bounds supported spill only. Neither bounds all native database, WAL, journal, temporary, partially unlinked or concurrent files. Native aggregate physical allocation and inode guarantees require separate verified engine/input proof or attributable external filesystem enforcement; no such fact is supplied by this descriptor.",
+  "compatibility": "Absent selection preserves earlier O1, RS1, public and legacy execution. Existing descriptors are unchanged. Selected controls apply only to that exact command and its inherited sole-writer scope. Read validation, scientific eligibility, retry, retention and uncertainty semantics are unchanged."
+}
