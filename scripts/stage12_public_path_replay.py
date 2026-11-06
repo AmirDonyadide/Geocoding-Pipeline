@@ -40,6 +40,18 @@ def load_module(name, path):
     return value
 
 
+def parent_fsync_open(path, flags, output):
+    """Permit only the output parent's read-only directory handle, not its files."""
+    forbidden = os.O_WRONLY | os.O_RDWR | os.O_CREAT | os.O_TRUNC | os.O_APPEND
+    required = os.O_DIRECTORY | os.O_NOFOLLOW
+    return (
+        type(flags) is int
+        and flags & required == required
+        and not flags & forbidden
+        and path == output.resolve().parent
+    )
+
+
 def main():
     entered = time.monotonic_ns()
     parser = argparse.ArgumentParser(description=__doc__)
@@ -139,8 +151,12 @@ def main():
                 for part in path.parts
             ):
                 denied()
-            if str(path) not in ("/dev/null", "/dev/urandom") and not any(
-                path == root or path.is_relative_to(root) for root in allowed
+            if (
+                str(path) not in ("/dev/null", "/dev/urandom")
+                and not any(
+                    path == root or path.is_relative_to(root) for root in allowed
+                )
+                and not parent_fsync_open(path, values[2], args.output)
             ):
                 denied()
             creating = type(values[2]) is int and bool(values[2] & os.O_CREAT)

@@ -2,6 +2,7 @@
 
 import importlib.util
 import json
+import os
 from pathlib import Path
 import sys
 
@@ -150,3 +151,22 @@ def test_preparation_rejects_changed_sources_before_output(
     with pytest.raises((AssertionError, contract.Stage12Error)):
         module("stage12_prepare_public_path_replay").main()
     assert not output.exists()
+
+
+def test_only_parent_directory_fsync_handle_is_admissible(tmp_path):
+    replay = module("stage12_public_path_replay")
+    output = tmp_path / "new_immutable_output"
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+    assert replay.parent_fsync_open(tmp_path, flags, output)
+    fd = os.open(tmp_path, flags)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+    assert not replay.parent_fsync_open(tmp_path / "unrelated_input", flags, output)
+    assert not replay.parent_fsync_open(tmp_path.parent, flags, output)
+    assert not replay.parent_fsync_open(tmp_path, os.O_RDONLY, output)
+    assert not replay.parent_fsync_open(tmp_path, flags & ~os.O_NOFOLLOW, output)
+    assert not replay.parent_fsync_open(tmp_path, flags | os.O_RDWR, output)
+    for extra in (os.O_CREAT, os.O_TRUNC, os.O_APPEND):
+        assert not replay.parent_fsync_open(tmp_path, flags | extra, output)
