@@ -30,6 +30,7 @@ VERSIONS = (VERSION, FAMILY_VERSION, CORPUS_VERSION)
 
 
 def descriptor(version=VERSION):
+    io._checkpoint()
     c.require(version in VERSIONS, "RESPONSE_CONTRACT_INVALID")
     value = {
         "version": VERSION,
@@ -93,15 +94,18 @@ def descriptor(version=VERSION):
             limitation_receipt_version="stage12_public_limitation_receipt_v2",
             protected_and_controls="INELIGIBLE_UNCHANGED_STRICT_VALIDATION",
         )
+    io._checkpoint()
     return value
 
 
 def check_corpus():
     """The fixed table cannot silently follow a later fixture/corpus edit."""
+    io._checkpoint()
     c.require(
         c.sha(c.canonical(probe.fixtures())).hex() == corpus.FIXTURE_SHA256,
         "RESPONSE_CONTRACT_INVALID",
     )
+    io._checkpoint()
 
 
 def corpus_entry(work):
@@ -134,18 +138,21 @@ def eligible(work, version):
 
 
 def target(work):
+    io._checkpoint()
     fixture = next(
         (f for f in probe.fixtures() if f["fixture_id"] == work["fixture_id"]), None
     )
     c.require(
         fixture is not None and work["kind"] == "DATA", "RESPONSE_CONTRACT_INVALID"
     )
-    return c.materialize(
+    value = c.materialize(
         fixture["core"],
         bytes.fromhex(work["fixture_id"]),
         c.policy(work["result_limit"]),
         target_limit=4096,
     )[0]
+    io._checkpoint()
+    return value
 
 
 def messages(obj, *, berlin=False):
@@ -172,7 +179,9 @@ def ordinary_shapes(raw, size):
 
 def _shapes(raw, work, *, version, ordinary):
     c.require(version in VERSIONS, "RESPONSE_CONTRACT_INVALID")
+    io._checkpoint()
     obj = response.Parser(raw).parse().value
+    io._checkpoint()
     response.envelope(obj)
     c.require(
         obj.get("type") == "FeatureCollection" and type(obj.get("features")) is list,
@@ -233,6 +242,7 @@ def _shapes(raw, work, *, version, ordinary):
             )
             allowed_layers = set(layers)
     for feature in features:
+        io._checkpoint()
         c.require(
             type(feature) is dict
             and feature.get("type") == "Feature"
@@ -265,7 +275,12 @@ def _shapes(raw, work, *, version, ordinary):
         response.optional_string(feature.get("id"))
         if properties.get("confidence") is not None:
             response.numeric(properties["confidence"], 0, 1)
-    return tuple(response.structural(feature) for feature in features)
+    structures = []
+    for feature in features:
+        io._checkpoint()
+        structures.append(response.structural(feature))
+    io._checkpoint()
+    return tuple(structures)
 
 
 class Validation:
@@ -285,7 +300,9 @@ class Validation:
         valid = False
         if raw is not None:
             try:
+                io._checkpoint()
                 obj = response.Parser(raw).parse().value
+                io._checkpoint()
                 observed = type(obj.get("geocoding")) is dict and obj["geocoding"].get(
                     "warnings"
                 ) == [WARNING]

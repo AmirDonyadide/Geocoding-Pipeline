@@ -86,6 +86,40 @@ def sao(size=1):
     )
 
 
+def test_size40_public_validation_has_cooperative_boundaries_without_policy_change():
+    entry = sao(40)
+    row = work(entry)
+    obj = sample(entry, features=True)
+    obj["features"] *= 40
+    raw = c.canonical(obj)
+    expected = tuple(
+        response.structural(x)
+        for x in response.Parser(raw).parse().value["features"]
+    )
+    calls = []
+    with io.cooperative_io(lambda: calls.append(True)):
+        actual = v.shapes(raw, row, version=v.CORPUS_VERSION)
+        limitation = v.Validation(v.CORPUS_VERSION).limitation(raw, row)
+    assert actual == expected
+    assert limitation["raw_sha256"] == c.sha(raw).hex()
+    assert len(calls) >= 80  # Both validation and structural work yield by feature.
+    assert c.sha(c.canonical(v.descriptor(v.CORPUS_VERSION))).hex() == (
+        "849a0863876b75dcef322a46d74c2558708cb8611046c8235869090cce621ae2"
+    )
+
+
+def test_public_validation_safe_point_failure_cannot_become_valid():
+    entry = sao(40)
+    raw = c.canonical(sample(entry, features=True))
+
+    def uncertain_writer():
+        raise OSError("PUBLIC_PROBE_EVIDENCE_WRITE_FAILED")
+
+    with io.cooperative_io(uncertain_writer):
+        with pytest.raises(OSError):
+            v.shapes(raw, work(entry), version=v.CORPUS_VERSION)
+
+
 def test_exact_descriptor_and_original_versions_preserved():
     for version in v.VERSIONS:
         assert (

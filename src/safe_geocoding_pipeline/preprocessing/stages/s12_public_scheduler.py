@@ -164,6 +164,8 @@ class Coordinator:
                 "resource_observation",
                 "safety_wait",
                 "persistence_ack",
+                "writer_queue_wait",
+                "writer_action",
                 "overdue_after_ack",
             )
         }
@@ -566,6 +568,7 @@ class Coordinator:
             )
             self.sample_metric("safety_wait", safety_acquired - safety_started)
         persistence_started = self.clock.now_ns() if cause == "PERIODIC" else None
+        timing = {} if cause == "PERIODIC" else None
         try:
             self.journal.event(
                 "RESOURCE",
@@ -573,12 +576,23 @@ class Coordinator:
                 # Background collection never spends the reserved closure tail.
                 closure=self.stop_reason is not None and not cancel_periodic,
                 periodic=cause == "PERIODIC",
+                periodic_timing=timing,
             )
         finally:
             if cause == "PERIODIC":
                 self.sample_metric(
                     "persistence_ack", self.clock.now_ns() - persistence_started
                 )
+                if "writer_start_ns" in timing:
+                    self.sample_metric(
+                        "writer_queue_wait",
+                        timing["writer_start_ns"] - persistence_started,
+                    )
+                if "writer_done_ns" in timing:
+                    self.sample_metric(
+                        "writer_action",
+                        timing["writer_done_ns"] - timing["writer_start_ns"],
+                    )
             with self.safety:
                 if cause != "PERIODIC":
                     self.safety_barriers -= 1

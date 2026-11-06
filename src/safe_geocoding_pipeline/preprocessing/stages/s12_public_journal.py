@@ -646,13 +646,20 @@ class Journal:
         *,
         closure: bool = False,
         periodic: bool = False,
+        periodic_timing: dict[str, int] | None = None,
     ) -> str:
         self.contract.require(
             not periodic or (kind == "RESOURCE" and body["cause"] == "PERIODIC")
         )
+        self.contract.require(
+            periodic_timing is None
+            or (periodic and type(periodic_timing) is dict and not periodic_timing)
+        )
 
         # Serializing this call through the writer is the seq allocation boundary.
         def append() -> str:
+            if periodic_timing is not None:
+                periodic_timing["writer_start_ns"] = self.clock.now_ns()
             self.writer.assert_owner()
             self.contract.require(not self.segment_closed)
             cap = (
@@ -701,6 +708,8 @@ class Journal:
             )
             if kind == "SEGMENT_CLOSE":
                 self.segment_closed = True
+            if periodic_timing is not None:
+                periodic_timing["writer_done_ns"] = self.clock.now_ns()
             return self.last_hash
 
         result = self.writer.call(append, periodic=periodic)

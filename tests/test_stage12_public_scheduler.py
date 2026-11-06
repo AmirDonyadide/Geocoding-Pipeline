@@ -1635,6 +1635,8 @@ def test_scale120_sampling_diagnostics_separate_actual_observation_and_ack(tmp_p
             "resource_observation",
             "safety_wait",
             "persistence_ack",
+            "writer_queue_wait",
+            "writer_action",
             "overdue_after_ack",
         }
     finally:
