@@ -20,23 +20,16 @@ from safe_geocoding_pipeline.preprocessing.stages import (
 )
 
 SCOPE = "TEST_ONLY_REAL_PUBLIC_ADAPTER_REPLAY_NO_SERVICE_AUTHORITY"
-VERSION = "stage12_public_path_replay_input_v1"
+VERSION = "stage12_public_path_replay_input_v2"
 LIMITS = {
     "seconds": 7200,
     "artifact_bytes": 256 * 2**20,
     "creations": 50000,
     "rss_bytes": 768 * 2**20,
-    "attempts": 171,
+    "attempts": 107,
     "response_bytes": 65536,
 }
 SCENARIOS = [
-    {
-        "name": "disabled_first64",
-        "label": "size01_full_text",
-        "observer": False,
-        "minimum_periodic": 1817,
-        "expected": "COMPLETE",
-    },
     {
         "name": "enabled_first64",
         "label": "size01_full_text",
@@ -66,6 +59,15 @@ SCENARIOS = [
         "expected": "INCOMPLETE_MALFORMED_WORK_2",
     },
 ]
+EXPECTED_ATTEMPTS = 106
+DIAGNOSTIC_PATHS = (
+    "scripts/stage12_prepare_public_path_replay.py",
+    "scripts/stage12_public_path_replay.py",
+    "scripts/stage12_replay_scenario.py",
+    "scripts/stage12_scale120_diagnostic.py",
+    "scripts/stage12_native_enforcement_observer.py",
+    "cluster/goethe_nhr/stage12_public_path_replay.sbatch",
+)
 
 
 def main():
@@ -184,6 +186,7 @@ def main():
     inventory = json.loads(args.source_inventory.read_bytes())
     names = sorted(
         {entry["path"] for entry in inventory["source_files"]}
+        | set(DIAGNOSTIC_PATHS)
         | {
             "src/safe_geocoding_pipeline/preprocessing/stages/s12_public_checkpoints.py",
             "src/safe_geocoding_pipeline/preprocessing/stages/s12_public_timing.py",
@@ -209,6 +212,13 @@ def main():
         "source_inputs": {
             "template_sha256": args.template_sha256,
             "prior_replay_input_sha256": args.prior_input_sha256,
+        },
+        "expected_attempts": EXPECTED_ATTEMPTS,
+        "diagnostic_source_files": {
+            name: contract.sha(
+                (Path(__file__).resolve().parents[1] / name).read_bytes()
+            ).hex()
+            for name in DIAGNOSTIC_PATHS
         },
     }
     raw = contract.canonical(value)

@@ -127,7 +127,13 @@ def test_canonical_preparation_associations_and_test_authority(
         for x in value["test_only_authority_records"].values()
     )
     assert value["limits"] == module("stage12_public_path_replay").LIMITS
-    assert value["limits"]["attempts"] == 171
+    assert value["limits"]["attempts"] == 107
+    assert value["expected_attempts"] == 64 + 32 + 8 + 2 == 106
+    assert len(value["scenarios"]) == 4 and all(
+        x["observer"] for x in value["scenarios"]
+    )
+    assert value["scenarios"][0]["name"] == "enabled_first64"
+    assert set(value["diagnostic_source_files"]) == set(producer.DIAGNOSTIC_PATHS)
     assert output.stat().st_mode & 0o777 == 0o600
     with pytest.raises(FileExistsError):
         producer.main()

@@ -28,7 +28,7 @@ LIMITS = {
     "artifact_bytes": 256 * 2**20,
     "creations": 50000,
     "rss_bytes": 768 * 2**20,
-    "attempts": 171,
+    "attempts": 107,
     "response_bytes": 65536,
 }
 
@@ -86,8 +86,6 @@ def main():
         s12_public_diagnostics as diagnostics,
         s12_public_recovery as recovery,
         s12_public_checkpoints as checkpoints,
-        s12_public_audit as data_audit,
-        s12_public_operational_audit as capture_audit,
         s12_retrieval_contract as contract,
         s12_storage as storage,
         s12_transport as transport,
@@ -101,6 +99,9 @@ def main():
     )
     schema = load_module(
         "replay_input_schema", source / "scripts/stage12_prepare_public_path_replay.py"
+    )
+    scenario_tools = load_module(
+        "replay_scenario", source / "scripts/stage12_replay_scenario.py"
     )
     network_guard = guard.deny_linux_network()
 
@@ -126,52 +127,16 @@ def main():
     ]
     proc_self = Path("/proc/self").resolve()
     cgroup_root = Path("/sys/fs/cgroup").resolve()
-    creation_count = 24  # Pre-reserve all fixed launcher metadata creations.
-    creation_lock = threading.Lock()
-
-    def audit(event, values):
-        nonlocal creation_count
-        if event.startswith(
-            ("socket.", "subprocess.", "os.exec", "os.spawn")
-        ) or event in ("os.system", "os.fork", "os.posix_spawn"):
-            denied()
-        if event == "open" and isinstance(values[0], (str, bytes)):
-            path = Path(os.path.realpath(os.fsdecode(values[0])))
-            if path.is_relative_to(proc_self) and (
-                path.parent != proc_self or path.name not in native.PROC_NAMES
-            ):
-                denied()
-            if (
-                path.is_relative_to(cgroup_root)
-                and path.name not in native.CGROUP_NAMES
-            ):
-                denied()
-            if any(
-                part in (".ssh", ".config", "credentials") or part.startswith(".env")
-                for part in path.parts
-            ):
-                denied()
-            if (
-                str(path) not in ("/dev/null", "/dev/urandom")
-                and not any(
-                    path == root or path.is_relative_to(root) for root in allowed
-                )
-                and not parent_fsync_open(path, values[2], args.output)
-            ):
-                denied()
-            creating = type(values[2]) is int and bool(values[2] & os.O_CREAT)
-        else:
-            creating = event == "os.mkdir"
-            path = Path(os.path.realpath(os.fsdecode(values[0]))) if creating else None
-        if creating:
-            assert path == args.output.resolve() or path.is_relative_to(
-                args.output.resolve()
-            )
-            with creation_lock:
-                assert creation_count < LIMITS["creations"]
-                creation_count += 1
-
-    sys.addaudithook(audit)
+    access = scenario_tools.AccessGuard(
+        allowed=allowed,
+        output=args.output,
+        proc_self=proc_self,
+        cgroup_root=cgroup_root,
+        proc_names=native.PROC_NAMES,
+        cgroup_names=native.CGROUP_NAMES,
+        maximum_creations=LIMITS["creations"],
+    )
+    sys.addaudithook(access.audit)
     resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
     resource.setrlimit(
         resource.RLIMIT_FSIZE, (LIMITS["artifact_bytes"], LIMITS["artifact_bytes"])
@@ -181,7 +146,7 @@ def main():
     assert hashlib.sha256(raw).hexdigest() == args.input_sha256
     data = json.loads(raw)
     assert contract.canonical(data) == raw and data["scope"] == SCOPE
-    assert data["version"] == "stage12_public_path_replay_input_v1"
+    assert data["version"] == schema.VERSION
     assert set(data) == {
         "scope",
         "version",
@@ -197,6 +162,8 @@ def main():
         "synthetic_delay_ms",
         "interpretation",
         "source_inputs",
+        "expected_attempts",
+        "diagnostic_source_files",
     }
     assert data["source_sha"] == args.source_sha and data["limits"] == LIMITS
     assert data["scenarios"] == schema.SCENARIOS
@@ -204,6 +171,10 @@ def main():
     assert len(args.source_sha) == 40 and all(
         x in "0123456789abcdef" for x in args.source_sha
     )
+    assert data["expected_attempts"] == schema.EXPECTED_ATTEMPTS == 106
+    assert set(data["diagnostic_source_files"]) == set(schema.DIAGNOSTIC_PATHS)
+    for name, digest in data["diagnostic_source_files"].items():
+        assert contract.sha((source / name).read_bytes()).hex() == digest
     runtime.validate_config(data["configuration"])
     storage.reserve(args.output)
     budget = guard.ArtifactBudget(LIMITS["artifact_bytes"] - 2**20)
@@ -246,15 +217,16 @@ def main():
                     os._exit(124)
 
     threading.Thread(target=watch, daemon=True, name="public-replay-watchdog").start()
-    roles = {
-        name: args.output / "declared_native_workspace" / name
-        for name in native.RUNTIME_ROLES
-    }
-    facts = native.collect_native_enforcement(
-        args.output, roles, requested_slurm_memory_bytes=6 * 2**30
-    )
     storage.write(
-        args.output / "NATIVE_ENFORCEMENT_OBSERVATION.json", contract.canonical(facts)
+        args.output / "CARRIED_RESOURCE_SCOPE.json",
+        contract.canonical(
+            {
+                "scope": "PRIOR_JOB_1809317_ONLY_NOT_CURRENT_ENFORCEMENT_OR_ENTITLEMENT",
+                "native_record_sha256": "db3445d782bee74be760928c97e26e1186aa7aad4bff86218a0cf5df04d5a6d7",
+                "storage_facts_and_existing_requests": "CARRIED_UNCHANGED_NOT_REAUDITED",
+                "current_diagnostic_rss_and_artifact_watchdogs": "UNCHANGED_OBSERVED_LIMITS_NOT_NATIVE_ALLOCATION_PROOF",
+            }
+        ),
     )
     clock = runtime.Clock()
     config = data["configuration"]
@@ -304,7 +276,7 @@ def main():
         args.source_sha,
         clock,
     )
-    observer = None  # Disabled baseline has no checkpoint thread or disk work.
+    observer = None  # Construct one bounded observer before the first scenario.
     attempts = 0
     envelope = runtime.Envelope(
         clock, LIMITS["attempts"], LIMITS["seconds"], matrix=True
@@ -390,11 +362,12 @@ def main():
         (runtime, "reopen_completed", "actual_completed_opener"),
     ):
         setattr(owner, name, measured(tag, getattr(owner, name)))
-    scenario_rows = []
+    sequence = scenario_tools.ScenarioSequence(data["scenarios"])
+    scenario_rows = sequence.rows
     failure = None
     failures = diagnostics.Failures(clock)
     try:
-        for index, scenario in enumerate(data["scenarios"], 1):
+        for index, scenario in sequence.pending():
             active = scenario["name"]
             current = None
             phase_periodic = 0
@@ -426,7 +399,7 @@ def main():
                 if observer is None:
                     observer = timing.PublicTiming(
                         args.output / "supplementary_timing",
-                        phase_count=5,
+                        phase_count=len(data["scenarios"]),
                         budget_charge=budget.charge,
                     )
                 observer.set_phase(index)
@@ -443,6 +416,19 @@ def main():
             path = args.output / scenario["name"]
             before_attempts = attempts
 
+            def payload_for(work):
+                if scenario["expected"] != "COMPLETE" and work["work_id"] == 2:
+                    return b"{"
+                if work["kind"] == "SERVICE_CONTROL":
+                    return contract.canonical(
+                        {
+                            "type": "FeatureCollection",
+                            "features": [],
+                            "geocoding": {"version": "INVENTED_CONTROL_ONLY"},
+                        }
+                    )
+                return responses[(item["label"], work["work_id"])]
+
             def dispatch(work, target, hooks):
                 nonlocal attempts
                 limit_check()
@@ -454,19 +440,7 @@ def main():
                 bound.started(began)
                 bound.emit(lambda: None, limit_check)
                 time.sleep(0.020 if work["work_id"] % 8 == 0 else 0.005)
-                payload = (
-                    contract.canonical(
-                        {
-                            "type": "FeatureCollection",
-                            "features": [],
-                            "geocoding": {"version": "INVENTED_CONTROL_ONLY"},
-                        }
-                    )
-                    if work["kind"] == "SERVICE_CONTROL"
-                    else responses[(item["label"], work["work_id"])]
-                )
-                if scenario["expected"] != "COMPLETE" and work["work_id"] == 2:
-                    payload = b"{"
+                payload = payload_for(work)
                 capture = transport.Capture(
                     "VALIDATION_REQUIRED",
                     "OK",
@@ -481,142 +455,205 @@ def main():
                 bound.completed(capture)
                 return capture
 
-            report = cli.run_operations_block(
-                profile,
-                plan,
-                start,
-                work_factory=lambda: iter(item["work"]),
-                output=path,
-                block_id=1,
-                authority=authority,
-                clock=clock,
-                dispatch=dispatch,
-                runtime_inventory={"scope": SCOPE},
-                runtime_key=b"INVENTED_TEST_KEY_ONLY",
-                control_adapters=controls,
-                monitor=None,
-                free_bytes=lambda: runtime.filesystem_free_bytes(args.output),
-                segment_authority=config["sources"]["owner"],
-                writer_exclusion_evidence=config["sources"]["owner"],
-                epoch=os.urandom(32).hex(),
-                writer_release_evidence=config["sources"]["owner"],
-                public_validation=adapter,
-                ascending_sizes=item["ascending_sizes"],
-                task_deadline_ns=phase_deadline.end_ns,
-                diagnostics=failures,
-                timing_observer=observer if scenario["observer"] else None,
-            )
-            observer.sampling(current.sampling_snapshot()) if scenario[
-                "observer"
-            ] else None
-            opener_started = clock.now_ns()
-            block = None
-            rejected = False
+            run_error = None
+            report = None
             try:
-                with storage.cooperative_io(phase_deadline.check):
-                    block = runtime.reopen_completed(
-                        path,
-                        profile,
-                        plan,
-                        start,
-                        validation_sha256=config["public_validation_sha256"],
-                        control_adapters=controls,
-                    )
-                    phase_deadline.check()
-            except contract.Stage12Error:
-                rejected = True
-                if scenario["expected"] == "COMPLETE":
-                    raise
-            if scenario["expected"] == "COMPLETE":
-                assert (
-                    report["report_complete"] and report["disposition"] == "COMPLETED"
+                report = cli.run_operations_block(
+                    profile,
+                    plan,
+                    start,
+                    work_factory=lambda: iter(item["work"]),
+                    output=path,
+                    block_id=1,
+                    authority=authority,
+                    clock=clock,
+                    dispatch=dispatch,
+                    runtime_inventory={"scope": SCOPE},
+                    runtime_key=b"INVENTED_TEST_KEY_ONLY",
+                    control_adapters=controls,
+                    monitor=None,
+                    free_bytes=lambda: runtime.filesystem_free_bytes(args.output),
+                    segment_authority=config["sources"]["owner"],
+                    writer_exclusion_evidence=config["sources"]["owner"],
+                    epoch=os.urandom(32).hex(),
+                    writer_release_evidence=config["sources"]["owner"],
+                    public_validation=adapter,
+                    ascending_sizes=item["ascending_sizes"],
+                    task_deadline_ns=phase_deadline.end_ns,
+                    diagnostics=failures,
+                    timing_observer=observer if scenario["observer"] else None,
                 )
-                assert block is not None and matrix.gate(
-                    block, item, config["capability"]
-                )
-                control_pairs = matrix.verify_controls(path, plan)
-            else:
-                assert rejected and not report["report_complete"]
-                assert 2 <= attempts - before_attempts <= 3
-                assert (path / "_SEGMENT_SEALED").is_file()
-                assert (path / "_WRITER_RELEASED.json").is_file()
-                remaining = list(
-                    journal.read_array(path / "remaining_work_ledger.json")
-                )
-                ledger = list(journal.read_array(path / "work_ledger.json"))
-                assert len(ledger) == 64 and {r["work_id"] for r in ledger} == set(
-                    range(1, 65)
-                )
-                assert {r["work_id"] for r in remaining} == {
-                    r["work_id"]
-                    for r in ledger
-                    if r["state"] in ("UNBEGUN", "RETRY_DUE", "UNUSED_RESERVED_CONTROL")
-                }
-                for work_id in (1, 2):
-                    directory = path / "attempts" / data_audit.name_for(work_id, 1)
-                    work = item["work"][work_id - 1]
-                    terminal = data_audit.reopen(
-                        directory,
-                        directory.name,
-                        validator=adapter.validator(work, directory),
-                        context=capture_audit.DataContext(adapter),
-                    )
-                    assert terminal["outcome"] == (
-                        "CONTRACT_FAILURE"
-                        if work_id == 2
-                        else (
-                            "SUCCESS_ZERO_CANDIDATES"
-                            if terminal["candidate_count"] == 0
-                            else "SUCCESS_WITH_CANDIDATES"
-                        )
-                    )
-                    if work_id == 2:
-                        from safe_geocoding_pipeline.preprocessing.stages import (
-                            s12_response as response,
-                        )
+            except BaseException as error:
+                run_error = error
+            verified = {}
+            opener_elapsed_ns = 0
 
-                        assert (
-                            response.decompress(
-                                storage.read(directory / (directory.name + ".zst")),
-                                length=terminal["application_payload_bytes"],
-                                expected_hash=bytes.fromhex(
-                                    terminal["response_sha256"]
-                                ),
-                            )
-                            == b"{"
+            def classify(error):
+                family, code, errno = diagnostics.classify(error)
+                return {"family": family, "code": code, "errno": errno}
+
+            def note_failure(value):
+                nonlocal failure
+                sequence.note(dict(value, stage=active))
+                if failure is None:
+                    failure = sequence.first_failure
+
+            def safety():
+                limit_check()
+                phase_deadline.check()
+                scenario_tools.live_safety(
+                    current,
+                    root=path,
+                    isolation=bool(network_guard),
+                    check=phase_deadline.check,
+                )
+
+            def verify():
+                nonlocal verified
+                verified = scenario_tools.verify_closed(
+                    path,
+                    item,
+                    start,
+                    validation_sha256=config["public_validation_sha256"],
+                    check=phase_deadline.check,
+                    expected_payload=payload_for,
+                )
+                assert verified["campaign"] == report
+                assert phase_periodic >= sample_target
+                diagnostic_state = failures.snapshot()
+                assert diagnostic_state["first_initiating_failure"] is None
+                assert diagnostic_state["first_secondary_failure"] is None
+                facts = scenario_tools.assess(
+                    verified,
+                    negative=scenario["expected"] != "COMPLETE",
+                    attempts=attempts - before_attempts,
+                    item=item,
+                    selection=config["capability"],
+                )
+                if scenario["expected"] == "COMPLETE" and facts["verdict"] == "PASS":
+                    assert matrix.gate(verified["block"], item, config["capability"])
+                return dict(
+                    facts,
+                    block_report_sha256=operations.digest(verified["block"]),
+                    control_pairs=verified["control_pairs"],
+                    sampling=verified["sampling"],
+                    source_binding=verified["source_binding"],
+                )
+
+            def checkpoint():
+                # All sampler/worker/writer work is quiescent. This is independent
+                # supplementary I/O, never an authoritative writer reuse.
+                try:
+                    if current is not None:
+                        observer.sampling(current.sampling_snapshot())
+                    observer.boundary()
+                finally:
+                    snap = observer.snapshot()
+                    storage.write(
+                        args.output / (scenario["name"] + "_TIMING_BEFORE_OPENER.json"),
+                        contract.canonical(
+                            {
+                                "phase_id": index,
+                                "source_sha": args.source_sha,
+                                "input_sha256": args.input_sha256,
+                                "disposition": "PREFIX_ONLY_NOT_FINAL_COVERAGE",
+                                "timing": snap,
+                            }
+                        ),
+                    )
+                cp = snap["checkpoint"]
+                assert (
+                    not snap["observer_failure_count"]
+                    and not snap["outstanding_traces"]
+                )
+                assert (
+                    cp is not None
+                    and not cp["failure_code"]
+                    and not cp["persistence_uncertain"]
+                )
+                assert (
+                    not cp["dropped_unpersisted_rows"]
+                    and cp["persisted_watermark"] == cp["observed_rows"]
+                )
+                return snap
+
+            def reopen():
+                nonlocal opener_elapsed_ns
+                began = clock.now_ns()
+                try:
+                    with storage.cooperative_io(phase_deadline.check):
+                        opened = runtime.reopen_completed(
+                            path,
+                            profile,
+                            plan,
+                            start,
+                            validation_sha256=config["public_validation_sha256"],
+                            control_adapters=controls,
                         )
-                control_pairs = []
-            row = {
-                "name": scenario["name"],
-                "label": item["label"],
-                "observer": scenario["observer"],
-                "expected": scenario["expected"],
-                "report_complete": report["report_complete"],
-                "actual_opener_rejected": rejected,
-                "opener_elapsed_ns": clock.now_ns() - opener_started,
-                "phase_elapsed_ns": clock.now_ns() - phase_started,
-                "cpu_ns": time.process_time_ns() - cpu,
-                "periodic_observations": phase_periodic,
-                "explicit_stress_hold_ns_included_in_phase": explicit_hold_ns,
-                "attempts": attempts - before_attempts,
-                "sampler_aggregates": current.sampling_snapshot(),
-                "control_pairs": control_pairs,
-                "operator_authority": "TEST_ONLY_RECORDS_REAL_READER",
-                "report_sha256": operations.digest(report),
-            }
-            scenario_rows.append(row)
-            storage.write(
-                args.output / (scenario["name"] + "_RESULT.json"),
-                contract.canonical(row),
+                        phase_deadline.check()
+                    return opened == verified["block"]
+                finally:
+                    opener_elapsed_ns = clock.now_ns() - began
+
+            def revalidate():
+                assert (
+                    scenario_tools.fresh_binding(path, check=phase_deadline.check)
+                    == verified["source_binding"]
+                )
+
+            def persist(kind, row):
+                phase_deadline.check()
+                limit_check()
+                row.update(
+                    phase_elapsed_ns=clock.now_ns() - phase_started,
+                    cpu_ns=time.process_time_ns() - cpu,
+                    opener_elapsed_ns=opener_elapsed_ns,
+                )
+                with storage.cooperative_io(phase_deadline.check):
+                    storage.write(
+                        args.output / (scenario["name"] + "_" + kind + ".json"),
+                        contract.canonical(row),
+                    )
+
+            row = scenario_tools.conclude(
+                row={
+                    "name": scenario["name"],
+                    "label": item["label"],
+                    "phase_id": index,
+                    "observer": True,
+                    "expected": scenario["expected"],
+                    "report_complete": report["report_complete"]
+                    if report is not None
+                    else None,
+                    "attempts": attempts - before_attempts,
+                    "periodic_observations": phase_periodic,
+                    "explicit_stress_hold_ns_included_in_phase": explicit_hold_ns,
+                    "sampler_aggregates": current.sampling_snapshot()
+                    if current is not None
+                    else None,
+                    "operator_authority": "TEST_ONLY_RECORDS_REAL_READER",
+                    "source_sha": args.source_sha,
+                    "input_sha256": args.input_sha256,
+                },
+                safety=safety,
+                verify=verify,
+                opener=reopen,
+                revalidate=revalidate,
+                checkpoint=checkpoint,
+                persist=persist,
+                classify=classify,
+                on_failure=note_failure,
+                run_error=run_error,
             )
-            if observer is not None:
-                observer.boundary()
+            sequence.record(row)
             phase_deadline.check()
             limit_check()
-        assert 170 <= attempts <= LIMITS["attempts"] and len(scenario_rows) == 5
+        if len(scenario_rows) == len(data["scenarios"]):
+            assert schema.EXPECTED_ATTEMPTS <= attempts <= LIMITS["attempts"]
     except BaseException as error:
         family, code, errno = diagnostics.classify(error)
-        failure = {"family": family, "code": code, "errno": errno, "stage": active}
+        if failure is None:
+            failure = {"family": family, "code": code, "errno": errno, "stage": active}
     finally:
         try:
             if observer is not None:
@@ -712,7 +749,7 @@ def main():
             "source_sha": args.source_sha,
             "input_sha256": args.input_sha256,
             "complete_representative_replay": failure is None
-            and len(scenario_rows) == 5
+            and len(scenario_rows) == len(data["scenarios"])
             and association_verified,
             "failure": failure,
             "attempts": attempts,
@@ -722,7 +759,7 @@ def main():
             "rss_units": "bytes" if sys.platform == "darwin" else "KiB",
             "file_data_bytes_before_summary": sum(p.stat().st_size for p in files),
             "files_before_summary": len(files),
-            "charged_creations_before_summary": creation_count,
+            "charged_creations_before_summary": access.creations,
             "artifact_budget_before_summary": budget.snapshot(),
             "timing": observer.snapshot()
             if observer is not None
@@ -730,8 +767,14 @@ def main():
             "nested_metrics": metrics,
             "failures": failures.snapshot(),
             "network_guard": network_guard,
-            "native_observer_is_point_in_time_not_entitlement": True,
+            "resource_evidence_scope": "PRIOR_JOB_1809317_ONLY_NOT_CURRENT_ENFORCEMENT_OR_ENTITLEMENT",
             "service_capacity_or_scientific_claim": False,
+            "observer_overhead": "UNVERIFIED_NO_MATCHED_COMPARISON",
+            "aggregate_disposition": "COMPLETE"
+            if failure is None
+            and len(scenario_rows) == len(data["scenarios"])
+            and association_verified
+            else "INCOMPLETE",
         }
         storage.write(args.output / "summary.json", contract.canonical(summary))
         print(
@@ -763,7 +806,7 @@ def main():
         limit_check()
         stop_watchdog.set()
         signal.alarm(0)
-    return 0 if failure is None and len(scenario_rows) == 5 else 1
+    return 0 if failure is None and len(scenario_rows) == len(data["scenarios"]) else 1
 
 
 if __name__ == "__main__":

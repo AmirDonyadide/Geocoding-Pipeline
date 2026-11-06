@@ -42,9 +42,9 @@ mkdir -m 0700 "${stage12_metadata}"
 printf '{"started_mono_ns":%s,"internal_seconds":7200,"job_id":"%s"}\n' \
   "${stage12_started_ns}" "${SLURM_JOB_ID}" > "${stage12_metadata}/CLOCK.json"
 
-# Fixed read-only metadata commands on this compute allocation. These are not
-# available to the denied diagnostic Python process. Both format flags affect
-# display; '-f files' does not restrict the query to inodes.
+# Only refresh shared headroom for this finite diagnostic. Previously reviewed
+# quota/cgroup/native facts and unsent requests are carried forward, not re-audited.
+# This metadata command is unavailable to the denied diagnostic Python process.
 stage12_metadata_command() {
   local stage12_label="$1"
   shift
@@ -62,11 +62,7 @@ stage12_metadata_command() {
     "${stage12_code}" "${stage12_out_bytes}" "${stage12_err_bytes}" \
     > "${stage12_metadata}/${stage12_label}.status.json"
 }
-stage12_metadata_command quota_help pan_quota --help
 stage12_metadata_command project_bytes pan_df -P -B1 "${stage12_project}"
-stage12_metadata_command project_inodes pan_df -P -i "${stage12_project}"
-stage12_metadata_command user_quota pan_quota -c B -f files -u donyadidegan /panfs/vdura1/footprint
-stage12_metadata_command group_quota pan_quota -c B -f files -g footprint /panfs/vdura1/footprint
 readonly stage12_outer_remaining="$("${stage12_python}" -B -c \
   'import sys,time; print(max(1,(int(sys.argv[1])+7210*10**9-time.monotonic_ns()+10**9-1)//10**9))' "${stage12_started_ns}")"
 set +e
