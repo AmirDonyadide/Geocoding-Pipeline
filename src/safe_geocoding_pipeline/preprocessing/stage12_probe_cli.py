@@ -816,6 +816,7 @@ def run_operations_block(
             )
             return True
 
+        known = None
         try:
             finalization_deadline.check()
             with io.cooperative_io(finalization_deadline.check):
@@ -824,43 +825,81 @@ def run_operations_block(
                 )
             finalization_deadline.check()
         except recovery.FinalizationExpired:
+            if known is not None and hasattr(known["known_files"], "close"):
+                known["known_files"].close()
             # Empty *available* inventory and zero lower bound do not assert no
             # attempts. Exact totals stay null; preserved files remain reopenable.
             known = {"known_files": [], "begins_charged": {"confirmed_min": 0}}
+        except BaseException:
+            if known is not None and hasattr(known["known_files"], "close"):
+                known["known_files"].close()
+            raise
 
-        event_rows = [
-            r for r in known["known_files"] if r["path"].startswith("events/")
-        ]
-        attempt_rows = [
-            r for r in known["known_files"] if r["path"].startswith("attempts/")
-        ]
-        report = pr.incomplete_report(
-            start,
-            plan,
-            event_inventory_sha256=po.manifest_digest(event_rows),
-            attempt_inventory_sha256=po.manifest_digest(attempt_rows),
-            begins_lower_bound=known["begins_charged"]["confirmed_min"],
-            contract=po,
+        known_files = known["known_files"]
+        ap_known = po.PROFILE == "stage12_transport_operations_v3" and hasattr(
+            known_files, "rows"
         )
-        if not writer.failed.is_set() and finalization_deadline.remaining_seconds() > 0:
-            try:
-                writer.call(
-                    lambda: log.write_array(
-                        "available_event_inventory.json", iter(event_rows)
+        try:
+            if ap_known:
+
+                def event_rows():
+                    return known_files.rows("events/")
+
+                def attempt_rows():
+                    return known_files.rows("attempts/")
+            else:
+                available_events = [
+                    r for r in known_files if r["path"].startswith("events/")
+                ]
+                available_attempts = [
+                    r for r in known_files if r["path"].startswith("attempts/")
+                ]
+
+                def event_rows():
+                    return iter(available_events)
+
+                def attempt_rows():
+                    return iter(available_attempts)
+
+            report = pr.incomplete_report(
+                start,
+                plan,
+                event_inventory_sha256=po.manifest_digest(event_rows()),
+                attempt_inventory_sha256=po.manifest_digest(attempt_rows()),
+                begins_lower_bound=known["begins_charged"]["confirmed_min"],
+                contract=po,
+            )
+            if (
+                not writer.failed.is_set()
+                and finalization_deadline.remaining_seconds() > 0
+            ):
+                try:
+                    if ap_known:
+                        log.stream_array("available_event_inventory.json", event_rows())
+                        log.stream_array(
+                            "available_attempt_inventory.json", attempt_rows()
+                        )
+                    else:
+                        writer.call(
+                            lambda: log.write_array(
+                                "available_event_inventory.json", event_rows()
+                            )
+                        )
+                        writer.call(
+                            lambda: log.write_array(
+                                "available_attempt_inventory.json", attempt_rows()
+                            )
+                        )
+                    writer.call(
+                        lambda: log.write("incomplete_campaign_report.json", report)
                     )
-                )
-                writer.call(
-                    lambda: log.write_array(
-                        "available_attempt_inventory.json", iter(attempt_rows)
-                    )
-                )
-                writer.call(
-                    lambda: log.write("incomplete_campaign_report.json", report)
-                )
-            except Exception:
-                coordinator.audit_failed()
-        writer.abort()
-        return report
+                except Exception:
+                    coordinator.audit_failed()
+            return report
+        finally:
+            if ap_known:
+                known_files.close()
+            writer.abort()
 
     try:
         coordinator.start_sampling()
@@ -1388,6 +1427,9 @@ def run_operations_block(
 
             from .stages.s12_public_fresh_reads import FreshReads
 
+            if coordinator.ap_enabled:
+                from .stages.s12_public_history import Fresh as FreshReads
+
             # Attempts are drained; the independent sampler writes only events.
             # Reuse checked original attempt bytes within this comparison stage,
             # then freshly re-read the entire exact attempt source set before
@@ -1432,6 +1474,9 @@ def run_operations_block(
             closure_state()
             writer.freeze_closure()
             from .stages.s12_public_fresh_reads import FreshReads
+
+            if coordinator.ap_enabled:
+                from .stages.s12_public_history import Fresh as FreshReads
 
             operation = "REPORT"
             with FreshReads(

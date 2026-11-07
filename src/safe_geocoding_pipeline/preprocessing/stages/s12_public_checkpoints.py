@@ -124,17 +124,12 @@ AP_SCHEMA = "stage12_public_path_timing_v2"
 
 
 def _ap_row(value):
-    from .s12_public_sampling_contract import validate_timing
+    from .s12_public_bounded import pack_timing, unpack_timing
 
     try:
-        validate_timing(value)
+        return unpack_timing(pack_timing(value))
     except BaseException:
         raise CheckpointError("CHECKPOINT_ROW_INVALID") from None
-    # Private immutable copy, bounded independently of caller-owned dictionaries.
-    raw = _canonical(value)
-    if len(raw) > 8192:
-        raise CheckpointError("CHECKPOINT_BYTE_LIMIT")
-    return json.loads(raw)
 
 
 def _public_row(value):
@@ -265,6 +260,11 @@ class Checkpoints:
         self._max_files, self._max_bytes = max_files, max_bytes
         self._chunk_records = min(chunk_records, ring_size)
         self._rows = deque(maxlen=ring_size)
+        if self._ap:
+            from .s12_public_bounded import TimingRing, pack_timing
+
+            self._rows = TimingRing(ring_size)
+            self._row = pack_timing
         self._condition = threading.Condition()
         self._observed = self._watermark = self._dropped = self._overflow = 0
         self._files = self._bytes = self._reserved_files = self._reserved_bytes = 0
@@ -280,11 +280,18 @@ class Checkpoints:
 
     def record(self, row):
         """Copy an already observed safe row into memory; never persist here."""
-        row = self._row(row)
+        try:
+            row = self._row(row)
+        except BaseException:
+            if self._ap:
+                raise CheckpointError("CHECKPOINT_ROW_INVALID") from None
+            raise
         with self._condition:
             self._check_locked()
             if self._closing or self._closed:
                 raise CheckpointError("CHECKPOINT_CLOSED")
+            if self._ap and self._observed == 2**64 - 1:
+                raise CheckpointError("CHECKPOINT_LIMIT_INVALID")
             self._observed += 1
             if len(self._rows) == self._rows.maxlen:
                 self._overflow += 1
@@ -385,12 +392,16 @@ class Checkpoints:
             filename, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600
         )
         try:
-            offset = 0
-            while offset < len(raw):
-                written = os.write(fd, raw[offset:])
-                if written <= 0:
-                    raise CheckpointError("CHECKPOINT_SHORT_WRITE")
-                offset += written
+            # AP uses at most three immutable views over bounded arenas. No
+            # concatenation or bytes slice duplicates the selected document.
+            parts = raw.parts if self._ap else (raw,)
+            for part in parts:
+                view = memoryview(part)
+                while view:
+                    written = os.write(fd, view)
+                    if written <= 0:
+                        raise CheckpointError("CHECKPOINT_SHORT_WRITE")
+                    view = view[written:]
             os.fsync(fd)
         finally:
             os.close(fd)
@@ -402,6 +413,8 @@ class Checkpoints:
             os.close(fd)
 
     def _run(self):
+        if self._ap:
+            return self._run_ap()
         next_due = time.monotonic() + self._interval
         try:
             while True:
@@ -522,6 +535,114 @@ class Checkpoints:
                 self._failure = _safe_failure(error, "CHECKPOINT_PERSISTENCE_FAILED")
                 self._condition.notify_all()
 
+    def _run_ap(self):
+        from .s12_public_bounded import Canonical, Document, envelope, unpack_timing
+
+        next_due = time.monotonic() + self._interval
+        try:
+            while True:
+                with self._condition:
+                    while (
+                        self._requested <= self._serviced
+                        and not self._closing
+                        and self._observed <= self._watermark
+                    ):
+                        remaining = next_due - time.monotonic()
+                        if remaining <= 0:
+                            break
+                        self._condition.wait(remaining)
+                    ticket, closing = self._requested, self._closing
+                    index, previous = self._files + 1, self._previous
+                    if self._reserved_files >= self._max_files:
+                        raise CheckpointError("CHECKPOINT_FILE_LIMIT")
+                    end, watermark = self._observed, self._watermark
+                    first = max(watermark + 1, end - len(self._rows) + 1)
+                    packed = self._rows.get(first) if first <= end else None
+                    payload = dict(
+                        schema=AP_SCHEMA,
+                        units="actual_monotonic_nanoseconds",
+                        fields=[],
+                        sampling_coverage_proof=False,
+                        index=index,
+                        previous_sha256=previous,
+                        checkpoint_mono_ns=self._clock(),
+                        phase=self._phase,
+                        stage=self._stage,
+                        final=False,
+                        previous_watermark=watermark,
+                        watermark=watermark,
+                        ring_evictions=self._overflow,
+                        dropped_unpersisted_rows=self._dropped,
+                        records=None,
+                    )
+                    prior_dropped = self._dropped
+                if not _integer(payload["checkpoint_mono_ns"]):
+                    raise CheckpointError("CHECKPOINT_CLOCK_INVALID")
+                records = Canonical(self._max_bytes)
+                records.put(b"[")
+                count, total = 0, watermark
+                for ordinal in range(first, min(end + 1, first + self._chunk_records)):
+                    if ordinal != first:
+                        with self._condition:
+                            packed = self._rows.get(ordinal)
+                    if packed is None:
+                        break  # Concurrent eviction: preserve this exact prefix.
+                    row = unpack_timing(packed)
+                    pair = (ordinal, row)
+                    size = Canonical(self._max_bytes, count_only=True)
+                    size.value(pair)
+                    proposed = dict(
+                        payload,
+                        watermark=ordinal,
+                        final=closing and ordinal == end,
+                        dropped_unpersisted_rows=prior_dropped
+                        + ordinal
+                        - watermark
+                        - count
+                        - 1,
+                    )
+                    header, _ = envelope(proposed, count_only=True)
+                    # Count escaped canonical bytes BEFORE writing the pair.
+                    if (
+                        records.pos + bool(count) + size.pos + 1 + header.pos
+                        > self._max_bytes
+                    ):
+                        if not count:
+                            raise CheckpointError("CHECKPOINT_BYTE_LIMIT")
+                        break
+                    if count:
+                        records.put(b",")
+                    records.value(pair)
+                    count, total, payload = count + 1, ordinal, proposed
+                    del row, pair, packed
+                records.put(b"]")
+                payload["final"] = closing and total == end
+                document = Document(payload, records)
+                if len(document) > self._max_bytes:
+                    raise CheckpointError("CHECKPOINT_BYTE_LIMIT")
+                with self._condition:
+                    self._reserved_files += 1
+                    self._reserved_bytes += len(document)
+                self._persist(document, index)
+                with self._condition:
+                    self._files, self._bytes = index, self._bytes + len(document)
+                    self._previous = document.digest()
+                    self._watermark = total
+                    self._dropped = payload["dropped_unpersisted_rows"]
+                    if total == self._observed:
+                        self._serviced = ticket
+                    self._closed = payload["final"]
+                    self._condition.notify_all()
+                    if self._closed:
+                        return
+                # Release previous arenas before allocating the next document.
+                del document, records, payload
+                next_due = time.monotonic() + self._interval
+        except BaseException as error:
+            with self._condition:
+                self._failure = _safe_failure(error, "CHECKPOINT_PERSISTENCE_FAILED")
+                self._condition.notify_all()
+
 
 def read_prefix(root, *, max_files=1500, max_bytes=32768, record_consumer=None):
     """Validate the entire bounded membership and return only a verified prefix.
@@ -582,8 +703,19 @@ def read_prefix(root, *, max_files=1500, max_bytes=32768, record_consumer=None):
             finally:
                 os.close(fd)
             payload = json.loads(raw)
-            if _canonical(payload) != raw:
+            if payload.get("schema") == AP_SCHEMA:
+                from .s12_public_bounded import EncodingLimit, canonical_match
+
+                try:
+                    canonical_match(payload, raw)
+                except EncodingLimit:
+                    raise CheckpointError("CHECKPOINT_CANONICAL_INVALID") from None
+                canonical_bytes = raw
+            else:
+                canonical_bytes = _canonical(payload)
+            if canonical_bytes != raw:
                 raise CheckpointError("CHECKPOINT_CANONICAL_INVALID")
+            del canonical_bytes
             expected = {
                 "schema",
                 "units",
@@ -680,7 +812,8 @@ def read_prefix(root, *, max_files=1500, max_bytes=32768, record_consumer=None):
                     )
                 else:
                     decoded = _row(pair[1])
-                decoded_records.append((pair[0], decoded))
+                if not ap:
+                    decoded_records.append((pair[0], decoded))
                 ordinal += 1
             expected_dropped = (
                 dropped + payload["watermark"] - watermark - len(payload["records"])
@@ -697,8 +830,12 @@ def read_prefix(root, *, max_files=1500, max_bytes=32768, record_consumer=None):
                 payload["checkpoint_mono_ns"],
             )
             if record_consumer is not None:
-                for number, row in decoded_records:
-                    record_consumer(number, row if ap else tuple(row))
+                if ap:
+                    for number, wire in payload["records"]:
+                        record_consumer(number, _ap_row(wire))
+                else:
+                    for number, row in decoded_records:
+                        record_consumer(number, tuple(row))
             result.update(
                 verified_files=index,
                 verified_rows=result["verified_rows"] + len(payload["records"]),

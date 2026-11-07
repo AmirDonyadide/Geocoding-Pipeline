@@ -502,6 +502,9 @@ def reopen_completed(
     """A new bounded original-source stage; no publication cache is accepted."""
     from .s12_public_fresh_reads import FreshReads
 
+    if profile.get("schema_version") == "stage12_transport_operations_v3":
+        from .s12_public_history import Fresh as FreshReads
+
     with FreshReads(root, check=io._checkpoint):
         opener = (
             _reopen_sampling_completed
@@ -929,7 +932,10 @@ def _reopen_sampling_completed(
         )
     block = read_object(root / "block_report.json")
     o.validate_type(block, "BlockReport")
-    comparisons = list(journal.read_array(root / "repeat_comparison.json"))
+    from .s12_public_history import hash_file
+
+    def comparisons():
+        return journal.read_array(root / "repeat_comparison.json")
 
     # Raw bytes and their exact structural repeat relation are checked anew.
     def structural(work, final):
@@ -969,11 +975,15 @@ def _reopen_sampling_completed(
             ):
                 o.require(body["work_id"] not in finals)
                 finals[body["work_id"]] = body
+        selected = {}
+        wanted = {work["work_id"] for _, work in batch}
+        for row in comparisons():
+            if row["next_work_id"] in wanted:
+                o.require(row["next_work_id"] not in selected)
+                selected[row["next_work_id"]] = row
         for prior, work in batch:
             expected_comparisons += 1
-            value = next(
-                (x for x in comparisons if x["next_work_id"] == work["work_id"]), None
-            )
+            value = selected.get(work["work_id"])
             o.require(
                 value
                 == {
@@ -983,7 +993,7 @@ def _reopen_sampling_completed(
                     == structural(work, finals.get(work["work_id"])),
                 }
             )
-    o.require(len(comparisons) == expected_comparisons)
+    o.require(sum(1 for _ in comparisons()) == expected_comparisons)
 
     def before():
         return (e for e in events() if e["seq"] <= block["input_last_event_seq"])
@@ -996,8 +1006,8 @@ def _reopen_sampling_completed(
         works=works,
         verified_receipt=receipt,
         repeat_evidence=lambda: (
-            c.sha(io.read(root / "repeat_comparison.json")).hex(),
-            all(x["equal"] for x in comparisons),
+            hash_file(root / "repeat_comparison.json"),
+            all(x["equal"] for x in comparisons()),
         ),
         monitoring_closed=lambda: True,
         work_index=work_index,
@@ -1045,7 +1055,7 @@ def _reopen_sampling_completed(
         previous = o.parse(io.read(node / "snapshot.json"), o.SNAPSHOT)
         previous_report = read_object(node / "block_report.json")
         if _verify_history:
-            from .s12_public_fresh_reads import FreshReads
+            from .s12_public_history import Fresh as FreshReads
 
             with FreshReads(node, check=io._checkpoint):
                 checked = _reopen_sampling_completed(

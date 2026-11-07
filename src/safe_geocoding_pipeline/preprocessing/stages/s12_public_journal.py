@@ -1014,7 +1014,13 @@ def read_events(
                     parent, start_hash, _seen | {str(root)}, contract=contract
                 )
             )
-        for path in sorted((root / "events").iterdir()):
+        if o.PROFILE == "stage12_transport_operations_v3":
+            from .s12_public_history import event_paths
+
+            paths = event_paths(root / "events")
+        else:
+            paths = sorted((root / "events").iterdir())
+        for path in paths:
             o.require(path.name.endswith(".json") and path.stem.isdigit())
             yield (
                 int(path.stem),
@@ -1246,6 +1252,11 @@ class MeasurementPrefix:
 
 def inventory(root: Path, *, contract: Any = o) -> Iterator[dict[str, str]]:
     """Available-file inventory; does not assert complete campaign provenance."""
+    if contract.PROFILE == "stage12_transport_operations_v3":
+        from .s12_public_history import inventory as ap_inventory
+
+        yield from ap_inventory(root)
+        return
     for p in sorted(root.rglob("*")):
         if not p.is_dir():
             yield {

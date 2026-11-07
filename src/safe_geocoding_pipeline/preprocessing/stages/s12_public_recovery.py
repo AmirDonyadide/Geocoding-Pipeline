@@ -285,6 +285,21 @@ def unclean_reconciliation(
 ) -> dict[str, Any]:
     """Known-file inventory and lower bounds only; no fabricated snapshot."""
     o = contract
+    if o.PROFILE == "stage12_transport_operations_v3":
+        from .s12_public_history import Known
+
+        known = Known(root, verify_known)
+        return {
+            "disposition": "RECOVERY_BLOCKED",
+            "report_complete": False,
+            "begins_charged": {"value": None, "confirmed_min": known.confirmed},
+            "known_files": known,
+            "known_sealed_receipts_verified": known.verified
+            if verify_known is not None
+            else None,
+            "snapshot": None,
+            "reconciliation_reasons": ["AUDIT_FAILED", "STOPPED", "UNKNOWN_DELIVERY"],
+        }
     files = []
     confirmed = 0
     verified = 0
@@ -422,10 +437,17 @@ def snapshot_evidence(
     report = io.metadata(io.read(root / "block_report.json"))
     o.validate_type(report, "BlockReport")
     o.require(o.digest(report) == block_hash and report["block_id"] == ctl["block_id"])
-    comparison = c.sha(io.read(root / "repeat_comparison.json")).hex()
+    if o.PROFILE == "stage12_transport_operations_v3":
+        from .s12_public_history import hash_file
+    else:
+
+        def hash_file(path):
+            return c.sha(io.read(path)).hex()
+
+    comparison = hash_file(root / "repeat_comparison.json")
     o.require(snapshot["closure_evidence_sha256"] in (None, comparison))
     projection = root / "measurement_event_prefix.json"
-    projection_hash = c.sha(io.read(projection)).hex() if projection.exists() else None
+    projection_hash = hash_file(projection) if projection.exists() else None
     check()
     return comparison, projection_hash
 
@@ -527,6 +549,9 @@ def write_snapshot(
             else:
                 from .s12_public_fresh_reads import FreshReads
 
+                if o.PROFILE == "stage12_transport_operations_v3":
+                    from .s12_public_history import Fresh as FreshReads
+
                 with FreshReads(
                     writer.root, check=fence.check_live, boundary=fence.check
                 ):
@@ -588,6 +613,13 @@ def clean_continuation(
         and snapshot["controller"]["resume_eligible"]
     )
     # Inventory pins are redundant checks against actual immutable source files.
+    if o.PROFILE == "stage12_transport_operations_v3":
+        from .s12_public_history import hash_file
+    else:
+
+        def hash_file(path):
+            return c.sha(io.read(path)).hex()
+
     node, visited = root, set()
     while node is not None:
         o.require(str(node) not in visited)
@@ -598,9 +630,9 @@ def clean_continuation(
             ("attempt_inventory.json", "attempt_inventory_sha256"),
             ("work_ledger.json", "work_ledger_sha256"),
         ):
-            o.require(c.sha(io.read(node / name)).hex() == current[field])
+            o.require(hash_file(node / name) == current[field])
         o.require(
-            c.sha(io.read(node / "remaining_work_ledger.json")).hex()
+            hash_file(node / "remaining_work_ledger.json")
             == current["controller"]["remaining_work_ledger_sha256"]
         )
         o.require(
