@@ -285,7 +285,10 @@ def unclean_reconciliation(
 ) -> dict[str, Any]:
     """Known-file inventory and lower bounds only; no fabricated snapshot."""
     o = contract
-    if o.PROFILE == "stage12_transport_operations_v3":
+    if (
+        getattr(o, "AP_ENABLED", False)
+        or o.PROFILE == "stage12_transport_operations_v3"
+    ):
         from .s12_public_history import Known
 
         known = Known(root, verify_known)
@@ -309,7 +312,10 @@ def unclean_reconciliation(
         try:
             raw = (
                 io.read(path, limit=4096)
-                if o.PROFILE == "stage12_transport_operations_v3"
+                if (
+                    getattr(o, "AP_ENABLED", False)
+                    or o.PROFILE == "stage12_transport_operations_v3"
+                )
                 and path.parent.name == "events"
                 else io.read(path)
             )
@@ -358,13 +364,18 @@ def snapshot_evidence(
 
     if snapshot.get("schema_version") == "stage12_public_recovery_snapshot_v2":
         from . import s12_public_sampling_contract as o
+    elif snapshot.get("schema_version") == "stage12_public_recovery_snapshot_v3":
+        from . import s12_wf_ap2_contract as o
     check()
     o.validate(snapshot, o.SNAPSHOT)
     o.require(
         c.sha(io.read(root / "campaign_start.json")).hex()
         == snapshot["campaign_start_sha256"]
     )
-    if o.PROFILE == "stage12_transport_operations_v3":
+    if (
+        getattr(o, "AP_ENABLED", False)
+        or o.PROFILE == "stage12_transport_operations_v3"
+    ):
         from .s12_public_sampling import inspect
 
         profile = o.parse(io.read(root / "operations_profile.json"), o.PROFILE)
@@ -375,6 +386,7 @@ def snapshot_evidence(
             profile,
             start,
             maximum_segments=plan["sampling_budget"]["maximum_segments"],
+            contract=o,
         )
         close = next(
             e
@@ -437,7 +449,10 @@ def snapshot_evidence(
     report = io.metadata(io.read(root / "block_report.json"))
     o.validate_type(report, "BlockReport")
     o.require(o.digest(report) == block_hash and report["block_id"] == ctl["block_id"])
-    if o.PROFILE == "stage12_transport_operations_v3":
+    if (
+        getattr(o, "AP_ENABLED", False)
+        or o.PROFILE == "stage12_transport_operations_v3"
+    ):
         from .s12_public_history import hash_file
     else:
 
@@ -549,8 +564,17 @@ def write_snapshot(
             else:
                 from .s12_public_fresh_reads import FreshReads
 
-                if o.PROFILE == "stage12_transport_operations_v3":
+                if (
+                    getattr(o, "AP_ENABLED", False)
+                    or o.PROFILE == "stage12_transport_operations_v3"
+                ):
                     from .s12_public_history import Fresh as FreshReads
+
+                    if getattr(o, "PAGED_HISTORY", False):
+                        from functools import partial
+                        from . import s12_paged_history as history
+
+                        FreshReads = partial(history.Fresh, limits=history.current())
 
                 with FreshReads(
                     writer.root, check=fence.check_live, boundary=fence.check
@@ -601,11 +625,16 @@ def clean_continuation(
 
     if profile.get("schema_version") == "stage12_transport_operations_v3":
         from . import s12_public_sampling_contract as o
+    elif profile.get("schema_version") == "stage12_transport_operations_v4":
+        from . import s12_wf_ap2_contract as o
     o.verify_authorities(profile, plan, expected_start, authority)
     o.require(io.read(root / "campaign_start.json") == c.canonical(expected_start))
     o.require(io.read(root / "_SEGMENT_SEALED", limit=0) == b"")
     snapshot = o.parse(io.read(root / "snapshot.json"), o.SNAPSHOT)
-    if o.PROFILE == "stage12_transport_operations_v3":
+    if (
+        getattr(o, "AP_ENABLED", False)
+        or o.PROFILE == "stage12_transport_operations_v3"
+    ):
         o.require(snapshot["segment_id"] < plan["sampling_budget"]["maximum_segments"])
     o.require(
         snapshot["campaign_start_sha256"] == o.digest(expected_start)
@@ -613,7 +642,10 @@ def clean_continuation(
         and snapshot["controller"]["resume_eligible"]
     )
     # Inventory pins are redundant checks against actual immutable source files.
-    if o.PROFILE == "stage12_transport_operations_v3":
+    if (
+        getattr(o, "AP_ENABLED", False)
+        or o.PROFILE == "stage12_transport_operations_v3"
+    ):
         from .s12_public_history import hash_file
     else:
 
@@ -668,7 +700,10 @@ def clean_continuation(
     def event_factory():
         return journal.read_events(root, o.digest(expected_start), contract=o)
 
-    if o.PROFILE == "stage12_transport_operations_v3":
+    if (
+        getattr(o, "AP_ENABLED", False)
+        or o.PROFILE == "stage12_transport_operations_v3"
+    ):
         from .s12_public_sampling import inspect
 
         summaries = inspect(
@@ -676,6 +711,7 @@ def clean_continuation(
             profile,
             expected_start,
             maximum_segments=plan["sampling_budget"]["maximum_segments"],
+            contract=o,
         )
         o.require(all(x["complete"] for x in summaries))
     state = replay(event_factory(), contract=o)

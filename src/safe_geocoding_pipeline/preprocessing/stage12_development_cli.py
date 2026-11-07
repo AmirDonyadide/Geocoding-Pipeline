@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from .stages import s12_b2_contract as b
+from .stages import s12_b2_operations as operations
 from .stages import s12_b2_calibration as calibration
 from .stages import s12_b2_planning as planning
 from .stages import s12_b2_pipeline as pipeline
@@ -417,9 +418,9 @@ def _execute(phase: str, session: Session, resources):
         segments = []
         while node is not None:
             segments.append(
-                b.parse(
-                    io.read(node / "snapshot.json"), b.REGISTRY["names"]["SNAPSHOT"]
-                )["segment_closure_sha256"]
+                operations.parse_selected(io.read(node / "snapshot.json"))[
+                    "segment_closure_sha256"
+                ]
             )
             node = journal.predecessor_root(node)
         result = evidence.campaign_closure(

@@ -31,6 +31,17 @@ readonly stage12_python="${stage12_project}/runtimes/stage06/stage06_development
 [[ -z "$(git -C "${STAGE12_DIAGNOSTIC_CHECKOUT}" symbolic-ref -q HEAD || true)" ]]
 [[ "$(sha256sum "${STAGE12_DIAGNOSTIC_INPUT}" | cut -d' ' -f1)" == "${STAGE12_DIAGNOSTIC_INPUT_SHA256}" ]]
 [[ -x "${stage12_python}" && ! -e "${STAGE12_DIAGNOSTIC_OUTPUT}" ]]
+stage12_family_args=()
+case "${STAGE12_DIAGNOSTIC_WF_AP2:-0}" in
+  0) ;;
+  1)
+    : "${STAGE12_DIAGNOSTIC_EVIDENCE_BUNDLE:?actual live M2 proof bundle required}"
+    : "${STAGE12_DIAGNOSTIC_EVIDENCE_REVIEW_SHA256:?pinned independent proof review required}"
+    [[ "${STAGE12_DIAGNOSTIC_EVIDENCE_REVIEW_SHA256}" =~ ^[a-f0-9]{64}$ ]]
+    stage12_family_args=(--wf-ap2 --evidence-bundle "${STAGE12_DIAGNOSTIC_EVIDENCE_BUNDLE}" --evidence-review-sha256 "${STAGE12_DIAGNOSTIC_EVIDENCE_REVIEW_SHA256}")
+    ;;
+  *) exit 2 ;;
+esac
 unset SAFE_PELIAS_API_KEY SAFE_PELIAS_API_KEY_FILE PYTHONPATH
 export SAFE_EXECUTION_SITE=goethe-nhr PYTHONDONTWRITEBYTECODE=1 PYTHONUTF8=1 PYTHONHASHSEED=0
 export LANG=C.UTF-8 LC_ALL=C.UTF-8 OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1
@@ -43,7 +54,7 @@ timeout --signal=TERM --kill-after=5s 7210s "${stage12_python}" -B \
   "${STAGE12_DIAGNOSTIC_CHECKOUT}/scripts/stage12_diverse_offline_diagnostic.py" \
   --input "${STAGE12_DIAGNOSTIC_INPUT}" --input-sha256 "${STAGE12_DIAGNOSTIC_INPUT_SHA256}" \
   --source "${STAGE12_DIAGNOSTIC_CHECKOUT}" --source-sha "${STAGE12_DIAGNOSTIC_SHA}" \
-  --output "${STAGE12_DIAGNOSTIC_OUTPUT}"
+  --output "${STAGE12_DIAGNOSTIC_OUTPUT}" "${stage12_family_args[@]}"
 stage12_exit=$?
 set -e
 exit "${stage12_exit}"

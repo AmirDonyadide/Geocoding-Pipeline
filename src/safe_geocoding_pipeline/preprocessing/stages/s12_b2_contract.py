@@ -164,6 +164,21 @@ def validate_type(value: Any, spec: Any) -> None:
 
 def validate(obj: dict[str, Any], version: str | None = None) -> None:
     version = version or obj.get("schema_version")
+    if version in {
+        "stage12_development_operations_b2_ap_v1",
+        "stage12_development_workload_plan_b2_ap_v1",
+        "stage12_development_operations_campaign_b2_ap_v1",
+        "stage12_development_controller_event_b2_ap_v1",
+        "stage12_development_operations_report_b2_ap_v1",
+        "stage12_development_recovery_snapshot_b2_ap_v1",
+        "stage12_development_measurement_report_b2_ap_v1",
+        "stage12_development_resource_observation_b2_ap_v1",
+        "stage12_development_sampling_seed_b2_ap_v1",
+        "stage12_development_sampling_policy_b2_ap_v1",
+    }:
+        from . import s12_b2_sampling_contract as successor
+
+        return successor.validate(obj, version)
     require(version in SCHEMAS, "B2_VERSION_INVALID")
     validate_type(obj, SCHEMAS[version])
 

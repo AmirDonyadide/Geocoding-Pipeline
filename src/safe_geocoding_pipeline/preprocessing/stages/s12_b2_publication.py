@@ -972,6 +972,8 @@ def scientific_authority(
     verify_calibration=None,
     verify_final_retention=None,
 ):
+    from . import s12_b2_operations as operations
+    o = operations.for_profile(profile)
     verify_campaign()
     b.verify_executable_science(scientific_start)
     o.validate_plan(plan, profile)
@@ -1068,7 +1070,7 @@ def scientific_authority(
     from . import s12_public_journal as j
 
     while node is not None:
-        snap = b.parse(io.read(node / "snapshot.json"), o.SNAPSHOT)
+        snap = o.parse(io.read(node / "snapshot.json"), o.SNAPSHOT)
         segments.append(snap["segment_closure_sha256"])
         node = j.predecessor_root(node)
     segments.reverse()

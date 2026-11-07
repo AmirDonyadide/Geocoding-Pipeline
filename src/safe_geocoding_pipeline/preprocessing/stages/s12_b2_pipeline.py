@@ -8,6 +8,8 @@ from pathlib import Path
 from dataclasses import dataclass
 from typing import Callable
 import json
+import threading
+import sys
 
 from . import s12_b2_contract as b
 from . import s12_b2_operations as o
@@ -203,6 +205,7 @@ def run_segment(
     notice: Callable | None = None,
     phase_check: Callable[[], None] | None = None,
     phase_remaining_seconds: Callable[[], float] | None = None,
+    timing_observer=None,
 ):
     """No defaults for authority, live resource values, response rules or transport.
 
@@ -210,6 +213,11 @@ def run_segment(
     it must return a retained closure digest, never a bare success boolean.
     Synthetic callers supply unmistakably test-only records and adapters.
     """
+    from . import s12_b2_operations as operations
+
+    o = operations.for_profile(profile)
+    # Authority and enforcement are checked before catalog/protected access.
+    o.verify_authorities(profile, plan, start, gate)
     phase_entered_ns = clock.now_ns()
     if phase_check is not None:
         phase_check()
@@ -407,6 +415,68 @@ def run_segment(
             remaining = min(remaining, phase_remaining_seconds())
         return remaining
 
+    owned_timing = False
+    timing_meter = {"bytes": 0, "creations": 0}
+    timing_log = [None]
+    timing_lock = threading.Lock()
+    if getattr(o, "AP_ENABLED", False) and timing_observer is None:
+        from .s12_public_timing import SamplingTiming
+        from . import s12_public_checkpoints as timing_contract
+
+        controls = io.current_allocation_controls()
+
+        def charge_timing(size):
+            with timing_lock:
+                b.require(
+                    timing_meter["bytes"] + size <= 50200576
+                    and timing_meter["creations"] < 1502,
+                    "B2_TIMING_BUDGET",
+                )
+                timing_meter["bytes"] += size
+                timing_meter["creations"] += 1
+                if controls is not None:
+                    controls.claim("EXCLUSIVE_FILE")
+                    controls.bytes(size)
+                log = timing_log[0]
+                if log is not None:
+                    with log.ap_budget_lock:
+                        log.check_storage(size)
+                        log.external_bytes = b.uint(log.external_bytes + size)
+
+        timing_observer = SamplingTiming(
+            output.parent / (output.name + "_telemetry"),
+            phase_count=1,
+            budget_charge=charge_timing,
+            timing_schema=timing_contract.WF_SCHEMA,
+            timing_binding={
+                "policy_sha256": o.POLICY_SHA,
+                "source_sha256": profile["resource_retention_model"][
+                    "source_inventory_sha256"
+                ],
+                "task_sha256": b.digest(
+                    {
+                        "campaign_start_sha256": b.digest(start),
+                        "admission_sha256": b.digest(admission),
+                        "output": str(output),
+                    }
+                ),
+            },
+            timing_policy_version=o.POLICY_VERSION,
+            phase_windows=[
+                {
+                    "phase_id": 1,
+                    "selected_phase_ms": plan["budgets"]["active_duration_ms"],
+                }
+            ],
+            cumulative_deadline_ns=phase_deadline_ns,
+            clock_ns=clock.now_ns,
+        )
+        timing_observer.phase_open(
+            1,
+            phase_deadline_ns=phase_deadline_ns,
+            timeout_seconds=min(5, cumulative_remaining()),
+        )
+        owned_timing = True
     cumulative_check()
     ctl = scheduler.Coordinator(
         profile,
@@ -427,6 +497,7 @@ def run_segment(
         original_events=lambda node, binding: recovery.events(node, binding, plan),
         cumulative_check=cumulative_check,
         cumulative_remaining=cumulative_remaining,
+        timing_observer=timing_observer,
     )
     gate.require("retrieval_limit", start["retrieval_policy_id"], plan)
     ctl.size_ready = lambda pending: (
@@ -435,6 +506,24 @@ def run_segment(
     )
     segment_initial_charge = sum(ctl.charged.values())
     writer, log = ctl.writer, ctl.journal
+    if ctl.ap_enabled:
+        timing_log[0] = log
+        log.external_bytes = timing_meter["bytes"]
+        administrative_bytes = [0]
+
+        def charge_external(path, size):
+            b.require(
+                path.parent == gate.records.root
+                and path.name.endswith(".json")
+                and len(path.stem) == 64
+                and administrative_bytes[0] + size
+                <= profile["administrative"]["max_total_bytes"],
+                "B2_ADMIN_BOUND",
+            )
+            b.validate_type(path.stem, "D")
+            administrative_bytes[0] = b.uint(administrative_bytes[0] + size)
+
+        log.external_write = charge_external
     records = {}
     last_response = clock.utc()
 
@@ -443,6 +532,10 @@ def run_segment(
 
     checkpoints = ExitStack()
     checkpoints.enter_context(io.cooperative_io(cumulative_check))
+    if getattr(o, "PAGED_HISTORY", False):
+        from . import s12_paged_history as history
+
+        checkpoints.enter_context(history.selected(plan["history_limits"]))
     try:
         ctl.start_sampling()
         writer.call(lambda: io.reserve(output / "attempts"))
@@ -788,7 +881,16 @@ def run_segment(
         if resume_index:
             resume_index.close()
         b.require(ctl.stop_sampling(), "B2_SAMPLER_UNCERTAIN")
-        ctl.resource("PERIODIC")
+        if not ctl.ap_enabled:
+            ctl.resource("PERIODIC")
+        elif owned_timing:
+            timing_observer.phase_close(
+                1, quiescent=True, timeout_seconds=min(5, cumulative_remaining())
+            )
+            timing_observer.close(timeout_seconds=min(5, cumulative_remaining()))
+        timing_record = o.timing_evidence(timing_observer) if ctl.ap_enabled else None
+        if ctl.ap_enabled:
+            o.verify_timing(output, timing_record)
         attempt_hash = o.manifest_digest(recovery.inventory(output, "attempts", plan))
         writer.check_deadline()
         index = reporting.Index(
@@ -815,6 +917,7 @@ def run_segment(
                 attempt_inventory=attempt_hash,
                 administrative_spent=spent,
                 disposition=disposition,
+                timing_evidence=timing_record,
             )
             writer.call(lambda: log.write("measurement_report.json", measured))
             ledger_hash = metadata.stream_array(
@@ -962,7 +1065,9 @@ def run_segment(
             segment_closure_sha256=closure_hash,
             campaign_closure_sha256=None,
         )
-        b.validate(final)
+        if ctl.ap_enabled:
+            final.update(o.extra_binding_fields())
+        o.validate(final, o.REPORT)
         final_hash = writer.call(lambda: log.write("operations_report.json", final))
         evidence.release_authority(
             gate.records,
@@ -1022,8 +1127,100 @@ def run_segment(
             "service_evidence_state": "CLOSED_OBSERVATIONAL",
             "continuous_service_state": "NOT_VERIFIED",
         }
-        b.validate(snapshot)
-        writer.call(lambda: log.write("snapshot.json", snapshot))
+        if ctl.ap_enabled:
+            from .s12_public_sampling import inspect
+
+            summaries = inspect(
+                events,
+                profile,
+                start,
+                maximum_segments=plan["sampling_budget"]["maximum_segments"],
+                contract=o,
+            )
+            closed = next(
+                e for e in events() if e["seq"] == summaries[-1]["close_event_seq"]
+            )
+            snapshot.update(
+                sampling_policy_sha256=o.POLICY_SHA,
+                sampling_close_event_sha256=o.digest(closed),
+                sampling=summaries[-1],
+                timing_evidence=timing_record,
+                **o.extra_binding_fields(),
+            )
+        o.validate(snapshot, o.SNAPSHOT)
+        if ctl.ap_enabled:
+
+            def validate_prepared():
+                cumulative_check()
+                for name, expected in (
+                    ("profile.json", profile),
+                    ("plan.json", plan),
+                    ("campaign_start.json", start),
+                    ("scientific_start.json", scientific_start),
+                    ("segment_admission.json", admission),
+                    ("operations_report.json", final),
+                ):
+                    b.require(
+                        io.read(output / name) == b.canonical(expected),
+                        "B2_RECOVERY_BINDING",
+                    )
+                for area, field in (
+                    ("events", "event_inventory_sha256"),
+                    ("attempts", "attempt_inventory_sha256"),
+                ):
+                    b.require(
+                        o.manifest_digest(recovery.inventory(output, area, plan))
+                        == snapshot[field],
+                        "B2_RECOVERY_INVENTORY",
+                    )
+                for name, field in (
+                    ("event_inventory.json", "event_inventory_sha256"),
+                    ("attempt_inventory.json", "attempt_inventory_sha256"),
+                    ("work_ledger.json", "work_ledger_sha256"),
+                ):
+                    b.require(
+                        o.manifest_digest(metadata.read_role(output, name, plan))
+                        == snapshot[field],
+                        "B2_RECOVERY_INVENTORY",
+                    )
+                o.verify_work_manifest(work_factory, plan)
+                b.require(
+                    inspect(
+                        events,
+                        profile,
+                        start,
+                        maximum_segments=plan["sampling_budget"]["maximum_segments"],
+                        contract=o,
+                    )[-1]
+                    == snapshot["sampling"],
+                    "B2_SAMPLING_INCOMPLETE",
+                )
+                o.verify_timing(output, timing_record)
+
+            # These are independent fresh stages; neither stage accepts the
+            # digest/cache/verification token of its predecessor. Seal follows
+            # both, and the actual opener starts a third fresh scope below.
+            with history.Fresh(
+                output,
+                limits=plan["history_limits"],
+                check=cumulative_check,
+                outputs={"snapshot.json"},
+            ):
+                validate_prepared()
+                snapshot_hash = writer.call(
+                    lambda: log.write("snapshot.json", snapshot)
+                )
+                io.record_read_output(output / "snapshot.json", snapshot_hash)
+            with history.Fresh(
+                output, limits=plan["history_limits"], check=cumulative_check
+            ):
+                b.require(
+                    o.parse(io.read(output / "snapshot.json"), o.SNAPSHOT) == snapshot,
+                    "B2_RECOVERY_BINDING",
+                )
+                validate_prepared()
+        else:
+            writer.call(lambda: log.write("snapshot.json", snapshot))
         writer.release(
             {
                 "snapshot_sha256": b.digest(snapshot),
@@ -1051,6 +1248,22 @@ def run_segment(
         raise
     finally:
         ctl.stop_sampling()
+        if owned_timing and not timing_observer.closed:
+            initiating_failure = sys.exc_info()[0] is not None
+            try:
+                try:
+                    timing_observer.phase_close(
+                        1,
+                        quiescent=False,
+                        timeout_seconds=min(5, cumulative_remaining()),
+                    )
+                finally:
+                    timing_observer.close(
+                        timeout_seconds=min(5, cumulative_remaining())
+                    )
+            except BaseException:
+                if not initiating_failure:
+                    raise
         checkpoints.close()
 
 

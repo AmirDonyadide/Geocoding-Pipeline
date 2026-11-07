@@ -14,6 +14,7 @@ import json
 from . import s12_b2_contract as b
 from . import s12_b2_calibration as calibration
 from . import s12_b2_operations as operations
+from . import s12_b2_work_assembly as assembly
 from . import s12_storage as io
 
 RUNTIME_VERSION = "stage12_development_runtime_lp1_v1"
@@ -102,6 +103,17 @@ def validate_config(config):
     b.require(type(r["local_preparation_current_path"]) is str, "LP1_LOCAL_ONLY")
     b.validate_type(config["local_workload_sha256"], "D")
     b.require(type(config["local_accepted_roots"]) is dict, "LP1_INPUT_BINDING")
+    if "local_dispatch_layouts" in config:
+        layouts = config["local_dispatch_layouts"]
+        b.require(
+            r["phase"] == "build-workload"
+            and type(layouts) is list
+            and 1 <= len(layouts) <= 10,
+            "LP1_DISPATCH_LAYOUT",
+        )
+        for index, layout in enumerate(layouts, 1):
+            assembly.validate_layout(layout)
+            b.require(layout["intent_ordinal"] == index, "LP1_DISPATCH_LAYOUT")
 
 
 def required_source_paths():
@@ -473,6 +485,10 @@ def execute_metadata(phase, session, resources, catalog_for):
     b.require(not session.output.exists(), "LP1_OUTPUT_EXISTS")
     io.reserve(session.output)
     inventories = []
+    work_files = []
+    layouts = config.get("local_dispatch_layouts")
+    if layouts is not None:
+        b.require(len(layouts) == len(selected["intents"]), "LP1_DISPATCH_BINDING")
     for index, intent in enumerate(selected["intents"], 1):
         p.check_deadline()
         name = f"intent_{index:02}.jsonl"
@@ -517,6 +533,19 @@ def execute_metadata(phase, session, resources, catalog_for):
             # The exact partial file is retained and never accepted as a result.
             raise
         inventories.append({"name": name, "rows": count, "sha256": h.hexdigest()})
+        if layouts is not None:
+            p.gate.check()
+            work_files.append(
+                assembly.assemble(
+                    session.output / name,
+                    session.output / f"work_{index:02}.jsonl",
+                    inventories[-1],
+                    intent,
+                    layouts[index - 1],
+                    check=p.check_deadline,
+                )
+            )
+            p.gate.check()
     catalog.verify()
     p.gate.check()
     result = {
@@ -526,6 +555,19 @@ def execute_metadata(phase, session, resources, catalog_for):
         "ready_for_service": False,
         "depths_independently_authorized": True,
     }
+    if layouts is not None:
+        for item, intent, layout, receipt in zip(
+            inventories, selected["intents"], layouts, work_files, strict=True
+        ):
+            assembly.reopen(
+                session.output / receipt["name"],
+                item,
+                intent,
+                layout,
+                receipt,
+                check=p.check_deadline,
+            )
+        result["dispatch_work_files"] = work_files
     io.write(session.output / "local_result.json", b.canonical(result))
     # Fresh read of original generated files after write; no cached evidence token.
     for item in inventories:

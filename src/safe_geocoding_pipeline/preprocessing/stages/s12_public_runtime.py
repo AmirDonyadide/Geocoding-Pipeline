@@ -14,6 +14,7 @@ import threading
 import time
 import importlib.metadata
 from copy import deepcopy
+from contextlib import ExitStack
 from datetime import datetime, timezone
 from pathlib import Path
 from itertools import islice, zip_longest
@@ -36,6 +37,27 @@ from safe_geocoding_pipeline.execution_policy import require_goethe_nhr_slurm
 VERSION = "stage12_public_runtime_configuration_v1"
 LOWER_VERSION = "stage12_public_lower_rate_configuration_v1"
 MATRIX_VERSION = "stage12_public_diverse_capability_configuration_v1"
+AP2_CONFIG = "stage12_public_sampling_runtime_configuration_v2"
+SAMPLING_CONFIGS = ("stage12_public_sampling_runtime_configuration_v1", AP2_CONFIG)
+
+
+def sampling_contract(profile=None, config=None):
+    version = (profile or {}).get("schema_version")
+    config_version = (config or {}).get("version")
+    if version == "stage12_transport_operations_v4" or config_version == AP2_CONFIG:
+        from . import s12_wf_ap2_contract
+
+        return s12_wf_ap2_contract
+    if (
+        version == "stage12_transport_operations_v3"
+        or config_version == SAMPLING_CONFIGS[0]
+    ):
+        from . import s12_public_sampling_contract
+
+        return s12_public_sampling_contract
+    return None
+
+
 FIELDS = set(
     "version scope task_id output_directory window_start window_end maximum_attempts active_seconds review_wait_seconds transport resources sources campaigns public_validation_sha256".split()
 )
@@ -57,7 +79,7 @@ class Clock:
 
 
 class Envelope:
-    def __init__(self, clock, attempts, seconds, *, matrix=False):
+    def __init__(self, clock, attempts, seconds, *, matrix=False, started_ns=None):
         o.require(
             type(matrix) is bool
             and type(attempts) is int
@@ -67,7 +89,12 @@ class Envelope:
         )
         self.clock = clock
         self.cap = attempts
-        self.started = clock.now_ns()
+        now = clock.now_ns()
+        o.require(
+            started_ns is None or type(started_ns) is int and 0 <= started_ns <= now,
+            "S12_PUBLIC_WINDOW_CLOSED",
+        )
+        self.started = now if started_ns is None else started_ns
         self.deadline = self.started + seconds * 10**9
         self.attempts = 0
         self.lock = threading.Lock()
@@ -141,9 +168,176 @@ def validation_for(identity):
     raise c.Stage12Error("S12_PUBLIC_VALIDATION_BINDING_INVALID")
 
 
+def verify_successor_assets(repository):
+    from . import s12_wf_ap2_contract as successor
+    from . import s12_wf_ap2_timing as wire
+
+    descriptors = successor.descriptors()
+    descriptors[successor.TIMING] = wire.descriptor()
+    for name, value in descriptors.items():
+        raw = (repository / "docs/scientific_assets" / (name + ".json")).read_bytes()
+        o.require(raw == c.canonical(value), "S12_ASSET_MISMATCH")
+
+
+def successor_timing(config, output, review, clock, deadline):
+    """Fresh whole-task reservation; no reuse of historical file/event limits."""
+    from . import s12_wf_ap2_assurance as assurance
+    from . import s12_wf_ap2_contract as ap
+    from . import s12_public_checkpoints as checkpoints
+
+    phases = config["campaigns"]
+    selected_bytes = sum(x["plan"]["budgets"]["storage_bytes"] for x in phases)
+    events = sum(x["plan"]["budgets"]["event_count"] for x in phases)
+    ordinals = sum(
+        x["plan"]["budgets"]["data_attempts"]
+        + x["plan"]["budgets"]["control_http_attempts"]
+        for x in phases
+    )
+    maximum_rows = (
+        sum(x["plan"]["sampling_budget"]["maximum_observations"] for x in phases)
+        + ordinals
+        + 16 * len(phases)
+    )
+    windows = [
+        {
+            "phase_id": i,
+            "selected_phase_ms": min(
+                x["plan"]["budgets"]["active_duration_ms"],
+                x["plan"]["blocks"][0]["budget"]["active_duration_ms"],
+            ),
+        }
+        for i, x in enumerate(phases, 1)
+    ]
+    cuts = (
+        sum((x["selected_phase_ms"] + 4999) // 5000 for x in windows)
+        + 2 * len(phases)
+        + 1
+    )
+    files = maximum_rows // 56 + cuts + 1
+    reserved_bytes = timing.MAX_FILES * timing.MAX_BYTES + timing.SUMMARY_RESERVE
+    creations = events + 24 * ordinals + 128 * len(phases) + 128 + timing.MAX_FILES + 1
+    o.require(
+        files <= timing.MAX_FILES
+        and creations <= timing.TASK_FILE_CAP
+        and selected_bytes + reserved_bytes
+        <= config["resources"]["allocated_disk_bytes"],
+        "WF_AP2_TELEMETRY_BUDGET",
+    )
+    observer = timing.SamplingTiming(
+        output / "public_path_timing",
+        phase_count=len(phases),
+        timing_schema=checkpoints.WF_SCHEMA,
+        timing_binding={
+            "policy_sha256": ap.POLICY_SHA,
+            "source_sha256": o.digest(review["source_files"]),
+            "task_sha256": assurance.configuration_scope(config),
+        },
+        phase_windows=windows,
+        cumulative_deadline_ns=deadline,
+        clock_ns=clock.now_ns,
+    )
+    observer.reservation = {
+        "bytes": reserved_bytes,
+        "creations": timing.MAX_FILES + 1,
+        "task_byte_ceiling": config["resources"]["allocated_disk_bytes"],
+        "task_file_ceiling": timing.TASK_FILE_CAP,
+        "selected_chunk_upper": files,
+        "selected_timing_rows": maximum_rows,
+        "selected_cut_upper": cuts,
+        "physical_quota_verified": False,
+    }
+    return observer
+
+
+def verify_successor_timing(config, output, review, summary, check):
+    """Original T3 rows must match every exact sampling/hard event once."""
+    from . import s12_wf_ap2_contract as ap
+    from . import s12_wf_ap2_assurance as assurance
+    from . import s12_public_checkpoints as checkpoints
+    from .s12_paged_history import selected
+
+    o.require(
+        type(summary) is dict and summary.get("final_timing_coverage_complete") is True,
+        "WF_AP2_TIMING_INCOMPLETE",
+    )
+    phases = config["campaigns"]
+    last = [[0, 0] for _ in phases]
+    counts = [[0, 0] for _ in phases]
+
+    def joined(_ordinal, row):
+        check()
+        hard = row["row_kind"] == "HARD_SYNC"
+        phase = row["legacy_row"][0] if hard else row["phase_id"]
+        ap.uint(phase, True)
+        ap.require(phase <= len(phases))
+        item = phases[phase - 1]
+        values = row["legacy_row"] if hard else None
+        sequence = values[4] if hard else row["sample_event_seq"]
+        kind = 1 if hard else 0
+        ap.uint(sequence, True)
+        ap.require(sequence > last[phase - 1][kind], "WF_AP2_TIMING_ASSOCIATION")
+        ap.require(
+            (values[2] if hard else row["outcome"]) == "COMPLETE",
+            "WF_AP2_TIMING_INCOMPLETE",
+        )
+        last[phase - 1][kind] = sequence
+        counts[phase - 1][kind] += 1
+        root = output / item["label"]
+        with selected(item["plan"]["history_limits"]):
+            event = ap.parse(
+                io.read(root / "events" / f"{sequence:020d}.json", limit=4096), ap.EVENT
+            )
+            ack = (
+                None
+                if hard
+                else ap.parse(
+                    io.read(
+                        root / "events" / f"{row['ack_event_seq']:020d}.json",
+                        limit=4096,
+                    ),
+                    ap.EVENT,
+                )
+            )
+            timing.verify_sampling_association(
+                row, event, phase_id=phase, ack_event=ack, contract=ap
+            )
+
+    prefix = checkpoints.read_prefix(
+        output / "public_path_timing",
+        expected_binding={
+            "policy_sha256": ap.POLICY_SHA,
+            "source_sha256": ap.digest(review["source_files"]),
+            "task_sha256": assurance.configuration_scope(config),
+        },
+        expected_snapshot=summary["checkpoint"],
+        record_consumer=joined,
+    )
+    ap.require(not prefix["incomplete"], "WF_AP2_TIMING_INCOMPLETE")
+    for i, item in enumerate(phases):
+        root = output / item["label"]
+        start = ap.parse(io.read(root / "campaign_start.json"), ap.START)
+        expected = [0, 0]
+        with selected(item["plan"]["history_limits"]):
+            for event in journal.read_events(root, ap.digest(start), contract=ap):
+                check()
+                expected[0] += event["kind"] == "RESOURCE_SAMPLE"
+                expected[1] += (
+                    event["kind"] == "RESOURCE"
+                    and event["body"]["cause"] == "START_RESERVE"
+                )
+        ap.require(expected == counts[i], "WF_AP2_TIMING_ASSOCIATION")
+    check()
+    return {
+        "disposition": "EXACT_ORIGINAL_ASSOCIATIONS_VERIFIED",
+        "counts_by_phase": counts,
+        "verified_rows": prefix["verified_rows"],
+        "verified_files": prefix["verified_files"],
+    }
+
+
 def validate_config(config):
-    if config.get("version") == "stage12_public_sampling_runtime_configuration_v1":
-        from . import s12_public_sampling_contract as ap
+    if config.get("version") in SAMPLING_CONFIGS:
+        ap = sampling_contract(config=config)
 
         projected = deepcopy(config)
         projected["version"] = MATRIX_VERSION
@@ -305,8 +499,8 @@ def validate_config(config):
         matrix_rules.validate_matrix(config)
 
 
-def runtime_inventory(validation_sha256=None):
-    return {
+def runtime_inventory(validation_sha256=None, *, successor=False, check=lambda: None):
+    result = {
         "python": platform.python_version(),
         "implementation": platform.python_implementation(),
         "openssl": ssl.OPENSSL_VERSION,
@@ -319,6 +513,11 @@ def runtime_inventory(validation_sha256=None):
         "job_id": os.environ["SLURM_JOB_ID"],
         "resource_sampling_is_service_monitoring": False,
     }
+    if successor:
+        from .s12_wf_ap2_assurance import runtime_facts
+
+        result["wf_ap2_runtime"] = runtime_facts(check=check)
+    return result
 
 
 class Authority:
@@ -328,7 +527,7 @@ class Authority:
     signature, a self-issued operator attestation, or arbitrary hash allow-all.
     """
 
-    def __init__(self, config, bundle, review, review_hash, repository, git_sha, clock):
+    def __init__(self, config, bundle, review, review_hash, repository, git_sha, clock, *, deadline_check=None):
         self.config, self.bundle, self.review, self.review_hash = (
             config,
             bundle,
@@ -336,22 +535,42 @@ class Authority:
             review_hash,
         )
         self.clock = clock
+        self._deadline_check = deadline_check or (lambda: None)
         self.git_sha = git_sha
         self.active = None
         self.start = None
+        self.test_only = False
+        self._enforcement_lock = threading.Lock()
+        self._enforcement_checks = 0
+        self._runtime_inventory_checks = 0
+        self._runtime_inventory_limit = None
+        self.configuration_scope_sha256 = None
+        successor = config.get("version") == AP2_CONFIG
+        if successor:
+            from . import s12_wf_ap2_assurance as assurance
+
+            self.configuration_scope_sha256 = assurance.configuration_scope(config)
         o.require(
             set(review)
-            == {
-                "version",
-                "disposition",
-                "configuration_sha256",
-                "report_sha256",
-                "source_files",
-                "scope",
-            }
+            == (
+                {
+                    "version",
+                    "disposition",
+                    "configuration_sha256",
+                    "report_sha256",
+                    "source_files",
+                    "scope",
+                }
+                | ({"sampling_evidence"} if successor else set())
+            )
         )
         o.require(
-            review["version"] == "stage12_public_integration_review_binding_v1"
+            review["version"]
+            == (
+                "stage12_wf_ap2_public_review_binding_v1"
+                if successor
+                else "stage12_public_integration_review_binding_v1"
+            )
             and review["disposition"] == "PASS"
             and review["scope"] == o.SCOPE
         )
@@ -361,6 +580,7 @@ class Authority:
             == review["report_sha256"]
         )
         for entry in review["source_files"]:
+            self._deadline_check()
             o.require(
                 set(entry) == {"path", "sha256"}
                 and not Path(entry["path"]).is_absolute()
@@ -373,8 +593,126 @@ class Authority:
             )
         self.recheck()
 
+    def _sampling_evidence(self, digest, role):
+        from . import s12_wf_ap2_assurance as assurance
+
+        getattr(self, "_deadline_check", lambda: None)()
+        selected = self.review["sampling_evidence"]
+        names = (
+            "runtime_bounds",
+            "technical_reviews",
+            "enforcement",
+            "coverage",
+            "graphs",
+            "methods",
+            "logical",
+        )
+        assurance.shape(selected, {key: ["D"] for key in names})
+        for values in selected.values():
+            o.require(
+                1 <= len(values) <= 64 and values == sorted(set(values)),
+                "WF_AP2_EVIDENCE_BOUND",
+            )
+        o.require(
+            role in selected and digest in selected[role], "WF_AP2_EVIDENCE_SCOPE"
+        )
+        raw = io.read(
+            self.bundle / "sampling_evidence" / (digest + ".record"), limit=32768
+        )
+        o.require(o.digest(io.metadata(raw)) == digest, "WF_AP2_EVIDENCE_CHANGED")
+        return raw
+
+    def _m2_bound(self, profile, start, contract):
+        raw = self._sampling_evidence(
+            profile["sampling_runtime_bound_sha256"], "runtime_bounds"
+        )
+        record = contract.parse(raw, contract.BOUND)
+        contract.validate_bound(record, profile, start)
+        from . import s12_wf_ap2_assurance as assurance
+
+        assurance.validate_record(
+            record, profile, start, contract, self.configuration_scope_sha256
+        )
+        review = io.metadata(
+            self._sampling_evidence(
+                record["technical_review_record_sha256"], "technical_reviews"
+            )
+        )
+        subject = dict(record)
+        subject.pop("technical_review_record_sha256")
+        o.require(
+            set(review)
+            == {
+                "version",
+                "scope",
+                "disposition",
+                "bound_scope_sha256",
+                "reviewer_role_evidence_sha256",
+            }
+            and review["version"] == "stage12_wf_ap2_bound_review_v1"
+            and review["scope"] == contract.SCOPE
+            and review["disposition"] == "PASS"
+            and review["bound_scope_sha256"] == o.digest(subject),
+            "WF_AP2_BOUND_REVIEW",
+        )
+        self._sampling_evidence(review["reviewer_role_evidence_sha256"], "methods")
+        for digest in record["method_evidence_sha256"]:
+            self._sampling_evidence(digest, "methods")
+        for item in record["logical_allocations"]:
+            self._sampling_evidence(item["evidence_sha256"], "logical")
+        return record
+
+    def enforcement_facts(self, record):
+        from . import s12_wf_ap2_assurance as assurance
+
+        return assurance.observe_linux_domain(record["domain"])
+
+    def charge_enforcement_check(self, record):
+        with self._enforcement_lock:
+            self._enforcement_checks += 1
+            o.require(
+                self._enforcement_checks <= record["maximum_enforcement_checks"],
+                "WF_AP2_ENFORCEMENT_BUDGET",
+            )
+        o.require(
+            self.config["window_start"] <= self.clock.utc() < self.config["window_end"],
+            "WF_AP2_EXPIRED",
+        )
+
+    def charge_runtime_inventory_check(self, record):
+        with self._enforcement_lock:
+            value = record["maximum_runtime_inventory_checks"]
+            self._runtime_inventory_limit = (
+                value
+                if self._runtime_inventory_limit is None
+                else min(value, self._runtime_inventory_limit)
+            )
+            self._runtime_inventory_checks += 1
+            o.require(
+                self._runtime_inventory_checks <= self._runtime_inventory_limit,
+                "WF_AP2_RUNTIME_INVENTORY_BUDGET",
+            )
+
+    def runtime_inventory_budget(self):
+        from . import s12_wf_ap2_assurance as assurance
+
+        minimum = None
+        for item in self.config["campaigns"]:
+            raw = self._sampling_evidence(
+                item["profile"]["sampling_runtime_bound_sha256"], "runtime_bounds"
+            )
+            record = io.metadata(raw)
+            assurance.shape(record, assurance.SCHEMA)
+            value = record["maximum_runtime_inventory_checks"]
+            minimum = value if minimum is None else min(value, minimum)
+        o.require(minimum is not None, "WF_AP2_RUNTIME_INVENTORY_BUDGET")
+        return {"maximum_runtime_inventory_checks": minimum}
+
     def sampling_bound(self, profile, start):
-        from . import s12_public_sampling_contract as ap
+        ap = sampling_contract(profile)
+        o.require(ap is not None, "WF_AP2_FAMILY_REQUIRED")
+        if getattr(ap, "M2_ENABLED", False):
+            return self._m2_bound(profile, start, ap)
 
         raw = io.read(self.bundle / "sampling_runtime_bound.record", limit=32768)
         o.require(c.sha(raw).hex() == profile["sampling_runtime_bound_sha256"])
@@ -388,7 +726,8 @@ class Authority:
         )
         return record
 
-    def recheck(self):
+    def recheck(self, *, enforcement=False):
+        getattr(self, "_deadline_check", lambda: None)()
         o.require(
             self.config["window_start"] <= self.clock.utc() < self.config["window_end"],
             "S12_PUBLIC_WINDOW_CLOSED",
@@ -398,13 +737,22 @@ class Authority:
                 c.sha(io.read(self.bundle / (role + ".record"))).hex() == h,
                 "S12_PUBLIC_AUTHORITY_CHANGED",
             )
+        if (
+            enforcement
+            and self.active is not None
+            and self.config.get("version") == AP2_CONFIG
+        ):
+            from . import s12_wf_ap2_assurance as assurance
+
+            record = self.sampling_bound(self.active[0]["profile"], self.start)
+            assurance.verify_current_facts(record, self)
 
     def bind(self, item, plan, start):
         self.active = (item, plan)
         self.start = start
 
     def require(self, purpose, evidence_sha256, context):
-        self.recheck()
+        self.recheck(enforcement=purpose == "dispatch")
         o.require(
             self.active is not None and self.start is not None,
             "S12_PUBLIC_AUTHORITY_UNBOUND",
@@ -412,6 +760,54 @@ class Authority:
         item, plan = self.active
         profile = item["profile"]
         sources = self.config["sources"]
+        if profile.get(
+            "schema_version"
+        ) == "stage12_transport_operations_v4" and purpose in (
+            "sampling_runtime_bound",
+            "sampling_bound_review",
+            "sampling_enforcement_domain",
+            "sampling_domain_coverage",
+            "sampling_invocation_graph",
+        ):
+            record = self.sampling_bound(profile, self.start)
+            role, field = {
+                "sampling_runtime_bound": ("runtime_bounds", None),
+                "sampling_bound_review": (
+                    "technical_reviews",
+                    "technical_review_record_sha256",
+                ),
+                "sampling_enforcement_domain": (
+                    "enforcement",
+                    "enforcement_evidence_sha256",
+                ),
+                "sampling_domain_coverage": (
+                    "coverage",
+                    "domain_coverage_evidence_sha256",
+                ),
+                "sampling_invocation_graph": ("graphs", "invocation_graph_sha256"),
+            }[purpose]
+            expected = (
+                profile["sampling_runtime_bound_sha256"]
+                if field is None
+                else record[field]
+            )
+            o.require(
+                evidence_sha256 == expected
+                and context
+                == (
+                    record
+                    if purpose
+                    in (
+                        "sampling_bound_review",
+                        "sampling_enforcement_domain",
+                        "sampling_domain_coverage",
+                    )
+                    else {"profile": profile, "plan": plan, "start": self.start}
+                ),
+                "WF_AP2_EVIDENCE_SCOPE",
+            )
+            self._sampling_evidence(expected, role)
+            return
         if profile.get(
             "schema_version"
         ) == "stage12_transport_operations_v3" and purpose in (
@@ -452,8 +848,7 @@ class Authority:
             "dispatch": sources["owner"],
         }
         if (
-            self.config["version"]
-            in (MATRIX_VERSION, "stage12_public_sampling_runtime_configuration_v1")
+            self.config["version"] in (MATRIX_VERSION, *SAMPLING_CONFIGS)
             and purpose == "control_recipe"
         ):
             from . import s12_public_matrix as matrix
@@ -502,13 +897,24 @@ def reopen_completed(
     """A new bounded original-source stage; no publication cache is accepted."""
     from .s12_public_fresh_reads import FreshReads
 
-    if profile.get("schema_version") == "stage12_transport_operations_v3":
+    if profile.get("schema_version") == "stage12_transport_operations_v4":
+        from .s12_paged_history import Fresh as FreshReads
+    elif sampling_contract(profile) is not None:
         from .s12_public_history import Fresh as FreshReads
 
-    with FreshReads(root, check=io._checkpoint):
+    with ExitStack() as stack:
+        if profile.get("schema_version") == "stage12_transport_operations_v4":
+            from .s12_paged_history import selected
+
+            stack.enter_context(selected(plan["history_limits"]))
+            stack.enter_context(
+                FreshReads(root, check=io._checkpoint, limits=plan["history_limits"])
+            )
+        else:
+            stack.enter_context(FreshReads(root, check=io._checkpoint))
         opener = (
             _reopen_sampling_completed
-            if profile.get("schema_version") == "stage12_transport_operations_v3"
+            if sampling_contract(profile) is not None
             else _reopen_completed
         )
         return opener(
@@ -779,8 +1185,8 @@ def _reopen_sampling_completed(
     """Existing event/receipt/ledger/report readers, no trusted aggregate shortcut."""
     from . import s12_public_operations as o
 
-    if profile.get("schema_version") == "stage12_transport_operations_v3":
-        from . import s12_public_sampling_contract as o
+    if sampling_contract(profile) is not None:
+        o = sampling_contract(profile)
     io._checkpoint()
     root_info = root.stat(follow_symlinks=False)
     root_identity = (root.resolve(), root_info.st_dev, root_info.st_ino)
@@ -1055,9 +1461,21 @@ def _reopen_sampling_completed(
         previous = o.parse(io.read(node / "snapshot.json"), o.SNAPSHOT)
         previous_report = read_object(node / "block_report.json")
         if _verify_history:
-            from .s12_public_history import Fresh as FreshReads
+            if profile.get("schema_version") == "stage12_transport_operations_v4":
+                from .s12_paged_history import Fresh as FreshReads
+            else:
+                from .s12_public_history import Fresh as FreshReads
 
-            with FreshReads(node, check=io._checkpoint):
+            with FreshReads(
+                node,
+                check=io._checkpoint,
+                **(
+                    {"limits": plan["history_limits"]}
+                    if profile.get("schema_version")
+                    == "stage12_transport_operations_v4"
+                    else {}
+                ),
+            ):
                 checked = _reopen_sampling_completed(
                     node,
                     profile,
@@ -1093,6 +1511,7 @@ def _reopen_sampling_completed(
             profile,
             start,
             maximum_segments=plan["sampling_budget"]["maximum_segments"],
+            contract=o,
         ),
     )
     o.require(
@@ -1231,26 +1650,40 @@ def execute(
     key_provider=transport.Secret.runtime,
     clock=None,
     timing_observer=None,
+    task_started_ns=None,
 ):
+    setup_cpu = time.process_time_ns()
     from ..stage12_probe_cli import run_operations_block
     from .s12_public_diagnostics import Failures, classify
 
     from . import s12_public_operations as o
 
-    if config.get("version") == "stage12_public_sampling_runtime_configuration_v1":
-        from . import s12_public_sampling_contract as o
+    if config.get("version") in SAMPLING_CONFIGS:
+        o = sampling_contract(config=config)
     require_goethe_nhr_slurm("stage12 explicit O-r2 public diagnostic")
+    clock = clock or Clock()
+    envelope = None
+    if config.get("version") == AP2_CONFIG:
+        envelope = Envelope(
+            clock,
+            config["maximum_attempts"],
+            config["active_seconds"],
+            matrix=True,
+            started_ns=task_started_ns,
+        )
+        envelope.check()
     validate_config(config)
     matrix_mode = config["version"] in (
         MATRIX_VERSION,
-        "stage12_public_sampling_runtime_configuration_v1",
+        *SAMPLING_CONFIGS,
     )
     if matrix_mode:
         from . import s12_public_matrix as matrix
-    clock = clock or Clock()
     resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
-    if config.get("version") == "stage12_public_sampling_runtime_configuration_v1":
+    if config.get("version") in SAMPLING_CONFIGS:
         assets.verify(repository, public_sampling=True)
+        if config["version"] == AP2_CONFIG:
+            verify_successor_assets(repository)
     else:
         assets.verify(repository)
     actual = subprocess.check_output(
@@ -1265,7 +1698,8 @@ def execute(
         "PUBLIC_PROBE_EXECUTABLE_MISMATCH",
     )
     authority = Authority(
-        config, bundle, review, review_hash, repository, git_sha, clock
+        config, bundle, review, review_hash, repository, git_sha, clock,
+        **({"deadline_check": envelope.check} if config["version"] == AP2_CONFIG else {})
     )
     output = Path(config["output_directory"])
     o.require(
@@ -1273,9 +1707,14 @@ def execute(
         "PUBLIC_PROBE_OUTPUT_SCOPE_INVALID",
     )
     io.reserve(output)  # task-global exclusive reservation, no second invocation/resume
-    envelope = Envelope(
-        clock, config["maximum_attempts"], config["active_seconds"], matrix=matrix_mode
-    )
+    if envelope is None:
+        envelope = Envelope(
+            clock,
+            config["maximum_attempts"],
+            config["active_seconds"],
+            matrix=matrix_mode,
+        )
+    envelope.check()
     io.write(
         output / "_RUN_RESERVED.json",
         c.canonical(
@@ -1299,19 +1738,55 @@ def execute(
         return filesystem_free_bytes(output)
 
     o.require(free() >= r["allocated_disk_bytes"], "S12_PUBLIC_DISK_UNAVAILABLE")
-    runtime = runtime_inventory(config["public_validation_sha256"])
+    runtime_budget = None
+    if config["version"] == AP2_CONFIG:
+        runtime_budget = authority.runtime_inventory_budget()
+        authority.charge_runtime_inventory_check(runtime_budget)
+    runtime = runtime_inventory(
+        config["public_validation_sha256"],
+        **({"successor": True, "check": envelope.check} if config["version"] == AP2_CONFIG else {}),
+    )
     io.write(output / "runtime_inventory.json", c.canonical(runtime))
     io.write(output / "configuration.json", c.canonical(config))
     io.write(output / "review_binding.json", c.canonical(review))
-    if config["version"] == "stage12_public_sampling_runtime_configuration_v1":
+    if config["version"] in SAMPLING_CONFIGS:
         for item in config["campaigns"]:
-            authority.sampling_bound(
+            preview = {
+                "client_git_sha": git_sha,
+                "runtime_inventory_sha256": o.digest(runtime),
+                "profile_sha256": o.digest(item["profile"]),
+                "plan_sha256": o.digest(item["plan"]),
+            }
+            record = authority.sampling_bound(
                 item["profile"],
-                {
-                    "client_git_sha": git_sha,
-                    "runtime_inventory_sha256": o.digest(runtime),
-                },
+                preview,
             )
+            if config["version"] == AP2_CONFIG:
+                from . import s12_wf_ap2_assurance as assurance
+
+                authority.bind(item, item["plan"], preview)
+                assurance.verify_runtime(
+                    record,
+                    authority,
+                    {
+                        "profile": item["profile"],
+                        "plan": item["plan"],
+                        "start": preview,
+                    },
+                )
+        authority.active = authority.start = None
+    if config["version"] == AP2_CONFIG:
+        o.require(timing_observer is not False, "WF_AP2_TELEMETRY_REQUIRED")
+        if timing_observer is None:
+            timing_observer = successor_timing(
+                config, output, review, clock, envelope.deadline
+            )
+        from . import s12_public_checkpoints as checkpoints
+
+        o.require(
+            getattr(timing_observer, "timing_schema", None) == checkpoints.WF_SCHEMA,
+            "WF_AP2_TELEMETRY_REQUIRED",
+        )
     # The approved provider path is set by the launcher. Never inspect/log value here.
     o.require(
         os.environ.get("SAFE_PELIAS_API_KEY_FILE")
@@ -1331,7 +1806,10 @@ def execute(
 
     def dispatch(work, target, hooks):
         envelope.charge()
-        authority.recheck()
+        if config["version"] == AP2_CONFIG:
+            authority.recheck(enforcement=True)
+        else:
+            authority.recheck()
         return transport.send(
             target, transport_profile, key, v1.Operations(), hooks=envelope.wrap(hooks)
         )
@@ -1343,12 +1821,15 @@ def execute(
     matrix_complete = False
     matrix_passed = 0
     parent = None
-    initial_cpu = time.process_time_ns()
+    initial_cpu = (
+        setup_cpu if config["version"] == AP2_CONFIG else time.process_time_ns()
+    )
     rss0 = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
     runtime_operation = "RUNTIME"
     runtime_failure = None
     persistence_failed = False
     timing_init_failed = False
+    active_timing_phase = None
     if timing_observer is False:
         timing_observer = None
     elif timing_observer is None and matrix_mode:
@@ -1358,8 +1839,9 @@ def execute(
             timing_init_failed = True
     try:
         for phase_id, item in enumerate(config["campaigns"], 1):
-            timing.safe_call(timing_observer, "set_phase", phase_id)
-            timing.safe_call(timing_observer, "boundary")
+            if config["version"] != AP2_CONFIG:
+                timing.safe_call(timing_observer, "set_phase", phase_id)
+                timing.safe_call(timing_observer, "boundary")
             runtime_operation = "RUNTIME"
             envelope.check()
             authority.recheck()
@@ -1384,8 +1866,10 @@ def execute(
                 "runtime_inventory_sha256": o.digest(runtime),
                 "created_utc": clock.utc(),
             }
-            if config["version"] == "stage12_public_sampling_runtime_configuration_v1":
+            if config["version"] in SAMPLING_CONFIGS:
                 start["sampling_policy_sha256"] = o.POLICY_SHA
+                if getattr(o, "M2_ENABLED", False):
+                    start.update(o.assurance_fields())
             authority.bind(item, plan, start)
             phase = output / item["label"]
             source = config["sources"]["owner"]
@@ -1401,6 +1885,15 @@ def execute(
                     * 1_000_000,
                 ),
             )
+            if config["version"] == AP2_CONFIG:
+                active_timing_phase = phase_id
+                timing_observer.phase_open(
+                    phase_id,
+                    phase_deadline_ns=phase_deadline.end_ns,
+                    timeout_seconds=min(
+                        5, max(0.001, (phase_deadline.end_ns - clock.now_ns()) / 1e9)
+                    ),
+                )
             result = run_operations_block(
                 profile,
                 plan,
@@ -1429,7 +1922,17 @@ def execute(
                     clock.now_ns() >= envelope.deadline - 80 * 10**9
                 ),
             )
-            timing.safe_call(timing_observer, "boundary")
+            if config["version"] == AP2_CONFIG:
+                timing_observer.phase_close(
+                    phase_id,
+                    quiescent=True,
+                    timeout_seconds=min(
+                        5, max(0.001, (phase_deadline.end_ns - clock.now_ns()) / 1e9)
+                    ),
+                )
+                active_timing_phase = None
+            else:
+                timing.safe_call(timing_observer, "boundary")
             results.append(
                 {
                     "label": item["label"],
@@ -1443,6 +1946,15 @@ def execute(
             if result["disposition"] != "COMPLETED" or not result["report_complete"]:
                 break
             runtime_operation = "RUNTIME_REOPEN"
+            if config["version"] == AP2_CONFIG:
+                authority.charge_runtime_inventory_check(runtime_budget)
+                o.require(
+                    runtime_inventory(
+                        config["public_validation_sha256"], successor=True, check=phase_deadline.check
+                    )
+                    == runtime,
+                    "WF_AP2_RUNTIME_CHANGED",
+                )
             with io.cooperative_io(phase_deadline.check):
                 phase_deadline.check()
                 block = reopen_completed(
@@ -1525,8 +2037,48 @@ def execute(
     finally:
         # Independent supplementary cleanup does not poison the campaign writer
         # or replace a primary exception, even if persistence is uncertain.
-        timing.safe_call(timing_observer, "close")
+        if config["version"] == AP2_CONFIG:
+            if active_timing_phase is not None:
+                try:
+                    timing_observer.phase_close(
+                        active_timing_phase,
+                        quiescent=False,
+                        timeout_seconds=min(
+                            5, max(0.001, (envelope.deadline - clock.now_ns()) / 1e9)
+                        ),
+                    )
+                except BaseException:
+                    timing.safe_call(timing_observer, "note_failure")
+            remaining = (envelope.deadline - clock.now_ns()) / 1e9
+            if remaining <= 0:
+                timing.safe_call(timing_observer, "note_failure")
+            try:
+                timing_observer.close(timeout_seconds=min(5, max(0.001, remaining)))
+            except BaseException:
+                timing.safe_call(timing_observer, "note_failure")
+        else:
+            timing.safe_call(timing_observer, "close")
         timing_summary = timing.safe_call(timing_observer, "snapshot")
+        timing_reopening = None
+        if (
+            config["version"] == AP2_CONFIG
+            and matrix_complete
+            and runtime_failure is None
+        ):
+            try:
+                with io.cooperative_io(envelope.check):
+                    timing_reopening = verify_successor_timing(
+                        config, output, review, timing_summary, envelope.check
+                    )
+                    io.write(
+                        output / "timing_reopening.json", c.canonical(timing_reopening)
+                    )
+                    envelope.check()
+            except BaseException as error:
+                matrix_complete = False
+                persistence_failed = True
+                runtime_failure = error
+                diagnostics.record("RUNTIME_REOPEN", error)
         timing_complete = not timing_init_failed and (
             timing_observer is None
             or (
@@ -1574,8 +2126,24 @@ def execute(
                 "sampling_coverage_proof": False,
             },
         }
+        if config["version"] == AP2_CONFIG:
+            from . import s12_wf_ap2_assurance as assurance
+
+            summary.update(
+                sampling_assurance_method=assurance.METHOD,
+                native_component_guarantee="NOT_CLAIMED",
+                native_scratch_guarantee="NOT_CLAIMED",
+                logical_component_limit_bytes=assurance.LOGICAL_BYTES,
+                logical_scratch_limit_bytes=assurance.SCRATCH_BYTES,
+                enforcement_checks=authority._enforcement_checks,
+                runtime_inventory_checks=authority._runtime_inventory_checks,
+                timing_reopening=timing_reopening,
+                task_deadline_ns=envelope.deadline,
+            )
         try:
             io.write(output / "diagnostic_summary.json", c.canonical(summary))
+            if config["version"] == AP2_CONFIG:
+                envelope.check()
         except (Exception, KeyboardInterrupt) as cleanup:
             diagnostics.record("CLEANUP", cleanup)
             if runtime_failure is not None:

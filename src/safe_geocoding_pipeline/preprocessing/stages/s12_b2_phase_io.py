@@ -191,9 +191,10 @@ class CampaignReader:
         self.closure_hash, self.scratch = closure_hash, scratch
         self.counter = 0
         io.reserve(scratch)
-        self.start = b.parse(io.read(segment / "campaign_start.json"), o.START)
-        self.plan = b.parse(io.read(segment / "plan.json"), o.PLAN)
-        self.profile = b.parse(io.read(segment / "profile.json"), o.PROFILE)
+        self.start = o.parse_selected(io.read(segment / "campaign_start.json"))
+        self.plan = o.parse_selected(io.read(segment / "plan.json"))
+        self.profile = o.parse_selected(io.read(segment / "profile.json"))
+        self.contract = o.for_profile(self.profile)
         self.science = b.parse(
             io.read(segment / "scientific_start.json"),
             "stage12_campaign_provenance_b2_v1",
@@ -295,9 +296,9 @@ class CampaignReader:
         closures = []
         while node is not None:
             closures.append(
-                b.parse(io.read(node / "snapshot.json"), o.SNAPSHOT)[
-                    "segment_closure_sha256"
-                ]
+                self.contract.parse(
+                    io.read(node / "snapshot.json"), self.contract.SNAPSHOT
+                )["segment_closure_sha256"]
             )
             node = journal.predecessor_root(node)
         evidence.campaign_closure(

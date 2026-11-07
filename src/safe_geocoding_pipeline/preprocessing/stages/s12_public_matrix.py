@@ -238,6 +238,17 @@ def binding(size_evidence):
 
 
 def validate_matrix(config):
+    if config.get("version") == "stage12_public_sampling_runtime_configuration_v2":
+        from . import s12_wf_ap2_contract as successor
+
+        projected = deepcopy(config)
+        projected["version"] = VERSION
+        for item in projected["campaigns"]:
+            successor.validate_plan(item["plan"], item["profile"])
+            original_profile = item["profile"]
+            item["profile"] = successor.legacy_profile(original_profile)
+            item["plan"] = successor.legacy_plan(item["plan"], original_profile)
+        return validate_matrix(projected)
     o.require(config["capability"] == binding(config["sources"]["size_allowance"]))
     o.require(
         config["public_validation_sha256"]
@@ -604,6 +615,10 @@ def reconcile(config, output, check):
 
 
 def _contract(start):
+    if start.get("schema_version") == "stage12_public_operations_campaign_v3":
+        from . import s12_wf_ap2_contract
+
+        return s12_wf_ap2_contract
     if start.get("schema_version") == "stage12_public_operations_campaign_v2":
         from . import s12_public_sampling_contract as ap
 
@@ -613,6 +628,17 @@ def _contract(start):
 
 def _events(root, start):
     contract = _contract(start)
+    if getattr(contract, "PAGED_HISTORY", False):
+
+        def rows():
+            from .s12_paged_history import selected
+
+            plan = contract.parse(io.read(root / "workload.json"), contract.PLAN)
+            contract.require(contract.digest(plan) == start["plan_sha256"])
+            with selected(plan["history_limits"]):
+                yield from journal.read_events(root, o.digest(start), contract=contract)
+
+        return rows()
     if contract is o:
         return journal.read_events(root, o.digest(start))
     return journal.read_events(root, o.digest(start), contract=contract)

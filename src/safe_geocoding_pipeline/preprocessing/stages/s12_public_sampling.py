@@ -3,6 +3,7 @@
 from __future__ import annotations
 from array import array
 from collections import deque
+from contextlib import nullcontext
 import threading
 import time
 from . import s12_public_sampling_contract as a
@@ -19,6 +20,7 @@ class SamplingFailure(RuntimeError):
 
 class Sampler:
     def __init__(self, coordinator):
+        self.contract = coordinator.contract
         self.co = coordinator
         self.writer = coordinator.writer
         self.log = coordinator.journal
@@ -80,6 +82,7 @@ class Sampler:
         ]
 
     def fail(self, code, stage="ACQUIRE"):
+        a = self.contract
         a.validate_type(code, "SamplingFailure")
         with self.lock:
             if self.failure is None:
@@ -110,6 +113,7 @@ class Sampler:
         self.writer.wake.set()
 
     def anchor_open(self, event):
+        a = self.contract
         a.require(self.anchor is None)
         self.anchor = event["mono_ns"]
         self.last_observed = self.anchor
@@ -130,6 +134,7 @@ class Sampler:
         self.thread.start()
 
     def publish_open(self):
+        a = self.contract
         self.log.event(
             "SAMPLING_OPEN",
             dict(
@@ -185,6 +190,7 @@ class Sampler:
             self.fail("DRAIN_EXPIRED", "DRAIN")
 
     def _reserve(self, final=False):
+        a = self.contract
         with self.lock:
             if self.co.ap_cut_fault:
                 self.fail("ORDER_INVALID", "DRAIN")
@@ -255,6 +261,7 @@ class Sampler:
             row[name] = self.clock.now_ns() if value is None else value
 
     def event_milestone(self, kind, obj, stage):
+        a = self.contract
         if kind not in ("RESOURCE_SAMPLE", "SAMPLE_ACK"):
             return
         i = next((i for i, s in enumerate(self.states) if s in (3, 4)), None)
@@ -298,6 +305,7 @@ class Sampler:
             self.trace_mark(self.pending_release, "pair_action_return_ns")
 
     def after_turn(self):
+        a = self.contract
         i = self.pending_release
         a.require(i is not None)
         self.trace_mark(i, "pair_post_action_complete_ns")
@@ -320,6 +328,7 @@ class Sampler:
             safe_call(self.co.timing_observer, "periodic", row)
 
     def acquire(self, final=False):
+        a = self.contract
         a.require(threading.get_ident() == self.owner_ident)
         reservation = self._reserve(final)
         if reservation is None:
@@ -339,7 +348,16 @@ class Sampler:
                 observed = self.clock.now_ns()
                 self.co.last_sample_ns = observed
             exit_ns = self.clock.now_ns()
-            with self.lock:
+            from .s12_wf_ap2_scratch import lease
+
+            with (
+                (
+                    lease("OBSERVATION")
+                    if getattr(a, "AP_ENABLED", False)
+                    else nullcontext()
+                ),
+                self.lock,
+            ):
                 cut = self.cut if final else None
                 value = dict(
                     schema_version=a.OBSERVATION,
@@ -427,6 +445,7 @@ class Sampler:
 
     def transfer_event(self, kind):
         # Transfer prepaid liabilities, before I/O; uncertainty never refunds.
+        a = self.contract
         if kind not in (
             "RESOURCE_SAMPLE",
             "SAMPLE_ACK",
@@ -443,6 +462,17 @@ class Sampler:
             self.log.ap_pending_bytes -= 8192
 
     def service(self):
+        if getattr(self.contract, "M2_ENABLED", False):
+            from .s12_wf_ap2_scratch import lease
+
+            # The writer takes this before any sampler/safety lock. The sole
+            # producer and writer share one serialization partition.
+            with lease("OBSERVATION"):
+                return self._service()
+        return self._service()
+
+    def _service(self):
+        a = self.contract
         """Writer-only one atomic pair, including its witness; no recursive call."""
         self.writer.assert_owner()
         if not self.opened or self.writer.failed.is_set():
@@ -527,6 +557,7 @@ class Sampler:
             self.action_started = None
 
     def probe_cut(self):
+        a = self.contract
         self.writer.assert_owner()
         with self.lock:
             if (
@@ -567,6 +598,7 @@ class Sampler:
             self.condition.notify_all()
 
     def close(self):
+        a = self.contract
         if self.closed:
             return self.close_body
         if self.close_failed:
@@ -640,12 +672,13 @@ class Sampler:
         return body
 
 
-def inspect(factory, profile, start, *, maximum_segments):
+def inspect(factory, profile, start, *, maximum_segments, contract=a):
     """Fresh streaming validation. Revision cache is disposable and capped512.
 
     A rare older/future revision uses a fresh original pass, never a campaign
     cache. Each invocation belongs to one mandatory validation stage.
     """
+    a = contract
     results = []
     context = None
     previous = None
@@ -990,7 +1023,11 @@ def inspect(factory, profile, start, *, maximum_segments):
             s["close"] = b
             s["close_seq"] = event["seq"]
             s["close_header"] = event["mono_ns"]
-        elif kind in ("BLOCK_CLOSED", "SEGMENT_CLOSE"):
+        elif kind in (
+            "BLOCK_CLOSED",
+            "SEGMENT_CLOSE",
+            *getattr(a, "POST_SAMPLING_EVENT_KINDS", ()),
+        ):
             a.require(s["close"] is not None)
         elif s["final"] is not None:
             a.require(False)

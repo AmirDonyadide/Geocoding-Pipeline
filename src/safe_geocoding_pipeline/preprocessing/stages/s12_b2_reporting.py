@@ -355,8 +355,13 @@ def measurement(
     administrative_spent: dict,
     disposition: str,
     defer_source_validation: bool = False,
+    timing_evidence=None,
 ):
+    from . import s12_b2_operations as operations
+
+    o = operations.for_profile(profile)
     o.validate_plan(plan, profile)
+    ap = getattr(o, "AP_ENABLED", False)
     counts = dict.fromkeys(o.COUNT_KEYS, 0)
     counts.update(
         planned_data=plan["budgets"]["data_observations"],
@@ -511,6 +516,28 @@ def measurement(
         and mutations.get("RESERVATION_RELEASE", 0) == finals
         and mutations.get("QUEUE_ADD", 0) >= counts["begins_charged"]
     )
+    summaries = None
+    if ap:
+        from .s12_public_sampling import inspect
+
+        summaries = inspect(
+            index.all,
+            profile,
+            start,
+            maximum_segments=plan["sampling_budget"]["maximum_segments"],
+            contract=o,
+        )
+        resources = bool(summaries) and all(row["complete"] for row in summaries)
+        resources &= bool(
+            state_sample_epochs == epochs
+            and mutations.get("START_RESERVE", 0)
+            == mutations.get("QUEUE_REMOVE", 0)
+            == counts["begins_charged"]
+            and mutations.get("CONNECTION_RELEASE", 0) == network
+            and mutations.get("RESERVATION_RELEASE", 0) == finals
+            and mutations.get("QUEUE_ADD", 0) >= counts["begins_charged"]
+        )
+        last = summaries[-1]["end_observed_mono_ns"] if summaries else None
     receipts_ok = not unknown and counts["unknown_delivery"] == 0
     duration = (
         0
@@ -581,9 +608,12 @@ def measurement(
         for metric in latencies.values():
             for k in ("p50_ms", "p95_ms", "p99_ms", "max_ms"):
                 metric[k] = None
-    rate = lambda name: statistics.ratio(
-        None if name in unknown else counts[name], duration, per_second=True
-    )
+
+    def rate(name):
+        return statistics.ratio(
+            None if name in unknown else counts[name], duration, per_second=True
+        )
+
     rates = {
         "data_first_dispatch_per_s": rate("first_attempt_starts"),
         "all_attempts_per_s": rate("attempt_starts"),
@@ -629,7 +659,16 @@ def measurement(
         "input_last_event_seq": tail["seq"],
         "administrative_spent": administrative_spent,
     }
-    b.validate(report)
+    if ap:
+        report.update(
+            schema_version=o.MEASUREMENT,
+            sampling_segments=summaries,
+            timing_evidence=timing_evidence,
+            **o.extra_binding_fields(),
+        )
+        o.validate(report, o.MEASUREMENT)
+    else:
+        b.validate(report)
     if defer_source_validation:
         b.require(isinstance(index, Prefix), "B2_REPORT_PREFIX")
     else:

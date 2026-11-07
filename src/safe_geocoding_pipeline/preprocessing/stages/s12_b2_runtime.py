@@ -296,6 +296,12 @@ class Authority:
         )
         self.port = None
         self.pending_nonsecret = set()
+        self._runtime_inventory_checks = 0
+        self._runtime_inventory_record_sha256 = None
+        self._sampling_bound_record_sha256 = None
+        self._enforcement_checks = 0
+        self._enforcement_record_sha256 = None
+        self._enforcement_lock = threading.Lock()
         self._root()
 
     def _root(self):
@@ -353,6 +359,13 @@ class Authority:
         return root
 
     def require(self, purpose, digest, context):
+        if self.port is not None and purpose in {
+            "protected_input",
+            "dispatch",
+            "segment_open",
+            "publication",
+        }:
+            self.port.verify_sampling_assurance(verify_inventory=purpose != "dispatch")
         b.validate_type(digest, "D")
         b.require(
             type(purpose) is str and type(context) is dict, "B2_RUNTIME_AUTHORITY_SCOPE"
@@ -387,7 +400,11 @@ class Authority:
                 and self.port.mode == "EXACT_AUTHORIZED_DISPATCH",
                 "B2_RUNTIME_DISPATCH_UNISSUED",
             )
-            profile, plan, start, _, _, works = self.port.campaign_inputs()
+            profile, plan, start, _, _, works = (
+                self.port._campaign
+                if self.port._campaign is not None
+                else self.port.campaign_inputs()
+            )
             b.require(
                 set(context) == {"work", "attempt", "state"}
                 and digest == start["initial_workload_authority_sha256"]
@@ -439,6 +456,64 @@ class Authority:
             "B2_RUNTIME_AUTHORITY_SCOPE",
         )
         self.records.raw(grant["review_record_sha256"])
+
+    def charge_enforcement_check(self, record):
+        if self.port is not None:
+            self.port.check_deadline()
+        digest = b.digest(record)
+        with self._enforcement_lock:
+            b.require(
+                self._enforcement_record_sha256 in (None, digest),
+                "WF_AP2_EVIDENCE_CHANGED",
+            )
+            self._enforcement_record_sha256 = digest
+            self._enforcement_checks += 1
+            b.require(
+                self._enforcement_checks <= record["maximum_enforcement_checks"],
+                "WF_AP2_ENFORCEMENT_BUDGET",
+            )
+
+    def charge_runtime_inventory_check(self):
+        b.require(
+            self._sampling_bound_record_sha256 is not None, "WF_AP2_RUNTIME_BUDGET"
+        )
+        record = io.metadata(self.records.raw(self._sampling_bound_record_sha256))
+        if self.port is not None:
+            self.port.check_deadline()
+        digest = b.digest(record)
+        with self._enforcement_lock:
+            b.require(
+                self._runtime_inventory_record_sha256 in (None, digest),
+                "WF_AP2_EVIDENCE_CHANGED",
+            )
+            self._runtime_inventory_record_sha256 = digest
+            self._runtime_inventory_checks += 1
+            b.require(
+                self._runtime_inventory_checks
+                <= record["maximum_runtime_inventory_checks"],
+                "WF_AP2_RUNTIME_BUDGET",
+            )
+
+    def sampling_bound(self, profile, start):
+        contract = operations.for_profile(profile)
+        value = io.metadata(self.records.raw(profile["sampling_runtime_bound_sha256"]))
+        contract.validate_bound(
+            value,
+            profile,
+            start,
+            configuration_scope_sha256=self.configuration_scope_sha256,
+        )
+        self._sampling_bound_record_sha256 = profile["sampling_runtime_bound_sha256"]
+        return value
+
+    def enforcement_facts(self, record):
+        from . import s12_wf_ap2_assurance as assurance
+
+        if self.port is not None and self.port._test is not None:
+            adapter = self.port._test.get("enforcement_facts")
+            b.require(callable(adapter), "WF_AP2_ENFORCEMENT_REQUIRED")
+            return adapter(record)
+        return assurance.observe_linux_domain(record["domain"])
 
     def supported_size(self, digest):
         value = io.metadata(self.records.raw(digest))
@@ -524,6 +599,13 @@ class RuntimeRecords(evidence.Records):
         path = self.root / (digest + ".json")
         existed = path.exists()
         try:
+            ledger = self.port.resource_ledger
+            if (
+                not existed
+                and ledger is not None
+                and callable(getattr(ledger, "reserve_record", None))
+            ):
+                ledger.reserve_record(path, digest, size=len(raw))
             value = super().put(raw, owner=owner, secret_guard=secret_guard)
             self.port.check_deadline()
             if not existed:
@@ -624,6 +706,8 @@ class RuntimePort:
             binding = dict(self.resource_binding)
             if "allocation_limits_sha256" in binding:
                 b.validate_type(binding.pop("allocation_limits_sha256"), "D")
+            if "slot_binding_sha256" in binding:
+                b.validate_type(binding.pop("slot_binding_sha256"), "D")
             resources.shape(binding, resources.RUNTIME_BINDING_SCHEMA)
         b.require(
             r["mode"] in ("OFFLINE_ONLY", "EXACT_AUTHORIZED_DISPATCH"),
@@ -660,6 +744,7 @@ class RuntimePort:
         self._local_context = None
         self.work = None
         self._campaign = None
+        self._sampling_runtime_inventory_sha256 = None
         self._reader = None
         self._catalog = None
         self.resource_ledger = None
@@ -822,6 +907,18 @@ class RuntimePort:
     def _bind_session_owned(self, phase, config, output, scratch, authority_hash):
         self.output = under(output, self.settings["output_parent"])
         self.scratch = under(scratch, self.settings["scratch_parent"])
+        if (
+            self.resource_binding is not None
+            and "slot_binding_sha256" in self.resource_binding
+        ):
+            paths = config.get("command_paths")
+            b.require(
+                type(paths) is dict
+                and set(paths) == {"output_path", "scratch_path"}
+                and absolute(paths["output_path"]) == self.output
+                and absolute(paths["scratch_path"]) == self.scratch,
+                "B2_GRAPH_COMMAND_PATHS",
+            )
         b.require(
             self.output != self.scratch
             and not self.output.is_relative_to(self.scratch)
@@ -880,6 +977,28 @@ class RuntimePort:
             self.scratch.with_name(self.scratch.name + "_readers"),
             self.scratch.with_name(self.scratch.name + "_runtime_reader"),
             temporary,
+            *(
+                (
+                    Path(self.settings["window_state_path"]).parent
+                    / (self.gate.window_hash + "_CLOSED.json"),
+                )
+                if self.phase == "close-window"
+                and self.resource_binding is not None
+                and "slot_binding_sha256" in self.resource_binding
+                else ()
+            ),
+            *(
+                (self.output.parent / (self.output.name + "_telemetry"),)
+                if self.settings.get("campaign") is not None
+                and getattr(
+                    operations.for_profile(
+                        self._profile_plan(self.settings["campaign"])[0]
+                    ),
+                    "AP_ENABLED",
+                    False,
+                )
+                else ()
+            ),
         )
         b.require(
             all(not p.exists() and not p.is_symlink() for p in roots)
@@ -890,6 +1009,7 @@ class RuntimePort:
             all(not x.is_relative_to(y) for x in roots for y in roots if x != y),
             "B2_RUNTIME_PATH",
         )
+        self.verify_sampling_assurance()
         self._bind_resource_command()
         self._generation_roots = roots
         b.require(not self._generation_paths(), "B2_RUNTIME_GENERATION_EXISTS")
@@ -1229,9 +1349,8 @@ class RuntimePort:
             "B2_RUNTIME_CAMPAIGN",
         )
         profile, plan = RuntimePort._profile_plan(self, spec)
-        start = self.records.get(
-            spec["start_sha256"], "development_operations_campaign"
-        )
+        start = operations.parse_selected(self.records.raw(spec["start_sha256"]))
+        self.verify_sampling_assurance()
         science = self.records.get(
             spec["scientific_start_sha256"], "campaign_provenance"
         )
@@ -1259,7 +1378,7 @@ class RuntimePort:
             self.records.raw(spec["runtime_inventory_sha256"])
         )
         b.require(self.runtime_inventory == actual_inventory, "B2_RUNTIME_INVENTORY")
-        if profile["schema_version"] == "stage12_development_operations_b2_rs1_v1":
+        if "resource_retention_model" in profile:
             from . import s12_b2_resources as resources
 
             model = profile["resource_retention_model"]
@@ -1308,8 +1427,8 @@ class RuntimePort:
         self._rules()
         return self._campaign
 
-    def _actual_runtime_inventory(self):
-        return {
+    def _actual_runtime_inventory(self, *, successor=None):
+        value = {
             "version": "stage12_development_runtime_inventory_v1",
             "population_scope": self.population_scope,
             "python_version": platform.python_version(),
@@ -1319,25 +1438,100 @@ class RuntimePort:
             "resource_sampling_is_service_monitoring": False,
             "scientific_identity_verified": False,
         }
+        if successor is None:
+            spec = self.settings.get("campaign")
+            if (
+                spec is None
+                and hasattr(self, "config")
+                and self.settings.get("phase") == "prepare-bootstrap"
+            ):
+                spec = self.config.get("bootstrap")
+            successor = bool(
+                type(spec) is dict
+                and hasattr(self, "records")
+                and getattr(
+                    operations.for_profile(
+                        operations.parse_selected(
+                            self.records.raw(spec["profile_sha256"])
+                        )
+                    ),
+                    "AP_ENABLED",
+                    False,
+                )
+            )
+        if successor:
+            from . import s12_wf_ap2_assurance as assurance
+
+            if hasattr(self, "authority"):
+                self.authority.charge_runtime_inventory_check()
+            value.update(
+                version="stage12_development_runtime_inventory_v2",
+                wf_ap2_runtime_facts=assurance.runtime_facts(
+                    check=getattr(self, "check_deadline", lambda: None)
+                ),
+            )
+        return value
 
     def _profile_plan(self, spec):
-        from . import s12_b2_resources as resources
+        return (
+            operations.parse_selected(self.records.raw(spec["profile_sha256"])),
+            operations.parse_selected(self.records.raw(spec["plan_sha256"])),
+        )
 
-        profile_raw = self.records.raw(spec["profile_sha256"])
-        plan_raw = self.records.raw(spec["plan_sha256"])
-        profile_value = io.metadata(profile_raw)
-        plan_value = io.metadata(plan_raw)
-        profile = (
-            resources.parse(profile_raw, resources.PROFILE)
-            if profile_value.get("schema_version") == resources.PROFILE
-            else b.parse(profile_raw, b.REGISTRY["names"]["PROFILE"])
+    def verify_sampling_assurance(self, *, verify_inventory=True):
+        """Fail before protected readers/provider access, with fresh domain facts."""
+        spec = self.settings.get("campaign")
+        if spec is None:
+            spec = (
+                self.config.get("bootstrap")
+                if self.phase == "prepare-bootstrap"
+                else None
+            )
+        if type(spec) is not dict or not {
+            "profile_sha256",
+            "plan_sha256",
+            "start_sha256",
+        } <= set(spec):
+            return
+        profile, plan = self._profile_plan(spec)
+        contract = operations.for_profile(profile)
+        if not getattr(contract, "AP_ENABLED", False):
+            return
+        from . import s12_wf_ap2_assurance as assurance
+
+        start = contract.parse(self.records.raw(spec["start_sha256"]), contract.START)
+        self.authority.configuration_scope_sha256 = assurance.configuration_scope(
+            self.config, plan=plan
         )
-        plan = (
-            resources.parse(plan_raw, resources.PLAN)
-            if plan_value.get("schema_version") == resources.PLAN
-            else b.parse(plan_raw, b.REGISTRY["names"]["PLAN"])
+        self.authority.test_only = self.test_only
+        record = self.authority.sampling_bound(profile, start)
+        contract.validate_bound(
+            record,
+            profile,
+            start,
+            configuration_scope_sha256=self.authority.configuration_scope_sha256,
         )
-        return profile, plan
+        if verify_inventory:
+            contract.verify_descriptors()
+            self._source_check()
+            actual_hash = b.digest(self._actual_runtime_inventory(successor=True))
+            b.require(
+                actual_hash == start["runtime_inventory_sha256"], "B2_RUNTIME_INVENTORY"
+            )
+            b.require(
+                self._sampling_runtime_inventory_sha256 in (None, actual_hash),
+                "B2_RUNTIME_INVENTORY",
+            )
+            self._sampling_runtime_inventory_sha256 = actual_hash
+        else:
+            b.require(
+                self._sampling_runtime_inventory_sha256
+                == start["runtime_inventory_sha256"],
+                "B2_RUNTIME_INVENTORY",
+            )
+        assurance.verify_runtime(
+            record, self.authority, {"profile": profile, "plan": plan, "start": start}
+        )
 
     def _bind_resource_command(self):
         """Reserve the reviewed command before any derived namespace exists."""
@@ -1347,6 +1541,12 @@ class RuntimePort:
         from . import s12_b2_resources as resources
 
         raw = self.records.raw(self.resource_binding["model_sha256"])
+        from . import s12_b2_acceptance_graph as graph
+
+        value = io.metadata(raw)
+        if graph.is_model(value):
+            graph.bind_runtime(self)
+            return
         model = resources.parse(raw, resources.MODEL)
         b.require(
             b.sha(raw).hex() == self.resource_binding["model_sha256"],
@@ -1509,6 +1709,7 @@ class RuntimePort:
             "B2_RUNTIME_DISPATCH_UNISSUED",
         )
         self.check_deadline()
+        self.verify_sampling_assurance(verify_inventory=False)
         self.gate.before_dispatch()
         self.runtime_key()
         profile = self._transport_profile()
@@ -1641,9 +1842,9 @@ class RuntimePort:
             },
             "B2_RUNTIME_BOOTSTRAP",
         )
-        profile = self.records.get(x["profile_sha256"], "development_operations")
-        plan = self.records.get(x["plan_sha256"], "development_workload_plan")
-        start = self.records.get(x["start_sha256"], "development_operations_campaign")
+        profile = operations.parse_selected(self.records.raw(x["profile_sha256"]))
+        plan = operations.parse_selected(self.records.raw(x["plan_sha256"]))
+        start = operations.parse_selected(self.records.raw(x["start_sha256"]))
         operations.verify_authorities(profile, plan, start, self.gate)
         b.require(
             plan["window_plan_sha256"] == self.gate.window_hash
@@ -1766,12 +1967,26 @@ class RuntimePort:
                 if self.work is not None:
                     self.work.verify()
                 self._source_check()
+                if self._sampling_runtime_inventory_sha256 is not None:
+                    spec = self.settings.get("campaign") or self.config.get("bootstrap")
+                    operations.for_profile(
+                        self._profile_plan(spec)[0]
+                    ).verify_descriptors()
+                    b.require(
+                        b.digest(self._actual_runtime_inventory(successor=True))
+                        == self._sampling_runtime_inventory_sha256,
+                        "B2_RUNTIME_INVENTORY",
+                    )
                 if self.local_only:
                     self.gate.check()
                 self.reconcile_generation()
             except BaseException as error:
                 primary = error
             try:
+                if self.resource_ledger is not None and callable(
+                    getattr(self.resource_ledger, "prepare_finish", None)
+                ):
+                    self.resource_ledger.prepare_finish()
                 if self.allocation_limits is not None:
                     self.allocation_limits.persist_usage(
                         Path(self.settings["temporary_root"]) / "allocation_usage.json"

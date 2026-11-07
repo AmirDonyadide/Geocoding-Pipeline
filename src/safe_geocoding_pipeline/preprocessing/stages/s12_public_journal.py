@@ -454,6 +454,8 @@ class Journal:
         self.ap_inventory_calls = 0
         self.ap_inventory_limit = 8
         self.accounted_bytes: int | None = None
+        self.external_write = None
+        self.external_bytes = 0
         self.root_identity = None
         writer.call(lambda: self.write("campaign_start.json", start))
         writer.call(lambda: io.reserve(writer.root / "events"))
@@ -514,7 +516,13 @@ class Journal:
     def reserve_bytes(self, path: Path, size: int) -> None:
         self.writer.assert_owner()
         self.contract.uint(size)
-        self.contract.require(path.is_relative_to(self.writer.root))
+        if not path.is_relative_to(self.writer.root):
+            self.contract.require(callable(self.external_write))
+            self.external_write(path, size)
+            with self.ap_budget_lock:
+                self.check_storage(size)
+                self.external_bytes = self.contract.checked(self.external_bytes + size)
+            return
         with self.ap_budget_lock:
             self.check_storage(size)
             self.accounted_bytes = self.contract.checked(self.accounted_bytes + size)
@@ -643,9 +651,17 @@ class Journal:
             else self.accounted_bytes
         )
         self.contract.require(
-            self.prior_bytes + current + additional + self.ap_pending_bytes
+            self.prior_bytes
+            + current
+            + self.external_bytes
+            + additional
+            + self.ap_pending_bytes
             <= self.storage_budget
-            and self.prior_block_bytes + current + additional + self.ap_pending_bytes
+            and self.prior_block_bytes
+            + current
+            + self.external_bytes
+            + additional
+            + self.ap_pending_bytes
             <= self.block_byte_budget,
             "PUBLIC_PROBE_EVIDENCE_WRITE_FAILED",
         )
@@ -669,15 +685,16 @@ class Journal:
         # 64MiB requested read for each small event. Shared B2 defaults unchanged.
         if (
             self.contract is o
+            or getattr(self.contract, "AP_ENABLED", False)
             or getattr(self.contract, "PROFILE", None)
             == "stage12_transport_operations_v3"
         ):
             limit = min(len(raw), 64 * 1024 * 1024)
             if (
-                getattr(self.contract, "PROFILE", None)
+                getattr(self.contract, "AP_ENABLED", False)
+                or getattr(self.contract, "PROFILE", None)
                 == "stage12_transport_operations_v3"
-                and path.parent.name == "events"
-            ):
+            ) and path.parent.name == "events":
                 self.contract.require(len(raw) <= 4096)
                 limit = min(limit, 4096)
             return io.read(path, limit=limit)
@@ -881,7 +898,7 @@ class Journal:
         safe_call(timing, "mark", "journal_enter_ns")
 
         # Serializing this call through the writer is the seq allocation boundary.
-        def append() -> str:
+        def append_unleased() -> str:
             if periodic_timing is not None:
                 periodic_timing["writer_start_ns"] = self.clock.now_ns()
             self.writer.assert_owner()
@@ -963,6 +980,14 @@ class Journal:
                 periodic_timing["writer_done_ns"] = self.clock.now_ns()
             return self.last_hash
 
+        def append():
+            if getattr(self.contract, "AP_ENABLED", False):
+                from .s12_wf_ap2_scratch import lease
+
+                with lease("EVENT"):
+                    return append_unleased()
+            return append_unleased()
+
         if writer_inline:
             self.contract.require(
                 self.writer.sampling is not None
@@ -1014,7 +1039,10 @@ def read_events(
                     parent, start_hash, _seen | {str(root)}, contract=contract
                 )
             )
-        if o.PROFILE == "stage12_transport_operations_v3":
+        if (
+            getattr(o, "AP_ENABLED", False)
+            or o.PROFILE == "stage12_transport_operations_v3"
+        ):
             from .s12_public_history import event_paths
 
             paths = event_paths(root / "events")
@@ -1025,7 +1053,10 @@ def read_events(
             yield (
                 int(path.stem),
                 io.read(path, limit=4096)
-                if o.PROFILE == "stage12_transport_operations_v3"
+                if (
+                    getattr(o, "AP_ENABLED", False)
+                    or o.PROFILE == "stage12_transport_operations_v3"
+                )
                 else io.read(path),
             )
 
@@ -1088,7 +1119,10 @@ class MeasurementPrefix:
         correctness follows from the projection existing. Missing projection is
         handled by the caller as the legacy full-reader path.
         """
-        if contract.PROFILE == "stage12_transport_operations_v3":
+        if (
+            getattr(contract, "AP_ENABLED", False)
+            or contract.PROFILE == "stage12_transport_operations_v3"
+        ):
             contract.require(predecessor_root(root) is None)
         result = cls.__new__(cls)
         result.journal = None
@@ -1139,9 +1173,9 @@ class MeasurementPrefix:
         o = self.contract
         o.uint(closure_reserve)
         if (
-            o.PROFILE == "stage12_transport_operations_v3"
-            and predecessor_root(self.root) is not None
-        ):
+            getattr(o, "AP_ENABLED", False)
+            or o.PROFILE == "stage12_transport_operations_v3"
+        ) and predecessor_root(self.root) is not None:
             return False  # No third retained copy of predecessor raw events.
         # No sample/event producer remains during this construction. Count
         # bytes AND perform the first exact original-source verification in the
@@ -1182,7 +1216,10 @@ class MeasurementPrefix:
             self.path,
             check=self.check,
             maximum_row_bytes=4095
-            if o.PROFILE == "stage12_transport_operations_v3"
+            if (
+                getattr(o, "AP_ENABLED", False)
+                or o.PROFILE == "stage12_transport_operations_v3"
+            )
             else 65536,
         ):
             seq += 1
@@ -1230,7 +1267,10 @@ class MeasurementPrefix:
             path = self.root / "events" / f"{i:020d}.json"
             obj = o.parse(
                 io.read(path, limit=4096)
-                if o.PROFILE == "stage12_transport_operations_v3"
+                if (
+                    getattr(o, "AP_ENABLED", False)
+                    or o.PROFILE == "stage12_transport_operations_v3"
+                )
                 else io.read(path),
                 o.EVENT,
             )
@@ -1252,7 +1292,10 @@ class MeasurementPrefix:
 
 def inventory(root: Path, *, contract: Any = o) -> Iterator[dict[str, str]]:
     """Available-file inventory; does not assert complete campaign provenance."""
-    if contract.PROFILE == "stage12_transport_operations_v3":
+    if (
+        getattr(contract, "AP_ENABLED", False)
+        or contract.PROFILE == "stage12_transport_operations_v3"
+    ):
         from .s12_public_history import inventory as ap_inventory
 
         yield from ap_inventory(root)
@@ -1283,7 +1326,10 @@ def evidence_inventory(
     first = min((root / "events").iterdir(), key=lambda p: p.name)
     segment = o.parse(
         io.read(first, limit=4096)
-        if o.PROFILE == "stage12_transport_operations_v3"
+        if (
+            getattr(o, "AP_ENABLED", False)
+            or o.PROFILE == "stage12_transport_operations_v3"
+        )
         else io.read(first),
         o.EVENT,
     )["segment_id"]

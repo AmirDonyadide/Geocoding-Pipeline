@@ -81,6 +81,13 @@ def component_bytes(component, model):
 
 
 def validate_model(model):
+    if (
+        model.get("schema_version")
+        == "stage12_development_resource_retention_acceptance_b2_rs1_v1"
+    ):
+        from . import s12_b2_acceptance_graph as graph
+
+        return graph.validate_model(model)
     shape(model, MODEL_SCHEMA)
     b.require(
         model["adopted_clauses_sha256"] == ASSET["adopted_source_sha256"],
@@ -276,6 +283,13 @@ def aggregate_workload_hash(model):
 
 def validate_plan_model(model, plan):
     """Bind one exact member without resetting the aggregate retained model."""
+    if (
+        model.get("schema_version")
+        == "stage12_development_resource_retention_acceptance_b2_rs1_v1"
+    ):
+        from . import s12_b2_acceptance_graph as graph
+
+        return graph.validate_plan_model(model, plan)
     validate_model(model)
     member = member_workload(plan)
     b.require(
@@ -303,7 +317,9 @@ def plan_schema():
 
 def validate_record(value):
     version = value.get("schema_version")
-    if version == MODEL:
+    if version == "stage12_development_resource_retention_acceptance_b2_rs1_v1":
+        validate_model(value)
+    elif version == MODEL:
         validate_model(value)
     elif version == PROFILE:
         shape(value, profile_schema())

@@ -121,6 +121,7 @@ PUBLIC_FIELDS = (
 )
 PUBLIC_SCHEMA = "stage12_public_path_timing_v1"
 AP_SCHEMA = "stage12_public_path_timing_v2"
+WF_SCHEMA = "stage12_public_path_timing_v3"
 
 
 def _ap_row(value):
@@ -644,7 +645,15 @@ class Checkpoints:
                 self._condition.notify_all()
 
 
-def read_prefix(root, *, max_files=1500, max_bytes=32768, record_consumer=None):
+def read_prefix(
+    root,
+    *,
+    max_files=1500,
+    max_bytes=32768,
+    record_consumer=None,
+    expected_binding=None,
+    expected_snapshot=None,
+):
     """Validate the entire bounded membership and return only a verified prefix.
 
     A partial/invalid tail is never skipped: ``incomplete`` and a static reason
@@ -653,8 +662,33 @@ def read_prefix(root, *, max_files=1500, max_bytes=32768, record_consumer=None):
     Public records use lossless per-chunk timestamp offsets on disk; an optional
     record_consumer(ordinal, row) receives exact absolute timestamps after each
     chunk validates. last_payload retains the on-disk wire representation.
+    WF-AP2 fixed rows retain only their closed header in last_payload. Explicit
+    expected bindings select that family, and its completion verdict also needs
+    the matching successful original task checkpoint snapshot.
     """
     root = Path(root)
+    # Dispatch by a new wire family only. Historical JSON parsers and verdicts
+    # retain their original implementation; mixed membership fails closed.
+    try:
+        with os.scandir(root) as entries:
+            use_compact = (
+                expected_binding is not None
+                or expected_snapshot is not None
+                or any(entry.name.endswith(".bin") for entry in entries)
+            )
+    except OSError:
+        use_compact = expected_binding is not None or expected_snapshot is not None
+    if use_compact:
+        from . import s12_wf_ap2_timing as compact
+
+        return compact.read_prefix(
+            root,
+            max_files=max_files,
+            max_bytes=max_bytes,
+            record_consumer=record_consumer,
+            expected_binding=expected_binding,
+            expected_snapshot=expected_snapshot,
+        )
     result = {
         "verified_files": 0,
         "verified_rows": 0,

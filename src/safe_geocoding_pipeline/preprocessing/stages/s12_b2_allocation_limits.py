@@ -218,9 +218,38 @@ class Controls:
                 "native_aggregate_prewrite_bound": "EXTERNAL_EVIDENCE_REQUIRED",
             }
 
+    def reserve_remaining(self, *, report_bytes=65536):
+        """Precharge a finite finalization sub-budget before writing usage.
+
+        The original counters retain the entire reservation. The returned
+        counters only spend that already charged allowance; they do not issue
+        a new selection or refund unused finalization capacity. Leave exactly
+        one exclusive report allocation in the original scope.
+        """
+        self.check()
+        b.uint(report_bytes, True)
+        with self.lock:
+            remaining = {
+                role: self.value["invocations"][role] - self.counts[role]
+                for role in ROLES
+            }
+            b.require(remaining["EXCLUSIVE_FILE"] >= 3, "B2_RS1_INVOCATION_BUDGET")
+            remaining["EXCLUSIVE_FILE"] -= 1
+            byte_allowance = (
+                self.value["max_python_write_bytes"] - self.python_bytes - report_bytes
+            )
+            b.require(byte_allowance > 0, "B2_RS1_WRITE_BUDGET")
+            for role, count in remaining.items():
+                self.counts[role] += count
+            self.python_bytes += byte_allowance
+        subrange = dict(self.value)
+        subrange["invocations"] = remaining
+        subrange["max_python_write_bytes"] = byte_allowance
+        return Controls(subrange, check=self.check)
+
     def persist_usage(self, path):
         # Fixed metadata reserve includes its own report, even on failure. The
-        # fixed ten uint64 counters and digests fit well below this envelope.
+        # thirteen fixed role counters and digests fit below this envelope.
         self.claim("EXCLUSIVE_FILE", 65536)
         raw = b.canonical(self.usage())
         b.require(len(raw) <= 65536, "B2_RS1_LIMIT_FIELDS")

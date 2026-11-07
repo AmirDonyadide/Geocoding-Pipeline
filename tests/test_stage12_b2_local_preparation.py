@@ -19,7 +19,7 @@ from safe_geocoding_pipeline.preprocessing.stages import (
 )
 
 
-def lp1_configuration(w, phase="plan-calibration", *, mutate=None):
+def lp1_configuration(w, phase="plan-calibration", *, mutate=None, configure=None):
     config, gate, grants = configuration(w, phase=phase)
     r = config["runtime"]
     r.update(
@@ -47,6 +47,8 @@ def lp1_configuration(w, phase="plan-calibration", *, mutate=None):
         )
         core["capability_evidence_sha256"] = config["capability_evidence_sha256"]
         config["calibration_plan_sha256"] = w.put(core)
+    if configure:
+        configure(config)
     output = w.root / ("output_" + phase)
     scratch = w.root / ("scratch_" + phase + ".sqlite")
     work = {

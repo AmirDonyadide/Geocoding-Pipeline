@@ -517,7 +517,7 @@ def run(
     return report
 
 
-def run_operations_block(
+def _run_operations_block(
     profile: dict[str, Any],
     plan: dict[str, Any],
     start: dict[str, Any],
@@ -559,6 +559,8 @@ def run_operations_block(
 
     if profile.get("schema_version") == "stage12_transport_operations_v3":
         from .stages import s12_public_sampling_contract as po
+    elif profile.get("schema_version") == "stage12_transport_operations_v4":
+        from .stages import s12_wf_ap2_contract as po
     from .stages import s12_public_operational_audit as oa
     from .stages import s12_public_journal as pj
     from .stages import s12_public_scheduler as ps
@@ -836,9 +838,10 @@ def run_operations_block(
             raise
 
         known_files = known["known_files"]
-        ap_known = po.PROFILE == "stage12_transport_operations_v3" and hasattr(
-            known_files, "rows"
-        )
+        ap_known = (
+            getattr(po, "AP_ENABLED", False)
+            or po.PROFILE == "stage12_transport_operations_v3"
+        ) and hasattr(known_files, "rows")
         try:
             if ap_known:
 
@@ -1430,6 +1433,12 @@ def run_operations_block(
             if coordinator.ap_enabled:
                 from .stages.s12_public_history import Fresh as FreshReads
 
+                if getattr(po, "PAGED_HISTORY", False):
+                    from functools import partial
+                    from .stages.s12_paged_history import Fresh
+
+                    FreshReads = partial(Fresh, limits=plan["history_limits"])
+
             # Attempts are drained; the independent sampler writes only events.
             # Reuse checked original attempt bytes within this comparison stage,
             # then freshly re-read the entire exact attempt source set before
@@ -1477,6 +1486,12 @@ def run_operations_block(
 
             if coordinator.ap_enabled:
                 from .stages.s12_public_history import Fresh as FreshReads
+
+                if getattr(po, "PAGED_HISTORY", False):
+                    from functools import partial
+                    from .stages.s12_paged_history import Fresh
+
+                    FreshReads = partial(Fresh, limits=plan["history_limits"])
 
             operation = "REPORT"
             with FreshReads(
@@ -1680,6 +1695,7 @@ def run_operations_block(
                         profile,
                         start,
                         maximum_segments=plan["sampling_budget"]["maximum_segments"],
+                        contract=po,
                     )[-1]
                     close_head = next(
                         po.digest(e)
@@ -1691,6 +1707,11 @@ def run_operations_block(
                         sampling_policy_sha256=po.POLICY_SHA,
                         sampling_close_event_sha256=close_head,
                         sampling=summary,
+                        **(
+                            po.assurance_fields()
+                            if callable(getattr(po, "assurance_fields", None))
+                            else {}
+                        ),
                     )
 
                 def original_closure_evidence():
@@ -1761,6 +1782,7 @@ def run_operations_block(
                             maximum_segments=plan["sampling_budget"][
                                 "maximum_segments"
                             ],
+                            contract=po,
                         )
                         if coordinator.ap_enabled
                         else None
@@ -1832,6 +1854,15 @@ def run_operations_block(
             from .stages.s12_public_timing import safe_call
 
             safe_call(timing_observer, "sampling", coordinator.sampling_snapshot())
+
+
+def run_operations_block(profile, plan, start, **kwargs):
+    if profile.get("schema_version") == "stage12_transport_operations_v4":
+        from .stages import s12_paged_history as history
+
+        with history.selected(plan["history_limits"]):
+            return _run_operations_block(profile, plan, start, **kwargs)
+    return _run_operations_block(profile, plan, start, **kwargs)
 
 
 def main() -> int:

@@ -160,7 +160,10 @@ def block_report(
 ) -> dict[str, Any]:
     """Read source evidence, never a mutable aggregate cache or trimmed window."""
     o = contract
-    ap = o.PROFILE == "stage12_transport_operations_v3"
+    ap = (
+        getattr(o, "AP_ENABLED", False)
+        or o.PROFILE == "stage12_transport_operations_v3"
+    )
     sampling = None
     if ap:
         from .s12_public_sampling import inspect
@@ -171,6 +174,7 @@ def block_report(
             profile,
             campaign_start,
             maximum_segments=plan["sampling_budget"]["maximum_segments"],
+            contract=o,
         )
         segment_blocks = [
             e["body"]["block_id"] for e in events() if e["kind"] == "SEGMENT_OPEN"
@@ -827,7 +831,10 @@ def campaign_report(
         "approval_status": "UNISSUED",
         "report_complete": complete,
     }
-    if o.PROFILE == "stage12_transport_operations_v3":
+    if (
+        getattr(o, "AP_ENABLED", False)
+        or o.PROFILE == "stage12_transport_operations_v3"
+    ):
         o.require(
             type(sampling_segments) is list
             and (
@@ -839,6 +846,8 @@ def campaign_report(
         result["report_complete"] = result["report_complete"] and all(
             v["complete"] for v in sampling_segments
         )
+    if callable(getattr(o, "assurance_fields", None)):
+        result.update(o.assurance_fields())
     o.validate(result, o.REPORT)
     return result
 
@@ -866,7 +875,10 @@ def incomplete_report(
         plan=plan,
         contract=o,
         sampling_segments=[]
-        if o.PROFILE == "stage12_transport_operations_v3"
+        if (
+            getattr(o, "AP_ENABLED", False)
+            or o.PROFILE == "stage12_transport_operations_v3"
+        )
         else None,
     )
     exact = {
@@ -880,7 +892,12 @@ def incomplete_report(
             result["campaign_counts"][key] = count(
                 None, begins_lower_bound if key == "begins_charged" else 0
             )
-    if o.PROFILE == "stage12_transport_operations_v3":
+    if (
+        getattr(o, "AP_ENABLED", False)
+        or o.PROFILE == "stage12_transport_operations_v3"
+    ):
         result["sampling_segments"] = []
+    if callable(getattr(o, "assurance_fields", None)):
+        result.update(o.assurance_fields())
     o.validate(result, o.REPORT)
     return result

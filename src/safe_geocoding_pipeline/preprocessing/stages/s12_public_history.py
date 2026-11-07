@@ -461,6 +461,11 @@ class Fresh:
 
 def inventory(root: Any, *, check: Any = io._checkpoint) -> Any:
     """Fresh deterministic original reads, constant per-file transient state."""
+    from . import s12_paged_history as paged
+
+    if paged.current() is not None:
+        yield from paged.inventory(root, check=check)
+        return
     active: Any = getattr(io._checkpoints, "read_view", None)
     shared = isinstance(active, Fresh) and root.absolute().is_relative_to(active.root)
     index = active.index if shared else Index(root, check=check)
@@ -485,6 +490,13 @@ class Known:
             "incomplete_campaign_report.json",
         }
     )
+
+    def __new__(cls, root: Any, verify_known: Any = None) -> Any:
+        from . import s12_paged_history as paged
+
+        if cls is Known and paged.current() is not None:
+            return paged.Known(root, verify_known, limits=paged.current())
+        return super().__new__(cls)
 
     def __init__(self, root: Any, verify_known: Any = None) -> None:
         self.index = Index(root, strict=False)
@@ -540,6 +552,11 @@ class Known:
 
 def event_paths(root: Any) -> Any:
     """Canonical numeric event names need no sorting/Path list or packed index."""
+    from . import s12_paged_history as paged
+
+    if paged.current() is not None:
+        yield from paged.event_paths(root, paged.current())
+        return
     count, low, high = 0, None, 0
     io.private_directory(root)
     with os.scandir(root) as entries:
@@ -566,7 +583,7 @@ def event_paths(root: Any) -> Any:
             yield root / f"{n:020d}.json"
 
 
-def hash_file(path: Any, *, reader: Any = None) -> Any:
+def _hash_file(path: Any, *, reader: Any = None, maximum_bytes: Any = None) -> Any:
     """Fresh private original hash with at most two4096-byte input buffers."""
     path = Path(path).absolute()
     active: Any = getattr(io._checkpoints, "read_view", None)
@@ -583,7 +600,11 @@ def hash_file(path: Any, *, reader: Any = None) -> Any:
         reader._directory(parent)
         reader._bound(parent)
         before = path.stat(follow_symlinks=False)
-        limit = 4096 if path.parent.name == "events" else 64 * 2**20
+        limit = (
+            (4096 if maximum_bytes is None else min(4096, maximum_bytes))
+            if path.parent.name == "events"
+            else (64 * 2**20 if maximum_bytes is None else maximum_bytes)
+        )
         c.require(
             stat.S_ISREG(before.st_mode)
             and stat.S_IMODE(before.st_mode) == 0o600
@@ -619,6 +640,7 @@ def hash_file(path: Any, *, reader: Any = None) -> Any:
             size += len(raw)
             c.require(size <= limit, "S12_PRIVATE_FILE_INVALID")
             digest.update(raw)
+            del raw
         c.require(
             size == before.st_size
             and identity(before)
@@ -633,3 +655,14 @@ def hash_file(path: Any, *, reader: Any = None) -> Any:
             os.close(fd)
         if own:
             reader.close()
+
+
+def hash_file(path: Any, *, reader: Any = None, maximum_bytes: Any = None) -> Any:
+    from . import s12_paged_history as paged
+
+    if maximum_bytes is not None or paged.current() is not None:
+        from .s12_wf_ap2_scratch import lease
+
+        with lease("HASH", requested=4096):
+            return _hash_file(path, reader=reader, maximum_bytes=maximum_bytes)
+    return _hash_file(path, reader=reader)

@@ -54,7 +54,18 @@ def main():
     parser.add_argument("--source", type=Path, required=True)
     parser.add_argument("--source-sha", required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument(
+        "--wf-ap2",
+        action="store_true",
+        help="Explicit prospective AP2/M2 representative family; live proof and separate diagnostic grant required",
+    )
+    parser.add_argument("--evidence-bundle", type=Path)
+    parser.add_argument("--evidence-review-sha256")
     args = parser.parse_args()
+    if args.wf_ap2:
+        from stage12_wf_ap2_diagnostic import execute
+
+        return execute(args, started_ns=started, cpu_started_ns=cpu_started)
     os.umask(0o077)
     raw = args.input.read_bytes()
     assert hashlib.sha256(raw).hexdigest() == args.input_sha256

@@ -8,6 +8,7 @@ coverage or grants authority to change campaign acceptance.
 from __future__ import annotations
 
 import threading
+import time
 
 from . import s12_public_checkpoints as cp
 
@@ -109,10 +110,46 @@ class PublicTiming:
         phase_count,
         budget_charge=lambda size: None,
         _sampling_schema=False,
+        timing_schema=None,
+        timing_binding=None,
+        timing_policy_version=None,
+        phase_windows=None,
+        cumulative_deadline_ns=None,
+        clock_ns=time.monotonic_ns,
         **limits,
     ):
         if type(phase_count) is not int or not 1 <= phase_count <= 32:
             raise cp.CheckpointError("CHECKPOINT_LIMIT_INVALID")
+        if (
+            type(_sampling_schema) is not bool
+            or timing_schema not in (None, cp.WF_SCHEMA)
+            or (timing_schema == cp.WF_SCHEMA and not _sampling_schema)
+            or (
+                timing_schema is None
+                and any(
+                    value is not None
+                    for value in (
+                        timing_binding,
+                        timing_policy_version,
+                        phase_windows,
+                        cumulative_deadline_ns,
+                    )
+                )
+            )
+        ):
+            raise cp.CheckpointError("CHECKPOINT_BINDING_INVALID")
+        self.timing_schema = timing_schema
+        if timing_schema == cp.WF_SCHEMA:
+            from . import s12_wf_ap2_timing as compact
+
+            compact.validate_binding(timing_binding)
+            timing_policy_version = compact.validate_policy_version(
+                compact.POLICY_VERSION
+                if timing_policy_version is None
+                else timing_policy_version
+            )
+            if type(phase_windows) is not list or len(phase_windows) != phase_count:
+                raise cp.CheckpointError("CHECKPOINT_BINDING_INVALID")
         self.lock = threading.Lock()
         self.phase_count, self.phase_id = phase_count, 1
         self.failures = 0
@@ -132,12 +169,25 @@ class PublicTiming:
 
         try:
             charge(0)
-            self.checkpoints = cp.Checkpoints(
-                root,
-                budget_charge=charge,
-                row_schema=cp.AP_SCHEMA if _sampling_schema else cp.PUBLIC_SCHEMA,
-                **limits,
-            )
+            if timing_schema == cp.WF_SCHEMA:
+                self.checkpoints = compact.Checkpoints(
+                    root,
+                    budget_charge=charge,
+                    timing_binding=timing_binding,
+                    timing_policy_version=timing_policy_version,
+                    phase_windows=phase_windows,
+                    cumulative_deadline_ns=cumulative_deadline_ns,
+                    clock_ns=clock_ns,
+                    **limits,
+                )
+            else:
+                self.checkpoints = cp.Checkpoints(
+                    root,
+                    budget_charge=charge,
+                    row_schema=cp.AP_SCHEMA if _sampling_schema else cp.PUBLIC_SCHEMA,
+                    clock_ns=clock_ns,
+                    **limits,
+                )
         except BaseException:
             self.note_failure()
 
@@ -150,8 +200,33 @@ class PublicTiming:
             raise cp.CheckpointError("CHECKPOINT_LABEL_INVALID")
         with self.lock:
             self.phase_id = phase_id
-        if self.checkpoints:
+        if self.checkpoints and self.timing_schema is None:
             self.checkpoints.set_phase("PUBLIC_PHASE", "RESOURCE_PATH")
+
+    def phase_open(self, phase_id, *, phase_deadline_ns=None, timeout_seconds=5):
+        """WF-AP2 opt-in; selected producer windows are opened explicitly."""
+        if self.timing_schema != cp.WF_SCHEMA or self.checkpoints is None:
+            raise cp.CheckpointError("CHECKPOINT_PHASE_INVALID")
+        self.set_phase(phase_id)
+        return self.checkpoints.phase_open(
+            phase_id,
+            phase_deadline_ns=phase_deadline_ns,
+            timeout_seconds=timeout_seconds,
+        )
+
+    def phase_close(self, phase_id, *, quiescent=True, timeout_seconds=5):
+        """Disable timers, then drain the one reserved quiescent boundary cut."""
+        if self.timing_schema != cp.WF_SCHEMA or self.checkpoints is None:
+            raise cp.CheckpointError("CHECKPOINT_PHASE_INVALID")
+        if type(quiescent) is not bool:
+            raise cp.CheckpointError("CHECKPOINT_PHASE_INVALID")
+        with self.lock:
+            quiescent = quiescent and self.outstanding == 0
+        return self.checkpoints.phase_close(
+            phase_id,
+            quiescent=quiescent,
+            timeout_seconds=timeout_seconds,
+        )
 
     def begin(self, cause, clock):
         if cause not in ("PERIODIC", "START_RESERVE"):
@@ -197,9 +272,9 @@ class PublicTiming:
         if self.checkpoints is not None:
             self.checkpoints.flush(timeout_seconds=5)
 
-    def close(self):
+    def close(self, *, timeout_seconds=5):
         if self.checkpoints is not None:
-            self.checkpoints.close(timeout_seconds=5)
+            self.checkpoints.close(timeout_seconds=timeout_seconds)
         self.closed = True
         return self.snapshot()
 
@@ -363,12 +438,24 @@ class SamplingTiming(PublicTiming):
 
     def snapshot(self):
         value = super().snapshot()
-        value["schema"] = "stage12_public_path_timing_summary_v2"
+        value["schema"] = (
+            "stage12_public_path_timing_summary_v3"
+            if self.timing_schema == cp.WF_SCHEMA
+            else "stage12_public_path_timing_summary_v2"
+        )
         return value
 
 
-def verify_sampling_association(row, event, *, phase_id, ack_event=None):
-    from . import s12_public_sampling_contract as a
+def verify_sampling_association(row, event, *, phase_id, ack_event=None, contract=None):
+    if contract is None:
+        from . import s12_public_sampling_contract as a
+    else:
+        a = contract
+        # Successors explicitly bind their selected event family. Historical
+        # callers keep their original association grammar and verdicts.
+        a.validate(event, a.EVENT)
+        if ack_event is not None:
+            a.validate(ack_event, a.EVENT)
 
     a.validate_timing(row)
     if row["row_kind"] == "HARD_SYNC":

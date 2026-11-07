@@ -150,9 +150,10 @@ def load_selection(records, selection_hash, catalog, *, authority, scratch):
     return result, bound
 
 
-def verify_workload(
-    records, selection_hash, selection, catalog, plan, works, admission, *, authority
+def verify_member_workload(
+    records, selection_hash, selection, catalog, plan, works, *, authority
 ):
+    """Verify real member science before a future admission can exist."""
     bound = records.get(selection_hash, "calibration_selection")
     b.require(
         bound["window_plan_sha256"] == plan["window_plan_sha256"]
@@ -214,6 +215,15 @@ def verify_workload(
     )
     for left, right in zip_longest(actual, expected):
         b.require(left is not None and left == right, "B2_WORK_TOTALITY")
+    return bound, kind, N
+
+
+def verify_workload(
+    records, selection_hash, selection, catalog, plan, works, admission, *, authority
+):
+    bound, kind, N = verify_member_workload(
+        records, selection_hash, selection, catalog, plan, works, authority=authority
+    )
     window = records.get(plan["window_plan_sha256"], "window_plan")
     schedule = records.get(window["planned_segment_plan_sha256"], "window_segment_plan")
     b.require(

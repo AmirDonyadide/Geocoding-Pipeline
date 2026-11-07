@@ -48,6 +48,9 @@ def _rs1():
 
 
 def validate_profile(profile: dict[str, Any]) -> None:
+    selected = for_profile(profile)
+    if selected is not __import__(__name__, fromlist=["*"]):
+        return selected.validate_profile(profile)
     if profile.get("schema_version") == "stage12_development_operations_b2_rs1_v1":
         rs1 = _rs1()
         rs1.validate_record(profile)
@@ -137,6 +140,9 @@ def budget(value: dict[str, Any]) -> None:
 
 
 def validate_plan(plan: dict[str, Any], profile: dict[str, Any]) -> None:
+    selected = for_profile(profile)
+    if selected is not __import__(__name__, fromlist=["*"]):
+        return selected.validate_plan(plan, profile)
     rs1_version = (
         plan.get("schema_version") == "stage12_development_workload_plan_b2_rs1_v1"
     )
@@ -302,6 +308,9 @@ def verify_work_manifest(factory: Callable, plan: dict[str, Any]) -> None:
 
 
 def verify_authorities(profile, plan, start, authority):
+    selected = for_profile(profile)
+    if selected is not __import__(__name__, fromlist=["*"]):
+        return selected.verify_authorities(profile, plan, start, authority)
     validate_plan(plan, profile)
     validate(start, START)
     b.verify_executable_science(start)
@@ -368,3 +377,34 @@ def verify_authorities(profile, plan, start, authority):
         authority.require(
             "control_recipe", recipe["implementation_contract_sha256"], recipe
         )
+
+
+def for_profile(profile):
+    """Exact opt-in; a missing field never activates AP on historical B2."""
+    from . import s12_b2_sampling_contract as ap
+    import sys
+
+    return ap if profile.get("schema_version") == ap.PROFILE else sys.modules[__name__]
+
+
+def for_start(start):
+    from . import s12_b2_sampling_contract as ap
+    import sys
+
+    return ap if start.get("schema_version") == ap.START else sys.modules[__name__]
+
+
+def parse_selected(raw):
+    from . import s12_b2_sampling_contract as ap
+    from . import s12_storage as io
+
+    value = io.metadata(raw)
+    version = value.get("schema_version")
+    if version in ap.SCHEMAS:
+        return ap.parse(raw, version)
+    if version in {
+        "stage12_development_operations_b2_rs1_v1",
+        "stage12_development_workload_plan_b2_rs1_v1",
+    }:
+        return _rs1().parse(raw, version)
+    return b.parse(raw, version)

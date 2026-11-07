@@ -96,7 +96,7 @@ class Coordinator:
         cumulative_remaining: Callable[[], float] | None = None,
         timing_observer=None,
     ):
-        self.ap_enabled = contract.PROFILE == "stage12_transport_operations_v3"
+        self.ap_enabled = getattr(contract, "AP_ENABLED", False) or contract.PROFILE == "stage12_transport_operations_v3"
         self.ap_sampler = None
         self.ap_revision = 0
         self.ap_current = None

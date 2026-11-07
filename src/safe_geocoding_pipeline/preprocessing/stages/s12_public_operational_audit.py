@@ -117,11 +117,11 @@ class DataContext:
     def load(self, root: Path, name: str) -> tuple[dict[str, Any], dict[str, Any]]:
         from . import s12_public_operations as o
 
-        if (
-            io.metadata(io.read(root / "operations_profile.json")).get("schema_version")
-            == "stage12_transport_operations_v3"
-        ):
+        version = io.metadata(io.read(root / "operations_profile.json")).get("schema_version")
+        if version == "stage12_transport_operations_v3":
             from . import s12_public_sampling_contract as o
+        elif version == "stage12_transport_operations_v4":
+            from . import s12_wf_ap2_contract as o
         profile = o.parse(io.read(root / "operations_profile.json"), o.PROFILE)
         plan = o.parse(io.read(root / "workload.json"), o.PLAN)
         start = o.parse(io.read(root / "campaign_start.json"), o.START)

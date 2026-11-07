@@ -235,8 +235,8 @@ def attempt_summary(segment, start_hash):
             node = j.predecessor_root(node)
         raise c.Stage12Error("B2_RECEIPT_MISSING")
 
-    plan = b.parse(io.read(segment / "plan.json"), o.PLAN)
-    start = b.parse(io.read(segment / "campaign_start.json"), o.START)
+    plan = o.parse_selected(io.read(segment / "plan.json"))
+    start = o.parse_selected(io.read(segment / "campaign_start.json"))
     b.require(b.digest(start) == start_hash, "B2_START_BINDING")
     for event in recovery.events(segment, start, plan):
         x = event["body"]
@@ -671,11 +671,8 @@ def publication_summary(
         db.close()
     from . import s12_b2_operations as o
 
-    report = b.parse(io.read(segment / "operations_report.json"), o.REPORT)
-    measured = b.parse(
-        io.read(segment / "measurement_report.json"),
-        "stage12_development_measurement_report_b2_v1",
-    )
+    report = o.parse_selected(io.read(segment / "operations_report.json"))
+    measured = o.parse_selected(io.read(segment / "measurement_report.json"))
     return {
         "scientific": {
             "histograms": tables,

@@ -1,4 +1,10 @@
 """Explicit O-r2 public execution; legacy stage12_probe_cli is unchanged."""
+# ruff: noqa: E402
+# The successor task clock includes CLI dependency imports and input preparation.
+
+import time
+
+_ENTRY_MONOTONIC_NS = time.monotonic_ns()
 
 import argparse
 from pathlib import Path
@@ -10,11 +16,15 @@ from .stages import s12_retrieval_contract as c
 
 def result_exit_status(config, result):
     """Keep legacy completion semantics; require both lower-profile phases."""
-    if config["version"] == runtime.MATRIX_VERSION:
+    if config["version"] in (runtime.MATRIX_VERSION, runtime.AP2_CONFIG):
         passed = (
             result["full_frozen_capability_matrix_completed"] is True
             and result["completed_phases"] == [x["label"] for x in config["campaigns"]]
             and result["qualified_public_rates"] == []
+            and (
+                config["version"] != runtime.AP2_CONFIG
+                or result.get("diagnostic_persistence_complete") is True
+            )
         )
     elif config["version"] == runtime.LOWER_VERSION:
         passed = result["completed_phases"] == [
@@ -58,6 +68,11 @@ def main():
             review_hash=args.review_binding_sha256,
             repository=Path(__file__).resolve().parents[3],
             git_sha=args.implementation_sha,
+            **(
+                {"task_started_ns": _ENTRY_MONOTONIC_NS}
+                if config.get("version") == runtime.AP2_CONFIG
+                else {}
+            ),
         )
         print(c.canonical(result).decode("ascii"), end="")
         return result_exit_status(config, result)

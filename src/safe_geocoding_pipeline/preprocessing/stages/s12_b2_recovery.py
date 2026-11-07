@@ -12,18 +12,34 @@ from . import s12_public_recovery as replay_engine
 from . import s12_storage as io
 
 
+def _lineage(root, plan):
+    if "history_limits" in plan:
+        from . import s12_paged_history as history
+        return history.lineage(root, plan["sampling_budget"]["maximum_segments"])
+    return metadata.lineage(root, plan["budgets"]["administrative_operations"])
+
+
 def events(root, start, plan):
     """Fresh original event chain, finite disk ordering, no population list."""
+    from . import s12_b2_operations as operations
+
+    o = operations.for_start(start)
     last, segment, epoch, mono, closed, seq = None, 0, None, 0, True, 0
     amounts = plan["budgets"]
-    for node in metadata.lineage(root, amounts["administrative_operations"]):
-        for path in metadata.ordered_files(
-            node / "events",
-            max_files=amounts["event_count"],
-            max_scratch_bytes=b.parse(io.read(node / "profile.json"), o.PROFILE)[
-                "resources"
-            ]["fixed_campaign_disk_bound_bytes"],
-        ):
+    for node in _lineage(root, plan):
+        if getattr(o, "PAGED_HISTORY", False):
+            from . import s12_paged_history as history
+
+            paths = history.event_paths(node / "events", plan["history_limits"])
+        else:
+            paths = metadata.ordered_files(
+                node / "events",
+                max_files=amounts["event_count"],
+                max_scratch_bytes=operations.parse_selected(
+                    io.read(node / "profile.json")
+                )["resources"]["fixed_campaign_disk_bound_bytes"],
+            )
+        for path in paths:
             seq += 1
             b.require(
                 seq <= amounts["event_count"]
@@ -73,13 +89,22 @@ def _segment_inventory(node, area, plan):
         io.read(node / "segment_admission.json"), "stage12_segment_admission_b2_v1"
     )
     segment = admission["segment_id"]
-    for path in metadata.ordered_files(
-        node / area,
-        max_files=bound["max_rows"],
-        max_scratch_bytes=b.parse(io.read(node / "profile.json"), o.PROFILE)[
-            "resources"
-        ]["fixed_campaign_disk_bound_bytes"],
-    ):
+    if "history_limits" in plan:
+        from . import s12_paged_history as history
+
+        paths = history.ordered_files(node / area, plan["history_limits"])
+    else:
+        paths = metadata.ordered_files(
+            node / area,
+            max_files=bound["max_rows"],
+            max_scratch_bytes=o.parse_selected(io.read(node / "profile.json"))[
+                "resources"
+            ]["fixed_campaign_disk_bound_bytes"],
+        )
+    count = 0
+    for path in paths:
+        count += 1
+        b.require(count <= bound["max_rows"], "B2_INVENTORY_BOUND")
         yield {
             "path": f"segments/{segment:020d}/{area}/{path.relative_to(node / area)}",
             "sha256": b.sha(io.read(path)).hex(),
@@ -89,7 +114,7 @@ def _segment_inventory(node, area, plan):
 def inventory(root, area, plan):
     role = "event_inventory.json" if area == "events" else "attempt_inventory.json"
     max_rows, count = metadata.array_bounds(plan, role)["max_rows"], 0
-    for node in metadata.lineage(root, plan["budgets"]["administrative_operations"]):
+    for node in _lineage(root, plan):
         for row in _segment_inventory(node, area, plan):
             count += 1
             b.require(count <= max_rows, "B2_INVENTORY_BOUND")
@@ -102,7 +127,7 @@ def inventory_heads(root, area, plan):
     max_rows, count = metadata.array_bounds(plan, role)["max_rows"], 0
     fingerprint = hashlib.sha256(b"[")
     heads = {}
-    for node in metadata.lineage(root, plan["budgets"]["administrative_operations"]):
+    for node in _lineage(root, plan):
         for row in _segment_inventory(node, area, plan):
             b.require(count < max_rows, "B2_INVENTORY_BOUND")
             if count:
@@ -115,7 +140,7 @@ def inventory_heads(root, area, plan):
     return heads
 
 
-def reopen(
+def _reopen(
     root,
     start,
     profile,
@@ -128,11 +153,14 @@ def reopen(
     require_paused=False,
 ):
     """Read every predecessor; all retained sources must match sealed identities."""
+    from . import s12_b2_operations as operations
+
+    o = operations.for_profile(profile)
     o.verify_authorities(profile, plan, start, authority)
     b.require(
         io.read(root / "campaign_start.json") == b.canonical(start), "B2_START_BINDING"
     )
-    snap = b.parse(io.read(root / "snapshot.json"), o.SNAPSHOT)
+    snap = o.parse(io.read(root / "snapshot.json"), o.SNAPSHOT)
     b.require(
         io.read(root / "_SEGMENT_SEALED", limit=0) == b""
         and snap["campaign_start_sha256"] == b.digest(start),
@@ -155,7 +183,10 @@ def reopen(
         "privacy_permission_sha256",
     ):
         b.require(snap[key] == start[key], "WINDOW_TRANSFER_FORBIDDEN")
-    source = lambda: events(root, start, plan)
+
+    def source():
+        return events(root, start, plan)
+
     index = reporting.Index(
         scratch,
         source,
@@ -177,7 +208,7 @@ def reopen(
                 len(seen) <= plan["budgets"]["administrative_operations"],
                 "B2_RECOVERY_CYCLE",
             )
-            current = b.parse(io.read(node / "snapshot.json"), o.SNAPSHOT)
+            current = o.parse(io.read(node / "snapshot.json"), o.SNAPSHOT)
             for name, obj in (("profile.json", profile), ("plan.json", plan)):
                 b.require(
                     io.read(node / name) == b.canonical(obj), "B2_RECOVERY_BINDING"
@@ -215,11 +246,37 @@ def reopen(
                     original_inventories[area][str(node)] == current[field],
                     "B2_RECOVERY_INVENTORY",
                 )
-            report = b.parse(io.read(node / "operations_report.json"), o.REPORT)
-            measured = b.parse(
-                io.read(node / "measurement_report.json"),
-                "stage12_development_measurement_report_b2_v1",
+            report = o.parse(io.read(node / "operations_report.json"), o.REPORT)
+            measured = (
+                o.parse(io.read(node / "measurement_report.json"), o.MEASUREMENT)
+                if getattr(o, "AP_ENABLED", False)
+                else b.parse(
+                    io.read(node / "measurement_report.json"),
+                    "stage12_development_measurement_report_b2_v1",
+                )
             )
+            if getattr(o, "AP_ENABLED", False):
+                from .s12_public_sampling import inspect
+
+                summaries = inspect(
+                    lambda: events(node, start, plan),
+                    profile,
+                    start,
+                    maximum_segments=plan["sampling_budget"]["maximum_segments"],
+                    contract=o,
+                )
+                close = next(
+                    e
+                    for e in events(node, start, plan)
+                    if e["seq"] == summaries[-1]["close_event_seq"]
+                )
+                b.require(
+                    current["sampling"] == summaries[-1]
+                    and current["sampling_policy_sha256"] == o.POLICY_SHA
+                    and current["sampling_close_event_sha256"] == o.digest(close)
+                    and all(row["complete"] for row in summaries),
+                    "B2_SAMPLING_INCOMPLETE",
+                )
             b.require(
                 report["measurement_report_sha256"] == b.digest(measured)
                 and measured["resource_sampling_complete"]
@@ -320,8 +377,17 @@ def reopen(
                 administrative_spent=measured["administrative_spent"],
                 disposition=current["disposition"],
                 defer_source_validation=True,
+                timing_evidence=measured.get("timing_evidence"),
             )
             b.require(recomputed == measured, "B2_RECOVERY_REPORT")
+            if getattr(o, "AP_ENABLED", False):
+                b.require(
+                    current["timing_evidence"]
+                    == measured["timing_evidence"]
+                    == report["timing_evidence"],
+                    "B2_TIMING_BINDING",
+                )
+                o.verify_timing(node, current["timing_evidence"])
             # The original epoch's BEGIN charges, including controls, must fit
             # that exact planned slot. No cumulative counter is reset.
             from . import s12_b2_planning as planning
@@ -376,9 +442,10 @@ def reopen(
             o.manifest_digest(index.ledger()) == snap["work_ledger_sha256"],
             "B2_LEDGER_MISMATCH",
         )
-        remaining = lambda: (
-            r for r in index.ledger() if r["state"] in ("UNBEGUN", "RETRY_DUE")
-        )
+
+        def remaining():
+            return (r for r in index.ledger() if r["state"] in ("UNBEGUN", "RETRY_DUE"))
+
         b.require(
             o.manifest_digest(remaining())
             == snap["controller"]["remaining_work_ledger_sha256"],
@@ -470,3 +537,21 @@ def clean_continuation(
     # The coordinator applies every carried delay only AFTER its new journal
     # acknowledges SEGMENT_OPEN. No entry-clock timestamp is returned here.
     return result
+
+
+def reopen(root, start, profile, plan, **kwargs):
+    contract = o.for_profile(profile)
+    if not getattr(contract, "PAGED_HISTORY", False):
+        return _reopen(root, start, profile, plan, **kwargs)
+    # Independent opener scope, never a token inherited from report/persistence.
+    contract.verify_authorities(profile, plan, start, kwargs["authority"])
+    from . import s12_paged_history as history
+
+    def roots():
+        return _lineage(root, plan)
+
+    with (
+        history.selected(plan["history_limits"]),
+        history.ChainFresh(root.parent, roots, limits=plan["history_limits"]),
+    ):
+        return _reopen(root, start, profile, plan, **kwargs)
