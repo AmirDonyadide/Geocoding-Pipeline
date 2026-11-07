@@ -155,8 +155,31 @@ def block_report(
     repeat_evidence: Callable[[], tuple[str, bool]],
     monitoring_closed: Callable[[], bool],
     work_index=None,
+    contract=o,
+    campaign_start=None,
 ) -> dict[str, Any]:
     """Read source evidence, never a mutable aggregate cache or trimmed window."""
+    o = contract
+    ap = o.PROFILE == "stage12_transport_operations_v3"
+    sampling = None
+    if ap:
+        from .s12_public_sampling import inspect
+
+        o.require(campaign_start is not None)
+        summaries = inspect(
+            events,
+            profile,
+            campaign_start,
+            maximum_segments=plan["sampling_budget"]["maximum_segments"],
+        )
+        segment_blocks = [
+            e["body"]["block_id"] for e in events() if e["kind"] == "SEGMENT_OPEN"
+        ]
+        required_sampling = [
+            v for v, b in zip(summaries, segment_blocks, strict=True) if b == block_id
+        ]
+        o.require(bool(required_sampling))
+        sampling = required_sampling[-1]
     o.validate_plan(plan, profile)
     block = plan["blocks"][block_id - 1]
     if work_index is not None:
@@ -211,7 +234,7 @@ def block_report(
     cells: dict[tuple[str, int], list[int]] = {}
     fixtures = {x["fixture_id"]: x for x in probe.fixtures()}
     peaks = {k: None for k in o.TYPES["Peaks"]}
-    sample_period = profile["resource_sample_period_ms"] * 1_000_000
+    sample_period = (100 if ap else profile["resource_sample_period_ms"]) * 1_000_000
     last_periodic_ns = None
     schedule_ok = True
     periodic_seen = False
@@ -232,7 +255,7 @@ def block_report(
             if last_periodic_ns is not None and not periodic_seen:
                 schedule_ok = False
             last_periodic_ns, periodic_seen = event["mono_ns"], False
-        elif kind == "SEGMENT_CLOSE":
+        elif kind == "SEGMENT_CLOSE" and not ap:
             schedule_ok = (
                 schedule_ok
                 and periodic_seen
@@ -277,6 +300,19 @@ def block_report(
                 )
             ]
             o.require(times == sorted(times))
+        elif kind == "RESOURCE_SAMPLE":
+            v = b["observation"]
+            if v["role"] == "FINAL":
+                ends = v["observed_mono_ns"]
+            periodic_seen = True
+            peaks["min_free_allocated_disk_bytes"] = (
+                v["free_allocated_disk_bytes"]
+                if peaks["min_free_allocated_disk_bytes"] is None
+                else min(
+                    peaks["min_free_allocated_disk_bytes"],
+                    v["free_allocated_disk_bytes"],
+                )
+            )
         elif kind == "RESOURCE":
             resource_count += 1
             mutations[b["cause"]] = mutations.get(b["cause"], 0) + 1
@@ -534,8 +570,11 @@ def block_report(
     # complete pass is bound to its exact prefix digest.
     mutations_ok = bool(
         tail
-        and tail["kind"] == "RESOURCE"
-        and tail["body"]["cause"] == "PERIODIC"
+        and (
+            (tail["kind"] == "SAMPLING_CLOSE")
+            if ap
+            else (tail["kind"] == "RESOURCE" and tail["body"]["cause"] == "PERIODIC")
+        )
         and resource_count
         and mutations.get("STATE_CHANGE", 0) >= segments
         and mutations.get("START_RESERVE", 0)
@@ -545,7 +584,12 @@ def block_report(
         and mutations.get("RESERVATION_RELEASE", 0) == finals
         and mutations.get("QUEUE_ADD", 0) >= counts["begins_charged"]
     )
-    resources_ok = mutations_ok and schedule_ok and periodic_seen
+    resources_ok = (
+        mutations_ok
+        and schedule_ok
+        and periodic_seen
+        and (not ap or all(s["complete"] for s in required_sampling))
+    )
     if not mutations_ok:
         for key in (
             "connection_slots",
@@ -705,6 +749,11 @@ def block_report(
         "receipts_complete": receipts_ok and not counts["unknown_delivery"],
         "resource_sampling_complete": resources_ok and timing_ok,
     }
+    if ap:
+        result["sampling"] = sampling
+        if not sampling["complete"]:
+            result["status"] = "INCOMPLETE"
+            result["reasons"] = sorted(set(result["reasons"] + ["SAMPLING_INCOMPLETE"]))
     o.validate_type(result, "BlockReport")
     if work_index is not None:
         work_index.verify()
@@ -722,7 +771,10 @@ def campaign_report(
     scientific_identity_verified: bool,
     reconciliation_reasons: list[str],
     plan: dict[str, Any],
+    contract=o,
+    sampling_segments=None,
 ) -> dict[str, Any]:
+    o = contract
     totals = {}
     for key in o.COUNT_KEYS:
         known = all(b["counts"][key]["value"] is not None for b in blocks)
@@ -775,6 +827,18 @@ def campaign_report(
         "approval_status": "UNISSUED",
         "report_complete": complete,
     }
+    if o.PROFILE == "stage12_transport_operations_v3":
+        o.require(
+            type(sampling_segments) is list
+            and (
+                bool(sampling_segments)
+                or (not blocks and disposition == "RECOVERY_BLOCKED")
+            )
+        )
+        result["sampling_segments"] = sampling_segments
+        result["report_complete"] = result["report_complete"] and all(
+            v["complete"] for v in sampling_segments
+        )
     o.validate(result, o.REPORT)
     return result
 
@@ -786,8 +850,10 @@ def incomplete_report(
     event_inventory_sha256: str,
     attempt_inventory_sha256: str,
     begins_lower_bound: int,
+    contract=o,
 ) -> dict[str, Any]:
     """No fabricated snapshots, totals or block prefix when evidence is uncertain."""
+    o = contract
     result = campaign_report(
         start,
         event_inventory_sha256=event_inventory_sha256,
@@ -798,6 +864,10 @@ def incomplete_report(
         scientific_identity_verified=False,
         reconciliation_reasons=["AUDIT_FAILED", "UNKNOWN_DELIVERY", "STOPPED"],
         plan=plan,
+        contract=o,
+        sampling_segments=[]
+        if o.PROFILE == "stage12_transport_operations_v3"
+        else None,
     )
     exact = {
         "planned_data",
@@ -810,5 +880,7 @@ def incomplete_report(
             result["campaign_counts"][key] = count(
                 None, begins_lower_bound if key == "begins_charged" else 0
             )
+    if o.PROFILE == "stage12_transport_operations_v3":
+        result["sampling_segments"] = []
     o.validate(result, o.REPORT)
     return result

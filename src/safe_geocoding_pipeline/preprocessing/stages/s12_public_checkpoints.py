@@ -120,6 +120,21 @@ PUBLIC_FIELDS = (
     "collector_return_ns",
 )
 PUBLIC_SCHEMA = "stage12_public_path_timing_v1"
+AP_SCHEMA = "stage12_public_path_timing_v2"
+
+
+def _ap_row(value):
+    from .s12_public_sampling_contract import validate_timing
+
+    try:
+        validate_timing(value)
+    except BaseException:
+        raise CheckpointError("CHECKPOINT_ROW_INVALID") from None
+    # Private immutable copy, bounded independently of caller-owned dictionaries.
+    raw = _canonical(value)
+    if len(raw) > 8192:
+        raise CheckpointError("CHECKPOINT_BYTE_LIMIT")
+    return json.loads(raw)
 
 
 def _public_row(value):
@@ -233,10 +248,11 @@ class Checkpoints:
             or interval_seconds <= 0
         ):
             raise CheckpointError("CHECKPOINT_LIMIT_INVALID")
-        if row_schema not in (None, PUBLIC_SCHEMA):
+        if row_schema not in (None, PUBLIC_SCHEMA, AP_SCHEMA):
             raise CheckpointError("CHECKPOINT_ROW_INVALID")
+        self._ap = row_schema == AP_SCHEMA
         self._public = row_schema == PUBLIC_SCHEMA
-        self._row = _public_row if self._public else _row
+        self._row = _ap_row if self._ap else _public_row if self._public else _row
         self.root = Path(root)
         self.root.mkdir(mode=0o700)
         info = self.root.lstat()
@@ -401,10 +417,19 @@ class Checkpoints:
                         raise CheckpointError("CHECKPOINT_FILE_LIMIT")
                     total, watermark = self._observed, self._watermark
                     rows = [(n, row) for n, row in self._rows if n > watermark]
-                    rows = rows[-self._chunk_records :]
+                    rows = (
+                        rows[: self._chunk_records]
+                        if self._ap
+                        else rows[-self._chunk_records :]
+                    )
+                    if self._ap:
+                        total = rows[-1][0] if rows else watermark
+                        final = final and total == self._observed
                     payload = {
                         "schema": (
-                            PUBLIC_SCHEMA
+                            AP_SCHEMA
+                            if self._ap
+                            else PUBLIC_SCHEMA
                             if self._public
                             else "stage12_supplementary_checkpoints_v1"
                         ),
@@ -413,7 +438,9 @@ class Checkpoints:
                             if self._public
                             else "actual_monotonic_nanoseconds"
                         ),
-                        "fields": list(PUBLIC_FIELDS if self._public else _FIELDS),
+                        "fields": []
+                        if self._ap
+                        else list(PUBLIC_FIELDS if self._public else _FIELDS),
                         "sampling_coverage_proof": False,
                         "index": index,
                         "previous_sha256": previous,
@@ -433,7 +460,9 @@ class Checkpoints:
                 if not _integer(payload["checkpoint_mono_ns"]):
                     raise CheckpointError("CHECKPOINT_CLOCK_INVALID")
                 while True:
-                    if self._public:
+                    if self._ap:
+                        payload["records"] = [[n, row] for n, row in rows]
+                    elif self._public:
                         base = min(
                             (v for _, row in rows for v in row[5:] if v is not None),
                             default=0,
@@ -459,7 +488,16 @@ class Checkpoints:
                         break
                     if not rows:
                         raise CheckpointError("CHECKPOINT_BYTE_LIMIT")
-                    rows = rows[1:]
+                    if self._ap:
+                        rows = rows[:-1]
+                        if not rows:
+                            raise CheckpointError("CHECKPOINT_BYTE_LIMIT")
+                        total = rows[-1][0] if rows else watermark
+                        payload["watermark"] = total
+                        payload["final"] = False
+                        final = False
+                    else:
+                        rows = rows[1:]
                 with self._condition:
                     self._reserved_files += 1
                     self._reserved_bytes += len(raw)
@@ -469,7 +507,11 @@ class Checkpoints:
                     self._previous = hashlib.sha256(raw).hexdigest()
                     self._watermark = total
                     self._dropped = payload["dropped_unpersisted_rows"]
-                    self._serviced = ticket
+                    self._serviced = (
+                        ticket
+                        if (not self._ap or total == self._observed)
+                        else self._serviced
+                    )
                     self._closed = final
                     self._condition.notify_all()
                     if final:
@@ -560,12 +602,17 @@ def read_prefix(root, *, max_files=1500, max_bytes=32768, record_consumer=None):
                 "records",
             }
             public = payload.get("schema") == PUBLIC_SCHEMA
+            ap = payload.get("schema") == AP_SCHEMA
             if public:
                 expected.add("timestamp_base_ns")
             if (
                 set(payload) != expected
                 or payload["schema"]
-                not in ("stage12_supplementary_checkpoints_v1", PUBLIC_SCHEMA)
+                not in (
+                    "stage12_supplementary_checkpoints_v1",
+                    PUBLIC_SCHEMA,
+                    AP_SCHEMA,
+                )
                 or (chain_schema is not None and payload["schema"] != chain_schema)
                 or payload["units"]
                 != (
@@ -575,8 +622,12 @@ def read_prefix(root, *, max_files=1500, max_bytes=32768, record_consumer=None):
                 )
                 or (public and not _integer(payload["timestamp_base_ns"]))
                 or payload["fields"]
-                != list(
-                    PUBLIC_FIELDS if payload["schema"] == PUBLIC_SCHEMA else _FIELDS
+                != (
+                    []
+                    if ap
+                    else list(
+                        PUBLIC_FIELDS if payload["schema"] == PUBLIC_SCHEMA else _FIELDS
+                    )
                 )
                 or payload["sampling_coverage_proof"] is not False
                 or payload["index"] != index
@@ -616,7 +667,9 @@ def read_prefix(root, *, max_files=1500, max_bytes=32768, record_consumer=None):
                     or pair[0] <= watermark
                 ):
                     raise CheckpointError("CHECKPOINT_RECORD_ORDER_INVALID")
-                if public:
+                if ap:
+                    decoded = _ap_row(pair[1])
+                elif public:
                     wire = _public_row(pair[1])
                     decoded = _public_row(
                         list(wire[:5])
@@ -645,7 +698,7 @@ def read_prefix(root, *, max_files=1500, max_bytes=32768, record_consumer=None):
             )
             if record_consumer is not None:
                 for number, row in decoded_records:
-                    record_consumer(number, tuple(row))
+                    record_consumer(number, row if ap else tuple(row))
             result.update(
                 verified_files=index,
                 verified_rows=result["verified_rows"] + len(payload["records"]),

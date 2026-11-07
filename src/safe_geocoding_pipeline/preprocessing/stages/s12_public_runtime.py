@@ -142,6 +142,21 @@ def validation_for(identity):
 
 
 def validate_config(config):
+    if config.get("version") == "stage12_public_sampling_runtime_configuration_v1":
+        from . import s12_public_sampling_contract as ap
+
+        projected = deepcopy(config)
+        projected["version"] = MATRIX_VERSION
+        for item in projected["campaigns"]:
+            original = next(
+                x for x in config["campaigns"] if x["label"] == item["label"]
+            )
+            ap.validate_plan(original["plan"], original["profile"])
+            ap.verify_work_manifest(lambda: iter(original["work"]), original["plan"])
+            item["plan"] = ap.legacy_plan(original["plan"], original["profile"])
+            item["profile"] = ap.legacy_profile(original["profile"])
+        validate_config(projected)
+        return
     matrix = config.get("version") == MATRIX_VERSION
     o.require(
         set(config) == (FIELDS | {"capability"} if matrix else FIELDS)
@@ -358,6 +373,21 @@ class Authority:
             )
         self.recheck()
 
+    def sampling_bound(self, profile, start):
+        from . import s12_public_sampling_contract as ap
+
+        raw = io.read(self.bundle / "sampling_runtime_bound.record", limit=32768)
+        o.require(c.sha(raw).hex() == profile["sampling_runtime_bound_sha256"])
+        record = ap.parse(raw, ap.BOUND)
+        ap.validate_bound(record, profile, start)
+        o.require(
+            c.sha(
+                io.read(self.bundle / "sampling_bound_review.record", limit=32768)
+            ).hex()
+            == record["technical_review_record_sha256"]
+        )
+        return record
+
     def recheck(self):
         o.require(
             self.config["window_start"] <= self.clock.utc() < self.config["window_end"],
@@ -382,6 +412,28 @@ class Authority:
         item, plan = self.active
         profile = item["profile"]
         sources = self.config["sources"]
+        if profile.get(
+            "schema_version"
+        ) == "stage12_transport_operations_v3" and purpose in (
+            "sampling_runtime_bound",
+            "sampling_bound_review",
+        ):
+            record = self.sampling_bound(profile, self.start)
+            expected = (
+                profile["sampling_runtime_bound_sha256"]
+                if purpose == "sampling_runtime_bound"
+                else record["technical_review_record_sha256"]
+            )
+            o.require(
+                evidence_sha256 == expected
+                and (
+                    context == record
+                    if purpose == "sampling_bound_review"
+                    else context
+                    == {"profile": profile, "plan": plan, "start": self.start}
+                )
+            )
+            return
         hashes = {
             "policy_freeze_record_sha256": sources["policy_freeze"],
             "implementation_authorization_sha256": sources["owner"],
@@ -399,7 +451,11 @@ class Authority:
             "writer_release": sources["owner"],
             "dispatch": sources["owner"],
         }
-        if self.config["version"] == MATRIX_VERSION and purpose == "control_recipe":
+        if (
+            self.config["version"]
+            in (MATRIX_VERSION, "stage12_public_sampling_runtime_configuration_v1")
+            and purpose == "control_recipe"
+        ):
             from . import s12_public_matrix as matrix
 
             hashes[purpose] = o.digest(matrix.check_descriptor())
@@ -447,7 +503,12 @@ def reopen_completed(
     from .s12_public_fresh_reads import FreshReads
 
     with FreshReads(root, check=io._checkpoint):
-        return _reopen_completed(
+        opener = (
+            _reopen_sampling_completed
+            if profile.get("schema_version") == "stage12_transport_operations_v3"
+            else _reopen_completed
+        )
+        return opener(
             root,
             profile,
             plan,
@@ -701,6 +762,361 @@ def _reopen_completed(
     return block
 
 
+def _reopen_sampling_completed(
+    root,
+    profile,
+    plan,
+    start,
+    *,
+    validation_sha256=None,
+    control_adapters=None,
+    _allow_paused=False,
+    _verify_history=True,
+):
+    """Existing event/receipt/ledger/report readers, no trusted aggregate shortcut."""
+    from . import s12_public_operations as o
+
+    if profile.get("schema_version") == "stage12_transport_operations_v3":
+        from . import s12_public_sampling_contract as o
+    io._checkpoint()
+    root_info = root.stat(follow_symlinks=False)
+    root_identity = (root.resolve(), root_info.st_dev, root_info.st_ino)
+    adapter = validation_for(validation_sha256 or o.digest(validation.descriptor()))
+
+    def works():
+        return iter(plan_work(root, plan))
+
+    def attempt_path(name):
+        node = root
+        seen = set()
+        while node is not None:
+            o.require(
+                str(node) not in seen
+                and len(seen) < plan["sampling_budget"]["maximum_segments"]
+            )
+            seen.add(str(node))
+            path = node / "attempts" / name
+            if path.exists():
+                return path
+            node = journal.predecessor_root(node)
+        raise c.Stage12Error("S12_CAPTURE_INCOMPLETE")
+
+    projection = None
+
+    def events():
+        return (
+            projection.events()
+            if projection is not None
+            else journal.read_events(root, o.digest(start), contract=o)
+        )
+
+    def receipt(work, event):
+        name = audit.name_for(work["work_id"], event["attempt"])
+        path = attempt_path(name)
+        if work["kind"] == "SERVICE_CONTROL":
+            o.require(
+                control_adapters is not None and work["recipe_id"] in control_adapters
+            )
+            control = control_adapters[work["recipe_id"]]
+            recipe = next(
+                r
+                for r in plan["control_recipes"]
+                if r["recipe_id"] == work["recipe_id"]
+            )
+            begin = read_object(path / "begin.json")
+            o.require(read_object(path / "recipe.json") == recipe)
+            o.require(
+                begin["campaign_start_sha256"] == o.digest(start)
+                and begin["profile_sha256"] == o.digest(profile)
+                and begin["plan_sha256"] == o.digest(plan)
+                and begin["work_id"] == work["work_id"]
+                and begin["attempt"] == event["attempt"]
+                and begin["request_target_sha256"]
+                == c.sha(control.target(recipe)).hex()
+            )
+            o.require(
+                c.sha(io.read(path / "inventory.json")).hex()
+                == event["receipt_inventory_sha256"]
+            )
+            return oa.reopen_control(path, control, key=None)
+        o.require(
+            c.sha(io.read(path / (name + "_receipt.json"))).hex()
+            == event["receipt_inventory_sha256"]
+        )
+        o.require(read_object(path / "work.json") == work)
+        return audit.reopen(
+            path,
+            name,
+            validator=adapter.validator(work, path),
+            context=oa.DataContext(adapter),
+        )
+
+    o.require(io.read(root / "campaign_start.json") == c.canonical(start))
+    o.require(
+        start["profile_sha256"] == o.digest(profile)
+        and start["plan_sha256"] == o.digest(plan)
+    )
+    o.verify_work_manifest(works, plan)
+    snapshot_raw = io.read(root / "snapshot.json")
+    snapshot = o.parse(snapshot_raw, o.SNAPSHOT)
+    campaign_raw = io.read(root / "campaign_report.json")
+    campaign = o.parse(campaign_raw, o.REPORT)
+    o.require(
+        snapshot["disposition"]
+        in (("COMPLETED", "PAUSED_CLEAN") if _allow_paused else ("COMPLETED",))
+        and io.read(root / "_SEGMENT_SEALED", limit=0) == b""
+    )
+    o.require(
+        read_object(root / "_WRITER_RELEASED.json")
+        == {
+            "writer_release_evidence_sha256": snapshot[
+                "writer_release_evidence_sha256"
+            ],
+            "snapshot_sha256": o.digest(snapshot),
+        }
+    )
+    for area in ("events", "attempts"):
+        o.require(
+            o.manifest_digest(journal.evidence_inventory(root, area, contract=o))
+            == snapshot[area[:-1] + "_inventory_sha256"]
+        )
+    block = read_object(root / "block_report.json")
+    o.validate_type(block, "BlockReport")
+    if (root / "measurement_event_prefix.json").exists():
+        projection = journal.MeasurementPrefix.from_closed(
+            root,
+            o.digest(start),
+            block["input_last_event_seq"],
+            check=io._checkpoint,
+            contract=o,
+        )
+    state = recovery.replay(events(), contract=o)
+    o.require(
+        state["closed"] and not state["unfinished"] and state["breaker_reason"] is None
+    )
+    o.require(o.digest(state["last_event"]) == snapshot["last_event_sha256"])
+    for calculated, retained in zip_longest(
+        recovery.work_ledger(works, events, receipt, batch_size=128, contract=o),
+        journal.read_array(root / "work_ledger.json"),
+    ):
+        if (
+            calculated is not None
+            and retained is not None
+            and retained["state"] == "UNUSED_RESERVED_CONTROL"
+        ):
+            o.require(
+                calculated["state"] == "UNBEGUN"
+                and any(
+                    calculated["work_id"] in b["reserved_control_ids"]
+                    for b in plan["blocks"]
+                )
+            )
+            calculated["state"] = "UNUSED_RESERVED_CONTROL"
+        o.require(
+            calculated == retained
+            and calculated is not None
+            and (
+                calculated["state"] == "DURABLE_SUCCESS"
+                or snapshot["disposition"] == "PAUSED_CLEAN"
+                or (
+                    calculated["state"] == "UNUSED_RESERVED_CONTROL"
+                    and any(
+                        calculated["work_id"] in b["reserved_control_ids"]
+                        for b in plan["blocks"]
+                    )
+                )
+            )
+        )
+    block = read_object(root / "block_report.json")
+    o.validate_type(block, "BlockReport")
+    comparisons = list(journal.read_array(root / "repeat_comparison.json"))
+
+    # Raw bytes and their exact structural repeat relation are checked anew.
+    def structural(work, final):
+        o.require(final is not None)
+        terminal = receipt(work, final)
+        name = audit.name_for(work["work_id"], final["attempt"])
+        path = attempt_path(name)
+        raw = response.decompress(
+            io.read(path / (name + ".zst")),
+            length=terminal["application_payload_bytes"],
+            expected_hash=bytes.fromhex(terminal["response_sha256"]),
+        )
+        return validation.shapes(raw, work, version=adapter.VERSION)
+
+    from .s12_public_work_index import WorkIndex
+
+    work_index = WorkIndex(
+        works, lambda key: read_object(root / "work" / f"{key:020d}.json"), plan
+    )
+
+    def pairs():
+        yield from work_index.pairs(1)
+
+    expected_comparisons = 0
+    pair_rows = iter(pairs())
+    while batch := list(islice(pair_rows, 128)):
+        # Same bounded metadata join as capture-side comparisons. Consume the
+        # entire validated prefix; every receipt/body still reopens per pair.
+        ids = {w["work_id"] for pair in batch for w in pair}
+        finals = {}
+        for event in events():
+            body = event["body"]
+            if (
+                event["kind"] == "ATTEMPT_FINALIZED"
+                and body["work_id"] in ids
+                and body["outcome"]["value"] in c.SUCCESS
+            ):
+                o.require(body["work_id"] not in finals)
+                finals[body["work_id"]] = body
+        for prior, work in batch:
+            expected_comparisons += 1
+            value = next(
+                (x for x in comparisons if x["next_work_id"] == work["work_id"]), None
+            )
+            o.require(
+                value
+                == {
+                    "first_work_id": prior["work_id"],
+                    "next_work_id": work["work_id"],
+                    "equal": structural(prior, finals.get(prior["work_id"]))
+                    == structural(work, finals.get(work["work_id"])),
+                }
+            )
+    o.require(len(comparisons) == expected_comparisons)
+
+    def before():
+        return (e for e in events() if e["seq"] <= block["input_last_event_seq"])
+
+    recomputed = reporting.block_report(
+        plan,
+        profile,
+        block["block_id"],
+        events=before,
+        works=works,
+        verified_receipt=receipt,
+        repeat_evidence=lambda: (
+            c.sha(io.read(root / "repeat_comparison.json")).hex(),
+            all(x["equal"] for x in comparisons),
+        ),
+        monitoring_closed=lambda: True,
+        work_index=work_index,
+        contract=o,
+        campaign_start=start,
+    )
+    o.require(recomputed == block)
+    closed = [
+        e
+        for e in events()
+        if e["kind"] == "BLOCK_CLOSED" and e["segment_id"] == snapshot["segment_id"]
+    ]
+    o.require(
+        len(closed) == 1 and closed[0]["body"]["report_sha256"] == o.digest(block)
+    )
+    if projection is not None:
+        projection.verify_original()
+    recovery.snapshot_evidence(
+        root,
+        snapshot,
+        state,
+        closed[0]["body"]["report_sha256"],
+        check=io._checkpoint,
+    )
+    o.require(
+        snapshot["disposition"] == "PAUSED_CLEAN"
+        or next(
+            journal.read_array(
+                root / "remaining_work_ledger.json", check=io._checkpoint
+            ),
+            None,
+        )
+        is None
+    )
+    reports = {block["block_id"]: block}
+    snapshots = [o.digest(snapshot)]
+    node = journal.predecessor_root(root)
+    seen = {str(root)}
+    while node is not None:
+        o.require(
+            str(node) not in seen
+            and len(seen) < plan["sampling_budget"]["maximum_segments"]
+        )
+        seen.add(str(node))
+        previous = o.parse(io.read(node / "snapshot.json"), o.SNAPSHOT)
+        previous_report = read_object(node / "block_report.json")
+        if _verify_history:
+            from .s12_public_fresh_reads import FreshReads
+
+            with FreshReads(node, check=io._checkpoint):
+                checked = _reopen_sampling_completed(
+                    node,
+                    profile,
+                    plan,
+                    start,
+                    validation_sha256=validation_sha256,
+                    control_adapters=control_adapters,
+                    _allow_paused=True,
+                    _verify_history=False,
+                )
+            o.require(checked == previous_report)
+        reports.setdefault(previous_report["block_id"], previous_report)
+        snapshots.append(o.digest(previous))
+        node = journal.predecessor_root(node)
+    expected_campaign = reporting.campaign_report(
+        start,
+        event_inventory_sha256=snapshot["event_inventory_sha256"],
+        attempt_inventory_sha256=snapshot["attempt_inventory_sha256"],
+        snapshots=list(reversed(snapshots)),
+        blocks=[reports[k] for k in sorted(reports)],
+        disposition=snapshot["disposition"],
+        scientific_identity_verified=False,
+        reconciliation_reasons=[]
+        if snapshot["disposition"] == "COMPLETED"
+        and len(reports) == len(plan["blocks"])
+        else ["INCOMPLETE_WORK"],
+        plan=plan,
+        contract=o,
+        sampling_segments=__import__(
+            __package__ + ".s12_public_sampling", fromlist=["inspect"]
+        ).inspect(
+            events,
+            profile,
+            start,
+            maximum_segments=plan["sampling_budget"]["maximum_segments"],
+        ),
+    )
+    o.require(
+        campaign == expected_campaign
+        and (
+            campaign["report_complete"]
+            or (_allow_paused and snapshot["disposition"] == "PAUSED_CLEAN")
+        )
+    )
+    o.require(
+        journal.tree_bytes(
+            root,
+            frozenset(
+                {
+                    "snapshot.json",
+                    "_SEGMENT_SEALED",
+                    "campaign_report.json",
+                    "_WRITER_RELEASED.json",
+                }
+            ),
+            check=io._checkpoint,
+        )
+        == snapshot["controller"]["stored_bytes"]
+    )
+    o.verify_work_manifest(works, plan)
+    o.require(io.read(root / "snapshot.json") == snapshot_raw)
+    o.require(io.read(root / "campaign_report.json") == campaign_raw)
+    o.require(io.read(root / "campaign_start.json") == c.canonical(start))
+    after = root.stat(follow_symlinks=False)
+    o.require((root.resolve(), after.st_dev, after.st_ino) == root_identity)
+    io._checkpoint()
+    return block
+
+
 def plan_work(root, plan):
     total = sum(
         plan["budgets"][key]
@@ -809,14 +1225,24 @@ def execute(
     from ..stage12_probe_cli import run_operations_block
     from .s12_public_diagnostics import Failures, classify
 
+    from . import s12_public_operations as o
+
+    if config.get("version") == "stage12_public_sampling_runtime_configuration_v1":
+        from . import s12_public_sampling_contract as o
     require_goethe_nhr_slurm("stage12 explicit O-r2 public diagnostic")
     validate_config(config)
-    matrix_mode = config["version"] == MATRIX_VERSION
+    matrix_mode = config["version"] in (
+        MATRIX_VERSION,
+        "stage12_public_sampling_runtime_configuration_v1",
+    )
     if matrix_mode:
         from . import s12_public_matrix as matrix
     clock = clock or Clock()
     resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
-    assets.verify(repository)
+    if config.get("version") == "stage12_public_sampling_runtime_configuration_v1":
+        assets.verify(repository, public_sampling=True)
+    else:
+        assets.verify(repository)
     actual = subprocess.check_output(
         ["git", "rev-parse", "HEAD"], cwd=repository, text=True
     ).strip()
@@ -867,6 +1293,15 @@ def execute(
     io.write(output / "runtime_inventory.json", c.canonical(runtime))
     io.write(output / "configuration.json", c.canonical(config))
     io.write(output / "review_binding.json", c.canonical(review))
+    if config["version"] == "stage12_public_sampling_runtime_configuration_v1":
+        for item in config["campaigns"]:
+            authority.sampling_bound(
+                item["profile"],
+                {
+                    "client_git_sha": git_sha,
+                    "runtime_inventory_sha256": o.digest(runtime),
+                },
+            )
     # The approved provider path is set by the launcher. Never inspect/log value here.
     o.require(
         os.environ.get("SAFE_PELIAS_API_KEY_FILE")
@@ -939,6 +1374,8 @@ def execute(
                 "runtime_inventory_sha256": o.digest(runtime),
                 "created_utc": clock.utc(),
             }
+            if config["version"] == "stage12_public_sampling_runtime_configuration_v1":
+                start["sampling_policy_sha256"] = o.POLICY_SHA
             authority.bind(item, plan, start)
             phase = output / item["label"]
             source = config["sources"]["owner"]

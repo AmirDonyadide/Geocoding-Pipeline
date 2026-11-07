@@ -556,6 +556,9 @@ def run_operations_block(
     """
     from concurrent.futures import ThreadPoolExecutor
     from .stages import s12_public_operations as po
+
+    if profile.get("schema_version") == "stage12_transport_operations_v3":
+        from .stages import s12_public_sampling_contract as po
     from .stages import s12_public_operational_audit as oa
     from .stages import s12_public_journal as pj
     from .stages import s12_public_scheduler as ps
@@ -701,7 +704,7 @@ def run_operations_block(
         )
         previous_block = rebased["snapshot"]["controller"]["block_id"]
         po.require(block_id in (previous_block, previous_block + 1))
-        previous_events = pj.read_events(predecessor, po.digest(start))
+        previous_events = pj.read_events(predecessor, po.digest(start), contract=po)
         last_epoch = None
         for event in previous_events:
             last_epoch = event["epoch_id"]
@@ -714,7 +717,7 @@ def run_operations_block(
             )
             previous_report = io.metadata(io.read(predecessor / "block_report.json"))
             closed_hash = None
-            for event in pj.read_events(predecessor, po.digest(start)):
+            for event in pj.read_events(predecessor, po.digest(start), contract=po):
                 if (
                     event["kind"] == "BLOCK_CLOSED"
                     and event["body"]["block_id"] == previous_block
@@ -753,9 +756,11 @@ def run_operations_block(
         rebase=rebased,
         diagnostics=diagnostics,
         timing_observer=timing_observer,
+        contract=po,
     )
     writer, log = coordinator.writer, coordinator.journal
-    log.enable_accounting()
+    if log.accounted_bytes is None:
+        log.enable_accounting()
     # One absolute cumulative bound, including derivation, reconciliation and
     # final reopening. The shutdown reserve is already inside these budgets.
     from datetime import datetime
@@ -815,7 +820,7 @@ def run_operations_block(
             finalization_deadline.check()
             with io.cooperative_io(finalization_deadline.check):
                 known = recovery.unclean_reconciliation(
-                    output, po.digest(start), verify_known=verify_known
+                    output, po.digest(start), verify_known=verify_known, contract=po
                 )
             finalization_deadline.check()
         except recovery.FinalizationExpired:
@@ -835,6 +840,7 @@ def run_operations_block(
             event_inventory_sha256=po.manifest_digest(event_rows),
             attempt_inventory_sha256=po.manifest_digest(attempt_rows),
             begins_lower_bound=known["begins_charged"]["confirmed_min"],
+            contract=po,
         )
         if not writer.failed.is_set() and finalization_deadline.remaining_seconds() > 0:
             try:
@@ -870,6 +876,9 @@ def run_operations_block(
         )
 
         def store_work() -> None:
+            if coordinator.ap_enabled:
+                log.write("operations_profile.json", profile)
+                log.write("workload.json", plan)
             io.reserve(output / "work")
             io.reserve(output / "attempts")
             for row in po.work_rows(work_factory(), plan):
@@ -905,7 +914,7 @@ def run_operations_block(
                 if not needed:
                     return True
                 seq, head = writer.call(lambda: (log.seq, log.last_hash))
-                for event in pj.read_events(output, po.digest(start)):
+                for event in pj.read_events(output, po.digest(start), contract=po):
                     if (
                         event["kind"] == "ATTEMPT_FINALIZED"
                         and event["body"]["outcome"]["value"] in c.SUCCESS
@@ -925,7 +934,7 @@ def run_operations_block(
                     e["kind"] == "ATTEMPT_FINALIZED"
                     and e["body"]["work_id"] == earlier["work_id"]
                     and e["body"]["outcome"]["value"] in c.SUCCESS
-                    for e in pj.read_events(output, po.digest(start))
+                    for e in pj.read_events(output, po.digest(start), contract=po)
                 ):
                     return False
             return True
@@ -1279,7 +1288,7 @@ def run_operations_block(
             return (
                 measurement_prefix.events()
                 if measurement_prefix is not None
-                else pj.read_events(output, po.digest(start))
+                else pj.read_events(output, po.digest(start), contract=po)
             )
 
         def verify_receipt(row, event_body):
@@ -1396,7 +1405,8 @@ def run_operations_block(
             po.require(
                 coordinator.stop_sampling(), "PUBLIC_PROBE_EVIDENCE_WRITE_FAILED"
             )
-            coordinator.resource("PERIODIC")
+            if not coordinator.ap_enabled:
+                coordinator.resource("PERIODIC")
 
             # The final actual observation retains its existing ordering/window.
             # Freeze producer admission only after operations and sampler drain.
@@ -1466,6 +1476,8 @@ def run_operations_block(
                     ),
                     monitoring_closed=lambda: closed_monitor,
                     work_index=work_index,
+                    contract=po,
+                    campaign_start=start,
                 )
                 if measurement_prefix is not None:
                     measurement_prefix.verify_original()
@@ -1484,7 +1496,7 @@ def run_operations_block(
 
                 def ledger():
                     for row in recovery.work_ledger(
-                        works, events, verify_receipt, batch_size=128
+                        works, events, verify_receipt, batch_size=128, contract=po
                     ):
                         if (
                             report["counts"]["unprocessed_data"]["value"] == 0
@@ -1547,7 +1559,7 @@ def run_operations_block(
                     },
                     closure=True,
                 )
-                state = recovery.replay(events())
+                state = recovery.replay(events(), contract=po)
 
                 remaining_hash = log.stream_array(
                     "remaining_work_ledger.json",
@@ -1559,10 +1571,12 @@ def run_operations_block(
                     ),
                 )
                 event_hash = log.stream_array(
-                    "event_inventory.json", pj.evidence_inventory(output, "events")
+                    "event_inventory.json",
+                    pj.evidence_inventory(output, "events", contract=po),
                 )
                 attempt_hash = log.stream_array(
-                    "attempt_inventory.json", pj.evidence_inventory(output, "attempts")
+                    "attempt_inventory.json",
+                    pj.evidence_inventory(output, "attempts", contract=po),
                 )
                 authority.require(
                     "writer_release",
@@ -1613,6 +1627,27 @@ def run_operations_block(
                     "disposition": disposition,
                 }
 
+                if coordinator.ap_enabled:
+                    from .stages.s12_public_sampling import inspect
+
+                    summary = inspect(
+                        events,
+                        profile,
+                        start,
+                        maximum_segments=plan["sampling_budget"]["maximum_segments"],
+                    )[-1]
+                    close_head = next(
+                        po.digest(e)
+                        for e in events()
+                        if e["kind"] == "SAMPLING_CLOSE"
+                        and e["seq"] == summary["close_event_seq"]
+                    )
+                    snapshot.update(
+                        sampling_policy_sha256=po.POLICY_SHA,
+                        sampling_close_event_sha256=close_head,
+                        sampling=summary,
+                    )
+
                 def original_closure_evidence():
                     # Fresh original event and receipt validation in each stage;
                     # no projection/cache is authority for snapshot publication.
@@ -1621,7 +1656,9 @@ def run_operations_block(
 
                     def original_events():
                         nonlocal report_head
-                        for event in pj.read_events(output, po.digest(start)):
+                        for event in pj.read_events(
+                            output, po.digest(start), contract=po
+                        ):
                             body = event["body"]
                             if (
                                 event["kind"] == "BLOCK_CLOSED"
@@ -1638,7 +1675,7 @@ def run_operations_block(
                                 verify_receipt(row, body)
                             yield event
 
-                    original = recovery.replay(original_events())
+                    original = recovery.replay(original_events(), contract=po)
                     po.require(report_head is not None)
                     return original, report_head
 
@@ -1666,6 +1703,23 @@ def run_operations_block(
                     attempt_inventory_sha256=attempt_hash,
                     snapshots=list(reversed(snapshots)),
                     blocks=[reports[k] for k in sorted(reports)],
+                    sampling_segments=(
+                        __import__(
+                            po.__package__ + ".s12_public_sampling",
+                            fromlist=["inspect"],
+                        ).inspect(
+                            lambda: pj.read_events(
+                                output, po.digest(start), contract=po
+                            ),
+                            profile,
+                            start,
+                            maximum_segments=plan["sampling_budget"][
+                                "maximum_segments"
+                            ],
+                        )
+                        if coordinator.ap_enabled
+                        else None
+                    ),
                     disposition=disposition,
                     scientific_identity_verified=coordinator.monitored
                     and closed_monitor
@@ -1675,6 +1729,7 @@ def run_operations_block(
                     and len(reports) == len(plan["blocks"])
                     else ["INCOMPLETE_WORK"],
                     plan=plan,
+                    contract=po,
                 )
                 writer.call(lambda: log.write("campaign_report.json", campaign))
                 writer.release(
@@ -1723,6 +1778,7 @@ def run_operations_block(
                 event_inventory_sha256=po.manifest_digest([]),
                 attempt_inventory_sha256=po.manifest_digest([]),
                 begins_lower_bound=0,
+                contract=po,
             )
     finally:
         try:

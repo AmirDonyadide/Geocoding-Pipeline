@@ -281,8 +281,10 @@ def unclean_reconciliation(
     start_hash: str,
     *,
     verify_known: Callable[[Path, dict[str, Any]], bool] | None = None,
+    contract: Any = o,
 ) -> dict[str, Any]:
     """Known-file inventory and lower bounds only; no fabricated snapshot."""
+    o = contract
     files = []
     confirmed = 0
     verified = 0
@@ -290,7 +292,12 @@ def unclean_reconciliation(
         if path.is_dir():
             continue
         try:
-            raw = io.read(path)
+            raw = (
+                io.read(path, limit=4096)
+                if o.PROFILE == "stage12_transport_operations_v3"
+                and path.parent.name == "events"
+                else io.read(path)
+            )
             files.append(
                 {"path": str(path.relative_to(root)), "sha256": c.sha(raw).hex()}
             )
@@ -332,12 +339,40 @@ def snapshot_evidence(
     Fixed-size bindings only. Inventory/ledger rows stream; no campaign cache.
     The supplied state/report head must come from a freshly validated chain.
     """
+    from . import s12_public_operations as o
+
+    if snapshot.get("schema_version") == "stage12_public_recovery_snapshot_v2":
+        from . import s12_public_sampling_contract as o
     check()
     o.validate(snapshot, o.SNAPSHOT)
     o.require(
         c.sha(io.read(root / "campaign_start.json")).hex()
         == snapshot["campaign_start_sha256"]
     )
+    if o.PROFILE == "stage12_transport_operations_v3":
+        from .s12_public_sampling import inspect
+
+        profile = o.parse(io.read(root / "operations_profile.json"), o.PROFILE)
+        plan = o.parse(io.read(root / "workload.json"), o.PLAN)
+        start = o.parse(io.read(root / "campaign_start.json"), o.START)
+        summaries = inspect(
+            lambda: journal.read_events(root, o.digest(start), contract=o),
+            profile,
+            start,
+            maximum_segments=plan["sampling_budget"]["maximum_segments"],
+        )
+        close = next(
+            e
+            for e in journal.read_events(root, o.digest(start), contract=o)
+            if e["seq"] == summaries[-1]["close_event_seq"]
+        )
+        o.require(
+            snapshot["sampling"] == summaries[-1]
+            and snapshot["sampling_policy_sha256"] == o.POLICY_SHA
+            and snapshot["sampling_close_event_sha256"] == o.digest(close)
+        )
+        if snapshot["disposition"] in ("COMPLETED", "PAUSED_CLEAN"):
+            o.require(summaries[-1]["complete"])
     last = state["last_event"]
     o.require(
         state["closed"]
@@ -381,7 +416,7 @@ def snapshot_evidence(
         )
     for area in ("events", "attempts"):
         o.require(
-            o.manifest_digest(journal.evidence_inventory(root, area))
+            o.manifest_digest(journal.evidence_inventory(root, area, contract=o))
             == snapshot[area[:-1] + "_inventory_sha256"]
         )
     report = io.metadata(io.read(root / "block_report.json"))
@@ -410,6 +445,7 @@ def write_snapshot(
     still has the unchanged writer guard. No prepared token grants authority.
     A timeout may leave an unsealed partial file, never a follow-on seal/release.
     """
+    o = log.contract
     fence = writer.closure_fence
     o.require(fence is not None and log.writer is writer)
     fence.check()
@@ -536,10 +572,16 @@ def clean_continuation(
     verify_receipt: Callable[[dict[str, Any], dict[str, Any]], None],
 ) -> dict[str, Any]:
     """Return checked rebase instructions, never dispatch or modify old files."""
+    from . import s12_public_operations as o
+
+    if profile.get("schema_version") == "stage12_transport_operations_v3":
+        from . import s12_public_sampling_contract as o
     o.verify_authorities(profile, plan, expected_start, authority)
     o.require(io.read(root / "campaign_start.json") == c.canonical(expected_start))
     o.require(io.read(root / "_SEGMENT_SEALED", limit=0) == b"")
     snapshot = o.parse(io.read(root / "snapshot.json"), o.SNAPSHOT)
+    if o.PROFILE == "stage12_transport_operations_v3":
+        o.require(snapshot["segment_id"] < plan["sampling_budget"]["maximum_segments"])
     o.require(
         snapshot["campaign_start_sha256"] == o.digest(expected_start)
         and snapshot["disposition"] == "PAUSED_CLEAN"
@@ -562,17 +604,17 @@ def clean_continuation(
             == current["controller"]["remaining_work_ledger_sha256"]
         )
         o.require(
-            o.manifest_digest(journal.evidence_inventory(node, "events"))
+            o.manifest_digest(journal.evidence_inventory(node, "events", contract=o))
             == current["event_inventory_sha256"]
         )
         o.require(
-            o.manifest_digest(journal.evidence_inventory(node, "attempts"))
+            o.manifest_digest(journal.evidence_inventory(node, "attempts", contract=o))
             == current["attempt_inventory_sha256"]
         )
         block_report = io.metadata(io.read(node / "block_report.json"))
         o.validate_type(block_report, "BlockReport")
         closed_hash = None
-        for event in journal.read_events(node, o.digest(expected_start)):
+        for event in journal.read_events(node, o.digest(expected_start), contract=o):
             if (
                 event["kind"] == "BLOCK_CLOSED"
                 and event["body"]["block_id"] == current["controller"]["block_id"]
@@ -592,9 +634,19 @@ def clean_continuation(
         node = journal.predecessor_root(node)
 
     def event_factory():
-        return journal.read_events(root, o.digest(expected_start))
+        return journal.read_events(root, o.digest(expected_start), contract=o)
 
-    state = replay(event_factory())
+    if o.PROFILE == "stage12_transport_operations_v3":
+        from .s12_public_sampling import inspect
+
+        summaries = inspect(
+            event_factory,
+            profile,
+            expected_start,
+            maximum_segments=plan["sampling_budget"]["maximum_segments"],
+        )
+        o.require(all(x["complete"] for x in summaries))
+    state = replay(event_factory(), contract=o)
     o.require(
         state["closed"] and not state["unfinished"] and state["breaker_reason"] is None
     )
@@ -620,7 +672,7 @@ def clean_continuation(
 
     def ledger():
         for row, stored in zip_longest(
-            work_ledger(work_factory, event_factory, verify_receipt),
+            work_ledger(work_factory, event_factory, verify_receipt, contract=o),
             journal.read_array(root / "work_ledger.json"),
         ):
             o.require(row is not None and stored is not None)

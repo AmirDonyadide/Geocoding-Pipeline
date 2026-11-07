@@ -96,6 +96,14 @@ class Coordinator:
         cumulative_remaining: Callable[[], float] | None = None,
         timing_observer=None,
     ):
+        self.ap_enabled = contract.PROFILE == "stage12_transport_operations_v3"
+        self.ap_sampler = None
+        self.ap_revision = 0
+        self.ap_current = None
+        self.ap_cut_granted = False
+        self.ap_cut_fault = False
+        self.ap_order = threading.Condition()
+        self.ap_persisted = 0
         self.failures = diagnostics
         self.timing_observer = timing_observer
         self.contract = contract
@@ -269,6 +277,36 @@ class Coordinator:
                     self.last_ticket = self.finalized_ticket = previous["last_ticket"]
                     self.prior_active_ms = previous["active_duration_ms"]
                     self.prior_block_ms = rebase["block_durations_ms"].get(block_id, 0)
+                if self.ap_enabled:
+                    if rebase is not None:
+                        previous = rebase["snapshot"]
+                        self.contract.require(
+                            io.read(predecessor / "snapshot.json")
+                            == c.canonical(previous)
+                        )
+                        self.contract.require(
+                            (
+                                self.journal.segment,
+                                self.journal.seq,
+                                self.journal.last_hash,
+                            )
+                            == (
+                                previous["segment_id"],
+                                previous["last_event_seq"],
+                                previous["last_event_sha256"],
+                            )
+                        )
+                    self.contract.require(
+                        self.journal.segment
+                        < plan["sampling_budget"]["maximum_segments"]
+                    )
+                    from .s12_public_sampling import Sampler
+
+                    self.journal.enable_accounting()
+                    self.ap_baseline = self._ap_hard_state()
+                    self.ap_current = self.ap_baseline.copy()
+                    self.ap_sampler = Sampler(self)
+                    self.writer.sampling = self.ap_sampler
                 self.journal.open_segment(
                     self.journal.segment + 1,
                     epoch,
@@ -299,6 +337,9 @@ class Coordinator:
                         (self.opened_ns, (entry["work_id"], entry["attempt"]))
                         for entry in rebase["overload_carry"]
                     )
+                if self.ap_enabled:
+                    self.ap_sampler.publish_open()
+                    self.sample_thread = self.ap_sampler.thread
                 self.state = "VERIFYING" if self.monitored else "RUNNING"
                 if rebase is not None and self.cooldown_until > clock.now_ns():
                     self.state = "COOLDOWN"
@@ -311,6 +352,10 @@ class Coordinator:
                     )
                 self.resource("STATE_CHANGE")
         except BaseException:
+            if self.ap_sampler is not None:
+                self.ap_sampler.stop.set()
+                if self.ap_sampler.thread is not None:
+                    self.ap_sampler.thread.join(timeout=5)
             # Constructor failure cannot leave an independently usable writer.
             # Abort preserves uncertain/partial evidence and creates no seal.
             try:
@@ -331,6 +376,124 @@ class Coordinator:
     def spacing(self) -> int:
         return self.contract.interval(self.selected["rate"])
 
+    def _ap_hard_state(self):
+        return dict(
+            connection_slots=sum(s.connection for s in self.slots.values()),
+            admitted_operations=len(self.slots),
+            pending_count=len(self.pending),
+            pending_bytes=sum(len(p.target) for p in self.pending),
+            reserved_bytes=len(self.slots) * self.contract.RESERVATION,
+            selected_state_id=self.state_id,
+        )
+
+    def ap_state(self):
+        return self.ap_revision, self.ap_current.copy()
+
+    def _ap_record(self):
+        if not self.ap_enabled:
+            return None
+        current = self._ap_hard_state()
+        changed = current != self.ap_current
+        if changed:
+            self.contract.require(not self.ap_cut_granted)
+            self.ap_revision += 1
+            self.ap_current = current.copy()
+        now = self.clock.now_ns()
+        return dict(
+            observed_mono_ns=now,
+            state_revision=self.ap_revision,
+            mutation=changed,
+            mutation_mono_ns=now if changed else None,
+            **current,
+        )
+
+    def _ap_resource(self, cause, record=None):
+        trace = (
+            safe_call(self.timing_observer, "begin", cause, self.clock)
+            if cause == "START_RESERVE"
+            else None
+        )
+        try:
+            safe_call(trace, "mark", "free_query_start_ns")
+            available = self.free_bytes() if cause == "START_RESERVE" else None
+            safe_call(trace, "mark", "free_query_end_ns")
+            with self.ap_order:
+                if record is None:
+                    self.contract.require(
+                        self.ap_order.wait_for(
+                            lambda: (
+                                self.writer.failed.is_set()
+                                or self.ap_persisted == self.ap_revision
+                            ),
+                            timeout=min(5, self.writer.remaining_seconds()),
+                        )
+                    )
+                    safe_call(trace, "mark", "safety_wait_start_ns")
+                    with self.safety:
+                        safe_call(trace, "mark", "safety_acquired_ns")
+                        record = self._ap_record()
+                        safe_call(
+                            trace, "mark", "observed_ns", record["observed_mono_ns"]
+                        )
+                        safe_call(trace, "mark", "safety_snapshot_complete_ns")
+                body = dict(record, cause=cause, free_allocated_disk_bytes=available)
+                revision = body["state_revision"]
+
+                def ready():
+                    return self.writer.failed.is_set() or (
+                        revision == self.ap_persisted + 1
+                        if body["mutation"]
+                        else revision == self.ap_persisted
+                    )
+
+                self.contract.require(
+                    self.ap_order.wait_for(
+                        ready, timeout=min(5, self.writer.remaining_seconds())
+                    )
+                )
+                self.contract.require(not self.writer.failed.is_set())
+                self.journal.event(
+                    "RESOURCE", body, closure=self.stop_reason is not None, timing=trace
+                )
+                if body["mutation"]:
+                    self.ap_persisted = revision
+                    self.ap_order.notify_all()
+            safe_call(trace, "outcome", "COMPLETE")
+        finally:
+            safe_call(trace, "mark", "collector_return_ns")
+            safe_call(self.timing_observer, "finish", trace)
+
+    def _record_resource(self, cause, record):
+        if self.ap_enabled:
+            self._ap_resource(cause, record)
+        else:
+            self.resource(cause)
+
+    def _sampling_gate(self):
+        if not self.ap_enabled:
+            return True
+        sampler = self.ap_sampler
+        # Called under safety: do not invert sampling-queue/safety lock order.
+        now = self.clock.now_ns()
+        if (
+            sampler.failure is not None
+            or (
+                sampler.producer_closed is None
+                and now - self.last_sample_ns > 100_000_000
+            )
+            or any(
+                state in (1, 2, 3)
+                and now - (sampler.observed[i] or sampler.entered[i]) > 500_000_000
+                for i, state in enumerate(sampler.states)
+            )
+        ):
+            if self.stop_reason is None:
+                self.stop_reason = "MEASUREMENT_FAILURE"
+                self.state = "STOPPED"
+            self.measurement_failed = True
+            return False
+        return True
+
     def audit_failed(self) -> None:
         with self.safety:
             self.state = "RECOVERY_BLOCKED"
@@ -340,6 +503,8 @@ class Coordinator:
 
     def terminal(self, why: str, primary: str | None = None) -> None:
         with self.safety:
+            if self.ap_enabled and self.ap_cut_granted:
+                self.ap_cut_fault = True
             if self.stop_reason is None:
                 self.stop_reason = why
                 self.primary_reason = primary
@@ -364,7 +529,11 @@ class Coordinator:
     def sample_lead_ns(self) -> int:
         # Collection starts halfway through the selected maximum gap. This is
         # scheduling headroom, not a tolerance or a substituted observation time.
-        return max(1, self.profile["resource_sample_period_ms"] * 1_000_000 // 2)
+        return (
+            50_000_000
+            if self.ap_enabled
+            else max(1, self.profile["resource_sample_period_ms"] * 1_000_000 // 2)
+        )
 
     def next_wakeup_ns(self, *deadlines: int) -> int:
         now = self.clock.now_ns()
@@ -409,6 +578,9 @@ class Coordinator:
         return self.next_wakeup_ns()
 
     def sample_if_due(self) -> bool:
+        if self.ap_enabled:
+            self.ap_sampler.health()
+            return False
         timing = None
         collector_enter = (
             self.clock.now_ns() if self.timing_observer is not None else None
@@ -486,6 +658,9 @@ class Coordinator:
             raise OSError("PUBLIC_PROBE_EVIDENCE_WRITE_FAILED")
 
     def start_sampling(self) -> None:
+        if self.ap_enabled:
+            self.sample_thread = self.ap_sampler.thread
+            return
         self.contract.require(
             self.sample_thread is None and not self.sample_stop.is_set()
         )
@@ -513,6 +688,14 @@ class Coordinator:
         self.sample_thread.start()
 
     def stop_sampling(self) -> bool:
+        if self.ap_enabled:
+            try:
+                self.ap_sampler.close()
+                self.sample_stop.set()
+                return True
+            except BaseException:
+                self.sample_join_failed = True
+                return False
         """Join the one sample slot before final PERIODIC/report-prefix capture.
 
         A stuck observation/write cannot be cancelled into a clean seal. Once
@@ -537,6 +720,9 @@ class Coordinator:
         return not self.writer.failed.is_set()
 
     def resource(self, cause: str) -> None:
+        if self.ap_enabled:
+            self._ap_resource(cause)
+            return
         timing = (
             safe_call(self.timing_observer, "begin", cause, self.clock)
             if cause in ("PERIODIC", "START_RESERVE")
@@ -690,8 +876,9 @@ class Coordinator:
                     and self.last_ticket == self.finalized_ticket
                 )
                 self.pending.clear()
+                ap_record = self._ap_record()
                 self.state = "DRAINING"
-            self.resource("STATE_CHANGE")
+            self._record_resource("STATE_CHANGE", ap_record)
 
     def queue(self, pending: Pending) -> None:
         self.contract.validate_type(pending.work, "Work")
@@ -721,7 +908,8 @@ class Coordinator:
                     and all(k[0] != pending.work["work_id"] for k in self.slots)
                 )
                 self.pending.append(pending)
-            self.resource("QUEUE_ADD")
+                ap_record = self._ap_record()
+            self._record_resource("QUEUE_ADD", ap_record)
 
     def _time_gate(self) -> None:
         from datetime import datetime, timedelta
@@ -790,7 +978,9 @@ class Coordinator:
             with self.safety:
                 now = self.clock.now_ns()
                 if (
-                    self.stop_reason
+                    not self._sampling_gate()
+                    or self.ap_cut_granted
+                    or self.stop_reason
                     or self.begin_in_progress
                     or self.safety_barriers
                     or (self.pause_pending and self.state != "DRAINING")
@@ -903,7 +1093,8 @@ class Coordinator:
                 self.pending.remove(pending)
                 slot = Slot(pending, "")
                 self.slots[slot.key] = slot
-            self.resource("QUEUE_REMOVE")
+                ap_record = self._ap_record()
+            self._record_resource("QUEUE_REMOVE", ap_record)
             self.resource("START_RESERVE")
             try:
                 slot.begin_hash = self.writer.cooperative(lambda: begin(pending))
@@ -922,7 +1113,12 @@ class Coordinator:
 
     def started(self, slot: Slot, mono_ns: int) -> None:
         with self.safety:
-            if self.stop_reason or self.clock.now_ns() < self.cooldown_until:
+            if (
+                not self._sampling_gate()
+                or self.ap_cut_granted
+                or self.stop_reason
+                or self.clock.now_ns() < self.cooldown_until
+            ):
                 self._unknown(slot)
             self.contract.require(
                 slot.started_ns is None
@@ -959,7 +1155,12 @@ class Coordinator:
                 if self.monitored and not slot.pending.monitor:
                     self.monitor.before_dispatch()
                 with self.safety:
-                    if self.stop_reason or self.clock.now_ns() < self.cooldown_until:
+                    if (
+                        not self._sampling_gate()
+                        or self.ap_cut_granted
+                        or self.stop_reason
+                        or self.clock.now_ns() < self.cooldown_until
+                    ):
                         self._unknown(slot)
                     now = self.clock.now_ns()
                     due = self.next_emit_ns
@@ -1146,6 +1347,7 @@ class Coordinator:
             if not slot.pending.monitor:
                 self.a -= 1
             self.c += 1
+            ap_record = self._ap_record()
         self.writer.call(persist_transport)
         self.journal.event(
             "NETWORK_DONE",
@@ -1158,7 +1360,7 @@ class Coordinator:
             },
             closure=self.stop_reason is not None,
         )
-        self.resource("CONNECTION_RELEASE")
+        self._record_resource("CONNECTION_RELEASE", ap_record)
         self.wake.set()
 
     def finalize(
@@ -1254,6 +1456,7 @@ class Coordinator:
         with self.safety:
             self.finalized_ticket = slot.ticket
             del self.slots[slot.key]
+            ap_record = self._ap_record()
             self.signalled.discard(slot.key)
             released = self.clock.now_ns()
         self.journal.event(
@@ -1269,7 +1472,7 @@ class Coordinator:
             },
             closure=self.stop_reason is not None,
         )
-        self.resource("RESERVATION_RELEASE")
+        self._record_resource("RESERVATION_RELEASE", ap_record)
         with self.safety:
             self.safety_barriers -= 1
         self.wake.set()
@@ -1382,6 +1585,7 @@ class Coordinator:
             )
             old, spacing = self.state_id, self.spacing
             self.state_id = state_id
+            ap_record = self._ap_record()
             self.next_start_ns = max(
                 self.next_start_ns, self.last_start_ns + max(spacing, self.spacing)
             )
@@ -1398,7 +1602,7 @@ class Coordinator:
                 "basis_event_seq": basis_seq,
             },
         )
-        self.resource("STATE_CHANGE")
+        self._record_resource("STATE_CHANGE", ap_record)
 
     def hooks(
         self,

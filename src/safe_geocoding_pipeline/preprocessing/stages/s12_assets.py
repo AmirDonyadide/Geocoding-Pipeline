@@ -15,7 +15,9 @@ from . import s12_retrieval_contract as c
 from . import s12_storage as storage
 
 
-def objects(*, public_operations: bool = False) -> dict[str, dict[str, Any]]:
+def objects(
+    *, public_operations: bool = False, public_sampling: bool = False
+) -> dict[str, dict[str, Any]]:
     """Descriptors have no self hash, executable SHA, path-dependent ID or secret."""
     result: dict[str, dict[str, Any]] = {
         c.CONTRACT: {
@@ -357,6 +359,10 @@ def objects(*, public_operations: bool = False) -> dict[str, dict[str, Any]]:
         from . import s12_public_operations
 
         result.update(s12_public_operations.descriptors())
+    if public_sampling:
+        from . import s12_public_sampling_contract
+
+        result.update(s12_public_sampling_contract.descriptors())
     return result
 
 
@@ -364,14 +370,18 @@ def hashes() -> dict[str, bytes]:
     return {name: c.sha(c.canonical(value)) for name, value in objects().items()}
 
 
-def verify(root: Path, *, public_operations: bool = False) -> dict[str, str]:
+def verify(
+    root: Path, *, public_operations: bool = False, public_sampling: bool = False
+) -> dict[str, str]:
     for filename, expected in c.DESIGN_HASHES.items():
         c.require(
             c.sha((root / "docs/stages" / filename).read_bytes()).hex() == expected,
             "S12_FROZEN_DESIGN_MISMATCH",
         )
     result = {}
-    for name, value in objects(public_operations=public_operations).items():
+    for name, value in objects(
+        public_operations=public_operations, public_sampling=public_sampling
+    ).items():
         raw = (root / "docs/scientific_assets" / (name + ".json")).read_bytes()
         c.require(raw == c.canonical(value), "S12_ASSET_MISMATCH")
         result[name] = c.sha(raw).hex()

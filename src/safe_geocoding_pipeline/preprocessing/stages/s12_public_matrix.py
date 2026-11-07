@@ -336,7 +336,7 @@ def verify_controls(root, plan):
         return []
     final = {}
     start = io.metadata(io.read(root / "campaign_start.json"))
-    for e in journal.read_events(root, o.digest(start)):
+    for e in _events(root, start):
         if e["kind"] == "ATTEMPT_FINALIZED":
             b = e["body"]
             o.require(b["work_id"] not in final)
@@ -467,7 +467,7 @@ def reconcile(config, output, check):
         )
         finals = {}
         phase_events = 0
-        for event in journal.read_events(root, o.digest(start)):
+        for event in _events(root, start):
             check()
             phase_events += 1
             if event["kind"] == "ATTEMPT_FINALIZED":
@@ -601,3 +601,18 @@ def reconcile(config, output, check):
         "continuous_service_state": "NOT_VERIFIED",
         "qualified_public_rates": [],
     }
+
+
+def _contract(start):
+    if start.get("schema_version") == "stage12_public_operations_campaign_v2":
+        from . import s12_public_sampling_contract as ap
+
+        return ap
+    return o
+
+
+def _events(root, start):
+    contract = _contract(start)
+    if contract is o:
+        return journal.read_events(root, o.digest(start))
+    return journal.read_events(root, o.digest(start), contract=contract)

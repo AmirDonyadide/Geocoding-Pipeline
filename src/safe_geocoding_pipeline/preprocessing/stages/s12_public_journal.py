@@ -44,6 +44,9 @@ class Writer:
         self.closed = False
         self.submission_lock = threading.Lock()
         self.closure_fence = None
+        self.sampling = None
+        self.ap_credit = False
+        self.ap_active_started = None
         self.failures = None
         self.charge_write: Callable[[Path, int], None] = lambda path, size: None
         self.storage_guard: Callable[[], None] = lambda: None
@@ -60,6 +63,10 @@ class Writer:
     def _work(self) -> None:
         while True:
             self.wake.clear()
+            if self.sampling is not None:
+                if self._ap_turn():
+                    return
+                continue
             try:
                 self.service_periodic()
             except BaseException:
@@ -76,13 +83,92 @@ class Writer:
             self.mailbox_capacity.release()
             self._execute(item)
 
+    def _ap_turn(self):
+        try:
+            try:
+                item = self.mailbox.get_nowait()
+            except queue.Empty:
+                item = False
+            if item is None:
+                if not self.failed.is_set():
+                    self.contract_check_empty()
+                return True
+            if item is not False:
+                self.mailbox_capacity.release()
+                self.ap_credit = True
+                self._execute(item)
+                if self.ap_credit and not self.failed.is_set():
+                    self.ap_credit = False
+                    self._execute_periodic()
+            elif not self.failed.is_set():
+                self._execute_periodic()
+            if not self.failed.is_set():
+                self.sampling.probe_cut()
+        except BaseException:
+            self.failed.set()
+            self.stop()
+        self.wake.wait(0.001)
+        return False
+
+    def _execute_periodic(self):
+        # Sole-writer inline turn: no per-observation/pair Future or callback.
+        self.ap_active_started = self.sampling.clock.now_ns()
+        try:
+            self.assert_owner()
+            self.check_deadline()
+            self.sampling.health()
+            with (
+                io.cooperative_io(self.publication_checkpoint),
+                io.charged_writes(self.charge_write),
+                io.allocation_controls(self.allocation_controls),
+            ):
+                self.sampling_pair()
+            self.check_deadline()
+            self.storage_guard()
+            self.assert_owner()
+            self.sampling.health()
+        except BaseException as error:
+            if self.failures is not None:
+                self.failures.record("WRITER_ACTION", error, writer=self)
+            self.failed.set()
+            self.stop()
+            self.sampling.uncertain_traces()
+        finally:
+            self.ap_active_started = None
+
+    def sampling_pair(self):
+        result = self.sampling.service()
+        if result:
+            self.sampling.pair_return()
+            self.check_deadline()
+            self.storage_guard()
+            self.sampling.after_turn()
+        return result
+
+    def contract_check_empty(self):
+        o.require(
+            self.sampling.closed
+            and (
+                not self.sampling.occupied
+                or (
+                    self.sampling.failure
+                    and not self.sampling.owner_busy
+                    and not any(x in (2, 3, 4) for x in self.sampling.states)
+                )
+            )
+        )
+
     def _execute(self, item: Any) -> None:
+        if self.sampling is not None:
+            self.ap_active_started = self.sampling.clock.now_ns()
         action, future, *extra = item
         timing = extra[0] if extra else None
         safe_call(timing, "mark", "writer_entry_ns")
         try:
             o.require(not self.failed.is_set(), "PUBLIC_PROBE_EVIDENCE_WRITE_FAILED")
             self.check_deadline()
+            if self.sampling is not None:
+                self.sampling.health()
             with (
                 io.cooperative_io(self.publication_checkpoint),
                 io.charged_writes(self.charge_write),
@@ -94,15 +180,20 @@ class Writer:
             self.check_deadline()
             o.require(not self.failed.is_set(), "PUBLIC_PROBE_EVIDENCE_WRITE_FAILED")
             self.storage_guard()
+            if self.sampling is not None:
+                self.sampling.health()
             safe_call(timing, "mark", "post_action_complete_ns")
         except BaseException as error:
             if self.failures is not None:
                 self.failures.record("WRITER_ACTION", error, writer=self)
             self.failed.set()
             self.stop()
+            if self.sampling is not None:
+                self.sampling.uncertain_traces()
             future.set_exception(error)
         else:
             future.set_result(result)
+        self.ap_active_started = None
 
     def service_periodic(self) -> None:
         """Only the writer can drain the one sample slot, at a safe boundary.
@@ -111,6 +202,12 @@ class Writer:
         observable as a late sample; this never fabricates an acquisition time.
         """
         o.require(threading.current_thread() is self.thread)
+        if self.sampling is not None:
+            self.sampling.health()
+            if self.ap_credit:
+                self.ap_credit = False
+                self.sampling_pair()
+            return
         if self.failed.is_set():
             raise OSError("PUBLIC_PROBE_EVIDENCE_WRITE_FAILED")
         try:
@@ -253,6 +350,14 @@ class Writer:
 
     def abort(self) -> None:
         """Stop accepting work without creating a clean release/seal claim."""
+        if self.sampling is not None:
+            self.failed.set()
+            self.sampling.stop.set()
+            if (
+                self.sampling.thread is not None
+                and threading.current_thread() is not self.sampling.thread
+            ):
+                self.sampling.thread.join(timeout=min(5, self.remaining_seconds()))
         self.closed = True
         try:
             self.mailbox.put_nowait(None)
@@ -343,6 +448,11 @@ class Journal:
         self.last_mono = 0
         self.segment_closed = True
         self.start_hash = self.contract.digest(start)
+        self.ap_budget_lock = threading.RLock()
+        self.ap_pending_events = self.ap_pending_bytes = 0
+        self.ap_inflight_events = 0
+        self.ap_inventory_calls = 0
+        self.ap_inventory_limit = 8
         self.accounted_bytes: int | None = None
         self.root_identity = None
         writer.call(lambda: self.write("campaign_start.json", start))
@@ -405,8 +515,9 @@ class Journal:
         self.writer.assert_owner()
         self.contract.uint(size)
         self.contract.require(path.is_relative_to(self.writer.root))
-        self.check_storage(size)
-        self.accounted_bytes = self.contract.checked(self.accounted_bytes + size)
+        with self.ap_budget_lock:
+            self.check_storage(size)
+            self.accounted_bytes = self.contract.checked(self.accounted_bytes + size)
 
     def verify_storage(self) -> int:
         self.writer.assert_owner()
@@ -453,7 +564,11 @@ class Journal:
         tail_bytes, previous, mono = 0, before_head, before_mono
         for seq in range(before_seq + 1, end + 1):
             self.writer.check_deadline()
-            raw = io.read(events_root / f"{seq:020d}.json")
+            raw = (
+                io.read(events_root / f"{seq:020d}.json", limit=4096)
+                if self.writer.sampling is not None
+                else io.read(events_root / f"{seq:020d}.json")
+            )
             obj = self.contract.parse(raw, self.contract.EVENT)
             self.contract.require(
                 obj["seq"] == seq
@@ -462,8 +577,11 @@ class Journal:
                 and obj["segment_id"] == self.segment
                 and obj["epoch_id"] == self.epoch
                 and obj["mono_ns"] >= mono
-                and obj["kind"] == "RESOURCE"
-                and obj["body"]["cause"] == "PERIODIC",
+                and (
+                    (obj["kind"] == "RESOURCE" and obj["body"]["cause"] == "PERIODIC")
+                    if self.writer.sampling is None
+                    else obj["kind"] in ("RESOURCE_SAMPLE", "SAMPLE_ACK")
+                ),
                 "S12_PUBLIC_STORAGE_ACCOUNTING_MISMATCH",
             )
             tail_bytes = self.contract.checked(tail_bytes + len(raw))
@@ -515,14 +633,20 @@ class Journal:
         return self.contract.checked(self.prior_bytes + tree_bytes(self.writer.root))
 
     def check_storage(self, additional: int) -> None:
+        with self.ap_budget_lock:
+            return self._check_storage(additional)
+
+    def _check_storage(self, additional: int) -> None:
         current = (
             tree_bytes(self.writer.root)
             if self.accounted_bytes is None
             else self.accounted_bytes
         )
         self.contract.require(
-            self.prior_bytes + current + additional <= self.storage_budget
-            and self.prior_block_bytes + current + additional <= self.block_byte_budget,
+            self.prior_bytes + current + additional + self.ap_pending_bytes
+            <= self.storage_budget
+            and self.prior_block_bytes + current + additional + self.ap_pending_bytes
+            <= self.block_byte_budget,
             "PUBLIC_PROBE_EVIDENCE_WRITE_FAILED",
         )
 
@@ -535,14 +659,28 @@ class Journal:
                 - (self.seq - self.block_start_seq),
             )
             - self.closure_events
+            - self.ap_pending_events
+            - self.ap_inflight_events
         )
 
     def _readback(self, path: Path, raw: bytes) -> bytes:
         # Public metadata already has an exact expected length. A tighter read
         # bound rejects every extra/truncated byte as before, while avoiding a
         # 64MiB requested read for each small event. Shared B2 defaults unchanged.
-        if self.contract is o:
-            return io.read(path, limit=min(len(raw), 64 * 1024 * 1024))
+        if (
+            self.contract is o
+            or getattr(self.contract, "PROFILE", None)
+            == "stage12_transport_operations_v3"
+        ):
+            limit = min(len(raw), 64 * 1024 * 1024)
+            if (
+                getattr(self.contract, "PROFILE", None)
+                == "stage12_transport_operations_v3"
+                and path.parent.name == "events"
+            ):
+                self.contract.require(len(raw) <= 4096)
+                limit = min(limit, 4096)
+            return io.read(path, limit=limit)
         return io.read(path)
 
     def write(self, name: str, value: Any) -> str:
@@ -554,10 +692,28 @@ class Journal:
         self.contract.require(self._readback(self.writer.root / name, raw) == raw)
         return c.sha(raw).hex()
 
+    def claim_inventory(self, name):
+        # Cumulative validation inventory versions only, not DATA/control receipt
+        # files or unchanged input runtime inventories. Charge before creation;
+        # failed/partial attempts retain their invocation charge.
+        if self.writer.sampling is not None and name in (
+            "event_inventory.json",
+            "attempt_inventory.json",
+            "available_event_inventory.json",
+            "available_attempt_inventory.json",
+            "measurement_event_prefix.json",
+        ):
+            with self.ap_budget_lock:
+                self.ap_inventory_calls += 1
+                self.contract.require(
+                    self.ap_inventory_calls <= self.ap_inventory_limit
+                )
+
     def write_array(self, name: str, rows: Iterator[dict[str, Any]]) -> str:
         """Stream fixed-size metadata rows; exclusive write and full reopen."""
         self.writer.assert_owner()
         self.contract.require(Path(name).name == name and name not in (".", ".."))
+        self.claim_inventory(name)
         path = self.writer.root / name
         io.private_directory(path.parent)
         fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
@@ -584,7 +740,18 @@ class Journal:
                 for i, row in enumerate(rows):
                     raw = c.canonical(row)[:-1]
                     self.contract.require(
-                        len(raw) <= 65536
+                        len(raw)
+                        <= (4095 if name == "measurement_event_prefix.json" else 511)
+                        if self.writer.sampling is not None
+                        and name
+                        in (
+                            "event_inventory.json",
+                            "attempt_inventory.json",
+                            "available_event_inventory.json",
+                            "available_attempt_inventory.json",
+                            "measurement_event_prefix.json",
+                        )
+                        else len(raw) <= 65536
                     )  # Fixed ledger/inventory rows, not payloads.
                     if i:
                         put(b",")
@@ -609,6 +776,7 @@ class Journal:
         """
         self.contract.require(threading.current_thread() is not self.writer.thread)
         self.contract.require(Path(name).name == name and name not in (".", ".."))
+        self.claim_inventory(name)
         path = self.writer.root / name
         state: dict[str, Any] = {"fd": None}
         fingerprint = hashlib.sha256()
@@ -643,7 +811,22 @@ class Journal:
             for i, row in enumerate(rows):
                 self.writer.check_deadline()
                 raw = c.canonical(row)[:-1]
-                self.contract.require(len(raw) <= 65536)
+                self.contract.require(
+                    len(raw)
+                    <= (
+                        (4095 if name == "measurement_event_prefix.json" else 511)
+                        if self.writer.sampling is not None
+                        and name
+                        in (
+                            "event_inventory.json",
+                            "attempt_inventory.json",
+                            "available_event_inventory.json",
+                            "available_attempt_inventory.json",
+                            "measurement_event_prefix.json",
+                        )
+                        else 65536
+                    )
+                )
                 self.writer.call(lambda: put((b"," if i else b"") + raw))
             self.writer.call(lambda: put(b"]\n"))
             self.writer.call(close)
@@ -685,6 +868,7 @@ class Journal:
         periodic: bool = False,
         periodic_timing: dict[str, int] | None = None,
         timing=None,
+        writer_inline: bool = False,
     ) -> str:
         self.contract.require(
             not periodic or (kind == "RESOURCE" and body["cause"] == "PERIODIC")
@@ -702,21 +886,34 @@ class Journal:
                 periodic_timing["writer_start_ns"] = self.clock.now_ns()
             self.writer.assert_owner()
             self.contract.require(not self.segment_closed)
-            cap = (
-                self.event_budget
-                if closure
-                else self.event_budget - self.closure_events
-            )
-            self.contract.require(self.seq < cap, "PUBLIC_PROBE_EVIDENCE_WRITE_FAILED")
-            block_cap = (
-                self.block_event_budget
-                if closure
-                else self.block_event_budget - self.closure_events
-            )
-            self.contract.require(
-                self.prior_block_events + self.seq - self.block_start_seq < block_cap,
-                "PUBLIC_PROBE_EVIDENCE_WRITE_FAILED",
-            )
+            with self.ap_budget_lock:
+                cap = (
+                    self.event_budget
+                    if closure
+                    else self.event_budget - self.closure_events
+                )
+                if self.writer.sampling is not None:
+                    self.writer.sampling.transfer_event(kind)
+                self.contract.require(
+                    self.seq + self.ap_pending_events + self.ap_inflight_events < cap,
+                    "PUBLIC_PROBE_EVIDENCE_WRITE_FAILED",
+                )
+                block_cap = (
+                    self.block_event_budget
+                    if closure
+                    else self.block_event_budget - self.closure_events
+                )
+                self.contract.require(
+                    self.prior_block_events
+                    + self.seq
+                    - self.block_start_seq
+                    + self.ap_pending_events
+                    + self.ap_inflight_events
+                    < block_cap,
+                    "PUBLIC_PROBE_EVIDENCE_WRITE_FAILED",
+                )
+                if self.writer.sampling is not None:
+                    self.ap_inflight_events += 1
             mono = self.clock.now_ns()
             self.contract.require(mono >= self.last_mono)
             obj = {
@@ -736,20 +933,29 @@ class Journal:
             safe_call(timing, "mark", "event_mono_ns", mono)
             safe_call(timing, "mark", "event_header_ns", mono)
             self.contract.validate(obj, self.contract.EVENT)
+            if self.writer.sampling is not None:
+                self.writer.sampling.event_milestone(kind, obj, "HEADER")
             if kind == "ATTEMPT_FINALIZED":
                 self.contract.require(body["outcome"]["value"] != "UNKNOWN_DELIVERY")
             if "attempt" in body:
                 self.contract.require(body["attempt"] <= 5)
             raw = c.canonical(obj)
+            if kind == "SEGMENT_OPEN" and self.writer.sampling is not None:
+                self.writer.sampling.anchor_open(obj)
             self.check_storage(len(raw))
             path = self.writer.root / "events" / f"{obj['seq']:020d}.json"
             io.write(path, raw)
+            if self.writer.sampling is not None:
+                self.writer.sampling.event_milestone(kind, obj, "APPENDED")
             self.contract.require(self._readback(path, raw) == raw)
-            self.seq, self.last_hash, self.last_mono = (
-                obj["seq"],
-                c.sha(raw).hex(),
-                mono,
-            )
+            with self.ap_budget_lock:
+                self.seq, self.last_hash, self.last_mono = (
+                    obj["seq"],
+                    c.sha(raw).hex(),
+                    mono,
+                )
+                if self.writer.sampling is not None:
+                    self.ap_inflight_events -= 1
             if kind == "SEGMENT_CLOSE":
                 self.segment_closed = True
             safe_call(timing, "mark", "append_complete_ns")
@@ -757,6 +963,12 @@ class Journal:
                 periodic_timing["writer_done_ns"] = self.clock.now_ns()
             return self.last_hash
 
+        if writer_inline:
+            self.contract.require(
+                self.writer.sampling is not None
+                and threading.current_thread() is self.writer.thread
+            )
+            return append()
         result = (
             self.writer.call(append, periodic=periodic)
             if timing is None
@@ -804,7 +1016,12 @@ def read_events(
             )
         for path in sorted((root / "events").iterdir()):
             o.require(path.name.endswith(".json") and path.stem.isdigit())
-            yield int(path.stem), io.read(path)
+            yield (
+                int(path.stem),
+                io.read(path, limit=4096)
+                if o.PROFILE == "stage12_transport_operations_v3"
+                else io.read(path),
+            )
 
     for seq, (file_seq, raw) in enumerate(sources(), 1):
         o.require(file_seq == seq)
@@ -846,6 +1063,7 @@ class MeasurementPrefix:
 
     def __init__(self, journal):
         self.journal = journal
+        self.contract = journal.contract
         self.root = journal.writer.root
         self.start_hash = journal.start_hash
         self.seq, self.head = journal.writer.call(
@@ -857,22 +1075,25 @@ class MeasurementPrefix:
         self.check = lambda: journal.writer.check_deadline()
 
     @classmethod
-    def from_closed(cls, root, start_hash, seq, *, check):
+    def from_closed(cls, root, start_hash, seq, *, check, contract=o):
         """Freshly bind a retained projection to ORIGINAL source, never its label.
 
         The caller has validated sealed snapshot inventories. No authority or
         correctness follows from the projection existing. Missing projection is
         handled by the caller as the legacy full-reader path.
         """
+        if contract.PROFILE == "stage12_transport_operations_v3":
+            contract.require(predecessor_root(root) is None)
         result = cls.__new__(cls)
         result.journal = None
+        result.contract = contract
         result.root, result.start_hash = root, start_hash
         result.seq, result.head = seq, None
         result.path = root / "measurement_event_prefix.json"
         result.check = check
         fingerprint = hashlib.sha256(b"[")
         last = None
-        for event in read_events(root, start_hash):
+        for event in read_events(root, start_hash, contract=contract):
             check()
             last = event
             if event["seq"] <= seq:
@@ -899,8 +1120,9 @@ class MeasurementPrefix:
         )
 
     def verify_original(self):
+        o = self.contract
         last = None
-        for event in read_events(self.root, self.start_hash):
+        for event in read_events(self.root, self.start_hash, contract=self.contract):
             last = event
             if event["seq"] == self.seq:
                 o.require(o.digest(event) == self.head)
@@ -908,12 +1130,18 @@ class MeasurementPrefix:
         o.require((last["seq"], o.digest(last)) == self.endpoint())
 
     def build(self, *, closure_reserve=0):
+        o = self.contract
         o.uint(closure_reserve)
+        if (
+            o.PROFILE == "stage12_transport_operations_v3"
+            and predecessor_root(self.root) is not None
+        ):
+            return False  # No third retained copy of predecessor raw events.
         # No sample/event producer remains during this construction. Count
         # bytes AND perform the first exact original-source verification in the
         # same traversal; do not replace it with a metadata/cache assertion.
         size, last = 3, None
-        for event in read_events(self.root, self.start_hash):
+        for event in read_events(self.root, self.start_hash, contract=self.contract):
             last = event
             if event["seq"] == self.seq:
                 o.require(o.digest(event) == self.head)
@@ -932,17 +1160,25 @@ class MeasurementPrefix:
         ):
             return False  # Preserve the full selected finalization metadata reserve.
         self.hash = self.journal.stream_array(
-            self.path.name, read_events(self.root, self.start_hash)
+            self.path.name,
+            read_events(self.root, self.start_hash, contract=self.contract),
         )
         self.bytes = size
         self.verify_original()
         return True
 
     def events(self):
+        o = self.contract
         last, segment, epoch, mono, closed = None, 0, None, 0, True
         fingerprint = hashlib.sha256(b"[")
         seq = 0
-        for obj in read_array(self.path, check=self.check):
+        for obj in read_array(
+            self.path,
+            check=self.check,
+            maximum_row_bytes=4095
+            if o.PROFILE == "stage12_transport_operations_v3"
+            else 65536,
+        ):
             seq += 1
             if seq > 1:
                 fingerprint.update(b",")
@@ -985,7 +1221,13 @@ class MeasurementPrefix:
         # Only the sole writer can append a tail. Pin its current head on entry.
         end, head = self.endpoint()
         for i in range(seq + 1, end + 1):
-            obj = o.parse(io.read(self.root / "events" / f"{i:020d}.json"), o.EVENT)
+            path = self.root / "events" / f"{i:020d}.json"
+            obj = o.parse(
+                io.read(path, limit=4096)
+                if o.PROFILE == "stage12_transport_operations_v3"
+                else io.read(path),
+                o.EVENT,
+            )
             o.require(
                 not closed
                 and obj["seq"] == i
@@ -1002,11 +1244,20 @@ class MeasurementPrefix:
         o.require(last == head)
 
 
-def inventory(root: Path) -> Iterator[dict[str, str]]:
+def inventory(root: Path, *, contract: Any = o) -> Iterator[dict[str, str]]:
     """Available-file inventory; does not assert complete campaign provenance."""
     for p in sorted(root.rglob("*")):
         if not p.is_dir():
-            yield {"path": str(p.relative_to(root)), "sha256": c.sha(io.read(p)).hex()}
+            yield {
+                "path": str(p.relative_to(root)),
+                "sha256": c.sha(
+                    io.read(p, limit=4096)
+                    if root.name == "events"
+                    and getattr(contract, "PROFILE", None)
+                    == "stage12_transport_operations_v3"
+                    else io.read(p)
+                ).hex(),
+            }
 
 
 def evidence_inventory(
@@ -1019,8 +1270,13 @@ def evidence_inventory(
     if parent is not None:
         yield from evidence_inventory(parent, area, contract=contract)
     first = min((root / "events").iterdir(), key=lambda p: p.name)
-    segment = o.parse(io.read(first), o.EVENT)["segment_id"]
-    for row in inventory(root / area):
+    segment = o.parse(
+        io.read(first, limit=4096)
+        if o.PROFILE == "stage12_transport_operations_v3"
+        else io.read(first),
+        o.EVENT,
+    )["segment_id"]
+    for row in inventory(root / area, contract=contract):
         yield {
             "path": f"segments/{segment:020d}/{area}/{row['path']}",
             "sha256": row["sha256"],
@@ -1058,13 +1314,17 @@ def tree_bytes(
 
 
 def read_array(
-    path: Path, *, check: Callable[[], None] = lambda: None
+    path: Path,
+    *,
+    check: Callable[[], None] = lambda: None,
+    maximum_row_bytes: int = 65536,
 ) -> Iterator[dict[str, Any]]:
     """Read canonical metadata arrays with a bounded single-row buffer.
 
     This is for fixed O-r2 work/ledger/inventory rows, never response payloads.
     Existing private regular-file/64 MiB metadata-file guards are retained.
     """
+    o.require(type(maximum_row_bytes) is int and 1 <= maximum_row_bytes <= 65536)
     io.private_directory(path.parent)
     fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
     before = os.fstat(fd)
@@ -1107,10 +1367,11 @@ def read_array(
                     item, end = decoder.raw_decode(buffer)
                     break
                 except json.JSONDecodeError:
-                    o.require(not eof)
+                    o.require(not eof and len(buffer) <= maximum_row_bytes)
                     fill()
             o.require(
                 type(item) is dict
+                and end <= maximum_row_bytes
                 and c.canonical(item)[:-1].decode("ascii") == buffer[:end]
             )
             buffer = buffer[end:]

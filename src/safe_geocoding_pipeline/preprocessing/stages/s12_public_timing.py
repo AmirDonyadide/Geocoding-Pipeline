@@ -102,7 +102,15 @@ class PublicTiming:
     caps are permitted by the shared Checkpoints implementation.
     """
 
-    def __init__(self, root, *, phase_count, budget_charge=lambda size: None, **limits):
+    def __init__(
+        self,
+        root,
+        *,
+        phase_count,
+        budget_charge=lambda size: None,
+        _sampling_schema=False,
+        **limits,
+    ):
         if type(phase_count) is not int or not 1 <= phase_count <= 32:
             raise cp.CheckpointError("CHECKPOINT_LIMIT_INVALID")
         self.lock = threading.Lock()
@@ -125,7 +133,10 @@ class PublicTiming:
         try:
             charge(0)
             self.checkpoints = cp.Checkpoints(
-                root, budget_charge=charge, row_schema=cp.PUBLIC_SCHEMA, **limits
+                root,
+                budget_charge=charge,
+                row_schema=cp.AP_SCHEMA if _sampling_schema else cp.PUBLIC_SCHEMA,
+                **limits,
             )
         except BaseException:
             self.note_failure()
@@ -257,7 +268,12 @@ def for_task(config, output):
         > TASK_FILE_CAP
     ):
         raise cp.CheckpointError("CHECKPOINT_LIMIT_INVALID")
-    observer = PublicTiming(output / "public_path_timing", phase_count=len(phases))
+    observer_class = (
+        SamplingTiming
+        if config.get("version") == "stage12_public_sampling_runtime_configuration_v1"
+        else PublicTiming
+    )
+    observer = observer_class(output / "public_path_timing", phase_count=len(phases))
     observer.reservation = {
         "bytes": reserved_bytes,
         "creations": reserved_creations,
@@ -290,3 +306,110 @@ def verify_association(row, event, *, phase_id):
     if not matches:
         raise cp.CheckpointError("CHECKPOINT_BINDING_INVALID")
     return values
+
+
+class SamplingTiming(PublicTiming):
+    """AP additive rows. Fixed16 asynchronous +4 hard trace limits.
+
+    Snapshots only; independent Checkpoints does all supplementary disk I/O.
+    No observation waits for telemetry persistence.
+    """
+
+    def __init__(self, root, *, phase_count, budget_charge=lambda n: None, **limits):
+        self.ap_rows = 0
+        super().__init__(
+            root,
+            phase_count=phase_count,
+            budget_charge=budget_charge,
+            _sampling_schema=True,
+            **limits,
+        )
+
+    def begin(self, cause, clock):
+        if cause != "START_RESERVE":
+            return None
+        with self.lock:
+            if self.outstanding >= 4 or self.closed:
+                raise cp.CheckpointError("CHECKPOINT_LIMIT_INVALID")
+            self.outstanding += 1
+        return Trace(self.phase_id, cause, clock, self)
+
+    def finish(self, trace):
+        if trace is None:
+            return
+        row = trace.take()
+        if row is None:
+            return
+        with self.lock:
+            self.outstanding -= 1
+            if row[2] == "COMPLETE":
+                self.completed_rows += 1
+            else:
+                self.partial_rows += 1
+        if self.checkpoints:
+            self.checkpoints.record({"row_kind": "HARD_SYNC", "legacy_row": list(row)})
+
+    def periodic(self, row):
+        from .s12_public_sampling_contract import validate_timing
+
+        validate_timing(row)
+        with self.lock:
+            if row["outcome"] == "COMPLETE":
+                self.completed_rows += 1
+            else:
+                self.partial_rows += 1
+        if self.checkpoints:
+            self.checkpoints.record(row)
+
+    def snapshot(self):
+        value = super().snapshot()
+        value["schema"] = "stage12_public_path_timing_summary_v2"
+        return value
+
+
+def verify_sampling_association(row, event, *, phase_id, ack_event=None):
+    from . import s12_public_sampling_contract as a
+
+    a.validate_timing(row)
+    if row["row_kind"] == "HARD_SYNC":
+        return verify_association(row["legacy_row"], event, phase_id=phase_id)
+    a.require(
+        row["phase_id"] == phase_id
+        and event["kind"] == "RESOURCE_SAMPLE"
+        and row["segment_id"] == event["segment_id"]
+        and row["epoch_id"] == event["epoch_id"]
+        and row["acquisition_seq"] == event["body"]["observation"]["acquisition_seq"]
+        and row["observation_sha256"] == event["body"]["observation_sha256"]
+        and row["sample_event_seq"] == event["seq"]
+        and row["sample_event_sha256"] == a.digest(event)
+        and row["sample_header_ns"] == event["mono_ns"]
+    )
+    observation = event["body"]["observation"]
+    for key, source in [
+        ("role", "role"),
+        ("resource_revision", "resource_revision"),
+        ("acquire_enter_ns", "acquire_enter_ns"),
+        ("free_query_start_ns", "free_query_start_ns"),
+        ("free_query_end_ns", "free_query_end_ns"),
+        ("observed_ns", "observed_mono_ns"),
+        ("acquire_exit_ns", "acquire_exit_ns"),
+    ]:
+        a.require(row[key] == observation[source])
+    if row["outcome"] == "COMPLETE" or ack_event is not None:
+        a.require(ack_event is not None)
+        body = ack_event["body"]
+        a.require(
+            ack_event["kind"] == "SAMPLE_ACK"
+            and ack_event["segment_id"] == row["segment_id"]
+            and ack_event["epoch_id"] == row["epoch_id"]
+            and ack_event["seq"] == row["ack_event_seq"] == event["seq"] + 1
+            and a.digest(ack_event) == row["ack_event_sha256"]
+            and ack_event["previous_event_sha256"] == a.digest(event)
+            and ack_event["mono_ns"] == row["ack_witness_header_ns"]
+            and body["acquisition_seq"] == row["acquisition_seq"]
+            and body["observation_sha256"] == row["observation_sha256"]
+            and body["sample_event_seq"] == event["seq"]
+            and body["sample_event_sha256"] == a.digest(event)
+            and body["event_ack_mono_ns"] == row["event_ack_publish_ns"]
+        )
+    return row
