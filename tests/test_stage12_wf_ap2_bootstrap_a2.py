@@ -35,7 +35,7 @@ def denied(monkeypatch, request):
         monkeypatch.setattr(socket.socket, name, no)
     monkeypatch.setattr(s12_transport.Secret, "runtime", no)
     monkeypatch.setattr(s12_transport.Secret, "private_file", no)
-    if request.node.name != "test_real_installed_audit_and_guarded_writer":
+    if request.node.name != "test_real_installed_audit_and_guarded_writer" and not request.node.name.startswith("test_shell_logwrite"):
         for name in ("Popen", "run", "check_output", "check_call", "call"):
             monkeypatch.setattr(subprocess, name, no)
 
@@ -644,3 +644,58 @@ def test_no_B_entrypoint_and_original_epoch_before_external_chain():
     assert text.index("export STAGE12_EPOCH_START=") < text.index("exec timeout")
     assert "stage12_a2_run 120" in text and "stage12_run 7200" not in text
     assert "storage_observations" in text and "5s bash -c" in text
+
+
+@pytest.mark.parametrize("scenario", ["allowed", "symlink", "nonprivate", "replacement", "root_replacement", "unbound", "sync_failure", "trap_failure"])
+def test_shell_logwrite_private_binding(tmp_path, scenario):
+    """Real bash helper; Darwin uses labelled GNU stat/sync API adapters only."""
+    import platform
+    import shlex
+
+    base = private(tmp_path.resolve() / "shell")
+    records = private(base / "records")
+    bindir = private(tmp_path.resolve() / "bin")
+    environment = dict(os.environ)
+    environment["PATH"] = str(bindir) + os.pathsep + environment["PATH"]
+    if platform.system() == "Darwin":
+        (bindir / "stat").write_text('#!/bin/bash\nexec /usr/bin/stat -f "%u:%Lp:%d:%i" "$4"\n')
+        (bindir / "stat").chmod(0o700)
+        (bindir / "realpath").write_text('#!/bin/bash\n[[ -e "$3" ]] || exit 2\nexec /bin/realpath "$3"\n')
+        (bindir / "realpath").chmod(0o700)
+        sync_command = "/bin/sync"
+    else:
+        sync_command = "/usr/bin/sync -f \"$2\""
+    (bindir / "sync").write_text('#!/bin/bash\n[[ "${A2_TEST_SYNC_FAILURE:-0}" != 1 ]] || exit 74\nexec ' + sync_command + '\n')
+    (bindir / "sync").chmod(0o700)
+    q = shlex.quote
+    script = 'source ' + q(str(ROOT / 'cluster/goethe_nhr/stage12_wf_ap2_bootstrap_a2.sbatch')) + '\n'
+    script += 'stage12_check() { return 0; }\nSTAGE12_UTILITIES=0\n'
+    script += 'STAGE12_A2_PARENT=' + q(str(base)) + '\nSTAGE12_A2_RECORDS=' + q(str(records)) + '\n'
+    if scenario != "unbound":
+        script += 'stage12_a2_bind_log_parents\n'
+    if scenario == "symlink":
+        script += 'mv "$STAGE12_A2_RECORDS" "${STAGE12_A2_RECORDS}_old"\nln -s "${STAGE12_A2_RECORDS}_old" "$STAGE12_A2_RECORDS"\n'
+    elif scenario == "nonprivate":
+        script += 'chmod 755 "$STAGE12_A2_RECORDS"\n'
+    elif scenario == "replacement":
+        script += 'mv "$STAGE12_A2_RECORDS" "${STAGE12_A2_RECORDS}_old"\nmkdir -m 700 "$STAGE12_A2_RECORDS"\n'
+    elif scenario == "root_replacement":
+        script += 'mv "$STAGE12_A2_PARENT" "${STAGE12_A2_PARENT}_old"\nmkdir -m 700 "$STAGE12_A2_PARENT"\nmkdir -m 700 "$STAGE12_A2_RECORDS"\n'
+    if scenario in ("sync_failure", "trap_failure"):
+        script += 'export A2_TEST_SYNC_FAILURE=1\n'
+    if scenario == "trap_failure":
+        script += 'STAGE12_AP2_OUTCOME="$STAGE12_A2_PARENT/outcome.json"\nSTAGE12_STATUS=INCOMPLETE\nSTAGE12_START=1\nSTAGE12_NOW=2\nstage12_tick() { return 0; }\ntrap stage12_a2_record EXIT\nexit 19\n'
+    else:
+        script += 'set +e\nstage12_a2_logwrite "$STAGE12_A2_RECORDS/probe.json" "{}"\nstatus=$?\nprintf "status=%d utilities=%d\\n" "$status" "$STAGE12_UTILITIES"\nexit "$status"\n'
+    result = subprocess.run(["bash", "-c", script], env=environment, capture_output=True, text=True, timeout=15)
+    if scenario == "allowed":
+        assert result.returncode == 0, result.stderr
+        assert (records / "probe.json").read_bytes() == b"{}\n"
+        assert "utilities=22" in result.stdout  # four binding +18 action calls
+    else:
+        assert result.returncode != 0
+        if scenario not in ("sync_failure", "trap_failure"):
+            assert not (records / "probe.json").exists()
+        if scenario == "trap_failure":
+            assert result.returncode == 19  # primary survives failed cleanup
+            assert "A2_SUPERVISOR_TERMINAL exit=19" in result.stdout

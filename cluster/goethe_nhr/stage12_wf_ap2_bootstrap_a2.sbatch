@@ -54,14 +54,57 @@ stage12_a2_run() {
     return "$status"
 }
 
+stage12_a2_bind_log_parents() {
+    local path canonical identity
+    for path in "$STAGE12_A2_PARENT" "$STAGE12_A2_RECORDS"; do
+        stage12_capture canonical realpath -e -- "$path" || return $?
+        [[ "$canonical" == "$path" ]] || return 2
+        stage12_capture identity stat -c '%u:%a:%d:%i' -- "$path" || return $?
+        [[ "$identity" =~ ^${EUID}:700:[0-9]+:[0-9]+$ ]] || return 2
+        if [[ "$path" == "$STAGE12_A2_PARENT" ]]; then
+            STAGE12_A2_PARENT_ID=$identity
+        else
+            STAGE12_A2_RECORDS_ID=$identity
+        fi
+    done
+}
+
 stage12_a2_logwrite() {
-    local path=$1 json=$2
-    [[ "$path" =~ ^/[A-Za-z0-9_./-]+$ && "$path" != *'/../'* && "${#json}" -le 4096 ]]
-    # timeout+bash+sync are all counted; one exclusive log slot, no overwrite.
-    STAGE12_UTILITIES=$((STAGE12_UTILITIES + 2))
+    local path=$1 json=$2 parent name expected
+    [[ "$path" =~ ^/[A-Za-z0-9_./-]+$ && "$path" != *'/../'* && "${#json}" -le 4096 ]] || return 2
+    parent=${path%/*}; name=${path##*/}
+    [[ -n "$name" && "$name" != . && "$name" != .. ]] || return 2
+    [[ -n "${STAGE12_A2_PARENT_ID:-}" && -n "${STAGE12_A2_RECORDS_ID:-}" ]] || return 2
+    if [[ "$parent" == "$STAGE12_A2_PARENT" ]]; then
+        expected=$STAGE12_A2_PARENT_ID
+    elif [[ "$parent" == "$STAGE12_A2_RECORDS" ]]; then
+        expected=$STAGE12_A2_RECORDS_ID
+    else
+        return 2
+    fi
+    # Three checks, each with two realpath and three stat calls, plus
+    # timeout+bash+sync: precharge all18 invocations before any child runs.
+    STAGE12_UTILITIES=$((STAGE12_UTILITIES + 17))
     stage12_utility timeout --signal=TERM --kill-after=1s 5s bash -c \
-        'set -euo pipefail; umask 077; set -o noclobber; printf "%s\n" "$2" > "$1"; sync -f "$1"' \
-        a2-log "$path" "$json"
+        'set -euo pipefail; umask 077; set -o noclobber
+         parent=$1; name=$2; json=$3; expected=$4
+         root=$5; root_id=$6; records=$7; records_id=$8
+         check() {
+             [[ "$(realpath -e -- "$root")" == "$root" ]] || return 2
+             [[ "$(stat -c "%u:%a:%d:%i" -- "$root")" == "$root_id" ]] || return 2
+             [[ "$(realpath -e -- "$records")" == "$records" ]] || return 2
+             [[ "$(stat -c "%u:%a:%d:%i" -- "$records")" == "$records_id" ]] || return 2
+             [[ "$(stat -c "%u:%a:%d:%i" -- .)" == "$expected" ]] || return 2
+         }
+         cd -P -- "$parent"
+         check
+         printf "%s\n" "$json" > "$name"
+         check
+         sync -f "$name"
+         check' \
+        a2-log "$parent" "$name" "$json" "$expected" \
+        "$STAGE12_A2_PARENT" "$STAGE12_A2_PARENT_ID" \
+        "$STAGE12_A2_RECORDS" "$STAGE12_A2_RECORDS_ID" || return $?
     stage12_check
 }
 
@@ -107,6 +150,9 @@ stage12_a2_main() {
     stage12_tick; stage12_apply_epoch
     export STAGE12_A2_CAPTURE_START_CS=$STAGE12_START
     export STAGE12_A2_STAGE_END_CS=$((STAGE12_START + 12000))
+    STAGE12_A2_PARENT=$parent
+    # If binding fails there is no trap write into an unchecked directory.
+    stage12_a2_bind_log_parents
     trap stage12_a2_record EXIT
     unset GIT_DIR GIT_WORK_TREE GIT_CONFIG_COUNT GIT_CONFIG_PARAMETERS
     export GIT_OPTIONAL_LOCKS=0 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
