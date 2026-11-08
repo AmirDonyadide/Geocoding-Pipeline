@@ -331,7 +331,11 @@ def test_python_path_policy_denies_protected_credentials_and_source_writes(tmp_p
         )
 
     assert allows(source / "src/a.py") and allows(output / "chunk.bin", True)
-    assert allows("/proc/self/status") and allows("/sys/fs/cgroup/job/memory.max")
+    # A literal proc spelling is no longer permission on an unsupported host.
+    # Actual Linux requires the current-process binding; fake-Linux installed
+    # audit/M2-original-reader coverage is in test_stage12_wf_ap2_entrypoint.
+    assert allows("/proc/self/status") == (sys.platform == "linux")
+    assert allows("/sys/fs/cgroup/job/memory.max")
     for path in (
         source / "data/HOLDOUT.csv",
         tmp_path / "protected.csv",

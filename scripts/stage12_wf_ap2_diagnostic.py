@@ -9,6 +9,7 @@ The scheduler, capture, sampler, writer and openers are the production code.
 from __future__ import annotations
 
 from contextlib import contextmanager
+from collections import namedtuple
 import hashlib
 import importlib.util
 import json
@@ -17,6 +18,7 @@ from pathlib import Path
 import resource
 import signal
 import socket
+import stat
 import subprocess
 import sys
 import threading
@@ -103,6 +105,114 @@ def canonical(value):
 
 def digest(value):
     return hashlib.sha256(canonical(value)).hexdigest()
+
+
+class PhaseDeadlineExpired(TimeoutError):
+    """Static diagnostic classification; never a successful negative result."""
+
+
+class PhaseBoundary:
+    TAGS = frozenset(
+        (
+            "PHASE_OPEN",
+            "CAPTURE",
+            "SAMPLING_INSPECTION",
+            "OBSERVER_CLOSE",
+            "NORMAL_OPEN",
+            "NEGATIVE_OPEN",
+            "CONTROL_VERIFY",
+            "RUNTIME_RECHECK",
+        )
+    )
+
+    def __init__(self, clock, end_ns, phase_id, global_check, persist=None):
+        self.clock, self.end_ns, self.phase_id = clock, end_ns, phase_id
+        self.global_check = global_check
+        self.started_ns = clock.now_ns()
+        self.rows = []
+        self.persist = persist
+        self.checkpoint_ordinal = 0
+        self.persistence_uncertain = False
+
+    def checkpoint(self):
+        if self.persist is not None:
+            self.checkpoint_ordinal += 1
+            require(self.checkpoint_ordinal <= 16, "AP2_DIAGNOSTIC_TRACE_BOUND")
+            try:
+                self.persist(self.checkpoint_ordinal, self.snapshot())
+            except BaseException:
+                self.persistence_uncertain = True
+                raise
+
+    def check(self):
+        self.global_check()
+        if self.clock.now_ns() >= self.end_ns:
+            raise PhaseDeadlineExpired("AP2_DIAGNOSTIC_PHASE_DEADLINE")
+
+    def remaining(self):
+        self.check()
+        return min(5, (self.end_ns - self.clock.now_ns()) / 1e9)
+
+    def operation(self, tag, action, *args, **kwargs):
+        require(tag in self.TAGS and len(self.rows) < 8, "AP2_DIAGNOSTIC_TRACE_BOUND")
+        self.check()
+        row = dict(
+            operation=tag,
+            entered_ns=self.clock.now_ns(),
+            completed_ns=None,
+            returned=False,
+            deadline_ns=self.end_ns,
+        )
+        self.rows.append(row)
+        self.checkpoint()
+        self.check()
+        try:
+            result = action(*args, **kwargs)
+        except BaseException:
+            row["completed_ns"] = self.clock.now_ns()
+            try:
+                self.checkpoint()
+            except BaseException:
+                self.persistence_uncertain = True
+            # Preserve the initiating exception even if the deadline also crossed.
+            raise
+        row["completed_ns"] = self.clock.now_ns()
+        self.checkpoint()
+        self.check()
+        row["returned"] = True
+        return result
+
+    def snapshot(self):
+        return dict(
+            phase_id=self.phase_id,
+            started_ns=self.started_ns,
+            deadline_ns=self.end_ns,
+            checkpoint_ordinal=self.checkpoint_ordinal,
+            persistence_uncertain=self.persistence_uncertain,
+            operations=[dict(row) for row in self.rows],
+        )
+
+
+def expected_stopped_rejection(action, check):
+    """Only the completed-opener's exact disposition rejection is expected.
+
+    Caller first freshly validates STOPPED original snapshot/ledger/raw evidence.
+    Deadline, I/O, source mutation and uncertain-writer exceptions propagate.
+    """
+    from safe_geocoding_pipeline.preprocessing.stages import s12_retrieval_contract as c
+
+    check()
+    try:
+        action()
+    except c.Stage12Error as error:
+        check()
+        if type(error) is not c.Stage12Error or error.args != (
+            "S12_PUBLIC_OPERATIONS_INVALID",
+        ):
+            raise
+        return
+    check()
+    require(False, "AP2_DIAGNOSTIC_NEGATIVE_ADOPTED")
 
 
 def hash_value(value, size=64):
@@ -333,14 +443,146 @@ def validate_workloads(data):
     )
 
 
-def open_allowed(path, *, write, source, output, input_path, evidence):
-    """Pure audit policy. Kernel/library allowances contain no protected inputs."""
-    path = Path(os.path.realpath(os.fsdecode(path)))
-    if any(
-        part in {".ssh", ".config", "credentials", ".git"} or part.startswith(".env")
-        for part in path.parts
+def _proc_identity(path):
+    info = path.stat()
+    return (info.st_dev, info.st_ino, info.st_mode, info.st_uid, info.st_gid)
+
+
+class SelfProcIdentity(
+    namedtuple(
+        "_SelfProcIdentity",
+        "pid root_identity process_identity mount_namespace_identity",
+    )
+):
+    __slots__ = ()
+
+    def current(self):
+        if self.root_identity is None or os.getpid() != self.pid:
+            return False
+        try:
+            return (
+                os.path.realpath("/proc/self") == f"/proc/{self.pid}"
+                and _proc_identity(Path("/proc")) == self.root_identity
+                and _proc_identity(Path(f"/proc/{self.pid}")) == self.process_identity
+                and _proc_identity(Path("/proc/self/ns/mnt"))
+                == self.mount_namespace_identity
+            )
+        except OSError:
+            return False
+
+    def permits(self, original, resolved):
+        if not self.current():
+            return False
+        return any(
+            str(original) in (f"/proc/self/{name}", f"/proc/{self.pid}/{name}")
+            and str(resolved) == f"/proc/{self.pid}/{name}"
+            for name in ("status", "cgroup", "mountinfo")
+        )
+
+
+def capture_self_proc_identity():
+    """Current process/mount binding, never a general /proc permission."""
+    pid = os.getpid()
+    if sys.platform != "linux":
+        return SelfProcIdentity(pid, None, None, None)
+    require(os.path.realpath("/proc/self") == f"/proc/{pid}")
+    result = SelfProcIdentity(
+        pid,
+        _proc_identity(Path("/proc")),
+        _proc_identity(Path(f"/proc/{pid}")),
+        _proc_identity(Path("/proc/self/ns/mnt")),
+    )
+    require(result.current(), "AP2_DIAGNOSTIC_PROCESS_CHANGED")
+    return result
+
+
+def capture_output_parent(output):
+    parent = Path(output).parent
+    require(parent.resolve(strict=True) == parent, "AP2_DIAGNOSTIC_PARENT_CHANGED")
+    info = parent.stat(follow_symlinks=False)
+    require(
+        stat.S_ISDIR(info.st_mode)
+        and stat.S_IMODE(info.st_mode) == 0o700
+        and info.st_uid == os.geteuid(),
+        "AP2_DIAGNOSTIC_PARENT_CHANGED",
+    )
+    return (info.st_dev, info.st_ino, info.st_mode, info.st_uid, info.st_gid)
+
+
+def parent_handle_allowed(path, flags, output, binding):
+    allowed_flags = (
+        os.O_DIRECTORY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0)
+    )
+    try:
+        return (
+            Path(path) == Path(output).parent
+            and flags & os.O_DIRECTORY != 0
+            and flags & ~allowed_flags == 0
+            and capture_output_parent(output) == binding
+        )
+    except (OSError, RuntimeError):
+        return False
+
+
+def public_input_layout(input_path, bundle, controlled):
+    """Original sibling layout or one explicitly published private binding root."""
+    if input_path.parent == controlled and bundle.parent == controlled:
+        return True
+    binding = input_path.parent
+    if not (
+        binding.parent == controlled
+        and input_path.name == "input.json"
+        and bundle == binding / "evidence"
     ):
         return False
+    try:
+        for directory in (binding, bundle):
+            info = directory.stat(follow_symlinks=False)
+            if not (
+                directory.resolve(strict=True) == directory
+                and stat.S_ISDIR(info.st_mode)
+                and stat.S_IMODE(info.st_mode) == 0o700
+                and info.st_uid == os.geteuid()
+            ):
+                return False
+        for path in (
+            input_path,
+            binding / "manifest.json",
+            binding / "binding_result.json",
+        ):
+            info = path.stat(follow_symlinks=False)
+            if not (
+                stat.S_ISREG(info.st_mode)
+                and info.st_nlink == 1
+                and stat.S_IMODE(info.st_mode) == 0o600
+                and info.st_uid == os.geteuid()
+            ):
+                return False
+    except OSError:
+        return False
+    return True
+
+
+def open_allowed(path, *, write, source, output, input_path, evidence, self_proc=None):
+    """Pure audit policy. Kernel/library allowances contain no protected inputs."""
+    original = Path(os.fsdecode(path))
+    if not original.is_absolute() or ".." in original.parts:
+        return False
+    path = Path(os.path.realpath(original))
+    if any(
+        part in {".ssh", ".config", "credentials", ".git"} or part.startswith(".env")
+        for part in (*original.parts, *path.parts)
+    ):
+        return False
+    if original.is_relative_to("/proc") or path.is_relative_to("/proc"):
+        if write:
+            return False
+        if str(original) == str(path) and str(path) in (
+            "/proc/sys/kernel/random/boot_id",
+            "/proc/meminfo",
+        ):
+            return True
+        return (self_proc or capture_self_proc_identity()).permits(original, path)
     output = Path(output)
     if write:
         return path == output or path.is_relative_to(output)
@@ -362,11 +604,6 @@ def open_allowed(path, *, write, source, output, input_path, evidence):
     ):
         return True
     kernel_files = {
-        "/proc/self/cgroup",
-        "/proc/self/status",
-        "/proc/self/mountinfo",
-        "/proc/sys/kernel/random/boot_id",
-        "/proc/meminfo",
         "/dev/null",
         "/dev/urandom",
     }
@@ -485,6 +722,42 @@ def install_denials(source, output, input_path, evidence):
     spec.loader.exec_module(guard)
     network = guard.deny_linux_network()
 
+    self_proc = capture_self_proc_identity()
+    parent_binding = capture_output_parent(output)
+    original_open = os.open
+    access_context = threading.local()
+
+    def fd_path(fd):
+        if sys.platform == "linux":
+            require(self_proc.current(), "AP2_DIAGNOSTIC_PROCESS_CHANGED")
+            return os.readlink(f"/proc/{self_proc.pid}/fd/{fd}")
+        import fcntl
+
+        return os.fsdecode(
+            fcntl.fcntl(fd, fcntl.F_GETPATH, bytes(1024)).split(b"\0", 1)[0]
+        )
+
+    def access_path(path, directory_fd=None):
+        if isinstance(path, int):
+            return fd_path(path)
+        value = os.fsdecode(path)
+        if not os.path.isabs(value):
+            base = (
+                fd_path(directory_fd) if directory_fd not in (None, -1) else os.getcwd()
+            )
+            value = os.path.join(base, value)
+        return value
+
+    def tracked_open(path, flags, mode=0o777, *, dir_fd=None):
+        previous = getattr(access_context, "path", None)
+        access_context.path = access_path(path, dir_fd)
+        try:
+            return original_open(path, flags, mode, dir_fd=dir_fd)
+        finally:
+            access_context.path = previous
+
+    os.open = tracked_open
+
     def denied(*args, **kwargs):
         raise PermissionError("AP2_DIAGNOSTIC_ACCESS_DENIED")
 
@@ -497,45 +770,73 @@ def install_denials(source, output, input_path, evidence):
             ("socket.", "subprocess.", "os.exec", "os.spawn")
         ) or event in ("os.system", "os.fork", "os.posix_spawn"):
             denied()
-        if event == "open" and isinstance(values[0], (str, bytes)):
+        if event == "open" and isinstance(values[0], (str, bytes, int)):
             flags = values[2] if type(values[2]) is int else 0
             write = bool(flags & (os.O_WRONLY | os.O_RDWR | os.O_CREAT | os.O_TRUNC))
-            if not open_allowed(
-                values[0],
+            resolved = getattr(access_context, "path", None) or access_path(values[0])
+            parent_handle = parent_handle_allowed(
+                resolved, flags, output, parent_binding
+            )
+            if not parent_handle and not open_allowed(
+                resolved,
                 write=write,
                 source=source,
                 output=output,
                 input_path=input_path,
                 evidence=evidence,
+                self_proc=self_proc,
             ):
                 denied()
-            if flags & os.O_CREAT:
+            if flags & os.O_CREAT and not isinstance(values[0], int):
                 charge(1)
         elif event == "os.mkdir":
             if not open_allowed(
-                values[0],
+                access_path(values[0], values[2]),
                 write=True,
                 source=source,
                 output=output,
                 input_path=input_path,
                 evidence=evidence,
+                self_proc=self_proc,
             ):
                 denied()
             charge(1)
         elif (
             event in ("os.listdir", "os.scandir")
             and values
-            and isinstance(values[0], (str, bytes))
+            and isinstance(values[0], (str, bytes, int))
         ):
             if not open_allowed(
-                values[0],
+                access_path(values[0]),
                 write=False,
                 source=source,
                 output=output,
                 input_path=input_path,
                 evidence=evidence,
+                self_proc=self_proc,
             ):
                 denied()
+        elif event in ("os.remove", "os.rmdir", "os.rename", "os.link", "os.symlink"):
+            if event == "os.symlink":
+                denied()  # No symlink artifact is admissible in this path.
+            targets = (
+                ((values[0], values[2]), (values[1], values[3]))
+                if event in ("os.rename", "os.link")
+                else ((values[0], values[1]),)
+            )
+            for path, directory in targets:
+                if not open_allowed(
+                    access_path(path, directory),
+                    write=True,
+                    source=source,
+                    output=output,
+                    input_path=input_path,
+                    evidence=evidence,
+                    self_proc=self_proc,
+                ):
+                    denied()
+            if event == "os.link":
+                charge(1)
 
     def charge(amount):
         with lock:
@@ -745,8 +1046,7 @@ def execute(args, *, started_ns, cpu_started_ns):
     require(
         source.parent == project / "integration_stage12"
         and output.parent == controlled
-        and input_path.parent == controlled
-        and bundle.parent == controlled,
+        and public_input_layout(input_path, bundle, controlled),
         "AP2_DIAGNOSTIC_PATH_SCOPE",
     )
     require(
@@ -909,6 +1209,7 @@ def execute(args, *, started_ns, cpu_started_ns):
         }
     )
     attempts, phases, failure = 0, [], None
+    boundaries, first_failure, cleanup_failure = [], None, None
     negative_ready = threading.Event()
     attempts_lock = threading.Lock()
     negative_starts = 0
@@ -971,136 +1272,203 @@ def execute(args, *, started_ns, cpu_started_ns):
                     deadline,
                     clock.now_ns() + plan["budgets"]["active_duration_ms"] * 10**6,
                 )
-                observer.phase_open(
-                    phase_id,
-                    phase_deadline_ns=phase_deadline,
-                    timeout_seconds=min(5, (deadline - clock.now_ns()) / 1e9),
+
+                def persist_phase(ordinal, value):
+                    raw = canonical(value)
+                    require(len(raw) <= 16384, "AP2_DIAGNOSTIC_TRACE_BOUND")
+                    path = output / f"phase{phase_id:02d}_timing_{ordinal:02d}.json"
+                    storage.write(path, raw)
+                    require(storage.read(path, limit=16384) == raw)
+
+                boundary = PhaseBoundary(
+                    clock, phase_deadline, phase_id, check, persist_phase
                 )
-                root = output / current_label
-                report = cli.run_operations_block(
-                    profile,
-                    plan,
-                    start,
-                    work_factory=lambda: iter(item["work"]),
-                    output=root,
-                    block_id=1,
-                    authority=authority,
-                    clock=clock,
-                    dispatch=dispatch,
-                    runtime_inventory=actual_runtime,
-                    runtime_key=b"DIAGNOSTIC_TEST_ONLY",
-                    control_adapters=matrix.adapters(plan),
-                    monitor=None,
-                    free_bytes=lambda: runtime.filesystem_free_bytes(output),
-                    segment_authority=config["sources"]["owner"],
-                    writer_exclusion_evidence=config["sources"]["owner"],
-                    epoch=phase["epoch_id"],
-                    writer_release_evidence=config["sources"]["owner"],
-                    public_validation=adapter,
-                    timing_observer=observer,
-                    task_deadline_ns=phase_deadline,
-                )
-                summaries = sampling.inspect(
-                    lambda: journal.read_events(root, ap.digest(start), contract=ap),
-                    profile,
-                    start,
-                    maximum_segments=1,
-                    contract=ap,
-                )
-                require(
-                    summaries and all(row["complete"] for row in summaries),
-                    "AP2_DIAGNOSTIC_SAMPLING_INCOMPLETE",
-                )
-                observer.phase_close(
-                    phase_id,
-                    quiescent=True,
-                    timeout_seconds=min(5, (deadline - clock.now_ns()) / 1e9),
-                )
-                require(state["regular"] >= phase["hold_regular_acks"])
-                if current_label != "malformed":
-                    require(
-                        report["report_complete"]
-                        and report["disposition"] == "COMPLETED"
+                boundaries.append(boundary)
+                with storage.cooperative_io(boundary.check):
+                    boundary.operation(
+                        "PHASE_OPEN",
+                        observer.phase_open,
+                        phase_id,
+                        phase_deadline_ns=phase_deadline,
+                        timeout_seconds=boundary.remaining(),
                     )
-                    block = runtime.reopen_completed(
-                        root,
+                    root = output / current_label
+                    report = boundary.operation(
+                        "CAPTURE",
+                        cli.run_operations_block,
                         profile,
                         plan,
                         start,
-                        validation_sha256=config["public_validation_sha256"],
+                        work_factory=lambda: iter(item["work"]),
+                        output=root,
+                        block_id=1,
+                        authority=authority,
+                        clock=clock,
+                        dispatch=dispatch,
+                        runtime_inventory=actual_runtime,
+                        runtime_key=b"DIAGNOSTIC_TEST_ONLY",
                         control_adapters=matrix.adapters(plan),
+                        monitor=None,
+                        free_bytes=lambda: runtime.filesystem_free_bytes(output),
+                        segment_authority=config["sources"]["owner"],
+                        writer_exclusion_evidence=config["sources"]["owner"],
+                        epoch=phase["epoch_id"],
+                        writer_release_evidence=config["sources"]["owner"],
+                        public_validation=adapter,
+                        timing_observer=observer,
+                        task_deadline_ns=phase_deadline,
                     )
-                    require(block == report["blocks"][0])
-                    if current_label == "controls8":
-                        require(len(matrix.verify_controls(root, plan)) == 4)
-                else:
+                    summaries = boundary.operation(
+                        "SAMPLING_INSPECTION",
+                        sampling.inspect,
+                        lambda: journal.read_events(
+                            root, ap.digest(start), contract=ap
+                        ),
+                        profile,
+                        start,
+                        maximum_segments=1,
+                        contract=ap,
+                    )
                     require(
-                        not report["report_complete"]
-                        and report["disposition"] == "STOPPED"
-                        and 2 <= negative_starts <= 3
+                        summaries and all(row["complete"] for row in summaries),
+                        "AP2_DIAGNOSTIC_SAMPLING_INCOMPLETE",
                     )
-                    try:
-                        runtime.reopen_completed(
+                    boundary.operation(
+                        "OBSERVER_CLOSE",
+                        observer.phase_close,
+                        phase_id,
+                        quiescent=True,
+                        timeout_seconds=boundary.remaining(),
+                    )
+                    require(state["regular"] >= phase["hold_regular_acks"])
+                    if current_label != "malformed":
+                        require(
+                            report["report_complete"]
+                            and report["disposition"] == "COMPLETED"
+                        )
+                        block = boundary.operation(
+                            "NORMAL_OPEN",
+                            runtime.reopen_completed,
                             root,
                             profile,
                             plan,
                             start,
                             validation_sha256=config["public_validation_sha256"],
+                            control_adapters=matrix.adapters(plan),
                         )
-                    except ap.c.Stage12Error:
-                        pass
+                        require(block == report["blocks"][0])
+                        if current_label == "controls8":
+                            require(
+                                len(
+                                    boundary.operation(
+                                        "CONTROL_VERIFY",
+                                        matrix.verify_controls,
+                                        root,
+                                        plan,
+                                    )
+                                )
+                                == 4
+                            )
                     else:
-                        require(False, "AP2_DIAGNOSTIC_NEGATIVE_ADOPTED")
-                    for event in journal.read_events(
-                        root, ap.digest(start), contract=ap
-                    ):
-                        if event["kind"] == "ATTEMPT_FINALIZED":
-                            work = item["work"][event["body"]["work_id"] - 1]
-                            name = audit.name_for(
-                                work["work_id"], event["body"]["attempt"]
-                            )
-                            attempt_root = root / "attempts" / name
-                            terminal = audit.reopen(
-                                attempt_root,
-                                name,
-                                validator=adapter.validator(work, attempt_root),
-                                context=oa.DataContext(adapter),
-                            )
-                            require(terminal["outcome"] == "CONTRACT_FAILURE")
-                require(
-                    (root / "_SEGMENT_SEALED").is_file()
-                    and (root / "_WRITER_RELEASED.json").is_file()
-                )
-                phases.append(
-                    dict(
-                        label=current_label,
-                        report_complete=report["report_complete"],
-                        regular_acknowledgements=state["regular"],
-                        original_reopen=True,
+                        require(
+                            not report["report_complete"]
+                            and report["disposition"] == "STOPPED"
+                            and 2 <= negative_starts <= 3
+                        )
+                        from safe_geocoding_pipeline.preprocessing.stages import (
+                            s12_public_recovery as recovery,
+                        )
+
+                        stopped = ap.parse(
+                            storage.read(root / "snapshot.json"), ap.SNAPSHOT
+                        )
+                        require(stopped["disposition"] == "STOPPED")
+                        original_state = recovery.replay(
+                            journal.read_events(root, ap.digest(start), contract=ap),
+                            contract=ap,
+                        )
+                        recovery.snapshot_evidence(
+                            root,
+                            stopped,
+                            original_state,
+                            ap.digest(report["blocks"][0]),
+                            check=boundary.check,
+                        )
+                        boundary.operation(
+                            "NEGATIVE_OPEN",
+                            expected_stopped_rejection,
+                            lambda: runtime.reopen_completed(
+                                root,
+                                profile,
+                                plan,
+                                start,
+                                validation_sha256=config["public_validation_sha256"],
+                            ),
+                            boundary.check,
+                        )
+                        for event in journal.read_events(
+                            root, ap.digest(start), contract=ap
+                        ):
+                            if event["kind"] == "ATTEMPT_FINALIZED":
+                                work = item["work"][event["body"]["work_id"] - 1]
+                                name = audit.name_for(
+                                    work["work_id"], event["body"]["attempt"]
+                                )
+                                attempt_root = root / "attempts" / name
+                                terminal = audit.reopen(
+                                    attempt_root,
+                                    name,
+                                    validator=adapter.validator(work, attempt_root),
+                                    context=oa.DataContext(adapter),
+                                )
+                                require(terminal["outcome"] == "CONTRACT_FAILURE")
+                    require(
+                        (root / "_SEGMENT_SEALED").is_file()
+                        and (root / "_WRITER_RELEASED.json").is_file()
                     )
-                )
-                check()
-                original.charge_runtime_inventory_check(
-                    original.runtime_inventory_budget()
-                )
-                require(
-                    runtime.runtime_inventory(
-                        config["public_validation_sha256"], successor=True
+                    check()
+                    original.charge_runtime_inventory_check(
+                        original.runtime_inventory_budget()
                     )
-                    == actual_runtime,
-                    "AP2_DIAGNOSTIC_RUNTIME_CHANGED",
-                )
+                    require(
+                        boundary.operation(
+                            "RUNTIME_RECHECK",
+                            runtime.runtime_inventory,
+                            config["public_validation_sha256"],
+                            successor=True,
+                            check=boundary.check,
+                        )
+                        == actual_runtime,
+                        "AP2_DIAGNOSTIC_RUNTIME_CHANGED",
+                    )
+                    phases.append(
+                        dict(
+                            label=current_label,
+                            report_complete=report["report_complete"],
+                            regular_acknowledgements=state["regular"],
+                            original_reopen=True,
+                        )
+                    )
         require(106 <= attempts <= 107)
-    except BaseException:
+    except BaseException as error:
+        from safe_geocoding_pipeline.preprocessing.stages.s12_public_diagnostics import (
+            classify,
+        )
+
+        first_failure = dict(
+            at_mono_ns=clock.now_ns(), phase_id=len(boundaries), **classify(error)
+        )
         failure = "AP2_DIAGNOSTIC_INCOMPLETE"
     finally:
         try:
+            check()
             summary = observer.close(
                 timeout_seconds=min(5, (deadline - clock.now_ns()) / 1e9)
             )
             require(summary["final_timing_coverage_complete"])
 
             def associate(ordinal, row):
+                check()
                 phase_id = (
                     row["phase_id"]
                     if row["row_kind"] == "PERIODIC_ASYNC"
@@ -1133,16 +1501,24 @@ def execute(args, *, started_ns, cpu_started_ns):
                     row, event, phase_id=phase_id, ack_event=ack, contract=ap
                 )
 
-            reopened_timing = cp.read_prefix(
-                observer.checkpoints.root,
-                expected_binding=summary["checkpoint"]["timing_binding"],
-                expected_snapshot=summary["checkpoint"],
-                record_consumer=associate,
-            )
+            with storage.cooperative_io(check):
+                check()
+                reopened_timing = cp.read_prefix(
+                    observer.checkpoints.root,
+                    expected_binding=summary["checkpoint"]["timing_binding"],
+                    expected_snapshot=summary["checkpoint"],
+                    record_consumer=associate,
+                )
+                check()
             require(
                 not reopened_timing["incomplete"], "AP2_DIAGNOSTIC_TIMING_INCOMPLETE"
             )
-        except BaseException:
+        except BaseException as error:
+            from safe_geocoding_pipeline.preprocessing.stages.s12_public_diagnostics import (
+                classify,
+            )
+
+            cleanup_failure = dict(at_mono_ns=clock.now_ns(), **classify(error))
             summary = observer.snapshot()
             failure = failure or "AP2_DIAGNOSTIC_TIMING_INCOMPLETE"
     result = dict(
@@ -1152,6 +1528,9 @@ def execute(args, *, started_ns, cpu_started_ns):
         input_sha256=args.input_sha256,
         complete=failure is None and len(phases) == 4,
         error=failure,
+        initiating_failure=first_failure,
+        cleanup_failure=cleanup_failure,
+        phase_timings=[boundary.snapshot() for boundary in boundaries],
         attempts=attempts,
         expected_attempts=106,
         maximum_attempts=107,
