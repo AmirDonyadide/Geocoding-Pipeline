@@ -23,6 +23,10 @@ s = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(s)
 
 VERSION = "stage12_bootstrap_a2_selection_v1"
+VERSION2 = "stage12_bootstrap_a2_selection_v2"
+ACCOUNTING_ASSET = "docs/scientific_assets/stage12_a2_accounting_v1.json"
+ACCOUNTING_SOURCE = "src/safe_geocoding_pipeline/preprocessing/stages/s12_a2_accounting.py"
+_ACTIVE_LEDGER = None
 OWNER = "stage12_bootstrap_a2_owner_reported_v1"
 SCOPE = "WF_AP2_BOOTSTRAP_A_ONLY_NO_SERVICE"
 COLLECTED = "A2_ORIGINAL_METADATA_COLLECTED_B_DISABLED"
@@ -101,10 +105,10 @@ def validate_selection(value):
             "valid_until",
             "limits",
             "B",
-        ),
+        ) + (("accounting_inventory",) if value.get("version") == VERSION2 else ()),
     )
     need(
-        value["version"] == VERSION
+        value["version"] in (VERSION, VERSION2)
         and value["scope"] == SCOPE
         and value["policy_sha256"] == POLICY_SHA
         and value["B"] == "DISABLED"
@@ -157,6 +161,19 @@ def validate_selection(value):
         )
         names.append(row["path"])
     need(names == sorted(set(names)) and REQUIRED <= set(names), "A2_SOURCE_SET")
+    if value["version"] == VERSION2:
+        from safe_geocoding_pipeline.preprocessing.stages import s12_a2_accounting as accounting
+        need(accounting.ORIGINAL_READ_BYTES == s.MAX_READ, "A2_ACCOUNTING_READER_VERSION")
+        need({ACCOUNTING_SOURCE, ACCOUNTING_ASSET} <= set(names), "A2_ACCOUNTING_SOURCE_SET")
+        descriptor = s.parse(s.original(ROOT / ACCOUNTING_ASSET, private=False))
+        need(descriptor["source_paths"] == names, "A2_ACCOUNTING_SOURCE_SET")
+        accounting.validate(value["accounting_inventory"], rows)
+
+
+def verify_source(value, check=lambda: None, *, ledger=None, root=None):
+    if ledger is not None:
+        return ledger.sources(value, check, root)
+    return s.verify_source(value, check)
 
 
 def load_selection(path, token):
@@ -300,10 +317,10 @@ def filesystem_probe(parent):
         os.close(fd)
 
 
-def ready(value, records, now, *, probe=filesystem_probe):
+def ready(value, records, now, *, probe=filesystem_probe, check=lambda: None, ledger=None):
     validate_selection(value)
     own = owner(value, records, now)
-    s.verify_source(value)
+    verify_source(value, check, ledger=ledger)
     raw = s.original(Path(value["paths"]["source"]) / ASSET, private=False)
     need(raw == s.canonical(POLICY), "A2_POLICY_CHANGED")
     for name in ("bootstrap", "final", "review", "collector_ack", "outcome"):
@@ -453,8 +470,17 @@ def global_deadline():
 
 
 def phase_checks(
-    value, start, seconds, clock=time.monotonic_ns, thread_reader=s.native_threads
+    value, start, seconds, clock=time.monotonic_ns, thread_reader=s.native_threads, *, stage="collect"
 ):
+    global _ACTIVE_LEDGER
+    if value["version"] == VERSION2:
+        from safe_geocoding_pipeline.preprocessing.stages import s12_a2_accounting as accounting
+        # Both phase envelopes are derived from the same immutable inventory.
+        # Final never refunds/resets the entire consumed collection envelope.
+        _ACTIVE_LEDGER = accounting.Ledger(value["accounting_inventory"], stage)
+    else:
+        _ACTIVE_LEDGER = None
+    ledger = _ACTIVE_LEDGER
     end = start + seconds * 10**9
     lock = threading.Lock()
     marks = dict(
@@ -471,7 +497,10 @@ def phase_checks(
         threads = thread_reader()
         with lock:
             marks["checks"] += 1
-            need(marks["checks"] <= 4096, "A2_CHECK_LIMIT")
+            if ledger is None:
+                need(marks["checks"] <= 4096, "A2_CHECK_LIMIT")
+            else:
+                ledger.tick()
             marks["maximum_observed_rss_bytes"] = max(
                 marks["maximum_observed_rss_bytes"], rss
             )
@@ -488,6 +517,7 @@ def phase_checks(
 
 
 def write_budget(value, stage, check, end, writer):
+    if value["version"] == VERSION2: _ACTIVE_LEDGER.op(6)
     selected = value["limits"]["stages"][stage]
     path = value["paths"]["bootstrap" if stage == "A" else "final"]
     return writer.call(
@@ -502,6 +532,7 @@ def write_budget(value, stage, check, end, writer):
 
 
 def verify_bootstrap(root, value, token, *, check=lambda: None):
+    if value["version"] == VERSION2 and _ACTIVE_LEDGER is not None and check is getattr(_ACTIVE_LEDGER, "guard", None): _ACTIVE_LEDGER.op(7)
     check()
     manifest = s.verify_stage(root, expected_status=COLLECTED)
     need(
@@ -546,10 +577,10 @@ def verify_bootstrap(root, value, token, *, check=lambda: None):
             "M2",
             "B",
             "capacity_assurance",
-        ),
+        ) + (("accounting",) if value["version"] == VERSION2 else ()),
     )
     need(
-        facts["version"] == "stage12_a2_bootstrap_facts_v1"
+        facts["version"] == ("stage12_a2_bootstrap_facts_v2" if value["version"] == VERSION2 else "stage12_a2_bootstrap_facts_v1")
         and facts["scope"] == SCOPE
         and facts["B"] == "DISABLED"
         and facts["source_sha"] == value["source_sha"]
@@ -559,6 +590,16 @@ def verify_bootstrap(root, value, token, *, check=lambda: None):
         and facts["capacity_assurance"] == "OWNER_REPORTED_BEST_EFFORT_NOT_RESERVED",
         "A2_FACT_BINDING",
     )
+    if value["version"] == VERSION2:
+        from safe_geocoding_pipeline.preprocessing.stages import s12_a2_accounting as accounting
+        bounds = accounting.bounds(value["accounting_inventory"])
+        row = facts["accounting"]
+        accounting.validate_prefix(row, value["accounting_inventory"], "capture")
+        need(row["backend_calls"] == 5 and row["source_calls"] == 2
+             and row["phase_ordinal"] == accounting.PHASES.index("CAPTURE_CLOSE")
+             and row["checks"] == facts["resource_watermarks"]["checks"]
+             and row["completed_bytes"] == bounds["backend_bytes_per_pass"] + 2 * bounds["source_bytes_per_pass"]
+             and row["collect_checks_reserved"] == row["cumulative_checks_reserved"] == bounds["collect_checks"], "A2_INCOMPLETE_HASH_ACCOUNTING")
     for name, field in (
         ("kernel.json", "kernel_sha256"),
         ("kernel_after.json", "kernel_after_sha256"),
@@ -589,8 +630,9 @@ def collect(
     require_goethe_nhr_slurm("A2 best-effort metadata bootstrap")
     start = clock()
     check, marks, end = phase_checks(value, start, 120, clock, thread_reader)
+    ledger = _ACTIVE_LEDGER
     records = s.Records(value["paths"]["records"])
-    _, before = ready(value, records, s.now_utc(), probe=probe)
+    _, before = ready(value, records, s.now_utc(), probe=probe, check=check, ledger=ledger)
     initial_check = check
 
     def check():
@@ -599,6 +641,8 @@ def collect(
             list(directory_binding(s.PARENT)) == before["parent_identity"],
             "A2_PARENT_CHANGED",
         )
+
+    if ledger: ledger.guard = check
 
     def bound_probe():
         row = probe(s.PARENT)
@@ -617,29 +661,39 @@ def collect(
         budget = write_budget(value, "A", check, end, writer)
 
         def persist(name, obj):
+            if ledger: ledger.op(6)
             check()
             bound_probe()
             return writer.call(lambda: budget.write(name, obj))
 
         persist("storage_before.json", before)
+        if ledger: ledger.enter("KERNEL_PRE")
+        if ledger: ledger.op(5)
         kernel = kernel_reader(check=check)
         persist("kernel.json", kernel)
+        if ledger: ledger.enter("RUNTIME")
         if inventory_reader is None:
             from safe_geocoding_pipeline.preprocessing.stages import s12_public_runtime
 
             inventory_reader = s12_public_runtime.runtime_inventory
-        runtime = inventory_reader(s.PUBLIC_VALIDATOR, successor=True, check=check)
+        options = dict(successor=True, check=check)
+        if ledger: options["backend_reader"] = ledger.backend
+        runtime = inventory_reader(s.PUBLIC_VALIDATOR, **options)
         persist("runtime.json", runtime)
+        if ledger: ledger.enter("KERNEL_POST")
+        if ledger: ledger.op(5)
         after = kernel_reader(check=check)
         for key in ("boot_id", "namespaces", "membership", "leaf_identity", "leaf"):
             need(kernel[key] == after[key], "A2_DOMAIN_CHANGED")
         persist("kernel_after.json", after)
-        s.verify_source(value, check)
+        if ledger: ledger.enter("SOURCE")
+        verify_source(value, check, ledger=ledger)
         persist("storage_after.json", bound_probe())
+        if ledger: ledger.enter("CAPTURE_CLOSE")
         persist(
             "facts.json",
             dict(
-                version="stage12_a2_bootstrap_facts_v1",
+                version="stage12_a2_bootstrap_facts_v2" if ledger else "stage12_a2_bootstrap_facts_v1",
                 scope=SCOPE,
                 source_sha=value["source_sha"],
                 selection_sha256=token,
@@ -655,16 +709,22 @@ def collect(
                 M2="NOT_QUALIFIED_BY_BOOTSTRAP",
                 B="DISABLED",
                 capacity_assurance="OWNER_REPORTED_BEST_EFFORT_NOT_RESERVED",
+                **({"accounting": ledger.snapshot()} if ledger else {}),
             ),
         )
         writer.call(lambda: budget.close(COLLECTED))
+        if ledger: ledger.enter("CAPTURE_OPEN")
         verify_bootstrap(budget.root, value, token, check=check)
+        if ledger: ledger.op(8)
         writer.close()
         check()
+        if ledger: ledger.enter("FINISHED")
+        if ledger: ledger.op(9)
         return dict(
             status=COLLECTED,
             manifest_sha256=s.sha(s.original(budget.root / "manifest.json")),
             B="DISABLED",
+            **({"accounting": ledger.snapshot()} if ledger else {}),
         )
     except BaseException:
         writer.abandon()
@@ -789,8 +849,22 @@ def open_completed(
     final_root=None,
     probe=filesystem_probe,
     check=lambda: None,
+    ledger=None,
+    source_root=None,
+    mirror_only=False,
 ):
+    if value["version"] == VERSION2:
+        from safe_geocoding_pipeline.preprocessing.stages import s12_a2_accounting as accounting
+        if ledger is None:
+            need(mirror_only and all(x is not None for x in (bootstrap_root, records_root, final_root)), "A2_REOPEN_ACCOUNTING_REQUIRED")
+        else:
+            need(not mirror_only and isinstance(ledger, accounting.Ledger)
+                 and ledger.stage == "final" and ledger.phase == accounting.PHASES.index("FINAL_OPEN")
+                 and check is getattr(ledger, "guard", None)
+                 and s.canonical(ledger.inventory) == s.canonical(value["accounting_inventory"]), "A2_REOPEN_ACCOUNTING_REQUIRED")
     check()
+    if ledger is not None:
+        verify_source(value, check, ledger=ledger, root=source_root)
     if bootstrap_root is None and records_root is None and final_root is None:
         before = s.parse(
             s.original(Path(value["paths"]["bootstrap"]) / "storage_before.json")
@@ -820,7 +894,7 @@ def open_completed(
             "review_accepted_centiseconds",
             "capacity_assurance",
             "M2",
-        ),
+        ) + (("accounting",) if value["version"] == VERSION2 else ()),
     )
     review, facts, _ = verify_review(
         value,
@@ -830,8 +904,11 @@ def open_completed(
         acceptance_centiseconds=result["review_accepted_centiseconds"],
         check=check,
     )
+    if ledger is not None:
+        runtime = s.parse(s.original(Path(bootstrap_root or value["paths"]["bootstrap"]) / "runtime.json"))
+        ledger.verify_backends(runtime, check)
     need(
-        result["version"] == "stage12_a2_closure_v1"
+        result["version"] == ("stage12_a2_closure_v2" if value["version"] == VERSION2 else "stage12_a2_closure_v1")
         and result["selection_sha256"] == token
         and result["source_sha"] == value["source_sha"]
         and result["policy_sha256"] == POLICY_SHA
@@ -843,7 +920,13 @@ def open_completed(
         == "BEST_EFFORT_NO_RESERVED_OR_ATTRIBUTABLE_GUARANTEE",
         "A2_CLOSURE_CHANGED",
     )
+    if value["version"] == VERSION2:
+        from safe_geocoding_pipeline.preprocessing.stages import s12_a2_accounting as accounting
+        accounting.validate_prefix(result["accounting"], value["accounting_inventory"], "final_write")
+        need(result["accounting"]["phase_ordinal"] == accounting.PHASES.index("FINAL_WRITE"), "A2_FINAL_ACCOUNTING_CHANGED")
     check()
+    if mirror_only:
+        return dict(result, verification_scope="STRUCTURAL_MIRROR_ONLY_NOT_EXECUTION_QUALIFICATION")
     return result
 
 
@@ -860,8 +943,9 @@ def finalize(
 
     require_goethe_nhr_slurm("A2 original metadata closure")
     check, _, end = phase_checks(
-        value, time.monotonic_ns(), 120, thread_reader=thread_reader
+        value, time.monotonic_ns(), 120, thread_reader=thread_reader, stage="final"
     )
+    ledger = _ACTIVE_LEDGER
     records = s.Records(value["paths"]["records"])
     owner(value, records, s.now_utc())
     before = s.parse(
@@ -880,7 +964,9 @@ def finalize(
             "A2_PARENT_CHANGED",
         )
 
-    s.verify_source(value, check)
+    if ledger: ledger.guard = check
+
+    verify_source(value, check, ledger=ledger)
     if install_guard:
         s.collection_guard(
             Path(value["paths"]["source"]),
@@ -890,15 +976,20 @@ def finalize(
             extra_reads=(Path(value["paths"]["bootstrap"]),),
         )
     review, facts, accepted = verify_review(value, token, check=check)
+    if ledger:
+        runtime = s.parse(s.original(Path(value["paths"]["bootstrap"]) / "runtime.json"))
+        ledger.verify_backends(runtime, check)
     need(facts["job_id"] == os.environ["SLURM_JOB_ID"], "A2_JOB_CHANGED")
     writer = MetadataWriter(check)
     try:
         budget = write_budget(value, "final", check, end, writer)
+        if ledger: ledger.enter("FINAL_WRITE")
+        if ledger: ledger.op(6)
         writer.call(
             lambda: budget.write(
                 "result.json",
                 dict(
-                    version="stage12_a2_closure_v1",
+                    version="stage12_a2_closure_v2" if ledger else "stage12_a2_closure_v1",
                     source_sha=value["source_sha"],
                     selection_sha256=token,
                     policy_sha256=POLICY_SHA,
@@ -908,24 +999,35 @@ def finalize(
                     review_accepted_centiseconds=accepted,
                     capacity_assurance="BEST_EFFORT_NO_RESERVED_OR_ATTRIBUTABLE_GUARANTEE",
                     M2="NOT_QUALIFIED_BY_BOOTSTRAP",
+                    **({"accounting": ledger.snapshot()} if ledger else {}),
                 ),
             )
         )
+        if ledger: ledger.enter("FINAL_RECHECK")
         fresh, _, _ = verify_review(
             value, token, acceptance_centiseconds=accepted, check=check
         )
+        if ledger:
+            ledger.verify_backends(runtime, check)
         need(s.digest(fresh) == s.digest(review), "A2_REVIEW_CHANGED")
         need(
             probe(s.PARENT)["parent_identity"] == before["parent_identity"],
             "A2_PARENT_CHANGED",
         )
-        s.verify_source(value, check)
+        verify_source(value, check, ledger=ledger)
+        if ledger: ledger.enter("FINAL_CLOSE")
+        if ledger: ledger.op(6)
         writer.call(lambda: budget.close(FINALIZED))
+        if ledger: ledger.op(8)
         writer.close()
-        result = open_completed(value, token, check=check, probe=probe)
+        if ledger: ledger.enter("FINAL_OPEN")
+        result = open_completed(value, token, check=check, probe=probe, ledger=ledger)
         check()
+        if ledger: ledger.enter("FINISHED")
+        if ledger: ledger.op(9)
         return dict(
-            status="A2_ACTUAL_STRUCTURAL_REOPEN_PASS_PENDING_TERMINAL", result=result
+            status="A2_ACTUAL_STRUCTURAL_REOPEN_PASS_PENDING_TERMINAL", result=result,
+            **({"accounting": ledger.snapshot()} if ledger else {}),
         )
     except BaseException:
         writer.abandon()
@@ -1033,6 +1135,8 @@ def validate_environment(value, selection_path, selection_hash):
 
 
 def main():
+    global _ACTIVE_LEDGER
+    _ACTIVE_LEDGER = None
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("operation", choices=("collect", "finalize"))
     parser.add_argument("--selection", type=Path, required=True)
@@ -1049,12 +1153,14 @@ def main():
         return 0
     except BaseException as error:
         code = "A2_UNKNOWN_FAILURE"
-        if isinstance(error, s.AllocationError) and len(error.args) == 1:
+        accounting = sys.modules.get("safe_geocoding_pipeline.preprocessing.stages.s12_a2_accounting")
+        types = (s.AllocationError,) + ((accounting.AccountingError,) if accounting else ())
+        if isinstance(error, types) and len(error.args) == 1:
             import re
 
             if type(error.args[0]) is str and re.fullmatch(
                 r"[A-Z0-9_]{1,128}", error.args[0]
-            ):
+            ) and (not accounting or not isinstance(error, accounting.AccountingError) or error.args[0] in accounting.ERROR_CODES):
                 code = error.args[0]
         if isinstance(error, (FutureTimeout, TimeoutError)):
             code = "A2_UNCERTAIN_IO_OR_DEADLINE"
@@ -1069,6 +1175,7 @@ def main():
                     and 0 <= error.errno <= 4096
                     else None,
                     B="DISABLED",
+                    **({"accounting": _ACTIVE_LEDGER.snapshot()} if _ACTIVE_LEDGER is not None else {}),
                 )
             ).decode("ascii"),
             file=sys.stderr,

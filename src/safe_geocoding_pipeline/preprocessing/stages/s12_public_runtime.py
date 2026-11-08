@@ -499,7 +499,7 @@ def validate_config(config):
         matrix_rules.validate_matrix(config)
 
 
-def runtime_inventory(validation_sha256=None, *, successor=False, check=lambda: None):
+def runtime_inventory(validation_sha256=None, *, successor=False, check=lambda: None, backend_reader=None):
     result = {
         "python": platform.python_version(),
         "implementation": platform.python_implementation(),
@@ -516,7 +516,7 @@ def runtime_inventory(validation_sha256=None, *, successor=False, check=lambda: 
     if successor:
         from .s12_wf_ap2_assurance import runtime_facts
 
-        result["wf_ap2_runtime"] = runtime_facts(check=check)
+        result["wf_ap2_runtime"] = runtime_facts(check=check, backend_reader=backend_reader)
     return result
 
 

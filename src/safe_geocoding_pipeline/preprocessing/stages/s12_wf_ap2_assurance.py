@@ -393,7 +393,7 @@ def _kernel_identity(info):
     return (info.st_dev, info.st_ino, info.st_mode, info.st_uid, info.st_gid)
 
 
-def runtime_facts(*, check=lambda: None):
+def runtime_facts(*, check=lambda: None, backend_reader=None):
     """Actual build/backend observations; no allocator/native upper-bound claim."""
     import gc
     import hashlib
@@ -408,6 +408,10 @@ def runtime_facts(*, check=lambda: None):
         check()
         module = importlib.import_module(name)
         path = Path(module.__file__).resolve(strict=True)
+        if backend_reader is not None:
+            backends.append({"module": name, "binary_name": path.name,
+                             "binary_sha256": backend_reader(name, path, check)})
+            continue
         digest = hashlib.sha256()
         with scratch.lease("HASH"):
             buffer = bytearray(4096)
