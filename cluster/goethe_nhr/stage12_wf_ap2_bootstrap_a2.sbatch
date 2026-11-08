@@ -26,8 +26,36 @@ if [[ "${BASH_SOURCE[0]}" == "$0" && "${1:-}" != --supervised ]]; then
     exec timeout --signal=TERM --kill-after=5s 8170s setpriv --no-new-privs bash "$0" --supervised
 fi
 
-# Definitions only: the strict script's main block does not run when sourced.
-source "${BASH_SOURCE[0]%/*}/stage12_wf_ap2_allocation.sbatch"
+# Slurm copies this launcher into its spool; dependencies remain in Git.
+# These tiny startup checks precede loading any external shell definitions.
+stage12_a2_source_dependency() {
+    local project=$1 source=${STAGE12_AP2_SOURCE:?reviewed source required}
+    local helper canonical identity hash_line
+    [[ "$source" =~ ^/[A-Za-z0-9_./-]+$ && "$source" != *'/../'* && "${source%/*}" == "$project/integration_stage12" ]] || return 2
+    helper=$source/cluster/goethe_nhr/stage12_wf_ap2_allocation.sbatch
+    # Five timeout+utility pairs, included in the non-resetting counter below.
+    STAGE12_A2_STARTUP_UTILITIES=10
+    canonical=$(timeout 15s realpath -e -- "$source") || return $?
+    [[ "$canonical" == "$source" ]] || return 2
+    identity=$(timeout 15s stat -c '%u:%a' -- "$source") || return $?
+    [[ "$identity" == "$EUID:700" ]] || return 2
+    canonical=$(timeout 15s realpath -e -- "$helper") || return $?
+    [[ "$canonical" == "$helper" && -f "$helper" && ! -L "$helper" ]] || return 2
+    identity=$(timeout 15s stat -c '%u:%h' -- "$helper") || return $?
+    [[ "$identity" == "$EUID:1" ]] || return 2
+    hash_line=$(timeout 15s sha256sum -- "$helper") || return $?
+    [[ "${hash_line%% *}" == 7b386eb21f2ece47e02af1047daaf8f212b0fc870f08834f25b8e20bc276a620 ]] || return 2
+    # Definitions only: strict main cannot run when sourced. Its exact bytes
+    # are also part of the selected99-file original-source validation.
+    source "$helper"
+}
+
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+    stage12_a2_source_dependency /panfs/vdura1/footprint/donyadidegan/safe_geocoding_pipeline
+else
+    # Definition-only local tests explicitly supply their reviewed checkout.
+    source "${STAGE12_AP2_SOURCE:?reviewed source required}/cluster/goethe_nhr/stage12_wf_ap2_allocation.sbatch"
+fi
 
 stage12_check() {
     stage12_tick || return 2
@@ -145,7 +173,7 @@ stage12_a2_main() {
     for path in "$STAGE12_AP2_SELECTION" "$STAGE12_AP2_BOOTSTRAP" "$STAGE12_AP2_OUTCOME" "$STAGE12_A2_RECORDS" "$STAGE12_A2_FINAL"; do
         [[ "${path%/*}" == "$parent" && "$path" =~ ^/[A-Za-z0-9_./-]+$ && "$path" != *'/../'* ]]
     done
-    STAGE12_UTILITIES=2; STAGE12_PYTHONS=0; STAGE12_STATUS=INCOMPLETE
+    STAGE12_UTILITIES=$((2 + STAGE12_A2_STARTUP_UTILITIES)); STAGE12_PYTHONS=0; STAGE12_STATUS=INCOMPLETE
     IFS= read -r STAGE12_BOOT < /proc/sys/kernel/random/boot_id
     stage12_tick; stage12_apply_epoch
     export STAGE12_A2_CAPTURE_START_CS=$STAGE12_START

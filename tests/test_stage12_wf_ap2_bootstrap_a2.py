@@ -656,6 +656,7 @@ def test_shell_logwrite_private_binding(tmp_path, scenario):
     records = private(base / "records")
     bindir = private(tmp_path.resolve() / "bin")
     environment = dict(os.environ)
+    environment["STAGE12_AP2_SOURCE"] = str(ROOT)
     environment["PATH"] = str(bindir) + os.pathsep + environment["PATH"]
     if platform.system() == "Darwin":
         (bindir / "stat").write_text('#!/bin/bash\nexec /usr/bin/stat -f "%u:%Lp:%d:%i" "$4"\n')
@@ -699,3 +700,61 @@ def test_shell_logwrite_private_binding(tmp_path, scenario):
         if scenario == "trap_failure":
             assert result.returncode == 19  # primary survives failed cleanup
             assert "A2_SUPERVISOR_TERMINAL exit=19" in result.stdout
+
+
+@pytest.mark.parametrize("binding", ["pinned", "missing"])
+def test_shell_logwrite_slurm_staged_dependency(tmp_path, binding):
+    """Slurm stages the script apart from its Git-tracked dependencies."""
+    import shlex
+
+    staged = tmp_path / "slurm_script"
+    staged.write_bytes((ROOT / "cluster/goethe_nhr/stage12_wf_ap2_bootstrap_a2.sbatch").read_bytes())
+    environment = dict(os.environ)
+    environment.pop("STAGE12_AP2_SOURCE", None)
+    if binding == "pinned":
+        environment["STAGE12_AP2_SOURCE"] = str(ROOT)
+    script = 'source ' + shlex.quote(str(staged)) + '\ndeclare -F stage12_a2_main stage12_tick\n'
+    result = subprocess.run(["bash", "-c", script], env=environment, capture_output=True, text=True, timeout=5)
+    if binding == "pinned":
+        assert result.returncode == 0, result.stderr
+        assert "stage12_a2_main" in result.stdout and "stage12_tick" in result.stdout
+    else:
+        assert result.returncode != 0
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["slurm_script"]
+
+
+@pytest.mark.parametrize("variant", ["valid", "tampered", "nonprivate", "symlink"])
+def test_shell_logwrite_startup_source_scope(tmp_path, variant):
+    import platform
+    import shlex
+
+    project = private(tmp_path.resolve() / "project")
+    source = private(project / "integration_stage12" / "pinned")
+    helper = source / "cluster/goethe_nhr/stage12_wf_ap2_allocation.sbatch"
+    helper.parent.mkdir(parents=True)
+    helper.write_bytes((ROOT / "cluster/goethe_nhr/stage12_wf_ap2_allocation.sbatch").read_bytes())
+    if variant == "tampered":
+        helper.write_bytes(helper.read_bytes() + b'\nprintf unsafe > "$STAGE12_AP2_SOURCE/unsafe"\n')
+    elif variant == "nonprivate":
+        source.chmod(0o755)
+    elif variant == "symlink":
+        target = source.with_name("actual")
+        source.rename(target)
+        source.symlink_to(target, target_is_directory=True)
+    environment = dict(os.environ, STAGE12_AP2_SOURCE=str(ROOT))
+    if platform.system() == "Darwin":
+        bindir = private(tmp_path.resolve() / "bin")
+        (bindir / "realpath").write_text('#!/bin/bash\n[[ -e "$3" ]] || exit 2\nexec /bin/realpath "$3"\n')
+        (bindir / "stat").write_text('#!/bin/bash\ncase "$2" in "%u:%a") fmt="%u:%Lp";; "%u:%h") fmt="%u:%l";; *) exit 2;; esac\nexec /usr/bin/stat -f "$fmt" "$4"\n')
+        (bindir / "sha256sum").write_text('#!/bin/bash\nexec /usr/bin/shasum -a 256 "$2"\n')
+        for path in bindir.iterdir():
+            path.chmod(0o700)
+        environment["PATH"] = str(bindir) + os.pathsep + environment["PATH"]
+    script = 'source ' + shlex.quote(str(ROOT / 'cluster/goethe_nhr/stage12_wf_ap2_bootstrap_a2.sbatch')) + '\n'
+    script += 'STAGE12_AP2_SOURCE=' + shlex.quote(str(source)) + '\n'
+    script += 'stage12_a2_source_dependency ' + shlex.quote(str(project)) + '\nprintf "count=%d\\n" "$STAGE12_A2_STARTUP_UTILITIES"\n'
+    result = subprocess.run(["bash", "-c", script], env=environment, capture_output=True, text=True, timeout=10)
+    assert (result.returncode == 0) == (variant == "valid"), result.stderr
+    if variant == "valid":
+        assert "count=10" in result.stdout
+    assert not (source / "unsafe").exists()
