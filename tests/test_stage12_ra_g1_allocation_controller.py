@@ -936,3 +936,93 @@ def test_administrative_entry_uses_closed_stage_creation_key(world, monkeypatch)
         assert run.administrative_partition["application_creations"] == 7
         assert captured[0]["binding"]["ap_dispatch_authority"] == "DENIED"
         assert (world.root / "collector_resources" / "admin_binding.record").exists()
+
+
+@pytest.mark.parametrize(
+    "code",
+    [
+        "RA_G1_MONITOR_GAP",
+        "RA_G1_REQUIRED_READING",
+        "RA_G1_NATIVE_DISCOVERY",
+        "RA_G1_PROTOCOL",
+        "RA_G1_MONITOR_INCOMPLETE",
+    ],
+)
+def test_safe_failure_preserves_exact_loaded_stage12_monitor_code(world, code):
+    from safe_geocoding_pipeline.preprocessing.stages import (
+        s12_retrieval_contract as contract,
+    )
+
+    result = world.m.safe_failure(contract.Stage12Error(code))
+    assert result["family"] == "CONTRACT_OR_GUARD" and result["code"] == code
+    assert result["schema_version"] == "stage12_ra_g1_allocation_failure_v1"
+    assert result["status"] == "INCOMPLETE" and result["errno"] is None
+
+
+def test_safe_failure_rejects_other_valueerrors_subclasses_and_arbitrary_text(world):
+    from safe_geocoding_pipeline.preprocessing.stages import (
+        s12_retrieval_contract as contract,
+    )
+
+    class OtherStageError(contract.Stage12Error):
+        pass
+
+    class OtherRuntimeError(RuntimeError):
+        pass
+
+    for error in (
+        ValueError("RA_G1_MONITOR_GAP"),
+        OtherStageError("RA_G1_MONITOR_GAP"),
+        OtherRuntimeError("RA_G1_MONITOR_GAP"),
+        contract.Stage12Error("PRIVATE_SENTINEL"),
+        RuntimeError("PRIVATE_SENTINEL"),
+        contract.Stage12Error("RA_G1_MONITOR_GAP", "PRIVATE_SENTINEL"),
+    ):
+        result = world.m.safe_failure(error)
+        assert result["family"] == result["code"] == "UNKNOWN"
+        assert b"PRIVATE_SENTINEL" not in world.m.canonical(result)
+
+
+def test_safe_failure_missing_contract_does_not_import_pipeline(world, monkeypatch):
+    import builtins
+    import sys
+    from safe_geocoding_pipeline.preprocessing.stages import (
+        s12_retrieval_contract as contract,
+    )
+
+    error = contract.Stage12Error("RA_G1_MONITOR_GAP")
+    monkeypatch.delitem(sys.modules, contract.__name__)
+    original_import = builtins.__import__
+    imports = []
+
+    def guarded_import(name, *args, **kwargs):
+        if name.startswith("safe_geocoding_pipeline"):
+            imports.append(name)
+            raise AssertionError("error handler must not import pipeline")
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", guarded_import)
+    assert world.m.safe_failure(error)["code"] == "UNKNOWN"
+    assert (
+        world.m.safe_failure(RuntimeError("RA_G1_DEADLINE"))["code"] == "RA_G1_DEADLINE"
+    )
+    assert imports == []
+
+
+def test_safe_stage12_failure_preserves_primary_and_poisoned_writer(world):
+    from safe_geocoding_pipeline.preprocessing.stages import (
+        s12_retrieval_contract as contract,
+    )
+
+    world.root.mkdir(mode=0o700)
+    with world.run("collect") as run:
+        first = world.m.safe_failure(contract.Stage12Error("RA_G1_MONITOR_GAP"), run)
+        assert first["code"] == "RA_G1_MONITOR_GAP" and first["writer"] == "HEALTHY"
+        run.poisoned = True
+        assert world.m.safe_failure(OSError(28, "PRIVATE_SENTINEL"), run) is first
+    with world.run("collect") as run:
+        run.poisoned = True
+        result = world.m.safe_failure(contract.Stage12Error("RA_G1_MONITOR_GAP"), run)
+        assert result["code"] == "RA_G1_MONITOR_GAP"
+        assert result["family"] == "WRITE_UNCERTAIN" and result["writer"] == "POISONED"
+        assert result["status"] == "INCOMPLETE"
