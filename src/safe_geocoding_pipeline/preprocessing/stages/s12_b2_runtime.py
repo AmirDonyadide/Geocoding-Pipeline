@@ -38,6 +38,10 @@ from . import s12_transport as transport
 from . import s12_retrieval_contract as c
 
 VERSION = "stage12_development_runtime_v1"
+RA_VERSION = "stage12_development_runtime_b2_ra_g1_v1"
+RA_AUTHORITY_VERSION = "stage12_development_runtime_authority_b2_ra_g1_v1"
+RA_REPLACED = {"phase_memory_bytes", "phase_disk_capacity_bytes", "phase_generation_bound_bytes"}
+RA_FIELDS = {"phase_monitor_selection_sha256", "phase_capacity_observation_sha256", "phase_logical_write_ceiling_bytes"}
 AUTHORITY_VERSION = "stage12_development_runtime_authority_v1"
 PREPARATION = frozenset(("build-catalog", "plan-calibration"))
 DISPATCH = frozenset(("run-campaign", "run-direct-n"))
@@ -302,6 +306,7 @@ class Authority:
         self._enforcement_checks = 0
         self._enforcement_record_sha256 = None
         self._enforcement_lock = threading.Lock()
+        self._ra_identity_checks = self._ra_read_calls = self._ra_read_bytes = 0
         self._root()
 
     def _root(self):
@@ -323,7 +328,7 @@ class Authority:
         }
         b.require(
             set(root) == fields
-            and root["version"] == AUTHORITY_VERSION
+            and root["version"] == (RA_AUTHORITY_VERSION if self.config["runtime"]["version"] in (RA_VERSION,"stage12_development_runtime_lp1_ra_g1_v1") else AUTHORITY_VERSION)
             and root["population_scope"] == self.config["runtime"]["population_scope"]
             and root["scope_sha256"] == scope_hash(self.config),
             "B2_RUNTIME_AUTHORITY_SCOPE",
@@ -371,9 +376,16 @@ class Authority:
             type(purpose) is str and type(context) is dict, "B2_RUNTIME_AUTHORITY_SCOPE"
         )
         if self.port is not None and self.port.local_only:
-            if local.local_authority_check(self.port, purpose, digest, context):
+            if self.port.local_contract.local_authority_check(self.port, purpose, digest, context):
                 return
+        if self.port is not None and self.port.ra_enabled and purpose in {
+            "resource_policy","resource_adoption","resource_selection","resource_technical_review",
+            "resource_invocation_graph","resource_risk_inventory","owner_reported_project_approval","resource_registered_paths",
+        }:
+            self.records.raw(digest)
         root = self._root()
+        if purpose == "dispatch" and self.port is not None and self.port.ra_enabled:
+            self._resource_dispatch(context)
         if purpose.startswith("phase_"):
             b.require(
                 purpose[6:] in root["phase_names"]
@@ -478,6 +490,9 @@ class Authority:
             self._sampling_bound_record_sha256 is not None, "WF_AP2_RUNTIME_BUDGET"
         )
         record = io.metadata(self.records.raw(self._sampling_bound_record_sha256))
+        if record.get("method") == "LOGICAL_LIMITS_AND_SCOPED_MONITORING":
+            self.charge_identity_check(record)
+            return
         if self.port is not None:
             self.port.check_deadline()
         digest = b.digest(record)
@@ -490,7 +505,7 @@ class Authority:
             self._runtime_inventory_checks += 1
             b.require(
                 self._runtime_inventory_checks
-                <= record["maximum_runtime_inventory_checks"],
+                <= (record["maximum_identity_checks"] if record.get("method") == "LOGICAL_LIMITS_AND_SCOPED_MONITORING" else record["maximum_runtime_inventory_checks"]),
                 "WF_AP2_RUNTIME_BUDGET",
             )
 
@@ -505,6 +520,85 @@ class Authority:
         )
         self._sampling_bound_record_sha256 = profile["sampling_runtime_bound_sha256"]
         return value
+
+    def charge_identity_check(self,record):
+        with self._enforcement_lock:
+            self._ra_identity_checks += 1
+            b.require(self._ra_identity_checks <= record["maximum_identity_checks"],"B2_RA_IDENTITY_BUDGET")
+
+    def initial_resource_facts(self,record):
+        from . import s12_ra_g1_assurance as assurance
+        facts=io.metadata(self.records.raw(record["initial_environment_observation_sha256"]))
+        originals=io.metadata(self.records.raw(facts["observation_inventory_sha256"]))
+        validate=getattr(assurance,"validate_environment_originals",None)
+        b.require(callable(validate),"B2_RA_INITIAL_ORIGINALS_REQUIRED")
+        validate(facts,originals)
+        return facts
+
+    def resource_facts(self,record):
+        from . import s12_ra_g1_assurance as assurance
+        if self.port._test is not None:
+            provider=self.port._test.get("resource_facts")
+            b.require(callable(provider),"B2_RA_CURRENT_FACTS_REQUIRED")
+            return provider(record)
+        facts,originals=assurance.observe_current_facts(check=self.port.check_deadline,
+            read_charge=self.port.charge_ra_original_read)
+        self.port.ra_current_environment_originals=originals
+        return facts
+
+    def resource_selection(self,record):
+        return io.metadata(self.records.raw(record["selection_sha256"]))
+
+    def capacity_observation(self,record):
+        from . import s12_b2_ra_g1_resources as resources
+        value=io.metadata(self.records.raw(self.port.settings["phase_capacity_observation_sha256"]))
+        resources.validate_capacity_originals(value,self.records)
+        return value
+
+    def register_coordinator(self,coordinator):
+        b.require(self.port is not None and self.port.ra_enabled and
+                  getattr(self.port,"ra_coordinator",None) in (None,coordinator),"B2_RA_COORDINATOR_CHANGED")
+        if getattr(self.port,"ra_coordinator",None) is coordinator:
+            return
+        snapshot=coordinator.ra_charged_snapshot
+        b.require(type(snapshot) is tuple and len(snapshot) == 2,"B2_RA_COUNTER_ORIGINAL_REQUIRED")
+        self.port.ra_coordinator=coordinator
+        self.port.ra_coordinator_entry_snapshot=tuple(b.uint(x) for x in snapshot)
+        self.port.ra_coordinator_entry_attempts=sum(snapshot)
+        allocation={x["name"]:x["bytes"] for x in self.port.ra_binding["logical_allocations"]}
+        b.require(allocation["OTHER_LOGICAL"] >= 1208*8,"B2_RA_LOGICAL_WORK_IDS")
+        self._ra_work_ids=bytearray(1208*8)
+        self._ra_work_counts=[0,0]
+
+    def _resource_dispatch(self,context):
+        import struct
+        p=self.port
+        coordinator=getattr(p,"ra_coordinator",None)
+        b.require(coordinator is not None and set(context) == {"work","attempt","state"},"B2_RA_COUNTER_ORIGINAL_REQUIRED")
+        current=tuple(coordinator.ra_charged_snapshot)
+        entry=p.ra_coordinator_entry_snapshot
+        kind=0 if context["work"]["kind"] == "DATA" else 1
+        delta=[b.uint(current[i])-entry[i] for i in range(2)]
+        b.require(all(x >= 0 for x in delta),"B2_RA_COUNTER_ORIGINAL_REQUIRED")
+        delta[kind]+=1
+        b.require(delta[0] <= 1800 and delta[1] <= 40 and sum(delta) <= min(1840,p.ra_selection["limits"]["attempts"]),"B2_RA_SEGMENT_ATTEMPT_LIMIT")
+        member_prior=p.ra_prior_member_attempts.get(p.ra_current_member_id,0)
+        root=p.ra_prior_root_attempts-member_prior+sum(current)+1
+        b.require(root <= p.resource_model["limits"]["data_attempts"]+p.resource_model["limits"]["control_attempts"],"B2_RA_ROOT_ATTEMPT_LIMIT")
+        work=b.uint(context["work"]["work_id"],True)
+        offset=0 if kind == 0 else 1200
+        count=self._ra_work_counts[kind]
+        for index in range(count):
+            if struct.unpack_from("<Q",self._ra_work_ids,(offset+index)*8)[0] == work:
+                break
+        else:
+            b.require(count < (1200 if kind == 0 else 8),"B2_RA_SEGMENT_WORK_LIMIT")
+            struct.pack_into("<Q",self._ra_work_ids,(offset+count)*8,work)
+            self._ra_work_counts[kind]+=1
+
+    def resource_prewrite(self,*,next_write_bytes,next_creations):
+        from . import s12_b2_ra_g1_resources as resources
+        return resources.runtime_prewrite(self.port,next_write_bytes=next_write_bytes,next_creations=next_creations)
 
     def enforcement_facts(self, record):
         from . import s12_wf_ap2_assurance as assurance
@@ -588,6 +682,14 @@ class RuntimeRecords(evidence.Records):
     def __init__(self, root, port):
         super().__init__(root)
         self.port = port
+
+    def raw(self,digest):
+        if getattr(self.port,"ra_enabled",False):
+            b.validate_type(digest,"D")
+            path=self.root/(digest+".json")
+            size=path.stat(follow_symlinks=False).st_size
+            self.port.charge_ra_original_read(1,size+1)
+        return super().raw(digest)
 
     def put(self, raw, *, owner, secret_guard):
         self.port.check_deadline()
@@ -679,10 +781,51 @@ class RuntimePort:
     population_scope = b.DEVELOPMENT
     test_only = False
 
-    def __init__(self, config, *, _test=None):
+    def __init__(self, config, *, _test=None,resource_role_entry_ns=None):
+        direct_entry_ns=_test["clock"].now_ns() if _test is not None else time.monotonic_ns()
+        try:
+            self._initialize(config,_test=_test,resource_role_entry_ns=resource_role_entry_ns,
+                direct_entry_ns=direct_entry_ns)
+        except BaseException:
+            if not getattr(self,"ra_enabled",False):
+                raise
+            setup=getattr(self,"ra_setup_session",None)
+            if setup is not None:
+                try:
+                    setup.abort()
+                except BaseException:
+                    pass
+            guard=getattr(self,"offline_guard",None)
+            if guard is not None:
+                try:
+                    guard.close()
+                except BaseException:
+                    pass
+            raise
+
+    def _initialize(self, config, *, _test=None,resource_role_entry_ns=None,direct_entry_ns=None):
         self.config, self.settings = config, config["runtime"]
         r = self.settings
-        self.local_only = r.get("version") == local.RUNTIME_VERSION
+        self.ra_enabled = r.get("version") in (RA_VERSION,"stage12_development_runtime_lp1_ra_g1_v1")
+        if self.ra_enabled:
+            b.require(type(direct_entry_ns) is int and 0 <= direct_entry_ns <= (_test["clock"].now_ns() if _test is not None else time.monotonic_ns()),
+                      "B2_RA_ROLE_ENTRY_REQUIRED")
+            if _test is None:
+                b.require(type(resource_role_entry_ns) is int and 0 < resource_role_entry_ns <= direct_entry_ns,
+                          "B2_RA_ROLE_ENTRY_REQUIRED")
+            elif resource_role_entry_ns is None:
+                resource_role_entry_ns=direct_entry_ns
+            self.ra_role_entry_ns=resource_role_entry_ns
+        self.local_contract=local
+        if self.ra_enabled:
+            from . import s12_b2_ra_g1_local as ra_local
+            from . import s12_b2_ra_g1_contract as ra_contract
+            self.local_contract=ra_local
+            ra_contract.validate_configuration(config)
+        else:
+            b.require(config.get("schema_version") != "stage12_development_sampling_configuration_b2_ap_ra_g1_v1","B2_RA_MIXED_METHOD")
+        self.local_only = r.get("version") == self.local_contract.RUNTIME_VERSION
+        runtime_fields = (RUNTIME_FIELDS - RA_REPLACED) | RA_FIELDS if self.ra_enabled else RUNTIME_FIELDS
         self.resource_binding = r.get("resource_retention")
         successor_fields = (
             {"resource_retention"} if self.resource_binding is not None else set()
@@ -690,16 +833,16 @@ class RuntimePort:
         b.require(
             set(r)
             == (
-                RUNTIME_FIELDS | local.EXTRA_FIELDS
+                runtime_fields | self.local_contract.EXTRA_FIELDS
                 if self.local_only
-                else RUNTIME_FIELDS
+                else runtime_fields
             )
             | successor_fields
-            and r["version"] == (local.RUNTIME_VERSION if self.local_only else VERSION),
+            and r["version"] == (self.local_contract.RUNTIME_VERSION if self.local_only else RA_VERSION if self.ra_enabled else VERSION),
             "B2_RUNTIME_CONFIG",
         )
         if self.local_only:
-            local.validate_config(config)
+            self.local_contract.validate_config(config)
         if self.resource_binding is not None:
             from . import s12_b2_resources as resources
 
@@ -756,34 +899,45 @@ class RuntimePort:
         self._generation_roots = None
         self._checking_generation = False
         self._record_generated_bytes = self._record_generated_files = 0
-        for k in (
+        for k in (("phase_duration_ms","phase_logical_write_ceiling_bytes","phase_generation_max_files","phase_generation_check_ms") if self.ra_enabled else (
             "phase_duration_ms",
             "phase_memory_bytes",
             "phase_disk_capacity_bytes",
             "phase_generation_bound_bytes",
             "phase_generation_max_files",
             "phase_generation_check_ms",
-        ):
+        )):
             b.uint(r[k], True)
         b.require(
-            r["phase_generation_bound_bytes"] <= r["phase_disk_capacity_bytes"]
+            (self.ra_enabled or r["phase_generation_bound_bytes"] <= r["phase_disk_capacity_bytes"])
             and r["phase_generation_check_ms"] <= r["phase_duration_ms"],
             "B2_RUNTIME_GENERATION_BOUND",
         )
-        self.started_ns = self.clock.now_ns()
+        self.started_ns = self.ra_role_entry_ns if self.ra_enabled else self.clock.now_ns()
+        b.require(not self.ra_enabled or type(self.started_ns) is int and 0<=self.started_ns <= self.clock.now_ns(),
+                  "B2_RA_ROLE_ENTRY_REQUIRED")
         self._last_generation_check = self.started_ns
         self.deadline = self.started_ns + r["phase_duration_ms"] * 1000000
         b.validate_type(r["phase_until"], "Z")
         self.phase_until = r["phase_until"]
         b.require(self.clock.utc() < self.phase_until, "B2_RUNTIME_DEADLINE")
+        self.ra_original_read_calls = self.ra_original_read_bytes = 0
+        self.ra_coordinator = None
         self.records = RuntimeRecords(absolute(r["records_root"]), self)
         self.authority = Authority(
             self.records, r["authority_sha256"], config, self.clock
         )
         self.authority.port = self
+        self.ra_binding_sha256 = None
+        self.ra_binding = None
+        self.ra_selection = None
+        self.ra_monitor = None
+        if self.ra_enabled:
+            from . import s12_b2_ra_g1_resources as ra_resources
+            ra_resources.prepare_runtime(self)
         self._source_check()
         if self.local_only:
-            self.gate = local.Gate(self)
+            self.gate = self.local_contract.Gate(self)
         elif self.phase in PREPARATION:
             b.require(
                 self.mode == "OFFLINE_ONLY"
@@ -814,9 +968,35 @@ class RuntimePort:
         self.output = self.scratch = None
         if self.mode == "OFFLINE_ONLY":
             guard = OfflineGuard()
-            self.offline_guard = local.Denial(guard) if self.local_only else guard
+            self.offline_guard = self.local_contract.Denial(guard) if self.local_only else guard
             if not self.local_only:
                 self._stack.callback(self.offline_guard.close)
+        if self.ra_enabled:
+            ra_resources.finish_protected_setup(self)
+
+    def check_resource_deadline(self):
+        # The source-owned resource suffix continues after scientific readers
+        # close. It cannot reopen a closed port or grant dispatch/input access.
+        now=self.clock.now_ns()
+        b.require(self.ra_enabled and not getattr(self,"ra_resource_finalized",False) and
+                  (getattr(self,"ra_active_scope_deadline",None) is None or now < self.ra_active_scope_deadline) and
+                  now < self.deadline and (self.resource_command_deadline is None or now < self.resource_command_deadline) and
+                  self.clock.utc() < self.phase_until and
+                  (self.ra_binding is None or self.ra_binding["valid_from"] <= self.clock.utc() < self.ra_binding["valid_until"]),"B2_RA_RESOURCE_DEADLINE")
+
+    def resource_monitor_counters(self):
+        from . import s12_b2_ra_g1_resources as resources
+        return resources.monitor_counters(self)
+
+    def charge_ra_original_read(self,calls,size):
+        if not getattr(self,"ra_enabled",False):
+            return
+        self.ra_original_read_calls+=b.uint(calls)
+        self.ra_original_read_bytes+=b.uint(size)
+        binding=getattr(self,"ra_binding",None)
+        if binding is not None:
+            b.require(self.ra_original_read_calls <= binding["maximum_original_read_calls"] and
+                      self.ra_original_read_bytes <= binding["maximum_original_read_bytes"],"B2_RA_ORIGINAL_READ_BUDGET")
 
     def _source_check(self):
         self.check_deadline()
@@ -841,8 +1021,12 @@ class RuntimePort:
             # Repository sources are not controlled data and need not be0600.
             p = root / rel
             b.require(not p.is_symlink() and p.is_file(), "B2_RUNTIME_INPUT_CHANGED")
-            with p.open("rb") as f:
-                h = hashlib.file_digest(f, "sha256").hexdigest()
+            if getattr(self,"ra_enabled",False):
+                from . import s12_b2_ra_g1_resources as resources
+                h=resources.bounded_source_digest(self,p,self.check_deadline)
+            else:
+                with p.open("rb") as f:
+                    h = hashlib.file_digest(f, "sha256").hexdigest()
             b.require(h == entry["sha256"], "B2_RUNTIME_INPUT_CHANGED")
 
     def check_deadline(self):
@@ -850,6 +1034,7 @@ class RuntimePort:
         b.require(
             not self._closed
             and now < self.deadline
+            and (not self.ra_enabled or getattr(self,"ra_active_scope_deadline",None) is None or now < self.ra_active_scope_deadline)
             and (
                 self.resource_command_deadline is None
                 or now < self.resource_command_deadline
@@ -857,18 +1042,25 @@ class RuntimePort:
             and self.clock.utc() < self.phase_until,
             "B2_RUNTIME_DEADLINE",
         )
-        peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
-        used = peak if sys.platform == "darwin" else peak * 1024
-        b.require(
-            used <= self.settings["phase_memory_bytes"]
-            and (
-                self.resource_command is None
-                or used <= self.resource_command["max_memory_bytes"]
-            ),
-            "B2_RUNTIME_MEMORY_LIMIT",
-        )
+        if self.ra_enabled:
+            if getattr(self,"ra_selection",None) is not None:
+                peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+                used = peak if sys.platform == "darwin" else peak * 1024
+                b.require(used <= self.ra_selection["monitor"]["self_rss_stop_bytes"],"B2_RA_SELF_RSS_STOP")
+        else:
+            peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+            used = peak if sys.platform == "darwin" else peak * 1024
+            b.require(
+                used <= self.settings["phase_memory_bytes"]
+                and (
+                    self.resource_command is None
+                    or used <= self.resource_command["max_memory_bytes"]
+                ),
+                "B2_RUNTIME_MEMORY_LIMIT",
+            )
         if (
-            (
+            not self.ra_enabled
+            and (
                 self.local_only
                 or self.phase in PREPARATION
                 or self.resource_command is not None
@@ -941,30 +1133,24 @@ class RuntimePort:
             self.settings["resource_evidence_sha256"],
             {
                 k: self.settings[k]
-                for k in (
-                    "phase_duration_ms",
-                    "phase_memory_bytes",
-                    "phase_disk_capacity_bytes",
-                    "phase_generation_bound_bytes",
-                    "phase_generation_max_files",
-                    "phase_generation_check_ms",
-                    "temporary_root",
-                    "output_parent",
-                    "scratch_parent",
-                )
+                for k in (("phase_duration_ms","phase_monitor_selection_sha256","phase_capacity_observation_sha256",
+                           "phase_logical_write_ceiling_bytes","phase_generation_max_files","phase_generation_check_ms",
+                           "temporary_root","output_parent","scratch_parent") if self.ra_enabled else (
+                    "phase_duration_ms","phase_memory_bytes","phase_disk_capacity_bytes","phase_generation_bound_bytes",
+                    "phase_generation_max_files","phase_generation_check_ms","temporary_root","output_parent","scratch_parent"))
             },
         )
         if not self.test_only:
             mem = os.environ.get("SLURM_MEM_PER_NODE")
             b.require(
                 mem is not None
-                and int(mem) * 2**20 >= self.settings["phase_memory_bytes"],
+                and int(mem) * 2**20 >= (6*2**30 if self.ra_enabled else self.settings["phase_memory_bytes"]),
                 "B2_RUNTIME_MEMORY_ALLOCATION",
             )
-        b.require(
-            self.free_bytes() >= self.settings["phase_disk_capacity_bytes"],
-            "B2_RUNTIME_DISK_UNAVAILABLE",
-        )
+        if self.ra_enabled:
+            self.authority.resource_prewrite(next_write_bytes=0,next_creations=0)
+        else:
+            b.require(self.free_bytes() >= self.settings["phase_disk_capacity_bytes"],"B2_RUNTIME_DISK_UNAVAILABLE")
         # Every generated namespace is exclusive and fresh. The input catalog,
         # source evidence and earlier phase outputs are not relabelled as new.
         temporary = under(
@@ -1095,6 +1281,8 @@ class RuntimePort:
         and rollback journals cannot vanish before accounting sees them.
         """
         self.check_deadline()
+        if self.ra_enabled:
+            return self.authority.resource_prewrite(next_write_bytes=0,next_creations=0)
         if (
             force
             or self.clock.now_ns() - self._last_generation_check
@@ -1132,7 +1320,7 @@ class RuntimePort:
                 total += max(info.st_size, info.st_blocks * 512)
                 b.require(
                     files <= self.settings["phase_generation_max_files"]
-                    and total <= self.settings["phase_generation_bound_bytes"],
+                    and (self.ra_enabled or total <= self.settings["phase_generation_bound_bytes"]),
                     "B2_RUNTIME_GENERATION_BOUND",
                 )
                 if stat.S_ISDIR(info.st_mode):
@@ -1176,10 +1364,10 @@ class RuntimePort:
                         total += max(info.st_size, info.st_blocks * 512)
                         b.require(
                             files <= self.settings["phase_generation_max_files"]
-                            and total <= self.settings["phase_generation_bound_bytes"],
+                            and (self.ra_enabled or total <= self.settings["phase_generation_bound_bytes"]),
                             "B2_RUNTIME_GENERATION_BOUND",
                         )
-            if self.resource_command is not None:
+            if self.resource_command is not None and not self.ra_enabled:
                 b.require(
                     total <= self.resource_command["max_generated_bytes"]
                     and files <= self.resource_command["max_generated_inodes"],
@@ -1356,13 +1544,18 @@ class RuntimePort:
         )
         admission = self.records.get(spec["admission_sha256"], "segment_admission")
         operations.validate_plan(plan, profile)
-        b.require(
-            profile["resources"]["job_memory_bytes"]
-            <= self.settings["phase_memory_bytes"]
-            and plan["budgets"]["storage_bytes"]
-            <= self.settings["phase_disk_capacity_bytes"],
-            "B2_RUNTIME_CAMPAIGN_CAPACITY",
-        )
+        if self.ra_enabled:
+            b.require(getattr(operations.for_profile(profile),"RA_ENABLED",False) and
+                      profile["resources"]["resource_selection_sha256"] == self.settings["phase_monitor_selection_sha256"] and
+                      profile["resources"]["task_logical_write_ceiling_bytes"] >= plan["budgets"]["storage_bytes"],"B2_RA_CAMPAIGN_SELECTION")
+        else:
+            b.require(
+                profile["resources"]["job_memory_bytes"]
+                <= self.settings["phase_memory_bytes"]
+                and plan["budgets"]["storage_bytes"]
+                <= self.settings["phase_disk_capacity_bytes"],
+                "B2_RUNTIME_CAMPAIGN_CAPACITY",
+            )
         b.require(
             plan["population_scope"] == self.population_scope, "B2_POPULATION_SCOPE"
         )
@@ -1380,6 +1573,8 @@ class RuntimePort:
         b.require(self.runtime_inventory == actual_inventory, "B2_RUNTIME_INVENTORY")
         if "resource_retention_model" in profile:
             from . import s12_b2_resources as resources
+            if self.ra_enabled:
+                from . import s12_b2_ra_g1_resources as resources
 
             model = profile["resource_retention_model"]
             b.require(
@@ -1427,6 +1622,11 @@ class RuntimePort:
         self._rules()
         return self._campaign
 
+    def _ra_backend_digest(self,name,path,check):
+        from . import s12_b2_ra_g1_resources as resources
+        b.require(name in ("_hashlib","_ssl","_sqlite3","_duckdb","pyarrow.lib"),"B2_RA_BACKEND_SOURCE")
+        return resources.bounded_source_digest(self,Path(path),check)
+
     def _actual_runtime_inventory(self, *, successor=None):
         value = {
             "version": "stage12_development_runtime_inventory_v1",
@@ -1461,13 +1661,16 @@ class RuntimePort:
             )
         if successor:
             from . import s12_wf_ap2_assurance as assurance
+            if getattr(self,"ra_enabled",False):
+                from . import s12_ra_g1_assurance as assurance
 
             if hasattr(self, "authority"):
                 self.authority.charge_runtime_inventory_check()
             value.update(
                 version="stage12_development_runtime_inventory_v2",
                 wf_ap2_runtime_facts=assurance.runtime_facts(
-                    check=getattr(self, "check_deadline", lambda: None)
+                    check=getattr(self, "check_deadline", lambda: None),
+                    **({"environment_observation_sha256":self.ra_binding["initial_environment_observation_sha256"],"backend_reader":self._ra_backend_digest} if getattr(self,"ra_enabled",False) else {})
                 ),
             )
         return value
@@ -1480,6 +1683,9 @@ class RuntimePort:
 
     def verify_sampling_assurance(self, *, verify_inventory=True):
         """Fail before protected readers/provider access, with fresh domain facts."""
+        if self.ra_enabled and self.local_only:
+            from . import s12_b2_ra_g1_resources as ra
+            return ra.verify_local_assurance(self,verify_inventory=verify_inventory)
         spec = self.settings.get("campaign")
         if spec is None:
             spec = (
@@ -1498,6 +1704,8 @@ class RuntimePort:
         if not getattr(contract, "AP_ENABLED", False):
             return
         from . import s12_wf_ap2_assurance as assurance
+        if self.ra_enabled:
+            from . import s12_ra_g1_assurance as assurance
 
         start = contract.parse(self.records.raw(spec["start_sha256"]), contract.START)
         self.authority.configuration_scope_sha256 = assurance.configuration_scope(
@@ -1538,6 +1746,9 @@ class RuntimePort:
         if self.resource_binding is None:
             return
         b.require(self.resource_ledger is None, "B2_RS1_COMMAND_BINDING")
+        if self.ra_enabled:
+            from . import s12_b2_ra_g1_graph as ra_graph
+            return ra_graph.bind_runtime(self)
         from . import s12_b2_resources as resources
 
         raw = self.records.raw(self.resource_binding["model_sha256"])
@@ -1978,6 +2189,8 @@ class RuntimePort:
                         "B2_RUNTIME_INVENTORY",
                     )
                 if self.local_only:
+                    if self.ra_enabled:
+                        self.verify_sampling_assurance()
                     self.gate.check()
                 self.reconcile_generation()
             except BaseException as error:
@@ -2025,5 +2238,5 @@ class RuntimePort:
                 raise primary
 
 
-def create_port(config):
-    return RuntimePort(config)
+def create_port(config,*,resource_role_entry_ns=None):
+    return RuntimePort(config,resource_role_entry_ns=resource_role_entry_ns)

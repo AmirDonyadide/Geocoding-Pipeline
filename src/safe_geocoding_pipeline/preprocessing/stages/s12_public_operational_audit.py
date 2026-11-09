@@ -122,6 +122,8 @@ class DataContext:
             from . import s12_public_sampling_contract as o
         elif version == "stage12_transport_operations_v4":
             from . import s12_wf_ap2_contract as o
+        elif version == "stage12_transport_operations_ra_g1_v1":
+            from . import s12_ra_g1_contract as o
         profile = o.parse(io.read(root / "operations_profile.json"), o.PROFILE)
         plan = o.parse(io.read(root / "workload.json"), o.PLAN)
         start = o.parse(io.read(root / "campaign_start.json"), o.START)

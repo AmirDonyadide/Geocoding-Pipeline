@@ -7,6 +7,13 @@ port cannot replace calibration, capture, recovery or publication algorithms.
 
 from __future__ import annotations
 
+# ruff: noqa: E402 -- the source-owned role clock must precede native imports.
+import time as _entry_clock
+
+# Source-owned worker entry precedes all stage/native imports and input reads.
+# RA callers carry this exact value; initialization cannot reset its budget.
+_RESOURCE_ROLE_ENTRY_NS = _entry_clock.monotonic_ns()
+
 import argparse
 from dataclasses import dataclass
 import importlib.util
@@ -92,6 +99,9 @@ class Session:
 
 
 def execute(phase: str, session: Session):
+    if getattr(session.port,"ra_enabled",False):
+        from .stages import s12_b2_ra_g1_resources as ra
+        return ra.execute_phase(phase,session)
     # Port cleanup cannot replace an initiating failure. Successful return still
     # requires cleanup/source validation to succeed; no result is printed early.
     try:
@@ -277,7 +287,7 @@ def _execute(phase: str, session: Session, resources):
         "build-workload",
         "offline-preflight",
     }:
-        return local.execute_metadata(phase, session, resources, catalog_for)
+        return getattr(port,"local_contract",local).execute_metadata(phase, session, resources, catalog_for)
     if phase == "build-catalog":
         b.require(
             port.population_scope == b.DEVELOPMENT, "B2_ACCEPTED_POPULATION_REQUIRED"
@@ -299,7 +309,7 @@ def _execute(phase: str, session: Session, resources):
         )
         resources.callback(projection.close)
         if getattr(port, "local_only", False):
-            resources.enter_context(local.lineage_scope(port, projection))
+            resources.enter_context(getattr(port,"local_contract",local).lineage_scope(port, projection))
         catalog = catalogs.build_accepted(
             session.output,
             Path(config["stage11_root"]),
@@ -574,16 +584,24 @@ def main(argv=None):
         module = importlib.util.module_from_spec(spec)
         # Execute the exact verified bytes, avoiding a path reread/import race.
         exec(compile(code, str(args.runtime_port), "exec"), module.__dict__)
-        port = module.create_port(config)
+        if config.get("schema_version") == "stage12_development_sampling_configuration_b2_ap_ra_g1_v1":
+            port = module.create_port(config,resource_role_entry_ns=_RESOURCE_ROLE_ENTRY_NS)
+        else:
+            port = module.create_port(config)
         result = execute(
             args.phase,
             Session(port, config, args.output, args.scratch, args.authorization_sha256),
         )
+        if getattr(port,"ra_enabled",False):
+            from .stages import s12_b2_ra_g1_resources as ra
+            result_id=ra.result_digest(result)
+        else:
+            result_id=b.digest(result)
         print(
             b.canonical(
                 {
                     "phase": args.phase,
-                    "result_sha256": b.digest(result),
+                    "result_sha256": result_id,
                     "status": "OFFLINE_OR_EXPLICITLY_AUTHORIZED_PHASE_COMPLETE",
                     "stage12_accepted": False,
                 }

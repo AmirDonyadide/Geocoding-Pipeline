@@ -384,6 +384,9 @@ def for_profile(profile):
     from . import s12_b2_sampling_contract as ap
     import sys
 
+    if profile.get("schema_version") == "stage12_development_operations_b2_ap_ra_g1_v1":
+        from . import s12_b2_ra_g1_contract as ra
+        return ra
     return ap if profile.get("schema_version") == ap.PROFILE else sys.modules[__name__]
 
 
@@ -391,6 +394,9 @@ def for_start(start):
     from . import s12_b2_sampling_contract as ap
     import sys
 
+    if start.get("schema_version") == "stage12_development_operations_campaign_b2_ap_ra_g1_v1":
+        from . import s12_b2_ra_g1_contract as ra
+        return ra
     return ap if start.get("schema_version") == ap.START else sys.modules[__name__]
 
 
@@ -400,6 +406,9 @@ def parse_selected(raw):
 
     value = io.metadata(raw)
     version = value.get("schema_version")
+    if type(version) is str and version.endswith("_b2_ap_ra_g1_v1"):
+        from . import s12_b2_ra_g1_contract as ra
+        return ra.parse(raw, version)
     if version in ap.SCHEMAS:
         return ap.parse(raw, version)
     if version in {

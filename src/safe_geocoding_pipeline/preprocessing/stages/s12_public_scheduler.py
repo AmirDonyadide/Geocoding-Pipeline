@@ -148,6 +148,7 @@ class Coordinator:
         self.c = self.a = 0
         self.verified_ns: int | None = None
         self.charged = {"DATA": 0, "SERVICE_CONTROL": 0}
+        self.ra_charged_snapshot = (0, 0)
         self.block_charged = {"DATA": 0, "SERVICE_CONTROL": 0}
         self.opened_ns = clock.now_ns()
         self.prior_active_ms = 0
@@ -180,7 +181,11 @@ class Coordinator:
                 "overdue_after_ack",
             )
         }
-        self.resources = profile["resources"]
+        self.resources = (
+            contract.resources_view(profile)
+            if getattr(contract, "RA_ENABLED", False)
+            else profile["resources"]
+        )
         # The public driver supplies the source-reconciled ascending-size gate.
         # A bare capability coordinator cannot silently omit that barrier.
         self.size_ready: Callable[[Pending], bool] = lambda _: (
@@ -262,6 +267,7 @@ class Coordinator:
                         "DATA": previous["charged_data_attempts"],
                         "SERVICE_CONTROL": previous["charged_control_attempts"],
                     }
+                    self.ra_charged_snapshot = (self.charged["DATA"], self.charged["SERVICE_CONTROL"])
                     if block_id == previous["block_id"]:
                         self.state_id = rebase["state_id"]
                         self.block_charged = rebase["block_charged"].copy()
@@ -277,6 +283,10 @@ class Coordinator:
                     self.last_ticket = self.finalized_ticket = previous["last_ticket"]
                     self.prior_active_ms = previous["active_duration_ms"]
                     self.prior_block_ms = rebase["block_durations_ms"].get(block_id, 0)
+                if getattr(contract, "RA_ENABLED", False):
+                    register = getattr(authority, "register_coordinator", None)
+                    self.contract.require(callable(register), "RA_G1_COUNTER_SOURCE_REQUIRED")
+                    register(self)
                 if self.ap_enabled:
                     if rebase is not None:
                         previous = rebase["snapshot"]
@@ -1040,6 +1050,11 @@ class Coordinator:
                 self.start["initial_workload_authority_sha256"],
                 {"work": pending.work, "attempt": pending.attempt, "state": selected},
             )
+            if getattr(self.contract, "RA_ENABLED", False):
+                barrier = getattr(self.authority, "resource_prewrite", None)
+                self.contract.require(callable(barrier), "RA_G1_RESOURCE_BARRIER_REQUIRED")
+                # Resource observation / ACK may wait: never hold safety here.
+                barrier(next_write_bytes=self.resources["per_attempt_disk_bound_bytes"], next_creations=1)
             available = self.free_bytes()
             if self.journal.accounted_bytes is not None:
                 self.writer.call(self.journal.verify_storage)
@@ -1086,6 +1101,10 @@ class Coordinator:
                     remaining * self.resources["per_attempt_disk_bound_bytes"]
                     + self.resources["fixed_campaign_disk_bound_bytes"]
                 )
+                if getattr(self.contract, "RA_ENABLED", False):
+                    # RA-G1 checks next-action headroom; it makes no whole-root
+                    # physical reserve or native allocation guarantee.
+                    required_storage = self.resources["per_attempt_disk_bound_bytes"] + 1342177280
                 self.contract.require(
                     available >= required_storage, "PUBLIC_PROBE_EVIDENCE_WRITE_FAILED"
                 )
@@ -1101,6 +1120,7 @@ class Coordinator:
                 self.contract.validate_type(slot.begin_hash, "D")
                 with self.safety:
                     self.charged[kind] += 1
+                    self.ra_charged_snapshot = (self.charged["DATA"], self.charged["SERVICE_CONTROL"])
                     self.block_charged[kind] += 1
                 self.journal.event(
                     "BEGIN_DURABLE",

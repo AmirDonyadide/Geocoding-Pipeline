@@ -477,6 +477,15 @@ def scientific_reopen(
         retained[x] for x in ("operations_start", "scientific_start", "plan", "profile")
     )
     bind = manifest["publication_bindings"]
+    contract=o.for_profile(profile)
+    if getattr(contract,"RA_ENABLED",False):
+        b.require(manifest.get("manifest_version") == contract.PUBLICATION_MANIFEST and
+                  manifest.get("resource_assurance") == contract.publication_resource_summary(profile),"B2_RA_PUBLICATION_BINDING")
+        bound_authority=getattr(gate,"authority",gate)
+        b.require(callable(getattr(bound_authority,"resource_prewrite",None)),"B2_RA_MONITOR_REQUIRED")
+        bound_authority.resource_prewrite(next_write_bytes=0,next_creations=0)
+    else:
+        b.require("resource_assurance" not in manifest,"B2_RA_MIXED_METHOD")
     final = manifest["kind"].removeprefix(b.SYNTHETIC + "_") == FINAL
     n_decision = (
         b.parse(io.read(root / "N_decision.json"), "stage12_n_decision_b2_v1")
@@ -832,8 +841,11 @@ def validate_terminal(root, expected_hash, *, committed, validate_science):
     raw = io.read(root / "manifest.json")
     b.require(b.sha(raw) == expected_hash, "B2_MANIFEST_HASH")
     manifest = io.metadata(raw)
+    ra_manifest=manifest.get("manifest_version") == "stage12_pelias_retrieval_manifest_b2_ra_g1_v1"
+    if ra_manifest:
+        from . import s12_b2_ra_g1_contract as ra
     b.require(
-        set(manifest)
+        set(manifest) - ({"resource_assurance"} if ra_manifest else set())
         == {
             "manifest_version",
             "kind",
@@ -851,9 +863,14 @@ def validate_terminal(root, expected_hash, *, committed, validate_science):
             "continuous_service_state",
             "service_evidence_state",
         }
-        and manifest["manifest_version"] == "stage12_pelias_retrieval_manifest_b2_v1",
+        and manifest["manifest_version"] == (ra.PUBLICATION_MANIFEST if ra_manifest else "stage12_pelias_retrieval_manifest_b2_v1"),
         "B2_MANIFEST_SCHEMA",
     )
+    if ra_manifest:
+        ra.validate_type(manifest["resource_assurance"],ra.PUBLICATION_RESOURCE_SCHEMA)
+        retained=io.metadata(io.read(root/"campaign.json"))
+        b.require(retained["profile"]["schema_version"] == ra.PROFILE and
+                  manifest["resource_assurance"] == ra.publication_resource_summary(retained["profile"]),"B2_RA_PUBLICATION_BINDING")
     bindings = {
         **manifest["publication_bindings"],
         "manifest_sha256": expected_hash.hex(),
@@ -1319,8 +1336,10 @@ def publish_campaign(
             bytes.fromhex(assembled["raw_response_set_sha256"]),
             bytes.fromhex(bindings["summary_sha256"]),
         )
+        contract=o.for_profile(profile)
         return {
-            "manifest_version": "stage12_pelias_retrieval_manifest_b2_v1",
+            **({"resource_assurance":contract.publication_resource_summary(profile)} if getattr(contract,"RA_ENABLED",False) else {}),
+            "manifest_version": contract.PUBLICATION_MANIFEST if getattr(contract,"RA_ENABLED",False) else "stage12_pelias_retrieval_manifest_b2_v1",
             "kind": namespace,
             "population_scope": plan["population_scope"],
             "workload_kind": plan["workload_kind"],

@@ -38,12 +38,21 @@ VERSION = "stage12_public_runtime_configuration_v1"
 LOWER_VERSION = "stage12_public_lower_rate_configuration_v1"
 MATRIX_VERSION = "stage12_public_diverse_capability_configuration_v1"
 AP2_CONFIG = "stage12_public_sampling_runtime_configuration_v2"
-SAMPLING_CONFIGS = ("stage12_public_sampling_runtime_configuration_v1", AP2_CONFIG)
+RA_CONFIG = "stage12_public_sampling_runtime_configuration_ra_g1_v1"
+WF_CONFIGS = (AP2_CONFIG, RA_CONFIG)
+SAMPLING_CONFIGS = ("stage12_public_sampling_runtime_configuration_v1", *WF_CONFIGS)
 
 
 def sampling_contract(profile=None, config=None):
     version = (profile or {}).get("schema_version")
     config_version = (config or {}).get("version")
+    if (
+        version == "stage12_transport_operations_ra_g1_v1"
+        or config_version == RA_CONFIG
+    ):
+        from . import s12_ra_g1_contract
+
+        return s12_ra_g1_contract
     if version == "stage12_transport_operations_v4" or config_version == AP2_CONFIG:
         from . import s12_wf_ap2_contract
 
@@ -168,12 +177,20 @@ def validation_for(identity):
     raise c.Stage12Error("S12_PUBLIC_VALIDATION_BINDING_INVALID")
 
 
-def verify_successor_assets(repository):
+def verify_successor_assets(repository, *, contract=None):
     from . import s12_wf_ap2_contract as successor
+
+    successor = successor if contract is None else contract
     from . import s12_wf_ap2_timing as wire
 
     descriptors = successor.descriptors()
-    descriptors[successor.TIMING] = wire.descriptor()
+    descriptors[successor.TIMING] = wire.descriptor(
+        **(
+            {"schema": successor.TIMING}
+            if getattr(successor, "RA_ENABLED", False)
+            else {}
+        )
+    )
     for name, value in descriptors.items():
         raw = (repository / "docs/scientific_assets" / (name + ".json")).read_bytes()
         o.require(raw == c.canonical(value), "S12_ASSET_MISMATCH")
@@ -184,6 +201,10 @@ def successor_timing(config, output, review, clock, deadline):
     from . import s12_wf_ap2_assurance as assurance
     from . import s12_wf_ap2_contract as ap
     from . import s12_public_checkpoints as checkpoints
+
+    if config.get("version") == RA_CONFIG:
+        from . import s12_ra_g1_contract as ap
+        from . import s12_ra_g1_assurance as assurance
 
     phases = config["campaigns"]
     selected_bytes = sum(x["plan"]["budgets"]["storage_bytes"] for x in phases)
@@ -214,19 +235,30 @@ def successor_timing(config, output, review, clock, deadline):
         + 1
     )
     files = maximum_rows // 56 + cuts + 1
-    reserved_bytes = timing.MAX_FILES * timing.MAX_BYTES + timing.SUMMARY_RESERVE
-    creations = events + 24 * ordinals + 128 * len(phases) + 128 + timing.MAX_FILES + 1
+    maximum_files = 2980 if config.get("version") == RA_CONFIG else timing.MAX_FILES
+    task_file_cap = (
+        791452 if config.get("version") == RA_CONFIG else timing.TASK_FILE_CAP
+    )
+    resource_limits = (
+        ap.resources_view({"resources": config["resources"]})
+        if getattr(ap, "RA_ENABLED", False)
+        else config["resources"]
+    )
+    reserved_bytes = maximum_files * timing.MAX_BYTES + timing.SUMMARY_RESERVE
+    creations = events + 24 * ordinals + 128 * len(phases) + 128 + maximum_files + 1
     o.require(
-        files <= timing.MAX_FILES
-        and creations <= timing.TASK_FILE_CAP
-        and selected_bytes + reserved_bytes
-        <= config["resources"]["allocated_disk_bytes"],
+        files <= maximum_files
+        and creations <= task_file_cap
+        and selected_bytes + reserved_bytes <= resource_limits["allocated_disk_bytes"],
         "WF_AP2_TELEMETRY_BUDGET",
     )
     observer = timing.SamplingTiming(
         output / "public_path_timing",
         phase_count=len(phases),
-        timing_schema=checkpoints.WF_SCHEMA,
+        timing_schema=checkpoints.RA_SCHEMA
+        if getattr(ap, "RA_ENABLED", False)
+        else checkpoints.WF_SCHEMA,
+        **({"max_files": maximum_files} if getattr(ap, "RA_ENABLED", False) else {}),
         timing_binding={
             "policy_sha256": ap.POLICY_SHA,
             "source_sha256": o.digest(review["source_files"]),
@@ -238,9 +270,9 @@ def successor_timing(config, output, review, clock, deadline):
     )
     observer.reservation = {
         "bytes": reserved_bytes,
-        "creations": timing.MAX_FILES + 1,
-        "task_byte_ceiling": config["resources"]["allocated_disk_bytes"],
-        "task_file_ceiling": timing.TASK_FILE_CAP,
+        "creations": maximum_files + 1,
+        "task_byte_ceiling": resource_limits["allocated_disk_bytes"],
+        "task_file_ceiling": task_file_cap,
         "selected_chunk_upper": files,
         "selected_timing_rows": maximum_rows,
         "selected_cut_upper": cuts,
@@ -255,6 +287,10 @@ def verify_successor_timing(config, output, review, summary, check):
     from . import s12_wf_ap2_assurance as assurance
     from . import s12_public_checkpoints as checkpoints
     from .s12_paged_history import selected
+
+    if config.get("version") == RA_CONFIG:
+        from . import s12_ra_g1_contract as ap
+        from . import s12_ra_g1_assurance as assurance
 
     o.require(
         type(summary) is dict and summary.get("final_timing_coverage_complete") is True,
@@ -304,6 +340,10 @@ def verify_successor_timing(config, output, review, summary, check):
 
     prefix = checkpoints.read_prefix(
         output / "public_path_timing",
+        max_files=2980 if config.get("version") == RA_CONFIG else 1500,
+        timing_schema=checkpoints.RA_SCHEMA
+        if config.get("version") == RA_CONFIG
+        else checkpoints.WF_SCHEMA,
         expected_binding={
             "policy_sha256": ap.POLICY_SHA,
             "source_sha256": ap.digest(review["source_files"]),
@@ -336,6 +376,12 @@ def verify_successor_timing(config, output, review, summary, check):
 
 
 def validate_config(config):
+    if config.get("version") == RA_CONFIG:
+        from .s12_ra_g1_public_configuration import validate
+
+        validate(config)
+        return
+
     if config.get("version") in SAMPLING_CONFIGS:
         ap = sampling_contract(config=config)
 
@@ -499,7 +545,15 @@ def validate_config(config):
         matrix_rules.validate_matrix(config)
 
 
-def runtime_inventory(validation_sha256=None, *, successor=False, check=lambda: None, backend_reader=None):
+def runtime_inventory(
+    validation_sha256=None,
+    *,
+    successor=False,
+    check=lambda: None,
+    backend_reader=None,
+    resource_assurance=None,
+    environment_observation_sha256=None,
+):
     result = {
         "python": platform.python_version(),
         "implementation": platform.python_implementation(),
@@ -516,7 +570,18 @@ def runtime_inventory(validation_sha256=None, *, successor=False, check=lambda: 
     if successor:
         from .s12_wf_ap2_assurance import runtime_facts
 
-        result["wf_ap2_runtime"] = runtime_facts(check=check, backend_reader=backend_reader)
+        if resource_assurance == "RA-G1-r1":
+            from .s12_ra_g1_assurance import runtime_facts
+
+            result["wf_ap2_runtime"] = runtime_facts(
+                check=check,
+                backend_reader=backend_reader,
+                environment_observation_sha256=environment_observation_sha256,
+            )
+        else:
+            result["wf_ap2_runtime"] = runtime_facts(
+                check=check, backend_reader=backend_reader
+            )
     return result
 
 
@@ -527,7 +592,18 @@ class Authority:
     signature, a self-issued operator attestation, or arbitrary hash allow-all.
     """
 
-    def __init__(self, config, bundle, review, review_hash, repository, git_sha, clock, *, deadline_check=None):
+    def __init__(
+        self,
+        config,
+        bundle,
+        review,
+        review_hash,
+        repository,
+        git_sha,
+        clock,
+        *,
+        deadline_check=None,
+    ):
         self.config, self.bundle, self.review, self.review_hash = (
             config,
             bundle,
@@ -545,7 +621,7 @@ class Authority:
         self._runtime_inventory_checks = 0
         self._runtime_inventory_limit = None
         self.configuration_scope_sha256 = None
-        successor = config.get("version") == AP2_CONFIG
+        successor = config.get("version") in WF_CONFIGS
         if successor:
             from . import s12_wf_ap2_assurance as assurance
 
@@ -740,7 +816,7 @@ class Authority:
         if (
             enforcement
             and self.active is not None
-            and self.config.get("version") == AP2_CONFIG
+            and self.config.get("version") in WF_CONFIGS
         ):
             from . import s12_wf_ap2_assurance as assurance
 
@@ -897,13 +973,19 @@ def reopen_completed(
     """A new bounded original-source stage; no publication cache is accepted."""
     from .s12_public_fresh_reads import FreshReads
 
-    if profile.get("schema_version") == "stage12_transport_operations_v4":
+    if profile.get("schema_version") in (
+        "stage12_transport_operations_v4",
+        "stage12_transport_operations_ra_g1_v1",
+    ):
         from .s12_paged_history import Fresh as FreshReads
     elif sampling_contract(profile) is not None:
         from .s12_public_history import Fresh as FreshReads
 
     with ExitStack() as stack:
-        if profile.get("schema_version") == "stage12_transport_operations_v4":
+        if profile.get("schema_version") in (
+            "stage12_transport_operations_v4",
+            "stage12_transport_operations_ra_g1_v1",
+        ):
             from .s12_paged_history import selected
 
             stack.enter_context(selected(plan["history_limits"]))
@@ -1461,7 +1543,10 @@ def _reopen_sampling_completed(
         previous = o.parse(io.read(node / "snapshot.json"), o.SNAPSHOT)
         previous_report = read_object(node / "block_report.json")
         if _verify_history:
-            if profile.get("schema_version") == "stage12_transport_operations_v4":
+            if profile.get("schema_version") in (
+                "stage12_transport_operations_v4",
+                "stage12_transport_operations_ra_g1_v1",
+            ):
                 from .s12_paged_history import Fresh as FreshReads
             else:
                 from .s12_public_history import Fresh as FreshReads
@@ -1472,7 +1557,10 @@ def _reopen_sampling_completed(
                 **(
                     {"limits": plan["history_limits"]}
                     if profile.get("schema_version")
-                    == "stage12_transport_operations_v4"
+                    in (
+                        "stage12_transport_operations_v4",
+                        "stage12_transport_operations_ra_g1_v1",
+                    )
                     else {}
                 ),
             ):
@@ -1639,6 +1727,32 @@ def filesystem_free_bytes(path):
     return observed.f_bavail * observed.f_frsize
 
 
+def resource_transition_window(clock, previous_records, duration_ms, task_end_ns):
+    """Carry an actual FINAL through the next scope's preparation.
+
+    This is not a new observation or an independent original-opening claim.
+    The next actual START still has to satisfy Coverage from this boundary.
+    """
+    from . import s12_ra_g1_monitor as monitor
+
+    terminal = previous_records["monitor_terminal"]
+    monitor.validate(terminal, monitor.MONITOR_TERMINAL)
+    c.require(
+        terminal["disposition"] == "CLOSED_SELECTED_SCOPE"
+        and terminal["writer_state"] == "HEALTHY_RELEASED"
+        and type(duration_ms) is int
+        and duration_ms > 0,
+        "RA_G1_MONITOR_INCOMPLETE",
+    )
+    start_ns = terminal["coverage_end_ns"]
+    c.require(start_ns <= clock.now_ns(), "RA_G1_PROTOCOL")
+    deadline = recovery.Deadline(
+        clock, min(task_end_ns, start_ns + duration_ms * 10**6)
+    )
+    deadline.check()
+    return start_ns, deadline
+
+
 def execute(
     config,
     *,
@@ -1651,6 +1765,11 @@ def execute(
     clock=None,
     timing_observer=None,
     task_started_ns=None,
+    source_counter_ledger=None,
+    allocation_controls=None,
+    setup_session=None,
+    setup_opener=None,
+    processing_deadline_ns=None,
 ):
     setup_cpu = time.process_time_ns()
     from ..stage12_probe_cli import run_operations_block
@@ -1662,8 +1781,43 @@ def execute(
         o = sampling_contract(config=config)
     require_goethe_nhr_slurm("stage12 explicit O-r2 public diagnostic")
     clock = clock or Clock()
+    if config.get("version") == RA_CONFIG:
+        from . import s12_ra_g1_execution as execution
+        from .s12_ra_g1_source_counters import SourceCounterLedger
+
+        o.require(
+            isinstance(setup_session, execution.AdministrativePhaseSession)
+            and setup_session.binding["role"] == "PUBLIC_SETUP"
+            and setup_session.binding["scope"] == o.SCOPE
+            and setup_session.binding["source_git_sha"] == git_sha
+            and setup_session.binding["process_pid"] == os.getpid()
+            and not setup_session.completed
+            and setup_session.protocol.state == "RUNNING"
+            and callable(setup_opener),
+            "RA_G1_PUBLIC_SETUP_REQUIRED",
+        )
+        o.require(
+            isinstance(source_counter_ledger, SourceCounterLedger)
+            and allocation_controls is not None
+            and setup_session.selection == allocation_controls.selected
+            and source_counter_ledger.source_selection_sha256
+            == o.digest(setup_session.selection),
+            "RA_G1_HANDOFF",
+        )
+        epoch = os.environ.get("STAGE12_RA_EPOCH_NS")
+        o.require(
+            type(epoch) is str
+            and epoch.isdecimal()
+            and type(processing_deadline_ns) is int
+            and int(epoch)
+            <= setup_session.binding["scope_start_mono_ns"]
+            <= clock.now_ns()
+            < processing_deadline_ns
+            == int(epoch) + 8160 * 10**9,
+            "RA_G1_DEADLINE",
+        )
     envelope = None
-    if config.get("version") == AP2_CONFIG:
+    if config.get("version") in WF_CONFIGS:
         envelope = Envelope(
             clock,
             config["maximum_attempts"],
@@ -1671,6 +1825,8 @@ def execute(
             matrix=True,
             started_ns=task_started_ns,
         )
+        if config.get("version") == RA_CONFIG:
+            envelope.deadline = min(envelope.deadline, processing_deadline_ns)
         envelope.check()
     validate_config(config)
     matrix_mode = config["version"] in (
@@ -1682,8 +1838,10 @@ def execute(
     resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
     if config.get("version") in SAMPLING_CONFIGS:
         assets.verify(repository, public_sampling=True)
-        if config["version"] == AP2_CONFIG:
-            verify_successor_assets(repository)
+        if config["version"] in WF_CONFIGS:
+            verify_successor_assets(
+                repository, contract=sampling_contract(config=config)
+            )
     else:
         assets.verify(repository)
     actual = subprocess.check_output(
@@ -1697,460 +1855,801 @@ def execute(
         ),
         "PUBLIC_PROBE_EXECUTABLE_MISMATCH",
     )
-    authority = Authority(
-        config, bundle, review, review_hash, repository, git_sha, clock,
-        **({"deadline_check": envelope.check} if config["version"] == AP2_CONFIG else {})
-    )
-    output = Path(config["output_directory"])
-    o.require(
-        output.parent == OUTPUT_PARENT and output.name == "or2_" + config["task_id"],
-        "PUBLIC_PROBE_OUTPUT_SCOPE_INVALID",
-    )
-    io.reserve(output)  # task-global exclusive reservation, no second invocation/resume
-    if envelope is None:
-        envelope = Envelope(
-            clock,
-            config["maximum_attempts"],
-            config["active_seconds"],
-            matrix=matrix_mode,
-        )
-    envelope.check()
-    io.write(
-        output / "_RUN_RESERVED.json",
-        c.canonical(
+    authority_type = Authority
+    if config.get("version") == RA_CONFIG:
+        from .s12_ra_g1_public import Authority as authority_type
+    authority = authority_type(
+        config,
+        bundle,
+        review,
+        review_hash,
+        repository,
+        git_sha,
+        clock,
+        **(
+            {"deadline_check": envelope.check}
+            if config["version"] in WF_CONFIGS
+            else {}
+        ),
+        **(
             {
-                "task_id": config["task_id"],
-                "job_id": os.environ["SLURM_JOB_ID"],
-                "configuration_sha256": o.digest(config),
-                "review_binding_sha256": review_hash,
-                "started_utc": clock.utc(),
+                "source_counter_ledger": source_counter_ledger,
+                "allocation_controls": allocation_controls,
             }
+            if config.get("version") == RA_CONFIG
+            else {}
         ),
     )
-    r = config["resources"]
-    mem = os.environ.get("SLURM_MEM_PER_NODE")
-    o.require(
-        mem is not None and int(mem) * 2**20 >= r["job_memory_bytes"],
-        "S12_PUBLIC_MEMORY_ALLOCATION_UNVERIFIED",
-    )
+    from contextlib import nullcontext
 
-    def free():
-        return filesystem_free_bytes(output)
+    allocation_scope = nullcontext()
+    if config.get("version") == RA_CONFIG:
+        from .s12_ra_g1_public import ApplicationControls
 
-    o.require(free() >= r["allocated_disk_bytes"], "S12_PUBLIC_DISK_UNAVAILABLE")
-    runtime_budget = None
-    if config["version"] == AP2_CONFIG:
-        runtime_budget = authority.runtime_inventory_budget()
-        authority.charge_runtime_inventory_check(runtime_budget)
-    runtime = runtime_inventory(
-        config["public_validation_sha256"],
-        **({"successor": True, "check": envelope.check} if config["version"] == AP2_CONFIG else {}),
-    )
-    io.write(output / "runtime_inventory.json", c.canonical(runtime))
-    io.write(output / "configuration.json", c.canonical(config))
-    io.write(output / "review_binding.json", c.canonical(review))
-    if config["version"] in SAMPLING_CONFIGS:
-        for item in config["campaigns"]:
-            preview = {
-                "client_git_sha": git_sha,
-                "runtime_inventory_sha256": o.digest(runtime),
-                "profile_sha256": o.digest(item["profile"]),
-                "plan_sha256": o.digest(item["plan"]),
-            }
-            record = authority.sampling_bound(
-                item["profile"],
-                preview,
+        first = config["campaigns"][0]
+        selected_bound = authority._resource_evidence(
+            first["profile"]["sampling_runtime_bound_sha256"], "runtime_bounds"
+        )
+        selected_resources = authority.resource_selection(selected_bound)
+        if authority.allocation_controls is None:
+            authority.allocation_controls = ApplicationControls(
+                selected_resources, check=envelope.check
             )
-            if config["version"] == AP2_CONFIG:
-                from . import s12_wf_ap2_assurance as assurance
-
-                authority.bind(item, item["plan"], preview)
-                assurance.verify_runtime(
-                    record,
-                    authority,
-                    {
-                        "profile": item["profile"],
-                        "plan": item["plan"],
-                        "start": preview,
-                    },
-                )
-        authority.active = authority.start = None
-    if config["version"] == AP2_CONFIG:
-        o.require(timing_observer is not False, "WF_AP2_TELEMETRY_REQUIRED")
-        if timing_observer is None:
-            timing_observer = successor_timing(
-                config, output, review, clock, envelope.deadline
+        o.require(
+            authority.allocation_controls.selected == selected_resources,
+            "RA_G1_HANDOFF",
+        )
+        authority.allocation_controls.reserve_components(
+            2 * 2980 * 32768 + 128 * 2**20, 2981 + 2048
+        )
+        allocation_scope = io.allocation_controls(authority.allocation_controls)
+    with allocation_scope:
+        output = Path(config["output_directory"])
+        o.require(
+            output.parent == OUTPUT_PARENT
+            and output.name == "or2_" + config["task_id"],
+            "PUBLIC_PROBE_OUTPUT_SCOPE_INVALID",
+        )
+        io.reserve(
+            output
+        )  # task-global exclusive reservation, no second invocation/resume
+        if envelope is None:
+            envelope = Envelope(
+                clock,
+                config["maximum_attempts"],
+                config["active_seconds"],
+                matrix=matrix_mode,
             )
-        from . import s12_public_checkpoints as checkpoints
+        envelope.check()
+        io.write(
+            output / "_RUN_RESERVED.json",
+            c.canonical(
+                {
+                    "task_id": config["task_id"],
+                    "job_id": os.environ["SLURM_JOB_ID"],
+                    "configuration_sha256": o.digest(config),
+                    "review_binding_sha256": review_hash,
+                    "started_utc": clock.utc(),
+                }
+            ),
+        )
+        r = (
+            o.resources_view({"resources": config["resources"]})
+            if getattr(o, "RA_ENABLED", False)
+            else config["resources"]
+        )
+        mem = os.environ.get("SLURM_MEM_PER_NODE")
+        o.require(
+            mem is not None
+            and int(mem) * 2**20
+            >= (
+                config["resources"]["requested_memory_bytes"]
+                if getattr(o, "RA_ENABLED", False)
+                else r["job_memory_bytes"]
+            ),
+            "S12_PUBLIC_MEMORY_ALLOCATION_UNVERIFIED",
+        )
+
+        def free():
+            return filesystem_free_bytes(output)
 
         o.require(
-            getattr(timing_observer, "timing_schema", None) == checkpoints.WF_SCHEMA,
-            "WF_AP2_TELEMETRY_REQUIRED",
+            free()
+            >= (
+                1342177280
+                if getattr(o, "RA_ENABLED", False)
+                else r["allocated_disk_bytes"]
+            ),
+            "S12_PUBLIC_DISK_UNAVAILABLE",
         )
-    # The approved provider path is set by the launcher. Never inspect/log value here.
-    o.require(
-        os.environ.get("SAFE_PELIAS_API_KEY_FILE")
-        == str(Path.home() / ".config/safe-geocoding/pelias_api_key")
-        and not os.environ.get("SAFE_PELIAS_API_KEY"),
-        "PUBLIC_PROBE_AUTH_SOURCE_UNVERIFIED",
-    )
-    key = key_provider()
-    t = config["transport"]
-    transport_profile = transport.TransportProfile(
-        t["origin"],
-        t["approved_ip"],
-        bytes.fromhex(t["configuration_evidence_sha256"]),
-        t["target_limit"],
-        t["header_limit"],
-    )
+        runtime_budget = None
+        if config["version"] in WF_CONFIGS:
+            runtime_budget = authority.runtime_inventory_budget()
+            authority.charge_runtime_inventory_check(runtime_budget)
+        ra_inventory = {}
+        if getattr(o, "RA_ENABLED", False):
+            first = config["campaigns"][0]
+            preview = {"client_git_sha": git_sha, "runtime_inventory_sha256": None}
+            # Exact initial runtime digest is bound in every real assurance record.
+            raw_bound = authority._resource_evidence(
+                first["profile"]["sampling_runtime_bound_sha256"], "runtime_bounds"
+            )
+            from . import s12_ra_g1_assurance as ra_assurance
 
-    def dispatch(work, target, hooks):
-        envelope.charge()
-        if config["version"] == AP2_CONFIG:
-            authority.recheck(enforcement=True)
-        else:
-            authority.recheck()
-        return transport.send(
-            target, transport_profile, key, v1.Operations(), hooks=envelope.wrap(hooks)
+            ra_inventory = {
+                "backend_reader": ra_assurance.bounded_backend_reader(
+                    authority.charge_original
+                ),
+                "resource_assurance": "RA-G1-r1",
+                "environment_observation_sha256": raw_bound[
+                    "initial_environment_observation_sha256"
+                ],
+            }
+        runtime = runtime_inventory(
+            config["public_validation_sha256"],
+            **ra_inventory,
+            **(
+                {"successor": True, "check": envelope.check}
+                if config["version"] in WF_CONFIGS
+                else {}
+            ),
         )
+        io.write(output / "runtime_inventory.json", c.canonical(runtime))
+        io.write(output / "configuration.json", c.canonical(config))
+        io.write(output / "review_binding.json", c.canonical(review))
+        if config["version"] in SAMPLING_CONFIGS:
+            for item in config["campaigns"]:
+                preview = {
+                    "client_git_sha": git_sha,
+                    "runtime_inventory_sha256": o.digest(runtime),
+                    "profile_sha256": o.digest(item["profile"]),
+                    "plan_sha256": o.digest(item["plan"]),
+                }
+                record = authority.sampling_bound(
+                    item["profile"],
+                    preview,
+                )
+                if config["version"] in WF_CONFIGS:
+                    from . import s12_wf_ap2_assurance as assurance
 
-    diagnostics = Failures(clock)
-    results = []
-    verified_complete = []
-    verified_rates = []
-    matrix_complete = False
-    matrix_passed = 0
-    parent = None
-    initial_cpu = (
-        setup_cpu if config["version"] == AP2_CONFIG else time.process_time_ns()
-    )
-    rss0 = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
-    runtime_operation = "RUNTIME"
-    runtime_failure = None
-    persistence_failed = False
-    timing_init_failed = False
-    active_timing_phase = None
-    if timing_observer is False:
-        timing_observer = None
-    elif timing_observer is None and matrix_mode:
-        try:
-            timing_observer = timing.for_task(config, output)
-        except BaseException:
-            timing_init_failed = True
-    try:
-        for phase_id, item in enumerate(config["campaigns"], 1):
-            if config["version"] != AP2_CONFIG:
-                timing.safe_call(timing_observer, "set_phase", phase_id)
-                timing.safe_call(timing_observer, "boundary")
-            runtime_operation = "RUNTIME"
-            envelope.check()
-            authority.recheck()
-            plan = deepcopy(item["plan"])
-            if not matrix_mode and item["label"] != "capability_subset":
-                plan["capability_parent_sha256"] = parent
-            profile = item["profile"]
-            controls = matrix.adapters(plan) if matrix_mode else {}
-            o.validate_plan(plan, profile)
-            start = {
-                "schema_version": o.START,
-                "scope": o.SCOPE,
-                "campaign_id": os.urandom(32).hex(),
-                "profile_sha256": o.digest(profile),
-                "plan_sha256": o.digest(plan),
-                "rule_bundle_sha256": o.RULE_BUNDLE,
-                "policy_freeze_record_sha256": config["sources"]["policy_freeze"],
-                "implementation_authorization_sha256": config["sources"]["owner"],
-                "implementation_review_sha256": review_hash,
-                "initial_workload_authority_sha256": config["sources"]["owner"],
+                    if getattr(o, "RA_ENABLED", False):
+                        from . import s12_ra_g1_assurance as assurance
+
+                    authority.bind(item, item["plan"], preview)
+                    assurance.verify_runtime(
+                        record,
+                        authority,
+                        {
+                            "profile": item["profile"],
+                            "plan": item["plan"],
+                            "start": preview,
+                        },
+                    )
+            authority.active = authority.start = None
+        if config["version"] in WF_CONFIGS:
+            o.require(timing_observer is not False, "WF_AP2_TELEMETRY_REQUIRED")
+            if timing_observer is None:
+                timing_observer = successor_timing(
+                    config, output, review, clock, envelope.deadline
+                )
+            from . import s12_public_checkpoints as checkpoints
+
+            o.require(
+                getattr(timing_observer, "timing_schema", None)
+                == (
+                    checkpoints.RA_SCHEMA
+                    if getattr(o, "RA_ENABLED", False)
+                    else checkpoints.WF_SCHEMA
+                ),
+                "WF_AP2_TELEMETRY_REQUIRED",
+            )
+        # The approved provider path is set by the launcher. Never inspect/log value here.
+        o.require(
+            os.environ.get("SAFE_PELIAS_API_KEY_FILE")
+            == str(Path.home() / ".config/safe-geocoding/pelias_api_key")
+            and not os.environ.get("SAFE_PELIAS_API_KEY"),
+            "PUBLIC_PROBE_AUTH_SOURCE_UNVERIFIED",
+        )
+        resource_sessions = []
+        if config.get("version") == RA_CONFIG:
+            first = config["campaigns"][0]
+            setup_preview = {
                 "client_git_sha": git_sha,
                 "runtime_inventory_sha256": o.digest(runtime),
-                "created_utc": clock.utc(),
+                "profile_sha256": o.digest(first["profile"]),
+                "plan_sha256": o.digest(first["plan"]),
             }
-            if config["version"] in SAMPLING_CONFIGS:
-                start["sampling_policy_sha256"] = o.POLICY_SHA
-                if getattr(o, "M2_ENABLED", False):
-                    start.update(o.assurance_fields())
-            authority.bind(item, plan, start)
-            phase = output / item["label"]
-            source = config["sources"]["owner"]
-            phase_deadline = recovery.Deadline(
-                clock,
-                min(
-                    envelope.deadline,
-                    clock.now_ns()
-                    + min(
-                        plan["budgets"]["active_duration_ms"],
-                        plan["blocks"][0]["budget"]["active_duration_ms"],
-                    )
-                    * 1_000_000,
+            authority.bind(first, first["plan"], setup_preview)
+            authority.resource_monitor = setup_session.monitor
+            key_holder = []
+
+            def open_setup_and_provider():
+                setup_opener()
+                authority.source_fence()
+                authority.recheck(enforcement=True)
+                authority.resource_prewrite(next_write_bytes=0, next_creations=0)
+                envelope.check()
+                key_holder.append(key_provider())
+                envelope.check()
+                return {
+                    "configuration_sha256": o.digest(config),
+                    "provider_returned": True,
+                }
+
+            _, setup_records = setup_session.freeze_and_open(
+                frozen_data_inventory_sha256=o.digest(
+                    {"configuration": config, "runtime": runtime, "review": review}
                 ),
+                actual_opener=open_setup_and_provider,
             )
-            if config["version"] == AP2_CONFIG:
-                active_timing_phase = phase_id
-                timing_observer.phase_open(
-                    phase_id,
-                    phase_deadline_ns=phase_deadline.end_ns,
-                    timeout_seconds=min(
-                        5, max(0.001, (phase_deadline.end_ns - clock.now_ns()) / 1e9)
-                    ),
-                )
-            result = run_operations_block(
-                profile,
-                plan,
-                start,
-                work_factory=lambda: iter(item["work"]),
-                output=phase,
-                block_id=1,
-                authority=authority,
-                clock=clock,
-                dispatch=dispatch,
-                runtime_inventory=runtime,
-                runtime_key=key.value,
-                control_adapters=controls,
-                monitor=None,
-                free_bytes=free,
-                segment_authority=source,
-                writer_exclusion_evidence=source,
-                epoch=os.urandom(32).hex(),
-                writer_release_evidence=source,
-                public_validation=validation_for(config["public_validation_sha256"]),
-                ascending_sizes=item["ascending_sizes"],
-                task_deadline_ns=phase_deadline.end_ns,
-                diagnostics=diagnostics,
-                timing_observer=timing_observer,
-                pause_requested=lambda: (
-                    clock.now_ns() >= envelope.deadline - 80 * 10**9
-                ),
-            )
-            if config["version"] == AP2_CONFIG:
-                timing_observer.phase_close(
-                    phase_id,
-                    quiescent=True,
-                    timeout_seconds=min(
-                        5, max(0.001, (phase_deadline.end_ns - clock.now_ns()) / 1e9)
-                    ),
-                )
-                active_timing_phase = None
-            else:
-                timing.safe_call(timing_observer, "boundary")
-            results.append(
+            o.require(len(key_holder) == 1, "RA_G1_PUBLIC_SETUP_REQUIRED")
+            key = key_holder.pop()
+            resource_sessions.append(
                 {
-                    "label": item["label"],
-                    "campaign_report_sha256": o.digest(result),
-                    "report": result,
+                    "phase_id": 13,
+                    "phase_start_ns": setup_session.binding["scope_start_mono_ns"],
+                    "phase_deadline_ns": setup_session.deadline,
+                    "root": str(setup_session.root),
+                    "binding_sha256": o.digest(setup_session.binding),
+                    "selection_sha256": o.digest(setup_session.selection),
+                    "records": setup_records,
                 }
             )
-            io.write(
-                output / (item["label"] + "_result.json"), c.canonical(results[-1])
+            # The next scope begins at an original acquisition, not after its
+            # setup work. A slow transition must fail the actual START gap.
+            previous_resource_records = setup_records
+        else:
+            key = key_provider()
+        t = config["transport"]
+        transport_profile = transport.TransportProfile(
+            t["origin"],
+            t["approved_ip"],
+            bytes.fromhex(t["configuration_evidence_sha256"]),
+            t["target_limit"],
+            t["header_limit"],
+        )
+
+        def dispatch(work, target, hooks):
+            envelope.charge()
+            if config["version"] in WF_CONFIGS:
+                authority.recheck(enforcement=True)
+            else:
+                authority.recheck()
+            return transport.send(
+                target,
+                transport_profile,
+                key,
+                v1.Operations(),
+                hooks=envelope.wrap(hooks),
             )
-            if result["disposition"] != "COMPLETED" or not result["report_complete"]:
-                break
-            runtime_operation = "RUNTIME_REOPEN"
-            if config["version"] == AP2_CONFIG:
-                authority.charge_runtime_inventory_check(runtime_budget)
-                o.require(
-                    runtime_inventory(
-                        config["public_validation_sha256"], successor=True, check=phase_deadline.check
+
+        diagnostics = Failures(clock)
+        results = []
+        verified_complete = []
+        verified_rates = []
+        matrix_complete = False
+        matrix_passed = 0
+        parent = None
+        initial_cpu = (
+            setup_cpu if config["version"] in WF_CONFIGS else time.process_time_ns()
+        )
+        rss0 = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+        runtime_operation = "RUNTIME"
+        runtime_failure = None
+        persistence_failed = False
+        timing_init_failed = False
+        active_timing_phase = None
+        active_resource = None
+        timing_already_closed = False
+        timing_reopening = None
+        if timing_observer is False:
+            timing_observer = None
+        elif timing_observer is None and matrix_mode:
+            try:
+                timing_observer = timing.for_task(config, output)
+            except BaseException:
+                timing_init_failed = True
+        try:
+            for phase_id, item in enumerate(config["campaigns"], 1):
+                if getattr(o, "RA_ENABLED", False):
+                    authority._source_counter_ledger.enter_stage(phase_id)
+                    phase_start_ns, phase_deadline = resource_transition_window(
+                        clock,
+                        previous_resource_records,
+                        min(
+                            item["plan"]["budgets"]["active_duration_ms"],
+                            item["plan"]["blocks"][0]["budget"]["active_duration_ms"],
+                        ),
+                        envelope.deadline,
                     )
-                    == runtime,
-                    "WF_AP2_RUNTIME_CHANGED",
-                )
-            with io.cooperative_io(phase_deadline.check):
-                phase_deadline.check()
-                block = reopen_completed(
-                    phase,
+                    authority._deadline_check = phase_deadline.check
+                    phase_deadline.check()
+                if config["version"] not in WF_CONFIGS:
+                    timing.safe_call(timing_observer, "set_phase", phase_id)
+                    timing.safe_call(timing_observer, "boundary")
+                runtime_operation = "RUNTIME"
+                envelope.check()
+                authority.recheck()
+                plan = deepcopy(item["plan"])
+                if not matrix_mode and item["label"] != "capability_subset":
+                    plan["capability_parent_sha256"] = parent
+                profile = item["profile"]
+                controls = matrix.adapters(plan) if matrix_mode else {}
+                o.validate_plan(plan, profile)
+                start = {
+                    "schema_version": o.START,
+                    "scope": o.SCOPE,
+                    "campaign_id": os.urandom(32).hex(),
+                    "profile_sha256": o.digest(profile),
+                    "plan_sha256": o.digest(plan),
+                    "rule_bundle_sha256": o.RULE_BUNDLE,
+                    "policy_freeze_record_sha256": config["sources"]["policy_freeze"],
+                    "implementation_authorization_sha256": config["sources"]["owner"],
+                    "implementation_review_sha256": review_hash,
+                    "initial_workload_authority_sha256": config["sources"]["owner"],
+                    "client_git_sha": git_sha,
+                    "runtime_inventory_sha256": o.digest(runtime),
+                    "created_utc": clock.utc(),
+                }
+                if config["version"] in SAMPLING_CONFIGS:
+                    start["sampling_policy_sha256"] = o.POLICY_SHA
+                    if getattr(o, "M2_ENABLED", False) or getattr(
+                        o, "RA_ENABLED", False
+                    ):
+                        start.update(o.assurance_fields())
+                authority.bind(item, plan, start)
+                phase = output / item["label"]
+                source = config["sources"]["owner"]
+                if not getattr(o, "RA_ENABLED", False):
+                    phase_start_ns = clock.now_ns()
+                    phase_deadline = recovery.Deadline(
+                        clock,
+                        min(
+                            envelope.deadline,
+                            phase_start_ns
+                            + min(
+                                plan["budgets"]["active_duration_ms"],
+                                plan["blocks"][0]["budget"]["active_duration_ms"],
+                            )
+                            * 1_000_000,
+                        ),
+                    )
+                if getattr(o, "RA_ENABLED", False):
+                    authority._deadline_check = phase_deadline.check
+                    from . import s12_ra_g1_execution as execution
+                    from .s12_ra_g1_public import ApplicationControls
+
+                    bound = authority.sampling_bound(profile, start)
+                    selected = authority.resource_selection(bound)
+                    if authority.allocation_controls is None:
+                        authority.allocation_controls = ApplicationControls(
+                            selected, check=envelope.check
+                        )
+                    active_resource = execution.start_session(
+                        authority=authority,
+                        config=config,
+                        binding=bound,
+                        selection=selected,
+                        evidence_root=output / (item["label"] + "_resources"),
+                        deadline_ns=phase_deadline.end_ns,
+                        phase_id=phase_id,
+                        check=phase_deadline.check,
+                        counters=authority.counters,
+                        charge=authority.allocation_controls.monitor_charge,
+                        read_charge=authority.charge_original,
+                        clock_ns=clock.now_ns,
+                        native_roots=[output],
+                        scope_start_ns=phase_start_ns,
+                    )
+                if config["version"] in WF_CONFIGS:
+                    active_timing_phase = phase_id
+                    timing_observer.phase_open(
+                        phase_id,
+                        phase_deadline_ns=phase_deadline.end_ns,
+                        timeout_seconds=min(
+                            5,
+                            max(0.001, (phase_deadline.end_ns - clock.now_ns()) / 1e9),
+                        ),
+                    )
+                result = run_operations_block(
                     profile,
                     plan,
                     start,
-                    validation_sha256=config["public_validation_sha256"],
+                    work_factory=lambda: iter(item["work"]),
+                    output=phase,
+                    block_id=1,
+                    authority=authority,
+                    clock=clock,
+                    dispatch=dispatch,
+                    runtime_inventory=runtime,
+                    runtime_key=key.value,
                     control_adapters=controls,
-                )
-                phase_deadline.check()
-            runtime_operation = "RUNTIME"
-            verified_complete.append(item["label"])
-            if matrix_mode:
-                with io.cooperative_io(phase_deadline.check):
-                    comparisons = matrix.verify_controls(phase, plan)
-                    phase_deadline.check()
-                if not matrix.gate(block, item, config["capability"]):
-                    break
-                io.write(
-                    output / (item["label"] + "_CAPABILITY_GATE.json"),
-                    c.canonical(
-                        {
-                            "version": "stage12_public_matrix_phase_gate_v1",
-                            "configuration_sha256": o.digest(config),
-                            "block_report_sha256": o.digest(block),
-                            "control_comparisons": comparisons,
-                            "disposition": "PASS_EXACT_PHASE_NOT_RATE_QUALIFICATION",
-                            "cumulative_attempts": envelope.attempts,
-                        }
+                    monitor=None,
+                    free_bytes=free,
+                    segment_authority=source,
+                    writer_exclusion_evidence=source,
+                    epoch=os.urandom(32).hex(),
+                    writer_release_evidence=source,
+                    public_validation=validation_for(
+                        config["public_validation_sha256"]
+                    ),
+                    ascending_sizes=item["ascending_sizes"],
+                    task_deadline_ns=phase_deadline.end_ns,
+                    diagnostics=diagnostics,
+                    timing_observer=timing_observer,
+                    pause_requested=lambda: (
+                        clock.now_ns() >= envelope.deadline - 80 * 10**9
                     ),
                 )
-                matrix_passed += 1
-                continue
-            if not qualifies(block, smoke=item["label"] == "capability_subset"):
-                break
-            if item["label"] != "capability_subset":
-                verified_rates.append(profile["states"][0]["rate"]["num"])
-            if item["label"] in ("rate40", "confirmatory1"):
-                break
-            if item["label"] == "rate20" and not qualifies(block, advance40=True):
-                break
-            gate = progression(
-                output,
-                item["label"],
-                block,
-                clock,
-                envelope,
-                config["review_wait_seconds"],
-                **({"next_rate": 1} if config["version"] == LOWER_VERSION else {}),
-            )
-            io.write(
-                output / (item["label"] + "_PROGRESSION_ACCEPTED.json"),
-                c.canonical(gate),
-            )
-            if item["label"] == "capability_subset":
-                parent = o.digest(block)
-        if matrix_mode and matrix_passed == len(config["campaigns"]):
-            runtime_operation = "RUNTIME_REOPEN"
-            with io.cooperative_io(envelope.check):
-                reconciliation = matrix.reconcile(config, output, envelope.check)
-                o.require(reconciliation["actual_attempts"] == envelope.attempts)
-                envelope.check()
-            io.write(output / "matrix_reconciliation.json", c.canonical(reconciliation))
-            envelope.check()
-            matrix_complete = True
-    except (Exception, KeyboardInterrupt) as error:
-        runtime_failure = error
-        diagnostics.record(runtime_operation, error)
-        family, code, number = classify(error)
-        code = code or "PUBLIC_PROBE_DIAGNOSTIC_STOPPED"
-        try:
-            io.write(
-                output / "diagnostic_stop.json",
-                c.canonical({"reason": code, "attempts_charged": envelope.attempts}),
-            )
-        except (Exception, KeyboardInterrupt) as cleanup:
-            persistence_failed = True
-            diagnostics.record("CLEANUP", cleanup)
-    finally:
-        # Independent supplementary cleanup does not poison the campaign writer
-        # or replace a primary exception, even if persistence is uncertain.
-        if config["version"] == AP2_CONFIG:
-            if active_timing_phase is not None:
-                try:
+                if config["version"] in WF_CONFIGS:
                     timing_observer.phase_close(
-                        active_timing_phase,
-                        quiescent=False,
+                        phase_id,
+                        quiescent=True,
                         timeout_seconds=min(
-                            5, max(0.001, (envelope.deadline - clock.now_ns()) / 1e9)
+                            5,
+                            max(0.001, (phase_deadline.end_ns - clock.now_ns()) / 1e9),
                         ),
                     )
+                    active_timing_phase = None
+                else:
+                    timing.safe_call(timing_observer, "boundary")
+                results.append(
+                    {
+                        "label": item["label"],
+                        "campaign_report_sha256": o.digest(result),
+                        "report": result,
+                    }
+                )
+                io.write(
+                    output / (item["label"] + "_result.json"), c.canonical(results[-1])
+                )
+                if (
+                    result["disposition"] != "COMPLETED"
+                    or not result["report_complete"]
+                ):
+                    break
+                runtime_operation = "RUNTIME_REOPEN"
+                if config["version"] in WF_CONFIGS:
+                    authority.charge_runtime_inventory_check(runtime_budget)
+                    o.require(
+                        runtime_inventory(
+                            config["public_validation_sha256"],
+                            successor=True,
+                            check=phase_deadline.check,
+                            **ra_inventory,
+                        )
+                        == runtime,
+                        "WF_AP2_RUNTIME_CHANGED",
+                    )
+                with io.cooperative_io(phase_deadline.check):
+                    phase_deadline.check()
+
+                    def actual_open():
+                        opened = reopen_completed(
+                            phase,
+                            profile,
+                            plan,
+                            start,
+                            validation_sha256=config["public_validation_sha256"],
+                            control_adapters=controls,
+                        )
+                        if matrix_mode:
+                            matrix.verify_controls(phase, plan)
+                        if getattr(o, "RA_ENABLED", False):
+                            authority.recheck(enforcement=True)
+                            authority.source_fence()
+                        phase_deadline.check()
+                        return opened
+
+                    if active_resource is not None:
+                        block, resource_records = active_resource.freeze_and_open(
+                            frozen_data_inventory_sha256=o.digest(result),
+                            actual_opener=actual_open,
+                        )
+                        resource_sessions.append(
+                            {
+                                "phase_id": phase_id,
+                                "phase_start_ns": phase_start_ns,
+                                "phase_deadline_ns": phase_deadline.end_ns,
+                                "root": str(active_resource.root),
+                                "records": resource_records,
+                            }
+                        )
+                        previous_resource_records = resource_records
+                        authority.release_coordinator()
+                        active_resource = None
+                        authority._deadline_check = envelope.check
+                    else:
+                        block = actual_open()
+                    phase_deadline.check()
+                runtime_operation = "RUNTIME"
+                verified_complete.append(item["label"])
+                if matrix_mode:
+                    with io.cooperative_io(phase_deadline.check):
+                        comparisons = matrix.verify_controls(phase, plan)
+                        phase_deadline.check()
+                    if not matrix.gate(block, item, config["capability"]):
+                        break
+                    io.write(
+                        output / (item["label"] + "_CAPABILITY_GATE.json"),
+                        c.canonical(
+                            {
+                                "version": "stage12_public_matrix_phase_gate_v1",
+                                "configuration_sha256": o.digest(config),
+                                "block_report_sha256": o.digest(block),
+                                "control_comparisons": comparisons,
+                                "disposition": "PASS_EXACT_PHASE_NOT_RATE_QUALIFICATION",
+                                "cumulative_attempts": envelope.attempts,
+                            }
+                        ),
+                    )
+                    matrix_passed += 1
+                    continue
+                if not qualifies(block, smoke=item["label"] == "capability_subset"):
+                    break
+                if item["label"] != "capability_subset":
+                    verified_rates.append(profile["states"][0]["rate"]["num"])
+                if item["label"] in ("rate40", "confirmatory1"):
+                    break
+                if item["label"] == "rate20" and not qualifies(block, advance40=True):
+                    break
+                gate = progression(
+                    output,
+                    item["label"],
+                    block,
+                    clock,
+                    envelope,
+                    config["review_wait_seconds"],
+                    **({"next_rate": 1} if config["version"] == LOWER_VERSION else {}),
+                )
+                io.write(
+                    output / (item["label"] + "_PROGRESSION_ACCEPTED.json"),
+                    c.canonical(gate),
+                )
+                if item["label"] == "capability_subset":
+                    parent = o.digest(block)
+            if matrix_mode and matrix_passed == len(config["campaigns"]):
+                runtime_operation = "RUNTIME_REOPEN"
+                if getattr(o, "RA_ENABLED", False):
+                    authority._source_counter_ledger.enter_stage(12)
+                    authority._deadline_check = envelope.check
+                    from . import s12_ra_g1_execution as execution
+
+                    bound = authority.sampling_bound(
+                        config["campaigns"][-1]["profile"], start
+                    )
+                    selected = authority.resource_selection(bound)
+                    whole_start_ns, whole_deadline = resource_transition_window(
+                        clock, previous_resource_records, 2000000, envelope.deadline
+                    )
+                    active_resource = execution.start_session(
+                        authority=authority,
+                        config=config,
+                        binding=bound,
+                        selection=selected,
+                        evidence_root=output / "whole_task_resources",
+                        deadline_ns=whole_deadline.end_ns,
+                        phase_id=12,
+                        check=whole_deadline.check,
+                        counters=authority.counters,
+                        charge=authority.allocation_controls.monitor_charge,
+                        read_charge=authority.charge_original,
+                        clock_ns=clock.now_ns,
+                        native_roots=[output],
+                        scope_start_ns=whole_start_ns,
+                    )
+                else:
+                    whole_deadline = envelope
+                with io.cooperative_io(whole_deadline.check):
+                    reconciliation = matrix.reconcile(
+                        config, output, whole_deadline.check
+                    )
+                    o.require(reconciliation["actual_attempts"] == envelope.attempts)
+                    whole_deadline.check()
+                io.write(
+                    output / "matrix_reconciliation.json", c.canonical(reconciliation)
+                )
+                if active_resource is not None:
+                    timing_observer.close(
+                        timeout_seconds=min(
+                            5,
+                            max(0.001, (whole_deadline.end_ns - clock.now_ns()) / 1e9),
+                        )
+                    )
+                    timing_already_closed = True
+                    timing_snapshot = timing_observer.snapshot()
+
+                    def actual_whole_open():
+                        with io.cooperative_io(whole_deadline.check):
+                            fresh = matrix.reconcile(
+                                config, output, whole_deadline.check
+                            )
+                            o.require(fresh == reconciliation, "RA_G1_ORIGINAL_CHANGED")
+                            o.require(
+                                io.read(output / "matrix_reconciliation.json")
+                                == c.canonical(fresh),
+                                "RA_G1_ORIGINAL_CHANGED",
+                            )
+                            fresh_timing = verify_successor_timing(
+                                config,
+                                output,
+                                review,
+                                timing_snapshot,
+                                whole_deadline.check,
+                            )
+                            authority.source_fence()
+                            whole_deadline.check()
+                            return fresh_timing
+
+                    timing_reopening, resource_records = (
+                        active_resource.freeze_and_open(
+                            frozen_data_inventory_sha256=o.digest(
+                                {
+                                    "reconciliation": reconciliation,
+                                    "timing": timing_snapshot,
+                                }
+                            ),
+                            actual_opener=actual_whole_open,
+                        )
+                    )
+                    resource_sessions.append(
+                        {
+                            "phase_id": 12,
+                            "phase_start_ns": whole_start_ns,
+                            "phase_deadline_ns": whole_deadline.end_ns,
+                            "root": str(active_resource.root),
+                            "records": resource_records,
+                        }
+                    )
+                    active_resource = None
+                envelope.check()
+                matrix_complete = True
+        except (Exception, KeyboardInterrupt) as error:
+            runtime_failure = error
+            diagnostics.record(runtime_operation, error)
+            family, code, number = classify(error)
+            code = code or "PUBLIC_PROBE_DIAGNOSTIC_STOPPED"
+            try:
+                io.write(
+                    output / "diagnostic_stop.json",
+                    c.canonical(
+                        {"reason": code, "attempts_charged": envelope.attempts}
+                    ),
+                )
+            except (Exception, KeyboardInterrupt) as cleanup:
+                persistence_failed = True
+                diagnostics.record("CLEANUP", cleanup)
+        finally:
+            if active_resource is not None:
+                active_resource.abort()
+            # Independent supplementary cleanup does not poison the campaign writer
+            # or replace a primary exception, even if persistence is uncertain.
+            if config["version"] in WF_CONFIGS and not timing_already_closed:
+                if active_timing_phase is not None:
+                    try:
+                        timing_observer.phase_close(
+                            active_timing_phase,
+                            quiescent=False,
+                            timeout_seconds=min(
+                                5,
+                                max(0.001, (envelope.deadline - clock.now_ns()) / 1e9),
+                            ),
+                        )
+                    except BaseException:
+                        timing.safe_call(timing_observer, "note_failure")
+                remaining = (envelope.deadline - clock.now_ns()) / 1e9
+                if remaining <= 0:
+                    timing.safe_call(timing_observer, "note_failure")
+                try:
+                    timing_observer.close(timeout_seconds=min(5, max(0.001, remaining)))
                 except BaseException:
                     timing.safe_call(timing_observer, "note_failure")
-            remaining = (envelope.deadline - clock.now_ns()) / 1e9
-            if remaining <= 0:
-                timing.safe_call(timing_observer, "note_failure")
+            elif config["version"] not in WF_CONFIGS:
+                timing.safe_call(timing_observer, "close")
+            timing_summary = timing.safe_call(timing_observer, "snapshot")
+            if (
+                config["version"] in WF_CONFIGS
+                and not timing_already_closed
+                and matrix_complete
+                and runtime_failure is None
+            ):
+                try:
+                    with io.cooperative_io(envelope.check):
+                        timing_reopening = verify_successor_timing(
+                            config, output, review, timing_summary, envelope.check
+                        )
+                        io.write(
+                            output / "timing_reopening.json",
+                            c.canonical(timing_reopening),
+                        )
+                        envelope.check()
+                except BaseException as error:
+                    matrix_complete = False
+                    persistence_failed = True
+                    runtime_failure = error
+                    diagnostics.record("RUNTIME_REOPEN", error)
+            timing_complete = not timing_init_failed and (
+                timing_observer is None
+                or (
+                    isinstance(timing_summary, dict)
+                    and timing_summary.get("persistence_complete") is True
+                )
+            )
+            # Supplementary task output, never a campaign seal or writer reuse.
             try:
-                timing_observer.close(timeout_seconds=min(5, max(0.001, remaining)))
-            except BaseException:
-                timing.safe_call(timing_observer, "note_failure")
-        else:
-            timing.safe_call(timing_observer, "close")
-        timing_summary = timing.safe_call(timing_observer, "snapshot")
-        timing_reopening = None
-        if (
-            config["version"] == AP2_CONFIG
-            and matrix_complete
-            and runtime_failure is None
-        ):
-            try:
-                with io.cooperative_io(envelope.check):
-                    timing_reopening = verify_successor_timing(
-                        config, output, review, timing_summary, envelope.check
-                    )
-                    io.write(
-                        output / "timing_reopening.json", c.canonical(timing_reopening)
-                    )
-                    envelope.check()
-            except BaseException as error:
-                matrix_complete = False
+                io.write(
+                    output / "failure_diagnostics.json",
+                    c.canonical(diagnostics.snapshot()),
+                )
+            except (Exception, KeyboardInterrupt) as cleanup:
                 persistence_failed = True
-                runtime_failure = error
-                diagnostics.record("RUNTIME_REOPEN", error)
-        timing_complete = not timing_init_failed and (
-            timing_observer is None
-            or (
-                isinstance(timing_summary, dict)
-                and timing_summary.get("persistence_complete") is True
-            )
-        )
-        # Supplementary task output, never a campaign seal or writer reuse.
-        try:
-            io.write(
-                output / "failure_diagnostics.json", c.canonical(diagnostics.snapshot())
-            )
-        except (Exception, KeyboardInterrupt) as cleanup:
-            persistence_failed = True
-            diagnostics.record("CLEANUP", cleanup)
-        summary = {
-            "scope": o.SCOPE,
-            "scientific_identity_verified": False,
-            "continuous_service_state": "NOT_VERIFIED",
-            "full_frozen_capability_matrix_completed": matrix_complete,
-            "attempts_dispatched_or_uncertain": envelope.attempts,
-            "maximum_attempts": config["maximum_attempts"],
-            "elapsed_ns": clock.now_ns() - envelope.started,
-            "cpu_ns": time.process_time_ns() - initial_cpu,
-            "rss_max_kib_start": rss0,
-            "rss_max_kib_end": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss,
-            "rss_units": "LINUX_KIB_PROCESS_LIFETIME_HIGH_WATER",
-            "attempted_phases": [x["label"] for x in results],
-            "completed_phases": verified_complete,
-            "qualified_public_rates": verified_rates,
-            "protected_operating_ceiling_selected": False,
-            "C": "UNSELECTED",
-            "T": "UNSELECTED",
-            "N": "UNSELECTED",
-            "failure_diagnostics": diagnostics.snapshot(),
-            "diagnostic_persistence_complete": not persistence_failed
-            and timing_complete,
-            "public_path_timing": timing_summary
-            if timing_summary is not None
-            else {
-                "enabled": bool(timing_observer is not None or timing_init_failed),
-                "persistence_complete": not timing_init_failed
-                and timing_observer is None,
-                "initialization_failed": timing_init_failed,
-                "sampling_coverage_proof": False,
-            },
-        }
-        if config["version"] == AP2_CONFIG:
-            from . import s12_wf_ap2_assurance as assurance
+                diagnostics.record("CLEANUP", cleanup)
+            summary = {
+                "scope": o.SCOPE,
+                "scientific_identity_verified": False,
+                "continuous_service_state": "NOT_VERIFIED",
+                "full_frozen_capability_matrix_completed": matrix_complete,
+                "attempts_dispatched_or_uncertain": envelope.attempts,
+                "maximum_attempts": config["maximum_attempts"],
+                "elapsed_ns": clock.now_ns() - envelope.started,
+                "cpu_ns": time.process_time_ns() - initial_cpu,
+                "rss_max_kib_start": rss0,
+                "rss_max_kib_end": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss,
+                "rss_units": "LINUX_KIB_PROCESS_LIFETIME_HIGH_WATER",
+                "attempted_phases": [x["label"] for x in results],
+                "completed_phases": verified_complete,
+                "qualified_public_rates": verified_rates,
+                "protected_operating_ceiling_selected": False,
+                "C": "UNSELECTED",
+                "T": "UNSELECTED",
+                "N": "UNSELECTED",
+                "failure_diagnostics": diagnostics.snapshot(),
+                "diagnostic_persistence_complete": not persistence_failed
+                and timing_complete,
+                "public_path_timing": timing_summary
+                if timing_summary is not None
+                else {
+                    "enabled": bool(timing_observer is not None or timing_init_failed),
+                    "persistence_complete": not timing_init_failed
+                    and timing_observer is None,
+                    "initialization_failed": timing_init_failed,
+                    "sampling_coverage_proof": False,
+                },
+            }
+            if config["version"] in WF_CONFIGS:
+                from . import s12_wf_ap2_assurance as assurance
 
-            summary.update(
-                sampling_assurance_method=assurance.METHOD,
-                native_component_guarantee="NOT_CLAIMED",
-                native_scratch_guarantee="NOT_CLAIMED",
-                logical_component_limit_bytes=assurance.LOGICAL_BYTES,
-                logical_scratch_limit_bytes=assurance.SCRATCH_BYTES,
-                enforcement_checks=authority._enforcement_checks,
-                runtime_inventory_checks=authority._runtime_inventory_checks,
-                timing_reopening=timing_reopening,
-                task_deadline_ns=envelope.deadline,
-            )
-        try:
-            io.write(output / "diagnostic_summary.json", c.canonical(summary))
-            if config["version"] == AP2_CONFIG:
-                envelope.check()
-        except (Exception, KeyboardInterrupt) as cleanup:
-            diagnostics.record("CLEANUP", cleanup)
+                if getattr(o, "RA_ENABLED", False):
+                    from . import s12_ra_g1_assurance as assurance
+
+                summary.update(
+                    sampling_assurance_method=assurance.METHOD,
+                    native_component_guarantee="NOT_CLAIMED",
+                    native_scratch_guarantee="NOT_CLAIMED",
+                    logical_component_limit_bytes=assurance.LOGICAL_BYTES,
+                    logical_scratch_limit_bytes=assurance.SCRATCH_BYTES,
+                    enforcement_checks=authority._enforcement_checks,
+                    runtime_inventory_checks=authority._runtime_inventory_checks,
+                    timing_reopening=timing_reopening,
+                    task_deadline_ns=envelope.deadline,
+                )
+                if getattr(o, "RA_ENABLED", False):
+                    summary.update(
+                        resource_sessions=resource_sessions,
+                        resource_counters=authority.counters(),
+                        resource_application_usage=authority.allocation_controls.snapshot(),
+                    )
+            try:
+                io.write(output / "diagnostic_summary.json", c.canonical(summary))
+                if config["version"] in WF_CONFIGS:
+                    envelope.check()
+            except (Exception, KeyboardInterrupt) as cleanup:
+                diagnostics.record("CLEANUP", cleanup)
+                if runtime_failure is not None:
+                    raise runtime_failure
+                raise c.Stage12Error("PUBLIC_PROBE_EVIDENCE_WRITE_FAILED") from None
+        if persistence_failed:
             if runtime_failure is not None:
                 raise runtime_failure
-            raise c.Stage12Error("PUBLIC_PROBE_EVIDENCE_WRITE_FAILED") from None
-    if persistence_failed:
-        if runtime_failure is not None:
-            raise runtime_failure
-        raise c.Stage12Error("PUBLIC_PROBE_EVIDENCE_WRITE_FAILED")
-    return summary
+            raise c.Stage12Error("PUBLIC_PROBE_EVIDENCE_WRITE_FAILED")
+        return summary

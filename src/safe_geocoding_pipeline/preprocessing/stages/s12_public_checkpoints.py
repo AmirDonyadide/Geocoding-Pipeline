@@ -122,6 +122,7 @@ PUBLIC_FIELDS = (
 PUBLIC_SCHEMA = "stage12_public_path_timing_v1"
 AP_SCHEMA = "stage12_public_path_timing_v2"
 WF_SCHEMA = "stage12_public_path_timing_v3"
+RA_SCHEMA = "stage12_public_path_timing_ra_g1_v1"
 
 
 def _ap_row(value):
@@ -653,6 +654,7 @@ def read_prefix(
     record_consumer=None,
     expected_binding=None,
     expected_snapshot=None,
+    timing_schema=None,
 ):
     """Validate the entire bounded membership and return only a verified prefix.
 
@@ -688,6 +690,15 @@ def read_prefix(
             record_consumer=record_consumer,
             expected_binding=expected_binding,
             expected_snapshot=expected_snapshot,
+            timing_schema=(
+                timing_schema
+                or (
+                    expected_snapshot.get("schema")
+                    if type(expected_snapshot) is dict
+                    else None
+                )
+                or WF_SCHEMA
+            ),
         )
     result = {
         "verified_files": 0,

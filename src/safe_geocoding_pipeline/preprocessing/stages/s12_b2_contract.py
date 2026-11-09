@@ -164,6 +164,9 @@ def validate_type(value: Any, spec: Any) -> None:
 
 def validate(obj: dict[str, Any], version: str | None = None) -> None:
     version = version or obj.get("schema_version")
+    if type(version) is str and version.endswith("_b2_ap_ra_g1_v1"):
+        from . import s12_b2_ra_g1_contract as ra
+        return ra.validate(obj, version)
     if version in {
         "stage12_development_operations_b2_ap_v1",
         "stage12_development_workload_plan_b2_ap_v1",

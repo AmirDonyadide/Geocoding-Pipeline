@@ -216,6 +216,7 @@ def run_segment(
     from . import s12_b2_operations as operations
 
     o = operations.for_profile(profile)
+    resource_limits=o.resources_view(profile) if getattr(o,"RA_ENABLED",False) else profile["resources"]
     # Authority and enforcement are checked before catalog/protected access.
     o.verify_authorities(profile, plan, start, gate)
     phase_entered_ns = clock.now_ns()
@@ -293,7 +294,7 @@ def run_segment(
                 catalog.core(row["query_semantic_id"]),
                 bytes.fromhex(row["query_semantic_id"]),
                 c.policy(row["result_limit"]),
-                target_limit=profile["resources"]["pending_request_bytes"],
+                target_limit=resource_limits["pending_request_bytes"],
             )[0]
         return control_adapters[row["recipe_id"]].target(recipes[row["recipe_id"]])
 
@@ -303,7 +304,7 @@ def run_segment(
         b.require(
             type(value) is bytes
             and len(value) > 0
-            and len(value) <= profile["resources"]["pending_request_bytes"],
+            and len(value) <= resource_limits["pending_request_bytes"],
             "REQUEST_TARGET_TOO_LARGE",
         )
         bound = max(bound, len(value))
@@ -447,7 +448,7 @@ def run_segment(
             output.parent / (output.name + "_telemetry"),
             phase_count=1,
             budget_charge=charge_timing,
-            timing_schema=timing_contract.WF_SCHEMA,
+            timing_schema=timing_contract.RA_SCHEMA if getattr(o,"RA_ENABLED",False) else timing_contract.WF_SCHEMA,
             timing_binding={
                 "policy_sha256": o.POLICY_SHA,
                 "source_sha256": profile["resource_retention_model"][
@@ -898,7 +899,7 @@ def run_segment(
             events,
             work_factory,
             verify_receipt,
-            max_bytes=profile["resources"]["fixed_campaign_disk_bound_bytes"],
+            max_bytes=resource_limits["fixed_campaign_disk_bound_bytes"],
         )
         try:
             disposition = (

@@ -561,6 +561,8 @@ def _run_operations_block(
         from .stages import s12_public_sampling_contract as po
     elif profile.get("schema_version") == "stage12_transport_operations_v4":
         from .stages import s12_wf_ap2_contract as po
+    elif profile.get("schema_version") == "stage12_transport_operations_ra_g1_v1":
+        from .stages import s12_ra_g1_contract as po
     from .stages import s12_public_operational_audit as oa
     from .stages import s12_public_journal as pj
     from .stages import s12_public_scheduler as ps
@@ -572,6 +574,7 @@ def _run_operations_block(
     diagnostics = diagnostics or Failures(clock)
     operation = "PREFLIGHT"
     po.verify_authorities(profile, plan, start, authority)
+    resource_limits = (po.resources_view(profile) if getattr(po, "RA_ENABLED", False) else profile["resources"])
     po.verify_work_manifest(work_factory, plan)
     po.require(po.digest(runtime_inventory) == start["runtime_inventory_sha256"])
     recipes = {r["recipe_id"]: r for r in plan["control_recipes"]}
@@ -619,7 +622,7 @@ def _run_operations_block(
         po.require(type(target) is bytes and len(target) > 0)
         target_size = len(target)
         po.require(
-            target_size <= profile["resources"]["pending_request_bytes"],
+            target_size <= resource_limits["pending_request_bytes"],
             "S12_PUBLIC_SINGLE_REQUEST_TOO_LARGE",
         )
         target_bound = max(target_bound, target_size)
@@ -630,7 +633,7 @@ def _run_operations_block(
     ordinary_bound, monitor_reserve = role_bounds["ORDINARY"], role_bounds["REFRESH"]
     po.require(
         ordinary_bound + monitor_reserve
-        <= profile["resources"]["pending_request_bytes"],
+        <= resource_limits["pending_request_bytes"],
         "S12_PUBLIC_MONITOR_QUEUE_HEADROOM_REQUIRED",
     )
 
@@ -1515,7 +1518,7 @@ def _run_operations_block(
                 operation = "REPORT"
                 prefix = pj.MeasurementPrefix(log)
                 if prefix.build(
-                    closure_reserve=profile["resources"][
+                    closure_reserve=resource_limits[
                         "fixed_campaign_disk_bound_bytes"
                     ]
                 ):
@@ -1857,7 +1860,7 @@ def _run_operations_block(
 
 
 def run_operations_block(profile, plan, start, **kwargs):
-    if profile.get("schema_version") == "stage12_transport_operations_v4":
+    if profile.get("schema_version") in ("stage12_transport_operations_v4", "stage12_transport_operations_ra_g1_v1"):
         from .stages import s12_paged_history as history
 
         with history.selected(plan["history_limits"]):

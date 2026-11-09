@@ -394,6 +394,16 @@ class Gate:
         ):
             self.check()
 
+    def register_coordinator(self,coordinator):
+        provider=getattr(self.authority,"register_coordinator",None)
+        b.require(callable(provider),"B2_RA_COORDINATOR_REQUIRED")
+        return provider(coordinator)
+
+    def resource_prewrite(self,*,next_write_bytes,next_creations):
+        provider=getattr(self.authority,"resource_prewrite",None)
+        b.require(callable(provider),"B2_RA_MONITOR_REQUIRED")
+        return provider(next_write_bytes=next_write_bytes,next_creations=next_creations)
+
     def check(self):
         b.require(self.notice is None, "OBSERVATION_CONTRACT_FAILURE")
         if self.scope == b.DEVELOPMENT:

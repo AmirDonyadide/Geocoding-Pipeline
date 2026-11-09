@@ -192,7 +192,7 @@ def _reopen(
         source,
         works,
         verify_receipt,
-        max_bytes=profile["resources"]["fixed_campaign_disk_bound_bytes"],
+        max_bytes=(o.resources_view(profile) if getattr(o,"RA_ENABLED",False) else profile["resources"])["fixed_campaign_disk_bound_bytes"],
     )
     try:
         original_inventories = {

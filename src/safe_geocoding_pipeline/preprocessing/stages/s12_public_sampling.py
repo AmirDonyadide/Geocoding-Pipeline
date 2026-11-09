@@ -462,7 +462,7 @@ class Sampler:
             self.log.ap_pending_bytes -= 8192
 
     def service(self):
-        if getattr(self.contract, "M2_ENABLED", False):
+        if getattr(self.contract, "M2_ENABLED", False) or getattr(self.contract, "RA_ENABLED", False):
             from .s12_wf_ap2_scratch import lease
 
             # The writer takes this before any sampler/safety lock. The sole

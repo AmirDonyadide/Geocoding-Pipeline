@@ -27,6 +27,21 @@ from . import s12_wf_ap2_scratch as scratch
 SCHEMA = "stage12_public_path_timing_v3"
 POLICY_VERSION = "stage12_public_sampling_policy_v2"
 POLICY_VERSIONS = (POLICY_VERSION, "stage12_development_sampling_policy_b2_ap_v1")
+RA_SCHEMA = "stage12_public_path_timing_ra_g1_v1"
+RA_POLICY = "stage12_public_sampling_policy_ra_g1_v1"
+RA_PROTECTED_POLICY = "stage12_development_sampling_policy_b2_ap_ra_g1_v1"
+RA_MAX_FILES = 2980
+
+
+def selected_max_files(schema, policy):
+    _require(schema in (SCHEMA, RA_SCHEMA), "CHECKPOINT_BINDING_INVALID")
+    if schema == SCHEMA:
+        _require(policy in POLICY_VERSIONS, "CHECKPOINT_BINDING_INVALID")
+        return MAX_FILES
+    _require(policy in (RA_POLICY, RA_PROTECTED_POLICY), "CHECKPOINT_BINDING_INVALID")
+    return RA_MAX_FILES if policy == RA_POLICY else MAX_FILES
+
+
 MAGIC = b"S12T3\x00\x01\n"
 HEADER_BYTES, ROW_BYTES, CHUNK_ROWS = 4096, 512, 56
 MAX_BYTES, MAX_FILES, TIMER_NS = 32768, 1500, 5_000_000_000
@@ -79,8 +94,9 @@ def validate_binding(value):
     return dict(value)
 
 
-def validate_policy_version(value):
-    _require(type(value) is str and value in POLICY_VERSIONS)
+def validate_policy_version(value, *, schema=SCHEMA):
+    selected_max_files(schema, value)
+    _require(type(value) is str)
     return value
 
 
@@ -132,7 +148,7 @@ def encode_header(header, block=None):
     return block
 
 
-def decode_header(block):
+def decode_header(block, *, schema=SCHEMA):
     try:
         _require(len(block) == HEADER_BYTES and block[:8] == MAGIC)
         length = struct.unpack_from("<I", block, 8)[0]
@@ -142,8 +158,8 @@ def decode_header(block):
         _require(type(header) is dict and set(header) == _HEADER)
         bounded.canonical_match(header, raw)
         _require(not any(block[12 + length :]), "CHECKPOINT_CANONICAL_INVALID")
-        _require(header["schema"] == SCHEMA)
-        validate_policy_version(header["policy_version"])
+        _require(header["schema"] == schema)
+        validate_policy_version(header["policy_version"], schema=schema)
         validate_binding({k: header[k] for k in _BINDING})
         integers = (
             _HEADER
@@ -173,7 +189,10 @@ def decode_header(block):
         _require(header["cut_requested_mono_ns"] <= header["checkpoint_mono_ns"])
         _require(type(header["cut_complete"]) is bool and type(header["final"]) is bool)
         _require(header["sampling_coverage_proof"] is False)
-        _require(0 < header["index"] <= MAX_FILES and 0 < header["cut_id"])
+        _require(
+            0 < header["index"] <= selected_max_files(schema, header["policy_version"])
+            and 0 < header["cut_id"]
+        )
         _require(header["row_count"] <= CHUNK_ROWS)
         if header["phase_id"] is None:
             _require(header["cut_kind"] == "TASK_CLOSE")
@@ -276,6 +295,7 @@ class Checkpoints:
         phase_windows,
         cumulative_deadline_ns,
         timing_policy_version=POLICY_VERSION,
+        timing_schema=SCHEMA,
         clock_ns=time.monotonic_ns,
         budget_charge=lambda n: None,
         max_files=MAX_FILES,
@@ -285,7 +305,10 @@ class Checkpoints:
         interval_seconds=5,
     ):
         self.binding = validate_binding(timing_binding)
-        self.policy_version = validate_policy_version(timing_policy_version)
+        self.schema = timing_schema
+        self.policy_version = validate_policy_version(
+            timing_policy_version, schema=self.schema
+        )
         _require(cp._integer(cumulative_deadline_ns) and cumulative_deadline_ns > 0)
         _require(type(phase_windows) is list and 1 <= len(phase_windows) <= 32)
         self.windows = {}
@@ -299,7 +322,8 @@ class Checkpoints:
             )
             self.windows[index] = item["selected_phase_ms"]
         _require(
-            type(max_files) is int and 1 <= max_files <= MAX_FILES,
+            type(max_files) is int
+            and 1 <= max_files <= selected_max_files(self.schema, self.policy_version),
             "CHECKPOINT_LIMIT_INVALID",
         )
         _require(
@@ -528,7 +552,7 @@ class Checkpoints:
                     and self._watermark == self._observed
                 ),
                 sampling_coverage_proof=False,
-                schema=SCHEMA,
+                schema=self.schema,
                 uncertainty_count=self._uncertainty,
                 reserved_cuts=self._requested,
                 maximum_selected_cuts=self._cut_limit,
@@ -640,7 +664,7 @@ class Checkpoints:
             final = cut["cut_kind"] == "TASK_CLOSE" and total == high
             dropped = self._dropped + total - old - count
             header = dict(
-                schema=SCHEMA,
+                schema=self.schema,
                 policy_version=self.policy_version,
                 **self.binding,
                 index=self._files + 1,
@@ -897,6 +921,7 @@ def _read_prefix(
     record_consumer=None,
     expected_binding=None,
     expected_snapshot=None,
+    timing_schema=SCHEMA,
 ):
     """Constant-history-memory numeric membership, rows and fresh source reopening.
 
@@ -919,7 +944,10 @@ def _read_prefix(
     try:
         _require(
             type(max_files) is int
-            and 1 <= max_files <= MAX_FILES
+            and timing_schema in (SCHEMA, RA_SCHEMA)
+            and 1
+            <= max_files
+            <= (RA_MAX_FILES if timing_schema == RA_SCHEMA else MAX_FILES)
             and type(max_bytes) is int
             and HEADER_BYTES <= max_bytes <= MAX_BYTES,
             "CHECKPOINT_LIMIT_INVALID",
@@ -945,7 +973,12 @@ def _read_prefix(
         source_digest = hashlib.sha256()
         for index in range(1, count + 1):
             raw, file_identity = _read(root, index, max_bytes)
-            header = decode_header(memoryview(raw)[:HEADER_BYTES])
+            header = decode_header(memoryview(raw)[:HEADER_BYTES], schema=timing_schema)
+            _require(
+                max_files
+                <= selected_max_files(timing_schema, header["policy_version"]),
+                "CHECKPOINT_LIMIT_INVALID",
+            )
             current_binding = {k: header[k] for k in _BINDING}
             _require(binding is None or current_binding == binding)
             _require(expected_binding is None or current_binding == expected_binding)

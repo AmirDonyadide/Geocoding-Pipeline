@@ -238,6 +238,14 @@ def binding(size_evidence):
 
 
 def validate_matrix(config):
+    if (
+        config.get("version")
+        == "stage12_public_sampling_runtime_configuration_ra_g1_v1"
+    ):
+        from .s12_ra_g1_public_configuration import validate
+
+        return validate(config)
+
     if config.get("version") == "stage12_public_sampling_runtime_configuration_v2":
         from . import s12_wf_ap2_contract as successor
 
@@ -615,6 +623,10 @@ def reconcile(config, output, check):
 
 
 def _contract(start):
+    if start.get("schema_version") == "stage12_public_operations_campaign_ra_g1_v1":
+        from . import s12_ra_g1_contract
+
+        return s12_ra_g1_contract
     if start.get("schema_version") == "stage12_public_operations_campaign_v3":
         from . import s12_wf_ap2_contract
 

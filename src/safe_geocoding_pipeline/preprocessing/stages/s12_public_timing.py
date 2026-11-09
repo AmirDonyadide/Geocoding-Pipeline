@@ -122,8 +122,8 @@ class PublicTiming:
             raise cp.CheckpointError("CHECKPOINT_LIMIT_INVALID")
         if (
             type(_sampling_schema) is not bool
-            or timing_schema not in (None, cp.WF_SCHEMA)
-            or (timing_schema == cp.WF_SCHEMA and not _sampling_schema)
+            or timing_schema not in (None, cp.WF_SCHEMA, cp.RA_SCHEMA)
+            or (timing_schema in (cp.WF_SCHEMA, cp.RA_SCHEMA) and not _sampling_schema)
             or (
                 timing_schema is None
                 and any(
@@ -139,14 +139,19 @@ class PublicTiming:
         ):
             raise cp.CheckpointError("CHECKPOINT_BINDING_INVALID")
         self.timing_schema = timing_schema
-        if timing_schema == cp.WF_SCHEMA:
+        if timing_schema in (cp.WF_SCHEMA, cp.RA_SCHEMA):
             from . import s12_wf_ap2_timing as compact
 
             compact.validate_binding(timing_binding)
             timing_policy_version = compact.validate_policy_version(
-                compact.POLICY_VERSION
+                (
+                    compact.RA_POLICY
+                    if timing_schema == cp.RA_SCHEMA
+                    else compact.POLICY_VERSION
+                )
                 if timing_policy_version is None
-                else timing_policy_version
+                else timing_policy_version,
+                schema=timing_schema,
             )
             if type(phase_windows) is not list or len(phase_windows) != phase_count:
                 raise cp.CheckpointError("CHECKPOINT_BINDING_INVALID")
@@ -169,12 +174,13 @@ class PublicTiming:
 
         try:
             charge(0)
-            if timing_schema == cp.WF_SCHEMA:
+            if timing_schema in (cp.WF_SCHEMA, cp.RA_SCHEMA):
                 self.checkpoints = compact.Checkpoints(
                     root,
                     budget_charge=charge,
                     timing_binding=timing_binding,
                     timing_policy_version=timing_policy_version,
+                    timing_schema=timing_schema,
                     phase_windows=phase_windows,
                     cumulative_deadline_ns=cumulative_deadline_ns,
                     clock_ns=clock_ns,
@@ -205,7 +211,10 @@ class PublicTiming:
 
     def phase_open(self, phase_id, *, phase_deadline_ns=None, timeout_seconds=5):
         """WF-AP2 opt-in; selected producer windows are opened explicitly."""
-        if self.timing_schema != cp.WF_SCHEMA or self.checkpoints is None:
+        if (
+            self.timing_schema not in (cp.WF_SCHEMA, cp.RA_SCHEMA)
+            or self.checkpoints is None
+        ):
             raise cp.CheckpointError("CHECKPOINT_PHASE_INVALID")
         self.set_phase(phase_id)
         return self.checkpoints.phase_open(
@@ -216,7 +225,10 @@ class PublicTiming:
 
     def phase_close(self, phase_id, *, quiescent=True, timeout_seconds=5):
         """Disable timers, then drain the one reserved quiescent boundary cut."""
-        if self.timing_schema != cp.WF_SCHEMA or self.checkpoints is None:
+        if (
+            self.timing_schema not in (cp.WF_SCHEMA, cp.RA_SCHEMA)
+            or self.checkpoints is None
+        ):
             raise cp.CheckpointError("CHECKPOINT_PHASE_INVALID")
         if type(quiescent) is not bool:
             raise cp.CheckpointError("CHECKPOINT_PHASE_INVALID")
@@ -439,7 +451,9 @@ class SamplingTiming(PublicTiming):
     def snapshot(self):
         value = super().snapshot()
         value["schema"] = (
-            "stage12_public_path_timing_summary_v3"
+            "stage12_public_path_timing_summary_ra_g1_v1"
+            if self.timing_schema == cp.RA_SCHEMA
+            else "stage12_public_path_timing_summary_v3"
             if self.timing_schema == cp.WF_SCHEMA
             else "stage12_public_path_timing_summary_v2"
         )

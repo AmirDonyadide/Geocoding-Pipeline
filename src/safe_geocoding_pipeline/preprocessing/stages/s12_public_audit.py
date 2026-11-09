@@ -213,7 +213,13 @@ def complete(
                 "S12_CAPTURE_BINDING_INVALID",
             )
             fingerprint = c.sha(raw)
-            io.write(root / (name + ".zst"), response.compress(raw))
+            controls = io.current_allocation_controls()
+            if controls is not None and getattr(controls, "RA_ENABLED", False):
+                from . import s12_b2_allocation_limits as limits
+                frame = limits.compressed(raw, response.compress)
+            else:
+                frame = response.compress(raw)
+            io.write(root / (name + ".zst"), frame)
             decoded = response.decompress(
                 io.read(root / (name + ".zst")),
                 length=len(raw),

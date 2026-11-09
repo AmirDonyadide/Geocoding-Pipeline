@@ -16,13 +16,13 @@ from .stages import s12_retrieval_contract as c
 
 def result_exit_status(config, result):
     """Keep legacy completion semantics; require both lower-profile phases."""
-    if config["version"] in (runtime.MATRIX_VERSION, runtime.AP2_CONFIG):
+    if config["version"] in (runtime.MATRIX_VERSION, *runtime.WF_CONFIGS):
         passed = (
             result["full_frozen_capability_matrix_completed"] is True
             and result["completed_phases"] == [x["label"] for x in config["campaigns"]]
             and result["qualified_public_rates"] == []
             and (
-                config["version"] != runtime.AP2_CONFIG
+                config["version"] not in runtime.WF_CONFIGS
                 or result.get("diagnostic_persistence_complete") is True
             )
         )
@@ -70,7 +70,7 @@ def main():
             git_sha=args.implementation_sha,
             **(
                 {"task_started_ns": _ENTRY_MONOTONIC_NS}
-                if config.get("version") == runtime.AP2_CONFIG
+                if config.get("version") in runtime.WF_CONFIGS
                 else {}
             ),
         )
