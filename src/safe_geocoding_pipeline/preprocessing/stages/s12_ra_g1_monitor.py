@@ -575,6 +575,19 @@ def charged_read(fd: Any, size: Any, charge_read: Any, *, offset: Any = None) ->
     return raw
 
 
+def emit_startup_trace(trace: Any, event: Any, *args: Any, **kwargs: Any) -> None:
+    """Supplementary instrumentation cannot replace a core guard or poison."""
+    if trace is None:
+        return
+    try:
+        trace(event, *args, **kwargs)
+    except BaseException:
+        try:
+            trace.note_instrumentation_fault()
+        except BaseException:
+            pass  # Missing diagnostics are unknown; no receipt/closure is invented.
+
+
 class ObservationWriter:
     """One bounded supplementary writer, distinct from the campaign writer.
 
@@ -593,6 +606,7 @@ class ObservationWriter:
         original_root: Any = None,
         prewrite: Any = None,
         charge_read: Any = lambda calls, size: None,
+        startup_trace: Any = None,
     ) -> None:
         c.require(
             type(maximum_rows) is int
@@ -602,6 +616,7 @@ class ObservationWriter:
             "RA_G1_PRECHARGE",
         )
         self.prewrite = prewrite
+        self.startup_trace = startup_trace
         c.require(callable(charge_read), "RA_G1_PRECHARGE")
         self.charge_read = charge_read
         c.require(prewrite is None or callable(prewrite), "RA_G1_PRECHARGE")
@@ -679,7 +694,10 @@ class ObservationWriter:
             self._staged_original = (digest, raw)
         return digest
 
-    def _persist_original(self, original: Any, deadline: Any) -> None:
+    def _persist_original(self, original: Any, deadline: Any, *, first_start: bool = False) -> None:
+        trace = self.startup_trace if first_start else None
+        if trace is not None:
+            emit_startup_trace(trace, "ORIGINAL_PERSIST_ENTER", writer=self)
         digest, raw = original
         self.check()
         c.require(self.clock() < deadline, "RA_G1_DEADLINE")
@@ -707,7 +725,12 @@ class ObservationWriter:
                 n = os.write(fd, memoryview(raw)[offset:])
                 c.require(n > 0, "RA_G1_WRITE_UNCERTAIN")
                 offset += n
+            if trace is not None:
+                emit_startup_trace(trace, "ORIGINAL_FSYNC_BEFORE")
             os.fsync(fd)
+            if trace is not None:
+                emit_startup_trace(trace, "ORIGINAL_FSYNC_AFTER")
+                emit_startup_trace(trace, "ORIGINAL_READBACK_BEFORE")
             observed = hashlib.sha256()
             with scratch.lease("HASH"):
                 for offset in range(0, len(raw), 4096):
@@ -734,6 +757,9 @@ class ObservationWriter:
             )
             self.check()
             c.require(self.clock() < deadline, "RA_G1_DEADLINE")
+            if trace is not None:
+                emit_startup_trace(trace, "ORIGINAL_READBACK_AFTER")
+                emit_startup_trace(trace, "ORIGINAL_PERSIST_EXIT")
         finally:
             os.close(fd)
 
@@ -775,6 +801,9 @@ class ObservationWriter:
                     if not self.queue:
                         break
                     seq, block, deadline, original = self.queue.popleft()
+                trace = self.startup_trace if seq == 1 else None
+                if trace is not None:
+                    emit_startup_trace(trace, "WRITER_ENTER", writer=self)
                 self.check()
                 c.require(self.clock() < deadline, "RA_G1_DEADLINE")
                 current = self.path.stat(follow_symlinks=False)
@@ -788,9 +817,11 @@ class ObservationWriter:
                     "RA_G1_ORIGINAL_CHANGED",
                 )
                 if original is not None:
-                    self._persist_original(original, deadline)
+                    self._persist_original(original, deadline, first_start=seq == 1)
                 if self.prewrite is not None:
                     self.prewrite(CODEC_BYTES, 0)
+                if trace is not None:
+                    emit_startup_trace(trace, "CODEC_APPEND_ENTER")
                 offset = 0
                 while offset < len(block):
                     self.check()
@@ -798,7 +829,12 @@ class ObservationWriter:
                     n = os.write(self.fd, memoryview(block)[offset:])
                     c.require(n > 0, "RA_G1_WRITE_UNCERTAIN")
                     offset += n
+                if trace is not None:
+                    emit_startup_trace(trace, "CODEC_FSYNC_BEFORE")
                 os.fsync(self.fd)
+                if trace is not None:
+                    emit_startup_trace(trace, "CODEC_FSYNC_AFTER")
+                    emit_startup_trace(trace, "CODEC_READBACK_BEFORE")
                 c.require(
                     charged_read(
                         self.fd,
@@ -811,13 +847,19 @@ class ObservationWriter:
                 )
                 self.check()
                 c.require(self.clock() < deadline, "RA_G1_DEADLINE")
+                if trace is not None:
+                    emit_startup_trace(trace, "CODEC_READBACK_AFTER")
                 with self.condition:
                     self.acked, self.ack_ns = seq, self.clock()
                     self.condition.notify_all()
-        except BaseException:
+                if trace is not None:
+                    emit_startup_trace(trace, "ACK_PUBLISHED", self.ack_ns)
+        except BaseException as error:
             with self.condition:
                 self.poisoned = True
                 self.condition.notify_all()
+            if self.startup_trace is not None and self.rows <= 1:
+                emit_startup_trace(self.startup_trace, "WRITER_FAILURE", writer=self, error=error)
         finally:
             os.close(self.fd)
             os.close(self.root_fd)
@@ -886,6 +928,7 @@ class ResourceMonitor:
         check: Any,
         clock_ns: Any = time.monotonic_ns,
         scope_start_ns: Any = None,
+        startup_trace: Any = None,
     ) -> None:
         self.observer, self.writer, self.selected, self.check, self.clock = (
             observer,
@@ -905,6 +948,7 @@ class ResourceMonitor:
             threading.Event(),
             threading.Lock(),
         )
+        self.startup_trace = startup_trace
         self.seq, self.head, self.last, self.failure = 0, seed_sha256, None, None
         self._published_prefix: dict[str, Any] | None = None
         self.scope_start = self.clock() if scope_start_ns is None else scope_start_ns
@@ -925,6 +969,9 @@ class ResourceMonitor:
     def _acquire(self: Any, kind: Any) -> Any:
         self.check()
         enter = self.clock()
+        trace = self.startup_trace if kind == "START" else None
+        if trace is not None:
+            emit_startup_trace(trace, "FIRST_ACQUIRE_ENTER", enter)
         c.require(enter < self.deadline, "RA_G1_DEADLINE")
         data = self.observer(kind)
         c.require(
@@ -939,6 +986,8 @@ class ResourceMonitor:
             "RA_G1_FIELDS",
         )
         exit_ns = self.clock()
+        if trace is not None:
+            emit_startup_trace(trace, "FIRST_ACQUIRE_EXIT", exit_ns)
         record = dict(
             schema_version=OBSERVATION,
             binding_sha256=self.binding,
@@ -951,9 +1000,22 @@ class ResourceMonitor:
             exit_mono_ns=exit_ns,
             **data,
         )
+        if trace is not None:
+            emit_startup_trace(trace, "COVERAGE_BEFORE")
         head = self.coverage.add(record)
-        self.writer.append(pack_observation(record), record["seq"], self.deadline)
+        if trace is not None:
+            emit_startup_trace(trace, "COVERAGE_AFTER")
+            emit_startup_trace(trace, "PACK_BEFORE")
+        block = pack_observation(record)
+        if trace is not None:
+            emit_startup_trace(trace, "PACK_AFTER")
+            emit_startup_trace(trace, "APPEND_BEFORE")
+        self.writer.append(block, record["seq"], self.deadline)
+        if trace is not None:
+            emit_startup_trace(trace, "APPEND_AFTER")
         self.writer.wait(record["seq"], self.deadline)
+        if trace is not None:
+            emit_startup_trace(trace, "START_ACK", self.writer.ack_ns)
         self.check()
         with self.lock:
             self.seq, self.head, self.last = (

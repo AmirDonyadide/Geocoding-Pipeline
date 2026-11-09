@@ -12,19 +12,27 @@ import time
 ROLE_ENTRY_NS = time.monotonic_ns()
 
 # ruff: noqa: E402
-import argparse
-from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timezone
-import hashlib
-import importlib.util
-import json
-import os
-from pathlib import Path
-import resource
-import signal
-import stat
-import sys
-import threading
+try:
+    import argparse
+    from concurrent.futures import ThreadPoolExecutor
+    from datetime import datetime, timezone
+    import hashlib
+    import importlib.util
+    import json
+    import os
+    from pathlib import Path
+    import resource
+    import signal
+    import stat
+    import sys
+    import threading
+except BaseException:
+    print('{"schema_version":"stage12_ra_g1_startup_trace_v1","trace_status":"EARLY_STDLIB_FAILURE","role_entry_mono_ns":'
+          + str(ROLE_ENTRY_NS) + ',"failure_mono_ns":' + str(time.monotonic_ns())
+          + ',"code":"UNKNOWN","counter_prefix":null,"output_reservation":"PRECHARGED_STARTUP_LOG_OBSERVED_COUNTERS_UNKNOWN","truncated":false,"hard_kill_guarantee":"NONE"}')
+    raise SystemExit(1) from None
+
+STDLIB_IMPORTS_DONE_NS = time.monotonic_ns()
 
 VERSION = "stage12_ra_g1_allocation_selection_v1"
 SCOPE = "REPRESENTATIVE_NO_SERVICE"
@@ -292,9 +300,205 @@ def synchronized(method):
     return locked
 
 
+class StartupTrace:
+    """Supplementary bounded prefix, never a monitor receipt or closure."""
+
+    EVENTS = tuple("ROLE_ENTRY STDLIB_IMPORTS_DONE MAIN_ENTER MAIN_SETUP_DONE PIPELINE_IMPORTS_ENTER PIPELINE_IMPORTS_DONE SETUP_COMPLETE ADMIN_START_ENTER SESSION_SETUP_ENTER WRITER_CREATED FIRST_ACQUIRE_ENTER FIRST_ACQUIRE_EXIT COVERAGE_BEFORE COVERAGE_AFTER PACK_BEFORE PACK_AFTER APPEND_BEFORE APPEND_AFTER WRITER_ENTER ORIGINAL_PERSIST_ENTER ORIGINAL_FSYNC_BEFORE ORIGINAL_FSYNC_AFTER ORIGINAL_READBACK_BEFORE ORIGINAL_READBACK_AFTER ORIGINAL_PERSIST_EXIT CODEC_APPEND_ENTER CODEC_FSYNC_BEFORE CODEC_FSYNC_AFTER CODEC_READBACK_BEFORE CODEC_READBACK_AFTER ACK_PUBLISHED START_ACK START_FAILED WRITER_FAILURE ABORT_FAILED RUN_CLOSE_ENTER RUN_CLOSE_DONE EXIT_REPORT_ENTER UNKNOWN_EVENT".split())
+    MAX_ENTRIES = 48
+    MAX_BYTES = 8192
+
+    def __init__(self, role_entry_ns=ROLE_ENTRY_NS, *, clock_ns=time.monotonic_ns):
+        self.lock = threading.Lock()
+        self.clock = clock_ns
+        self.backing = bytearray(self.MAX_ENTRIES * 16)
+        self.used = 0
+        self.output_reserved = False
+        self.dropped = self.unknown = 0
+        self.primary = self.cleanup = None
+        self.admin = self.writer = None
+        self.controller_command = "UNKNOWN"
+        self.administrative_role = "UNKNOWN"
+        self.administrative_phase_id = None
+        self.instrumentation_faults = 0
+        self.claimed = False
+        self("ROLE_ENTRY", role_entry_ns)
+
+    def __call__(self, event, at_mono_ns=None, *, writer=None, error=None, cleanup=False):
+        if event not in self.EVENTS:
+            event = "UNKNOWN_EVENT"
+        at = self.clock() if at_mono_ns is None else at_mono_ns
+        if type(at) is not int or not 0 <= at < 2**64 - 1:
+            at = None
+        failure = None
+        if error is not None:
+            safe = safe_failure(error)
+            failure = {key: safe[key] for key in ("family", "code", "errno", "at_mono_ns")}
+            failure["event"] = event
+        with self.lock:
+            if writer is not None:
+                self.writer = writer
+            self.unknown = min(2**64 - 1, self.unknown + int(event == "UNKNOWN_EVENT" or at is None))
+            if self.used < self.MAX_ENTRIES:
+                offset = self.used * 16
+                self.backing[offset:offset + 8] = self.EVENTS.index(event).to_bytes(8, "big")
+                self.backing[offset + 8:offset + 16] = (2**64 - 1 if at is None else at).to_bytes(8, "big")
+                self.used += 1
+            else:
+                self.dropped = min(2**64 - 1, self.dropped + 1)
+            if failure is not None:
+                if cleanup and self.cleanup is None:
+                    self.cleanup = failure
+                elif not cleanup and self.primary is None:
+                    self.primary = failure
+
+    def note_instrumentation_fault(self):
+        with self.lock:
+            self.instrumentation_faults = min(2**64 - 1, self.instrumentation_faults + 1)
+
+    def set_controller_command(self, command):
+        with self.lock:
+            self.controller_command = command if command in ("ready", "collect", "bind", "verify") else "UNKNOWN"
+
+    def first_start(self, role=None):
+        with self.lock:
+            if self.claimed:
+                return None
+            self.claimed = True
+            phases = {"COLLECTOR": 6, "REVIEW": 7, "BINDER": 8}
+            self.administrative_role = role if role in phases else "UNKNOWN"
+            self.administrative_phase_id = phases.get(role)
+        self("ADMIN_START_ENTER")
+        return self
+
+    def reserve_stdout(self, run):
+        # One supplementary stdout record; no file creation and no budget
+        # increase. Reserve before role work, so failure/deadline cannot erase
+        # the initiating cause while attempting to charge its diagnostic.
+        run.charge(self.MAX_BYTES, creations=0)
+        with self.lock:
+            self.admin = run
+            self.output_reserved = True
+
+    def snapshot(self):
+        with self.lock:
+            def status(owner):
+                if owner is None:
+                    return "UNKNOWN"
+                value = getattr(owner, "poisoned", None)
+                return "UNKNOWN" if type(value) is not bool else ("POISONED" if value else "HEALTHY")
+            entries = []
+            for index in range(self.used):
+                offset = index * 16
+                code = int.from_bytes(self.backing[offset:offset + 8], "big")
+                at = int.from_bytes(self.backing[offset + 8:offset + 16], "big")
+                entries.append(dict(event=self.EVENTS[code], at_mono_ns=None if at == 2**64 - 1 else at))
+            return dict(schema_version="stage12_ra_g1_startup_trace_v1",
+                trace_status="INCOMPLETE_INSTRUMENTATION" if self.instrumentation_faults else "BOUNDED_PREFIX_NOT_CLOSURE", first_start_only=True,
+                controller_command=self.controller_command,
+                administrative_role=self.administrative_role,
+                administrative_phase_id=self.administrative_phase_id,
+                instrumentation_faults=self.instrumentation_faults,
+                persistence_uncertainty="STDOUT_ACK_IS_NOT_LOG_FSYNC_OR_FINAL_COVERAGE",
+                entries=entries, truncated=bool(self.dropped),
+                dropped_entries=self.dropped, unknown_entries=self.unknown,
+                primary_failure=None if self.primary is None else dict(self.primary),
+                cleanup_failure=None if self.cleanup is None else dict(self.cleanup),
+                writer_status=dict(admin=status(self.admin), monitor=status(self.writer)),
+                persistence="EXISTING_PRECHARGED_SUPERVISOR_STDOUT_LOG_ONLY",
+                controller_scope="COLLECTOR_BINDER_REVIEW_FIRST_START_AND_VERIFIER_SETUP",
+                phase_runner="EXISTING_TELEMETRY_UNCHANGED_NOT_IN_THIS_TRACE",
+                interpreter_import_or_hardkill_coverage="NOT_GUARANTEED",
+                logical_backing_bytes=len(self.backing), failure_state_allowance_bytes=1024,
+                serialization_maximum_bytes=self.MAX_BYTES,
+                serialization_scope="OUTSIDE_CONTROLLER_ACTIONS_NO_AP_SCRATCH_LEASE",
+                output_reservation=dict(bytes=self.MAX_BYTES,creation_attempts=0,
+                    basis="EXISTING_CONTROLLER_METADATA_AND_PRECHARGED_16MIB_LOG",
+                    observed_counter_charge="RESERVED_METADATA" if self.output_reserved else None),
+                maximum_json_bytes=self.MAX_BYTES, hard_kill_guarantee="NONE")
+
+
+    def encoded_snapshot(self):
+        """Count closed bounded scalars before allocating the output arena.
+
+        No output-sized Unicode string is constructed. The two encoder passes
+        see the same private snapshot; JSON scalar chunks are at most 512 ASCII
+        bytes. Python allocator/encoder internals are monitored risk, not a
+        native memory theorem.
+        """
+        value = self.snapshot()
+        nodes = 0
+
+        def validate_scalar_tree(item, depth=0):
+            nonlocal nodes
+            nodes += 1
+            need(nodes <= 512 and depth <= 8, "RA_G1_WRITE_LIMIT")
+            if item is None or type(item) is bool:
+                return
+            if type(item) is int:
+                need(0 <= item <= 2**64 - 1, "RA_G1_WRITE_LIMIT")
+            elif type(item) is str:
+                need(len(item) <= 128 and all(32 <= ord(ch) < 127 for ch in item), "RA_G1_WRITE_LIMIT")
+            elif type(item) is list:
+                need(len(item) <= self.MAX_ENTRIES, "RA_G1_WRITE_LIMIT")
+                for child in item:
+                    validate_scalar_tree(child, depth + 1)
+            elif type(item) is dict:
+                need(len(item) <= 32 and all(type(key) is str for key in item), "RA_G1_WRITE_LIMIT")
+                for key, child in item.items():
+                    validate_scalar_tree(key, depth + 1)
+                    validate_scalar_tree(child, depth + 1)
+            else:
+                need(False, "RA_G1_WRITE_LIMIT")
+
+        validate_scalar_tree(value)
+        encoder = json.JSONEncoder(ensure_ascii=True, sort_keys=True, separators=(",", ":"), allow_nan=False)
+        total = 1  # canonical LF
+        for chunk in encoder.iterencode(value):
+            need(chunk.isascii() and len(chunk) <= 512, "RA_G1_WRITE_LIMIT")
+            total += len(chunk)
+            need(total <= self.MAX_BYTES, "RA_G1_WRITE_LIMIT")
+        arena = bytearray(total)
+        offset = 0
+        for chunk in encoder.iterencode(value):
+            need(chunk.isascii() and len(chunk) <= 512, "RA_G1_WRITE_LIMIT")
+            for start in range(0, len(chunk), 256):
+                raw = chunk[start:start + 256].encode("ascii")
+                end = offset + len(raw)
+                need(end < total, "RA_G1_WRITE_LIMIT")
+                arena[offset:end] = raw
+                offset = end
+        need(offset + 1 == total, "RA_G1_WRITE_LIMIT")
+        arena[offset] = 10
+        return arena
+
+    def emit(self, output):
+        raw = self.encoded_snapshot()
+        output.flush()  # earlier status record precedes the supplementary record
+        binary = getattr(output, "buffer", None)
+        if binary is not None:
+            position = 0
+            view = memoryview(raw)
+            while position < len(raw):
+                written = binary.write(view[position:])
+                need(type(written) is int and 0 < written <= len(raw) - position, "RA_G1_WRITE_UNCERTAIN")
+                position += written
+            binary.flush()
+        else:
+            for start in range(0, len(raw), 256):
+                chunk = raw[start:start + 256].decode("ascii")
+                need(output.write(chunk) == len(chunk), "RA_G1_WRITE_UNCERTAIN")
+            output.flush()
+
+
+PROCESS_TRACE = StartupTrace()
+PROCESS_TRACE("STDLIB_IMPORTS_DONE", STDLIB_IMPORTS_DONE_NS)
+
+
 class Run:
     def __init__(self, s, *, epoch_ns=None, stage_seconds=None, stage="collect"):
         self.role_enter_ns = ROLE_ENTRY_NS
+        self.startup_trace = PROCESS_TRACE
+        PROCESS_TRACE.admin = self
         self._counter_lock = threading.RLock()
         self.s = validate_selection(s)
         observed_now = time.monotonic_ns()
@@ -675,6 +879,7 @@ def administrative_risk(selected):
 
 
 def start_admin(run, role, context, *, scope_start_ns):
+    startup_trace = run.startup_trace.first_start(role)
     from safe_geocoding_pipeline.preprocessing.stages import s12_ra_g1_execution as e
 
     selected = resource_selection(run)
@@ -730,6 +935,7 @@ def start_admin(run, role, context, *, scope_start_ns):
         read_charge=run.read_charge,
         scope_start_ns=scope_start_ns,
         deadline_ns=end,
+        startup_trace=startup_trace,
     )
     run.write(root / "admin_binding.record", bound)
     risk_path = Path(run.s["paths"]["allocation_root"]) / "administrative_risk.record"
@@ -971,6 +1177,7 @@ def adopt_handoff(run, context, *, stage):
 
 
 def collect(run):
+    run.startup_trace("PIPELINE_IMPORTS_ENTER")
     from safe_geocoding_pipeline.execution_policy import require_goethe_nhr_slurm
     from safe_geocoding_pipeline.preprocessing.stages import (
         s12_ra_g1_assurance as a,
@@ -978,6 +1185,7 @@ def collect(run):
         s12_public_runtime as runtime,
     )
 
+    run.startup_trace("PIPELINE_IMPORTS_DONE")
     require_goethe_nhr_slurm("RA-G1 actual no-service allocation metadata")
     s = run.s
     run.mkdir(s["paths"]["allocation_root"])
@@ -1022,6 +1230,7 @@ def collect(run):
         check=run.check,
         read_charge=run.read_charge,
     )
+    run.startup_trace("SETUP_COMPLETE")
     administrative = start_admin(
         run, "COLLECTOR", context, scope_start_ns=run.role_enter_ns
     )
@@ -1762,11 +1971,13 @@ def safe_failure(error, run=None):
 
 
 def main():
+    PROCESS_TRACE("MAIN_ENTER")
     parser = argparse.ArgumentParser()
     parser.add_argument("command", choices=["ready", "collect", "bind", "verify"])
     parser.add_argument("--selection", type=Path, required=True)
     parser.add_argument("--selection-sha256", required=True)
     args = parser.parse_args()
+    PROCESS_TRACE.set_controller_command(args.command)
     bootstrap_counts = {"checks": 0, "read_calls": 0, "read_bytes": 0}
 
     def bootstrap_check():
@@ -1824,6 +2035,8 @@ def main():
         ],
         stage=args.command,
     )
+    if run.stage != "ready":
+        PROCESS_TRACE.reserve_stdout(run)
     run.checks += bootstrap_counts["checks"]
     run.read_calls += bootstrap_counts["read_calls"]
     run.read_bytes += bootstrap_counts["read_bytes"]
@@ -1841,18 +2054,54 @@ def main():
     )
     signal.signal(signal.SIGALRM, lambda *_: os._exit(124))
     signal.alarm(max(1, (run.end - time.monotonic_ns()) // 10**9))
+    PROCESS_TRACE("MAIN_SETUP_DONE")
+    result = None
+    failure = None
     try:
         result = {"ready": ready, "collect": collect, "bind": bind, "verify": verify}[
             args.command
         ](run)
-        print(canonical(result).decode(), end="")
-        run.check()
-        return 0
     except BaseException as error:
-        print(canonical(safe_failure(error, run)).decode(), end="")
-        return 1
+        PROCESS_TRACE("START_FAILED", error=error)
+        failure = safe_failure(error, run)
     finally:
-        run.close()
+        PROCESS_TRACE("RUN_CLOSE_ENTER")
+        try:
+            run.close()
+            PROCESS_TRACE("RUN_CLOSE_DONE")
+        except BaseException as cleanup:
+            PROCESS_TRACE("ABORT_FAILED", error=cleanup, cleanup=True)
+            if failure is None:
+                failure = safe_failure(cleanup, run)
+    if failure is not None:
+        print(canonical(failure).decode(), end="")
+        return 1
+    print(canonical(result).decode(), end="")
+    if run.stage == "ready":
+        run.check()  # The one non-ready success check follows trace emission.
+    return 0
+
+
+def cli_entry():
+    """Retain supplementary prefix even when main bootstrap/imports fail."""
+    try:
+        result = main()
+    except BaseException as error:
+        PROCESS_TRACE("START_FAILED", error=error)
+        print(canonical(safe_failure(error)).decode(), end="")
+        result = 1
+    PROCESS_TRACE("EXIT_REPORT_ENTER")
+    if PROCESS_TRACE.controller_command == "ready" or getattr(PROCESS_TRACE.admin, "stage", None) == "ready":
+        return result  # Legacy standalone read-only ready has no metadata output grant.
+    try:
+        PROCESS_TRACE.emit(sys.stdout)
+        if result == 0 and PROCESS_TRACE.admin is not None:
+            PROCESS_TRACE.admin.check()  # emission cannot create a late successful return
+    except BaseException as error:
+        diagnostic_run = PROCESS_TRACE.admin if PROCESS_TRACE.output_reserved else None
+        print(canonical(safe_failure(error, diagnostic_run)).decode(), end="")
+        return 1
+    return result
 
 
 def verify_administrative_sessions(
@@ -2101,9 +2350,4 @@ def descriptor():
 
 
 if __name__ == "__main__":
-    try:
-        exit_code = main()
-    except BaseException as error:
-        print(canonical(safe_failure(error)).decode(), end="")
-        exit_code = 1
-    raise SystemExit(exit_code)
+    raise SystemExit(cli_entry())

@@ -241,7 +241,10 @@ class PhaseSession:
         observer_factory: Any = None,
         scope_start_ns: Any = None,
         directory_charge: Any = None,
+        startup_trace: Any = None,
     ) -> None:
+        if startup_trace is not None:
+            m.emit_startup_trace(startup_trace, "SESSION_SETUP_ENTER")
         self.authority, self.binding, self.selection = (
             authority,
             binding,
@@ -284,7 +287,10 @@ class PhaseSession:
             original_root=self.original_root,
             prewrite=self._prewrite,
             charge_read=self.read_charge,
+            startup_trace=startup_trace,
         )
+        if startup_trace is not None:
+            m.emit_startup_trace(startup_trace, "WRITER_CREATED", writer=self.writer)
         self.seed = o.digest(
             dict(
                 schema_version="stage12_resource_monitor_seed_ra_g1_v1",
@@ -329,6 +335,7 @@ class PhaseSession:
             check=self.check,
             clock_ns=clock_ns,
             scope_start_ns=scope_start_ns,
+            startup_trace=startup_trace,
         )
         self.protocol = m.PhaseProtocol(
             binding_sha256=o.digest(binding),
@@ -472,11 +479,22 @@ class PhaseSession:
             self.cursor.close()
 
     def start(self) -> Any:
-        self.check()
+        trace = getattr(self.monitor, "startup_trace", None)
+        if trace is None:
+            self.check()  # Preserve legacy/default ordering and cleanup behavior.
         try:
+            if trace is not None:
+                self.check()
             self.monitor.start()
-        except BaseException:
-            self.abort()
+        except BaseException as error:
+            if trace is None:
+                self.abort()
+                raise
+            m.emit_startup_trace(trace, "START_FAILED", error=error)
+            try:
+                self.abort()
+            except BaseException as cleanup:
+                m.emit_startup_trace(trace, "ABORT_FAILED", error=cleanup, cleanup=True)
             raise
         self.authority.resource_monitor = self.monitor
         self.authority.resource_session = self
@@ -1207,6 +1225,7 @@ def start_administrative_session(
     observer_factory: Any = None,
     test_only: Any = False,
     directory_charge: Any = None,
+    startup_trace: Any = None,
 ) -> AdministrativePhaseSession:
     """Metadata-only monitor entry, never a fabricated full AP binding."""
     authority = AdministrativeAuthority()
@@ -1234,6 +1253,7 @@ def start_administrative_session(
         scope_start_ns=scope_start_ns,
         observer_factory=observer_factory,
         directory_charge=directory_charge,
+        startup_trace=startup_trace,
     )
     value.start()
     return value

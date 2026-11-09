@@ -1026,3 +1026,293 @@ def test_safe_stage12_failure_preserves_primary_and_poisoned_writer(world):
         assert result["code"] == "RA_G1_MONITOR_GAP"
         assert result["family"] == "WRITE_UNCERTAIN" and result["writer"] == "POISONED"
         assert result["status"] == "INCOMPLETE"
+
+
+def test_startup_trace_bounds_static_values_and_early_failure(world, monkeypatch, capsys):
+    trace = world.m.StartupTrace(100, clock_ns=lambda: 200)
+    for _ in range(60):
+        trace("PRIVATE_SENTINEL")
+    snapshot = trace.snapshot()
+    assert len(snapshot["entries"]) == 48 and snapshot["truncated"]
+    assert snapshot["unknown_entries"] == 60
+    assert snapshot["logical_backing_bytes"] == 48 * 16
+    assert snapshot["output_reservation"]["observed_counter_charge"] is None
+    with world.run("collect") as run:
+        trace.reserve_stdout(run)
+        assert run.write_bytes == 8192 and run.creations == 0
+        assert trace.snapshot()["output_reservation"]["observed_counter_charge"] == "RESERVED_METADATA"
+    assert len(world.m.canonical(snapshot)) <= 8192
+    assert b"PRIVATE_SENTINEL" not in world.m.canonical(snapshot)
+    monkeypatch.setattr(world.m, "PROCESS_TRACE", trace)
+    def early():
+        raise RuntimeError("RA_G1_PROJECT_DISTRIBUTION_REQUIRED")
+    monkeypatch.setattr(world.m, "main", early)
+    assert world.m.cli_entry() == 1
+    records = [world.m.parse(line.encode() + b"\n") for line in capsys.readouterr().out.splitlines()]
+    assert records[0]["schema_version"] == "stage12_ra_g1_allocation_failure_v1"
+    assert records[1]["primary_failure"]["code"] == "RA_G1_PROJECT_DISTRIBUTION_REQUIRED"
+    assert records[1]["hard_kill_guarantee"] == "NONE"
+
+
+def test_startup_trace_keeps_primary_separate_from_cleanup_and_actual_writer(world, monkeypatch):
+    from safe_geocoding_pipeline.preprocessing.stages import s12_retrieval_contract as contract
+    trace = world.m.StartupTrace(100)
+    owner = NS(poisoned=False)
+    trace("WRITER_FAILURE", writer=owner, error=OSError(28, "PRIVATE_SENTINEL"))
+    owner.poisoned = True
+    trace("START_FAILED", error=contract.Stage12Error("RA_G1_WRITE_UNCERTAIN"))
+    trace("ABORT_FAILED", error=RuntimeError("RA_G1_DEADLINE"), cleanup=True)
+    snapshot = trace.snapshot()
+    assert snapshot["primary_failure"]["family"] == "OS_ERROR"
+    assert snapshot["primary_failure"]["errno"] == 28
+    assert snapshot["cleanup_failure"]["code"] == "RA_G1_DEADLINE"
+    assert snapshot["writer_status"]["monitor"] == "POISONED"
+    assert b"PRIVATE_SENTINEL" not in world.m.canonical(snapshot)
+    assert trace.first_start() is trace and trace.first_start() is None
+    from safe_geocoding_pipeline.preprocessing.stages import s12_ra_g1_execution as execution
+    first = contract.Stage12Error("RA_G1_MONITOR_GAP")
+    cleanup_trace = world.m.StartupTrace(100)
+    instances = []
+    class FailedSession(execution.PhaseSession):
+        def __init__(self, **kwargs):
+            self.check = lambda: None
+            self.authority = NS()
+            self.aborts = 0
+            instances.append(self)
+            def fail_start():
+                raise first
+            self.monitor = NS(start=fail_start, startup_trace=kwargs["startup_trace"])
+        def abort(self):
+            self.aborts += 1
+            raise RuntimeError("RA_G1_DEADLINE")
+    monkeypatch.setattr(execution, "AdministrativePhaseSession", FailedSession)
+    with pytest.raises(contract.Stage12Error) as observed:
+        execution.start_administrative_session(binding=dict(scope_start_mono_ns=100,deadline_mono_ns=1000,phase_id=6),
+            selection={},evidence_root=None,pids=(123,),cgroup_path=None,counters=None,charge=None,
+            check=None,read_charge=None,scope_start_ns=100,deadline_ns=1000,startup_trace=cleanup_trace)
+    assert observed.value is first
+    assert len(instances) == 1 and instances[0].aborts == 1
+    assert cleanup_trace.snapshot()["primary_failure"]["code"] == "RA_G1_MONITOR_GAP"
+    assert cleanup_trace.snapshot()["cleanup_failure"]["code"] == "RA_G1_DEADLINE"
+
+
+@pytest.mark.parametrize("gap,failed", [(999999999,False),(1000000000,False),(1000000001,True)])
+def test_first_start_trace_preserves_inclusive_scope_and_preappend_rejection(world,tmp_path,gap,failed):
+    from safe_geocoding_pipeline.preprocessing.stages import s12_ra_g1_monitor as monitor
+    from safe_geocoding_pipeline.preprocessing.stages import s12_retrieval_contract as contract
+    from test_s12_ra_g1_core import observation, original_observation
+    selected = world.selected
+    scope = 100
+    now = [scope + gap]
+    trace = world.m.StartupTrace(scope, clock_ns=lambda: now[0])
+    root = tmp_path / "trace_private"
+    root.mkdir(mode=0o700)
+    originals = root / "originals"
+    originals.mkdir(mode=0o700)
+    writer = monitor.ObservationWriter(root / "observations.bin", maximum_rows=100,
+        charge=lambda *args: None, check=lambda: None, original_root=originals,
+        clock_ns=lambda:now[0], startup_trace=trace)
+    def observe(kind):
+        row = observation(selected,enter=now[0],kind=kind)
+        raw = monitor.export_original_observation(original_observation(row),allow_synthetic=True)
+        digest = writer.stage_original(raw)
+        return dict(readings=row["readings"],counters=row["counters"],
+            native_visibility=row["native_visibility"],visible_identity_inventory_sha256=digest)
+    resource = monitor.ResourceMonitor(observer=observe,writer=writer,selected=selected,
+        binding_sha256=H,phase_id=1,seed_sha256=H,deadline_ns=scope+120000000000,
+        check=lambda:None,clock_ns=lambda:now[0],scope_start_ns=scope,startup_trace=trace)
+    try:
+        if failed:
+            with pytest.raises(contract.Stage12Error,match="RA_G1_MONITOR_GAP"):
+                resource.start()
+        else:
+            resource.start()
+    finally:
+        resource.stop_event.set()
+        if resource.thread.is_alive():
+            resource.thread.join(1)
+        writer.close(scope+120000000000)
+    events = [row["event"] for row in trace.snapshot()["entries"]]
+    assert "FIRST_ACQUIRE_ENTER" in events and "FIRST_ACQUIRE_EXIT" in events and "COVERAGE_BEFORE" in events
+    assert ("COVERAGE_AFTER" not in events) == failed
+    assert (root / "observations.bin").stat().st_size == (0 if failed else 1024)
+    assert not trace.snapshot()["truncated"]
+
+
+def test_first_acquisition_failure_and_uncertain_persist_are_traced(world,tmp_path,monkeypatch):
+    from safe_geocoding_pipeline.preprocessing.stages import s12_ra_g1_monitor as monitor
+    from safe_geocoding_pipeline.preprocessing.stages import s12_retrieval_contract as contract
+    from test_s12_ra_g1_core import observation, original_observation
+    selected = world.selected
+    now = [100]
+    trace = world.m.StartupTrace(100,clock_ns=lambda:now[0])
+    root = tmp_path / "uncertain"
+    root.mkdir(mode=0o700)
+    originals = root / "originals"
+    originals.mkdir(mode=0o700)
+    writer = monitor.ObservationWriter(root/"observations.bin",maximum_rows=100,
+        charge=lambda *args:None,check=lambda:None,clock_ns=lambda:now[0],
+        original_root=originals,startup_trace=trace)
+    def failed_observer(kind):
+        raise RuntimeError("RA_G1_READ_LIMIT")
+    resource = monitor.ResourceMonitor(observer=failed_observer,writer=writer,selected=selected,
+        binding_sha256=H,phase_id=1,seed_sha256=H,deadline_ns=10000000000,
+        check=lambda:None,clock_ns=lambda:now[0],scope_start_ns=100,startup_trace=trace)
+    with pytest.raises(RuntimeError,match="RA_G1_READ_LIMIT"):
+        resource.start()
+    assert [r["event"] for r in trace.snapshot()["entries"]][-1] == "FIRST_ACQUIRE_ENTER"
+    row = observation(selected,enter=100)
+    writer.stage_original(monitor.export_original_observation(original_observation(row),allow_synthetic=True))
+    def uncertain(fd):
+        raise OSError(28,"PRIVATE_SENTINEL")
+    monkeypatch.setattr(monitor.os,"fsync",uncertain)
+    writer.append(monitor.pack_observation(row),1,10000000000)
+    with pytest.raises(contract.Stage12Error,match="RA_G1_WRITE_UNCERTAIN"):
+        writer.wait(1,10000000000)
+    writer.thread.join(1)
+    snapshot = trace.snapshot()
+    assert writer.poisoned and not writer.released
+    assert snapshot["primary_failure"]["errno"] == 28
+    assert snapshot["writer_status"]["monitor"] == "POISONED"
+    assert "ORIGINAL_FSYNC_BEFORE" in [r["event"] for r in snapshot["entries"]]
+    assert "ACK_PUBLISHED" not in [r["event"] for r in snapshot["entries"]]
+    with pytest.raises(contract.Stage12Error):
+        writer.append(monitor.pack_observation(row),2,10000000000)
+
+
+def test_trace_real_start_preserves_primary_across_actual_abort_failure(world):
+    import threading
+    from safe_geocoding_pipeline.preprocessing.stages import (
+        s12_ra_g1_execution as execution,
+        s12_retrieval_contract as contract,
+    )
+
+    trace = world.m.StartupTrace(100, clock_ns=lambda: 200)
+    primary = contract.Stage12Error("RA_G1_MONITOR_GAP")
+    cleanup = RuntimeError("RA_G1_DEADLINE")
+    joins = []
+
+    def fail_start():
+        raise primary
+
+    def fail_join(_):
+        joins.append(1)
+        raise cleanup
+
+    value = execution.PhaseSession.__new__(execution.PhaseSession)
+    value.check = lambda: None
+    value.clock = lambda: 100
+    value.deadline = 10**10
+    value.monitor = NS(
+        start=fail_start,
+        startup_trace=trace,
+        stop_event=threading.Event(),
+        thread=NS(is_alive=lambda: True, join=fail_join),
+    )
+    value.authority = NS()
+    value.writer = NS(poisoned=False)
+    value.protocol = NS(state="RUNNING")
+    value.cursor = None
+    with pytest.raises(contract.Stage12Error) as raised:
+        value.start()
+    assert raised.value is primary and joins == [1]
+    assert value.monitor.stop_event.is_set()
+    snapshot = trace.snapshot()
+    assert snapshot["primary_failure"]["code"] == "RA_G1_MONITOR_GAP"
+    assert snapshot["cleanup_failure"]["code"] == "RA_G1_DEADLINE"
+    assert not hasattr(value.authority, "resource_monitor")
+
+
+def test_trace_callback_fault_cannot_prevent_real_writer_poison(world, tmp_path, monkeypatch):
+    import os
+    from safe_geocoding_pipeline.preprocessing.stages import (
+        s12_ra_g1_monitor as monitor,
+        s12_retrieval_contract as contract,
+    )
+    from test_s12_ra_g1_core import observation
+
+    class BadTrace:
+        def __init__(self):
+            self.faults = 0
+
+        def __call__(self, *args, **kwargs):
+            raise MemoryError("PRIVATE_SENTINEL")
+
+        def note_instrumentation_fault(self):
+            self.faults += 1
+
+    trace = BadTrace()
+    root = tmp_path / "callback_writer"
+    root.mkdir(mode=0o700)
+    writer = monitor.ObservationWriter(
+        root / "observations.bin",
+        maximum_rows=2,
+        charge=lambda *_: None,
+        check=lambda: None,
+        clock_ns=lambda: 100,
+        startup_trace=trace,
+    )
+
+    def failed_fsync(_):
+        raise OSError(28, "PRIVATE_SENTINEL")
+
+    monkeypatch.setattr(os, "fsync", failed_fsync)
+    row = observation(selection(), enter=100)
+    writer.append(monitor.pack_observation(row), 1, 10**10)
+    with pytest.raises(contract.Stage12Error, match="RA_G1_WRITE_UNCERTAIN"):
+        writer.wait(1, 10**10)
+    writer.thread.join(1)
+    assert writer.poisoned and not writer.released and not writer.thread.is_alive()
+    assert trace.faults >= 2 and writer.acked == 0
+
+
+def test_trace_closed_attribution_saturated_unknowns_and_bounded_encoding(world, monkeypatch):
+    import io
+
+    trace = world.m.StartupTrace(2**64 - 2, clock_ns=lambda: 2**64 - 2)
+    assert trace.snapshot()["controller_command"] == "UNKNOWN"
+    assert trace.snapshot()["administrative_phase_id"] is None
+    trace.set_controller_command("bind")
+    trace.first_start("REVIEW")
+    for _ in range(60):
+        trace("ORIGINAL_READBACK_AFTER")
+    trace.unknown = 2**64 - 1
+    trace("PRIVATE_SENTINEL")
+    snapshot = trace.snapshot()
+    assert snapshot["controller_command"] == "bind"
+    assert snapshot["administrative_role"] == "REVIEW"
+    assert snapshot["administrative_phase_id"] == 7
+    assert snapshot["unknown_entries"] == 2**64 - 1
+    raw = trace.encoded_snapshot()
+    assert len(raw) <= 8192 and raw == world.m.canonical(snapshot)
+    sink = NS(buffer=io.BytesIO(), flush=lambda: None)
+    trace.emit(sink)
+    assert sink.buffer.getvalue() == raw and b"PRIVATE_SENTINEL" not in raw
+    monkeypatch.setattr(trace, "snapshot", lambda: {"unsafe": "x" * 129})
+
+    def forbidden_encoder(*args, **kwargs):
+        raise AssertionError("encoding occurred before scalar validation")
+
+    monkeypatch.setattr(world.m.json, "JSONEncoder", forbidden_encoder)
+    with pytest.raises(RuntimeError, match="RA_G1_WRITE_LIMIT"):
+        trace.encoded_snapshot()
+
+
+def test_trace_emission_cannot_allow_late_success(world, monkeypatch, capsys):
+    trace = world.m.StartupTrace(100, clock_ns=lambda: 200)
+    trace.set_controller_command("collect")
+    trace.output_reserved = True
+
+    def expired():
+        raise RuntimeError("RA_G1_DEADLINE")
+
+    trace.admin = NS(
+        stage="collect", poisoned=False, first_failure=None,
+        counter_prefix=lambda: {}, check=expired,
+    )
+    monkeypatch.setattr(world.m, "PROCESS_TRACE", trace)
+    monkeypatch.setattr(world.m, "main", lambda: 0)
+    assert world.m.cli_entry() == 1
+    records = [world.m.parse(line.encode() + b"\n") for line in capsys.readouterr().out.splitlines()]
+    assert records[-1]["status"] == "INCOMPLETE" and records[-1]["code"] == "RA_G1_DEADLINE"
+    assert any(entry["event"] == "EXIT_REPORT_ENTER" for entry in records[0]["entries"])
