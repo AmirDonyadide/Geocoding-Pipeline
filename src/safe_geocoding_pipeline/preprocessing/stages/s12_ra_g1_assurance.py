@@ -24,6 +24,12 @@ METHOD = "LOGICAL_LIMITS_AND_SCOPED_MONITORING"
 POLICY = "stage12_resource_assurance_policy_ra_g1_v1"
 BOUND = "stage12_resource_assurance_binding_ra_g1_v1"
 SELECTION = "stage12_resource_selection_ra_g1_v1"
+BOOTSTRAP_SELECTION = "stage12_resource_selection_bootstrap30_ra_g1_v1"
+BOOTSTRAP_POLICY = "stage12_resource_bootstrap_prefix_policy_ra_g1_v1"
+BOOTSTRAP_ADOPTION = "stage12_resource_bootstrap_prefix_adoption_ra_g1_v1"
+BOOTSTRAP_EVIDENCE = "stage12_resource_bootstrap_prefix_ra_g1_v1"
+BOOTSTRAP_LIMIT_NS = 30_000_000_000
+BOOTSTRAP_ROLES = {6: "COLLECTOR", 7: "REVIEW", 1: "PHASE_RUNNER"}
 CAPACITY = "stage12_resource_capacity_observation_ra_g1_v1"
 CURRENT = "stage12_resource_current_facts_ra_g1_v1"
 LOGICAL_BYTES, SCRATCH_BYTES = 16 * 2**20, 65536
@@ -118,6 +124,28 @@ SELECTION_SCHEMA = {
         "authority_requirement_inventory_sha256:D paths_sha256:D valid_from:Z valid_until:Z review_sha256:D"
     ),
 }
+BOOTSTRAP_SELECTION_SCHEMA = {
+    **SELECTION_SCHEMA, "schema_version": "=" + BOOTSTRAP_SELECTION,
+    "bootstrap_prefix_policy_sha256": "D", "bootstrap_prefix_adoption_sha256": "D",
+}
+BOOTSTRAP_ADOPTION_SCHEMA = {
+    "schema_version": "=" + BOOTSTRAP_ADOPTION,
+    "scope": "=REPRESENTATIVE_NO_SERVICE", "policy_sha256": "D",
+    "owner_decision_original_sha256": "D", "owner_decision_canonical_sha256": "D",
+    "provenance": "=CURRENT_USER_DIRECT_RELAY_NOT_INDEPENDENT_AUTHENTICATION",
+    "prospective_only": "B", "startup_ceiling_ns": "U",
+    "historical_job1811420_cause": "=UNKNOWN",
+}
+BOOTSTRAP_EVIDENCE_SCHEMA = {
+    "schema_version": "=" + BOOTSTRAP_EVIDENCE,
+    "scope": "=REPRESENTATIVE_NO_SERVICE",
+    "role": old.enum("COLLECTOR", "REVIEW", "PHASE_RUNNER"),
+    **old.fields("binding_sha256:D selection_sha256:D bootstrap_policy_sha256:D bootstrap_adoption_sha256:D root_identity_inventory_sha256:D phase_id:P source_entry_mono_ns:U bootstrap_end_mono_ns:U phase_deadline_mono_ns:U first_start_seq:P first_start_record_sha256:D first_start_original_sha256:D first_start_enter_mono_ns:U first_start_exit_mono_ns:U first_start_ack_mono_ns:U"),
+    "adoption_original": BOOTSTRAP_ADOPTION_SCHEMA,
+    "unmonitored_prefix": "=OWNER_ACCEPTED_PROSPECTIVE_ONLY",
+    "monitor_scope_start": "=ACTUAL_BOOTSTRAP_END",
+}
+
 CAPACITY_SCHEMA = {
     "schema_version": "=" + CAPACITY,
     "scope": old.enum(*SCOPES),
@@ -362,7 +390,11 @@ def validate_scope_ceilings(record: Any) -> None:
 
 
 def validate_selection(record: Any) -> Any:
-    shape(record, SELECTION_SCHEMA)
+    shape(record, BOOTSTRAP_SELECTION_SCHEMA if record.get("schema_version") == BOOTSTRAP_SELECTION else SELECTION_SCHEMA)
+    if record["schema_version"] == BOOTSTRAP_SELECTION:
+        c.require(record["scope"] == "REPRESENTATIVE_NO_SERVICE"
+                  and record["bootstrap_prefix_policy_sha256"] == old.digest(bootstrap_policy_descriptor()),
+                  "RA_G1_BOOTSTRAP_POLICY")
     c.require(record["valid_from"] < record["valid_until"], "RA_G1_EXPIRED")
     limits = record["limits"]
     validate_scope_ceilings(record)
@@ -1303,3 +1335,52 @@ def bounded_backend_reader(charge_read: Any) -> Callable[..., str]:
             os.close(fd)
 
     return read_backend
+
+
+def bootstrap_policy_descriptor() -> Any:
+    return dict(descriptor_version=BOOTSTRAP_POLICY, closed=True, live_instance=False,
+        scope="REPRESENTATIVE_NO_SERVICE", startup_ceiling_ns=BOOTSTRAP_LIMIT_NS,
+        inclusive=True, eligible_roles=[dict(phase_id=p, role=r) for p,r in BOOTSTRAP_ROLES.items()],
+        source_entry_and_deadlines="UNCHANGED", monitor_scope_start="ACTUAL_BOOTSTRAP_END",
+        first_start_requirement="ACTUAL_DURABLE_ACK_BEFORE_WORK_AND_EARLIER_DEADLINES",
+        resource_period_ns=500_000_000, resource_max_gap_ns=1_000_000_000,
+        later_sessions="NO_BOOTSTRAP_EXCEPTION", physical_coverage="NOT_CLAIMED")
+
+
+def bootstrap_role(selected: Any, phase_id: Any) -> Any:
+    return BOOTSTRAP_ROLES.get(phase_id) if selected.get("schema_version") == BOOTSTRAP_SELECTION else None
+
+
+def validate_bootstrap_adoption(value: Any, selected: Any) -> Any:
+    shape(value, BOOTSTRAP_ADOPTION_SCHEMA)
+    c.require(value["prospective_only"] is True and value["startup_ceiling_ns"] == BOOTSTRAP_LIMIT_NS
+              and value["policy_sha256"] == old.digest(bootstrap_policy_descriptor())
+              and old.digest(value) == selected["bootstrap_prefix_adoption_sha256"], "RA_G1_BOOTSTRAP_POLICY")
+    return value
+
+
+def validate_bootstrap_evidence(value: Any, selected: Any, *, binding_sha256: Any, root: Any, first: Any = None) -> Any:
+    shape(value, BOOTSTRAP_EVIDENCE_SCHEMA)
+    role = bootstrap_role(selected, value["phase_id"])
+    c.require(role is not None and value["role"] == role
+              and value["binding_sha256"] == binding_sha256
+              and value["selection_sha256"] == old.digest(selected)
+              and value["bootstrap_policy_sha256"] == selected["bootstrap_prefix_policy_sha256"]
+              and value["bootstrap_adoption_sha256"] == selected["bootstrap_prefix_adoption_sha256"]
+              and value["root_identity_inventory_sha256"] == old.digest(private_root_identity(root)), "RA_G1_BOOTSTRAP_EVIDENCE")
+    validate_bootstrap_adoption(value["adoption_original"], selected)
+    entry, end, enter, exit_ns, ack, deadline = (value[k] for k in (
+        "source_entry_mono_ns", "bootstrap_end_mono_ns", "first_start_enter_mono_ns",
+        "first_start_exit_mono_ns", "first_start_ack_mono_ns", "phase_deadline_mono_ns"))
+    stage = next((r for r in selected["limits"]["stages"] if r["id"] == value["phase_id"]), None)
+    c.require(stage is not None and entry <= end <= enter <= exit_ns <= ack < deadline
+              and ack - entry <= BOOTSTRAP_LIMIT_NS and enter - end <= 1_000_000_000
+              and exit_ns - enter <= 1_000_000_000 and value["first_start_seq"] == 1
+              and deadline <= entry + stage["deadline_ms"] * 1_000_000, "RA_G1_BOOTSTRAP_LIMIT")
+    if first is not None:
+        c.require(first["seq"] == 1 and first["kind"] == "START"
+                  and old.digest(first) == value["first_start_record_sha256"]
+                  and first["visible_identity_inventory_sha256"] == value["first_start_original_sha256"]
+                  and first["enter_mono_ns"] == enter and first["exit_mono_ns"] == exit_ns,
+                  "RA_G1_BOOTSTRAP_EVIDENCE")
+    return value

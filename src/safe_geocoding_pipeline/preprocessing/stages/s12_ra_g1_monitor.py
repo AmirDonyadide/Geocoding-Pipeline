@@ -1013,7 +1013,9 @@ class ResourceMonitor:
         self.writer.append(block, record["seq"], self.deadline)
         if trace is not None:
             emit_startup_trace(trace, "APPEND_AFTER")
-        self.writer.wait(record["seq"], self.deadline)
+        durable_ack_ns = self.writer.wait(record["seq"], self.deadline)
+        if kind == "START":
+            self.first_start_receipt = dict(row=deepcopy_record(record), ack_ns=durable_ack_ns)
         if trace is not None:
             emit_startup_trace(trace, "START_ACK", self.writer.ack_ns)
         self.check()
@@ -1199,6 +1201,7 @@ class PhaseProtocol:
             "RUNNING",
         )
         self.closure, self.opener, self.terminal = None, None, None
+        self.bootstrap_evidence_sha256 = None
 
     def guard(self: Any) -> Any:
         self.check()
@@ -1221,7 +1224,8 @@ class PhaseProtocol:
         self.advance("DATA_FROZEN")
 
     def preopen(self: Any, closure: Any) -> Any:
-        validate(closure, CLOSURE)
+        validate(closure, BOOTSTRAP_PROTOCOL_IDS[CLOSURE] if self.bootstrap_evidence_sha256 is not None else CLOSURE)
+        c.require(closure.get("bootstrap_evidence_sha256") == self.bootstrap_evidence_sha256, "RA_G1_BOOTSTRAP_REQUIRED")
         c.require(
             closure["outcome"] == "PENDING_OPEN"
             and closure["monitor_coverage"] == "COMPLETE_SELECTED_SCOPE"
@@ -1294,13 +1298,15 @@ class PhaseProtocol:
             else None,
             failure=failure,
         )
+        record = bootstrap_protocol_record(record, self.bootstrap_evidence_sha256)
         validate(record)
         self.opener = record
         self.advance("OPEN_RETURNED")
         return result, record
 
     def monitor_closed(self: Any, record: Any) -> Any:
-        validate(record, MONITOR_TERMINAL)
+        validate(record, BOOTSTRAP_PROTOCOL_IDS[MONITOR_TERMINAL] if self.bootstrap_evidence_sha256 is not None else MONITOR_TERMINAL)
+        c.require(record.get("bootstrap_evidence_sha256") == self.bootstrap_evidence_sha256, "RA_G1_BOOTSTRAP_REQUIRED")
         c.require(
             record["binding_sha256"] == self.binding
             and record["phase_id"] == self.phase
@@ -1345,6 +1351,18 @@ def verify_tail(
     The caller separately retains the successful supervisor return original.
     """
     protocol.guard()
+    bootstrap = None
+    need_bootstrap = a.bootstrap_role(selected, protocol.phase) is not None
+    c.require(need_bootstrap == (protocol.bootstrap_evidence_sha256 is not None), "RA_G1_BOOTSTRAP_REQUIRED")
+    if need_bootstrap:
+        bootstrap = read_record(Path(monitor_path).parent / "bootstrap_prefix.record",
+            expected_sha256=protocol.bootstrap_evidence_sha256, check=protocol.guard, charge_read=charge_read)
+        a.validate_bootstrap_evidence(bootstrap, selected, binding_sha256=protocol.binding, root=Path(monitor_path).parent)
+        c.require(protocol.terminal["coverage_start_ns"] == bootstrap["bootstrap_end_mono_ns"]
+                  and protocol.opener["actual_opener_return_ns"] < bootstrap["phase_deadline_mono_ns"]
+                  and protocol.terminal["last_ack_ns"] < bootstrap["phase_deadline_mono_ns"], "RA_G1_BOOTSTRAP_LIMIT")
+        if worker_validation is not None:
+            c.require(worker_validation["first_pass_end_ns"] < bootstrap["phase_deadline_mono_ns"], "RA_G1_BOOTSTRAP_LIMIT")
     c.require(callable(original_observation_reader), "RA_G1_ORIGINAL_CHANGED")
     c.require(
         protocol.state == "MONITOR_CLOSED"
@@ -1399,6 +1417,8 @@ def verify_tail(
             observation=row,
             allow_synthetic=test_only,
         )
+        if bootstrap is not None and row["seq"] == 1:
+            a.validate_bootstrap_evidence(bootstrap, selected, binding_sha256=protocol.binding, root=Path(monitor_path).parent, first=row)
         scope.add(row)
         full_stream_digest.update(pack_observation(row))
         if scope.seq == protocol.closure["last_seq"]:
@@ -1496,6 +1516,7 @@ def verify_tail(
         first_failure=None,
         cleanup_failure=None,
     )
+    record = bootstrap_protocol_record(record, protocol.bootstrap_evidence_sha256)
     validate(record)
     protocol.guard()
     # Guarded readback equality and post-write deadline are part of success.
@@ -1946,7 +1967,7 @@ def reopen_phase_protocol(
         (opener_return, OPENER),
         (monitor_terminal, MONITOR_TERMINAL),
     ):
-        validate(record, version)
+        validate(record, BOOTSTRAP_PROTOCOL_IDS[version] if closure.get("bootstrap_evidence_sha256") is not None else version)
         c.require(
             record["binding_sha256"] == binding_sha256
             and record["phase_id"] == phase_id,
@@ -1990,6 +2011,9 @@ def reopen_phase_protocol(
         check=check,
         clock_ns=clock_ns,
     )
+    protocol.bootstrap_evidence_sha256 = closure.get("bootstrap_evidence_sha256")
+    c.require(all(record.get("bootstrap_evidence_sha256") == protocol.bootstrap_evidence_sha256
+                  for record in (closure, opener_return, monitor_terminal)), "RA_G1_BOOTSTRAP_REQUIRED")
     protocol.guard()
     protocol.closure, protocol.opener, protocol.terminal = (
         deepcopy_record(closure),
@@ -2005,7 +2029,9 @@ def monitor_terminal_record(
     monitor: Any, *, opener_return: Any, prefix_H0_sha256: Any
 ) -> Any:
     """Build only after FINAL was acknowledged and its writer released."""
-    validate(opener_return, OPENER)
+    bootstrap_sha = getattr(monitor, "bootstrap_evidence_sha256", None)
+    validate(opener_return, BOOTSTRAP_PROTOCOL_IDS[OPENER] if bootstrap_sha is not None else OPENER)
+    c.require(opener_return.get("bootstrap_evidence_sha256") == bootstrap_sha, "RA_G1_BOOTSTRAP_REQUIRED")
     c.require(
         monitor.writer.released
         and not monitor.writer.poisoned
@@ -2371,3 +2397,53 @@ def read_original_observation(
         return original
     finally:
         os.close(fd)
+
+
+# Explicit additional families; old schema objects and expected-version readers
+# are untouched. Common scalar semantics are reused only after new closed shape
+# and exact family checks, never by relabelling a retained historical original.
+BOOTSTRAP_PROTOCOL_IDS = {name: name.replace("_ra_g1_v1", "_bootstrap30_ra_g1_v1")
+    for name in (CLOSURE, OPENER, MONITOR_TERMINAL, PHASE_TERMINAL,
+                 "stage12_resource_monitor_worker_validation_ra_g1_v1")}
+
+
+def register_bootstrap_protocol_schema(base: Any, spec: Any) -> None:
+    SCHEMAS[BOOTSTRAP_PROTOCOL_IDS[base]] = {**spec,
+        "schema_version": "=" + BOOTSTRAP_PROTOCOL_IDS[base], "bootstrap_evidence_sha256": "D"}
+
+
+for _base in (CLOSURE, OPENER, MONITOR_TERMINAL, PHASE_TERMINAL):
+    register_bootstrap_protocol_schema(_base, SCHEMAS[_base])
+SCHEMAS[a.BOOTSTRAP_EVIDENCE] = a.BOOTSTRAP_EVIDENCE_SCHEMA
+_strict_validate_original_family = validate
+
+
+def validate(record: Any, expected: Any = None) -> Any:
+    version = record.get("schema_version") if type(record) is dict else None
+    reverse = {value:key for key,value in BOOTSTRAP_PROTOCOL_IDS.items()}
+    if version == a.BOOTSTRAP_EVIDENCE:
+        c.require(expected is None or expected == version, "RA_G1_FIELDS")
+        _shape(record, SCHEMAS[version])
+        counter = bounded.Canonical(MAX_RECORD_BYTES, count_only=True)
+        counter.value(record)
+        counter.put(b"\n")
+        return record
+    if version not in reverse:
+        return _strict_validate_original_family(record, expected)
+    c.require(expected is None or expected == version, "RA_G1_FIELDS")
+    _shape(record, SCHEMAS[version])
+    counter = bounded.Canonical(MAX_RECORD_BYTES, count_only=True)
+    counter.value(record)
+    counter.put(b"\n")
+    fields = {key:value for key,value in record.items() if key != "bootstrap_evidence_sha256"}
+    fields["schema_version"] = reverse[version]
+    _strict_validate_original_family(fields, reverse[version])
+    return record
+
+
+def bootstrap_protocol_record(record: Any, evidence_sha256: Any) -> Any:
+    if evidence_sha256 is None:
+        return record
+    a.shape(evidence_sha256, "D")
+    return {**record, "schema_version": BOOTSTRAP_PROTOCOL_IDS[record["schema_version"]],
+            "bootstrap_evidence_sha256": evidence_sha256}

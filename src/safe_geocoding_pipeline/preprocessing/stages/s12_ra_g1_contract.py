@@ -657,7 +657,15 @@ def descriptors() -> Any:
     }
     from . import s12_ra_g1_accounting as accounting
 
-    result[accounting.VERSION] = accounting.descriptor()
+    for bootstrap_successor in (False, True):
+        version = accounting.BOOTSTRAP_VERSION if bootstrap_successor else accounting.VERSION
+        result[version] = accounting.descriptor(bootstrap_successor=bootstrap_successor)
+    result[accounting.BOOTSTRAP_VERSION] = accounting.descriptor(bootstrap_successor=True)
+    result[assurance.BOOTSTRAP_POLICY] = assurance.bootstrap_policy_descriptor()
+    for version, spec in ((assurance.BOOTSTRAP_SELECTION, assurance.BOOTSTRAP_SELECTION_SCHEMA),
+                          (assurance.BOOTSTRAP_ADOPTION, assurance.BOOTSTRAP_ADOPTION_SCHEMA)):
+        result[version] = dict(descriptor_version=version, closed=True, schema=spec,
+                               maximum_canonical_bytes=8192, live_instance=False)
     return result
 
 

@@ -35,6 +35,7 @@ except BaseException:
 STDLIB_IMPORTS_DONE_NS = time.monotonic_ns()
 
 VERSION = "stage12_ra_g1_allocation_selection_v1"
+BOOTSTRAP_VERSION = "stage12_ra_g1_bootstrap30_allocation_selection_v1"
 SCOPE = "REPRESENTATIVE_NO_SERVICE"
 SOURCE_PROJECT_VERSION = "0.2.0"  # Exact reviewed pyproject.toml, not a fallback.
 LIMITS = dict(
@@ -173,7 +174,7 @@ def parse(raw):
     return value
 
 
-def validate_selection(s):
+def _validate_legacy_selection(s):
     need(
         set(s)
         == {
@@ -290,6 +291,23 @@ def validate_selection(s):
         )
     need(s["valid_from"] < s["valid_until"], "RA_G1_WINDOW")
     return s
+
+
+def validate_selection(value):
+    if value.get("version") != BOOTSTRAP_VERSION:
+        return _validate_legacy_selection(value)
+    extra = {"bootstrap_prefix_adoption", "bootstrap_prefix_adoption_sha256"}
+    need(extra <= set(value), "RA_G1_BOOTSTRAP_REQUIRED")
+    base = {key: item for key, item in value.items() if key not in extra}
+    base["version"] = VERSION
+    _validate_legacy_selection(base)
+    from safe_geocoding_pipeline.preprocessing.stages import s12_ra_g1_assurance as assurance
+    from safe_geocoding_pipeline.preprocessing.stages import s12_ra_g1_accounting as accounting
+    need(value["scope"] == SCOPE and value["accounting_inventory"]["schema_version"] == accounting.BOOTSTRAP_VERSION,
+         "RA_G1_BOOTSTRAP_POLICY")
+    selected = {"bootstrap_prefix_adoption_sha256": value["bootstrap_prefix_adoption_sha256"]}
+    assurance.validate_bootstrap_adoption(value["bootstrap_prefix_adoption"], selected)
+    return value
 
 
 def synchronized(method):
@@ -922,6 +940,10 @@ def start_admin(run, role, context, *, scope_start_ns):
         logical_write_bytes=limits["logical_write_bytes"],
         application_creations=limits["creations"],
     )
+    bootstrap_prefix = None
+    if selected.get("schema_version") == e.a.BOOTSTRAP_SELECTION and role in ("COLLECTOR", "REVIEW"):
+        bootstrap_prefix = dict(role=role, source_entry_ns=scope_start_ns,
+                                bootstrap_end_ns=time.monotonic_ns())
     session = e.start_administrative_session(
         binding=bound,
         selection=selected,
@@ -936,6 +958,9 @@ def start_admin(run, role, context, *, scope_start_ns):
         scope_start_ns=scope_start_ns,
         deadline_ns=end,
         startup_trace=startup_trace,
+        bootstrap_prefix=bootstrap_prefix,
+        bootstrap_adoption_reader=lambda identity: run.original(
+            Path(run.s["paths"]["records"]) / (identity + ".record"), limit=8192),
     )
     run.write(root / "admin_binding.record", bound)
     risk_path = Path(run.s["paths"]["allocation_root"]) / "administrative_risk.record"
@@ -1804,6 +1829,9 @@ def allocation_path_policy(s, path, write=False):
         )
     if resolved == original and (resolved == root or resolved.is_relative_to(root)):
         return True
+    if (not write and s.get("version") == BOOTSTRAP_VERSION
+            and resolved == original == Path(s["paths"]["records"]) / (s["bootstrap_prefix_adoption_sha256"] + ".record")):
+        return True
     if resolved == original and resolved in {
         Path(s["paths"]["records"]) / (identity + ".record")
         for identity in s["records"].values()
@@ -1914,7 +1942,7 @@ def install_denials(s, *, check=lambda: None, read_charge=lambda calls, size: No
 
 
 SAFE_CODES = frozenset(
-    "RA_G1_ALLOCATION_INVALID RA_G1_FIELDS RA_G1_PATH RA_G1_SELECTION_BINDING RA_G1_LIMITS RA_G1_ACCOUNTING RA_G1_SOURCE_INVENTORY RA_G1_AUTHORITY_REQUIRED RA_G1_WINDOW RA_G1_DEADLINE RA_G1_WRITE_UNCERTAIN RA_G1_CHECK_BUDGET RA_G1_MONITOR_THRESHOLD RA_G1_MONITOR_GAP RA_G1_REQUIRED_READING RA_G1_NATIVE_DISCOVERY RA_G1_PROTOCOL RA_G1_MONITOR_INCOMPLETE RA_G1_READ_LIMIT RA_G1_COUNTER_LIMIT RA_G1_SHARED_MARGIN RA_G1_WRITE_LIMIT RA_G1_SOURCE_CHANGED RA_G1_AUTHORITY_CHANGED RA_G1_ORIGINAL_CHANGED RA_G1_REVIEW_REQUIRED RA_G1_REVIEW_TIMEOUT RA_G1_BOOTSTRAP_BINDING RA_G1_BOOTSTRAP_REVIEW_REQUIRED RA_G1_EVIDENCE_CHANGED RA_G1_EXACT_INPUT_REVIEW_REQUIRED RA_G1_CHILD_FAILED RA_G1_DIAGNOSTIC_INCOMPLETE RA_G1_HANDOFF RA_G1_ADMIN_SCOPE RA_G1_PROCESS_SCOPE RA_G1_NATIVE_DENIAL_REQUIRED RA_G1_PROJECT_DISTRIBUTION_INCOMPATIBLE RA_G1_PROJECT_DISTRIBUTION_REQUIRED".split()
+    "RA_G1_ALLOCATION_INVALID RA_G1_FIELDS RA_G1_PATH RA_G1_SELECTION_BINDING RA_G1_LIMITS RA_G1_ACCOUNTING RA_G1_SOURCE_INVENTORY RA_G1_AUTHORITY_REQUIRED RA_G1_WINDOW RA_G1_DEADLINE RA_G1_WRITE_UNCERTAIN RA_G1_CHECK_BUDGET RA_G1_MONITOR_THRESHOLD RA_G1_MONITOR_GAP RA_G1_BOOTSTRAP_REQUIRED RA_G1_BOOTSTRAP_LIMIT RA_G1_BOOTSTRAP_POLICY RA_G1_BOOTSTRAP_EVIDENCE RA_G1_REQUIRED_READING RA_G1_NATIVE_DISCOVERY RA_G1_PROTOCOL RA_G1_MONITOR_INCOMPLETE RA_G1_READ_LIMIT RA_G1_COUNTER_LIMIT RA_G1_SHARED_MARGIN RA_G1_WRITE_LIMIT RA_G1_SOURCE_CHANGED RA_G1_AUTHORITY_CHANGED RA_G1_ORIGINAL_CHANGED RA_G1_REVIEW_REQUIRED RA_G1_REVIEW_TIMEOUT RA_G1_BOOTSTRAP_BINDING RA_G1_BOOTSTRAP_REVIEW_REQUIRED RA_G1_EVIDENCE_CHANGED RA_G1_EXACT_INPUT_REVIEW_REQUIRED RA_G1_CHILD_FAILED RA_G1_DIAGNOSTIC_INCOMPLETE RA_G1_HANDOFF RA_G1_ADMIN_SCOPE RA_G1_PROCESS_SCOPE RA_G1_NATIVE_DENIAL_REQUIRED RA_G1_PROJECT_DISTRIBUTION_INCOMPATIBLE RA_G1_PROJECT_DISTRIBUTION_REQUIRED".split()
 )
 
 

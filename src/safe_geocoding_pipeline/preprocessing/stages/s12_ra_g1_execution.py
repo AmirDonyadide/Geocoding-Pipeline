@@ -33,10 +33,14 @@ WORKER_SCHEMA: dict[str, Any] = {
 
 # Explicit successor registration; no historical reader changes.
 m.SCHEMAS[WORKER_VALIDATION] = WORKER_SCHEMA
+m.register_bootstrap_protocol_schema(WORKER_VALIDATION, WORKER_SCHEMA)
 
 
 def validate_worker_validation(record: Any, *, protocol: Any = None) -> Any:
-    a.shape(record, WORKER_SCHEMA)
+    bootstrap_sha = record.get("bootstrap_evidence_sha256")
+    a.shape(record, m.SCHEMAS[m.BOOTSTRAP_PROTOCOL_IDS[WORKER_VALIDATION]] if bootstrap_sha is not None else WORKER_SCHEMA)
+    if protocol is not None:
+        c.require(bootstrap_sha == protocol.bootstrap_evidence_sha256, "RA_G1_BOOTSTRAP_REQUIRED")
     c.require(
         record["first_pass_start_ns"]
         <= record["prefix_validated_ns"]
@@ -242,6 +246,8 @@ class PhaseSession:
         scope_start_ns: Any = None,
         directory_charge: Any = None,
         startup_trace: Any = None,
+        bootstrap_prefix: Any = None,
+        bootstrap_adoption_reader: Any = None,
     ) -> None:
         if startup_trace is not None:
             m.emit_startup_trace(startup_trace, "SESSION_SETUP_ENTER")
@@ -268,6 +274,21 @@ class PhaseSession:
             phase_id,
         )
         self.external_check, self.charge, self.read_charge = check, charge, read_charge
+        self.bootstrap_record = None
+        self.bootstrap_prefix = bootstrap_prefix
+        self.bootstrap_adoption_reader = bootstrap_adoption_reader
+        self.bootstrap_rechecks = 0
+        required_role = a.bootstrap_role(selection, phase_id)
+        c.require((required_role is not None) == (bootstrap_prefix is not None), "RA_G1_BOOTSTRAP_REQUIRED")
+        monitor_scope_start = scope_start_ns
+        if bootstrap_prefix is not None:
+            a.shape(bootstrap_prefix, {"role": o.enum("COLLECTOR", "REVIEW", "PHASE_RUNNER"), "source_entry_ns":"U", "bootstrap_end_ns":"U"})
+            c.require(bootstrap_prefix["role"] == required_role
+                      and bootstrap_prefix["source_entry_ns"] == scope_start_ns
+                      and scope_start_ns <= bootstrap_prefix["bootstrap_end_ns"] <= self.clock()
+                      and bootstrap_prefix["bootstrap_end_ns"] - scope_start_ns <= a.BOOTSTRAP_LIMIT_NS
+                      and callable(bootstrap_adoption_reader), "RA_G1_BOOTSTRAP_LIMIT")
+            monitor_scope_start = bootstrap_prefix["bootstrap_end_ns"]
         self.directory_charge = directory_charge
         self.test_only = getattr(authority, "test_only", False) is True
         self.monitor: Any = None
@@ -334,7 +355,7 @@ class PhaseSession:
             deadline_ns=deadline_ns,
             check=self.check,
             clock_ns=clock_ns,
-            scope_start_ns=scope_start_ns,
+            scope_start_ns=monitor_scope_start,
             startup_trace=startup_trace,
         )
         self.protocol = m.PhaseProtocol(
@@ -395,7 +416,7 @@ class PhaseSession:
         self.check()
         c.require(
             name
-            in ("preopening", "opener_return", "monitor_terminal", "worker_validation"),
+            in ("preopening", "opener_return", "monitor_terminal", "worker_validation", "bootstrap_prefix"),
             "RA_G1_FIELDS",
         )
         validator(record)
@@ -486,6 +507,9 @@ class PhaseSession:
             if trace is not None:
                 self.check()
             self.monitor.start()
+            if self.bootstrap_prefix is not None:
+                self._save_bootstrap_original()
+                self.require_start_acknowledged()
         except BaseException as error:
             if trace is None:
                 self.abort()
@@ -499,6 +523,55 @@ class PhaseSession:
         self.authority.resource_monitor = self.monitor
         self.authority.resource_session = self
         return self
+
+    def _bootstrap_adoption(self) -> Any:
+        value = self.bootstrap_adoption_reader(self.selection["bootstrap_prefix_adoption_sha256"])
+        if type(value) is bytes:
+            import json
+            c.require(len(value) <= 8192, "RA_G1_RECORD_LIMIT")
+            raw = value
+            value = json.loads(raw)
+            c.require(c.canonical(value) == raw, "RA_G1_BOOTSTRAP_EVIDENCE")
+        return a.validate_bootstrap_adoption(value, self.selection)
+
+    def _save_bootstrap_original(self) -> None:
+        receipt = self.monitor.first_start_receipt
+        first, ack = receipt["row"], receipt["ack_ns"]
+        prefix = self.bootstrap_prefix
+        c.require(first["seq"] == 1 and ack - prefix["source_entry_ns"] <= a.BOOTSTRAP_LIMIT_NS
+                  and ack < self.deadline, "RA_G1_BOOTSTRAP_LIMIT")
+        record = dict(schema_version=a.BOOTSTRAP_EVIDENCE, scope="REPRESENTATIVE_NO_SERVICE",
+            role=prefix["role"], binding_sha256=o.digest(self.binding), selection_sha256=o.digest(self.selection),
+            bootstrap_policy_sha256=self.selection["bootstrap_prefix_policy_sha256"],
+            bootstrap_adoption_sha256=self.selection["bootstrap_prefix_adoption_sha256"],
+            root_identity_inventory_sha256=o.digest(a.private_root_identity(self.root)), phase_id=self.phase,
+            source_entry_mono_ns=prefix["source_entry_ns"], bootstrap_end_mono_ns=prefix["bootstrap_end_ns"],
+            phase_deadline_mono_ns=self.deadline, first_start_seq=1, first_start_record_sha256=o.digest(first),
+            first_start_original_sha256=first["visible_identity_inventory_sha256"],
+            first_start_enter_mono_ns=first["enter_mono_ns"], first_start_exit_mono_ns=first["exit_mono_ns"],
+            first_start_ack_mono_ns=ack, adoption_original=self._bootstrap_adoption(),
+            unmonitored_prefix="OWNER_ACCEPTED_PROSPECTIVE_ONLY", monitor_scope_start="ACTUAL_BOOTSTRAP_END")
+        a.validate_bootstrap_evidence(record, self.selection, binding_sha256=o.digest(self.binding), root=self.root, first=first)
+        self._persist("bootstrap_prefix", record)
+        self.bootstrap_record = record
+        self.protocol.bootstrap_evidence_sha256 = o.digest(record)
+        self.monitor.bootstrap_evidence_sha256 = o.digest(record)
+
+    def require_start_acknowledged(self) -> Any:
+        self.check()
+        receipt = getattr(self.monitor, "first_start_receipt", None)
+        c.require(receipt is not None and receipt["row"]["seq"] == 1, "RA_G1_BOOTSTRAP_REQUIRED")
+        if self.bootstrap_prefix is None:
+            return receipt
+        self.bootstrap_rechecks += 1
+        c.require(self.bootstrap_rechecks <= 8 and self.bootstrap_record is not None, "RA_G1_BOOTSTRAP_REQUIRED")
+        actual = m.read_record(self.root / "bootstrap_prefix.record", expected_sha256=o.digest(self.bootstrap_record),
+            check=self.check, charge_read=self.read_charge)
+        a.validate_bootstrap_evidence(actual, self.selection, binding_sha256=o.digest(self.binding), root=self.root, first=receipt["row"])
+        c.require(actual["first_start_ack_mono_ns"] == receipt["ack_ns"]
+                  and actual["phase_deadline_mono_ns"] == self.deadline
+                  and actual["adoption_original"] == self._bootstrap_adoption(), "RA_G1_BOOTSTRAP_EVIDENCE")
+        return actual
 
     def barrier(self, *, next_write_bytes: Any = 0, next_creations: Any = 0) -> Any:
         return self.monitor.barrier(
@@ -540,6 +613,7 @@ class PhaseSession:
             and callable(actual_opener),
             "RA_G1_PROTOCOL",
         )
+        self.require_start_acknowledged()
         self.monitor.barrier()
         self.protocol.freeze(frozen_data_inventory_sha256)
         prefix = self.monitor.prefix()
@@ -562,11 +636,13 @@ class PhaseSession:
             accepted_risk_inventory_sha256=self.binding["risk_inventory_sha256"],
             actual_opener_record_sha256=None,
         )
+        closure = m.bootstrap_protocol_record(closure, self.protocol.bootstrap_evidence_sha256)
         self._persist("preopening", closure)
         self.protocol.preopen(closure)
         times: dict[str, int] = {}
 
         def opening_stage() -> Any:
+            self.require_start_acknowledged()
             self.cursor = GrowingPrefix(
                 self.writer.path,
                 binding_sha256=o.digest(self.binding),
@@ -603,6 +679,7 @@ class PhaseSession:
                 opener_return=opener,
                 prefix_H0_sha256=prefix["inventory_sha256"],
             )
+            terminal = m.bootstrap_protocol_record(terminal, self.protocol.bootstrap_evidence_sha256)
             self.protocol.monitor_closed(terminal)
             self._persist("monitor_terminal", terminal)
             source_identity = self.cursor.finish(terminal)
@@ -627,6 +704,7 @@ class PhaseSession:
                 coverage="COMPLETE_SELECTED_SCOPE",
                 source_execution="REVIEWED_PHASE_WORKER_REAL_OPENER",
             )
+            worker = m.bootstrap_protocol_record(worker, self.protocol.bootstrap_evidence_sha256)
             validate_worker_validation(worker, protocol=self.protocol)
             self._persist(
                 "worker_validation", worker, validator=validate_worker_validation
@@ -1072,6 +1150,8 @@ def start_session(
     native_roots: Any = None,
     native_paths: Any = (),
     scope_start_ns: Any = None,
+    bootstrap_prefix: Any = None,
+    bootstrap_adoption_reader: Any = None,
 ) -> PhaseSession:
     """Actual CLI entry: exact original context, genuine Linux roles, real monitor."""
     request = validate_execution_request(config.get("resource_execution"))
@@ -1152,6 +1232,9 @@ def start_session(
         read_charge=read_charge,
         clock_ns=clock_ns,
         scope_start_ns=scope_start_ns,
+        bootstrap_prefix=bootstrap_prefix,
+        bootstrap_adoption_reader=bootstrap_adoption_reader if bootstrap_adoption_reader is not None else
+            (lambda identity: authority._resource_evidence(identity, "adoptions")),
     )
     value.supervisor_context = context
     value.supervisor_context_sha256 = request["supervisor_context_sha256"]
@@ -1226,6 +1309,8 @@ def start_administrative_session(
     test_only: Any = False,
     directory_charge: Any = None,
     startup_trace: Any = None,
+    bootstrap_prefix: Any = None,
+    bootstrap_adoption_reader: Any = None,
 ) -> AdministrativePhaseSession:
     """Metadata-only monitor entry, never a fabricated full AP binding."""
     authority = AdministrativeAuthority()
@@ -1254,6 +1339,8 @@ def start_administrative_session(
         observer_factory=observer_factory,
         directory_charge=directory_charge,
         startup_trace=startup_trace,
+        bootstrap_prefix=bootstrap_prefix,
+        bootstrap_adoption_reader=bootstrap_adoption_reader,
     )
     value.start()
     return value

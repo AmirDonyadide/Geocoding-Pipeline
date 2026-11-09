@@ -14,6 +14,7 @@ import stat
 from typing import Any
 
 VERSION = "stage12_ra_g1_accounting_inventory_v1"
+BOOTSTRAP_VERSION = "stage12_ra_g1_bootstrap30_accounting_inventory_v1"
 MAX_U = 2**64 - 1
 SOURCE_MAX = 64 * 2**20
 METADATA_MAX = 4 * 2**20
@@ -246,7 +247,7 @@ def stream_bound(size: int, *, failure_byte: bool = True) -> dict[str, int]:
     return dict(read_calls=add(size, 1), read_bytes=add(size, int(failure_byte)))
 
 
-def compile_inventory(
+def _compile_strict_inventory(
     sources: Any, backends: Any, scope: str
 ) -> tuple[dict[str, Any], dict[str, int] | None]:
     sources, backends = validate_sources(sources), validate_backends(backends)
@@ -727,13 +728,13 @@ def stage_accounting(inventory: Any, stage_id: int) -> dict[str, int]:
 def validate_inventory(inventory: Any) -> dict[str, Any]:
     need(type(inventory) is dict, "RA_G1_ACCOUNTING_INVALID")
     expected, _ = compile_inventory(
-        inventory["sources"], inventory["backends"], inventory["scope"]
+        inventory["sources"], inventory["backends"], inventory["scope"], bootstrap_successor=inventory.get("schema_version") == BOOTSTRAP_VERSION
     )
     need(inventory == expected, "RA_G1_ACCOUNTING_CHANGED")
     return dict(inventory)
 
 
-def descriptor() -> dict[str, Any]:
+def _strict_descriptor() -> dict[str, Any]:
     return dict(
         descriptor_version=VERSION,
         closed=True,
@@ -816,3 +817,47 @@ def descriptor() -> dict[str, Any]:
         unsupported_protected_graph="UNISSUED_SELECTED_PROTECTED_COMMAND_HISTORY_GRAPH_REQUIRED",
         execution_permission="NOT_ISSUED",
     )
+
+
+def compile_inventory(sources: Any, backends: Any, scope: str, *, bootstrap_successor: bool = False) -> tuple[dict[str, Any], Any]:
+    inventory, accounting = _compile_strict_inventory(sources, backends, scope)
+    if not bootstrap_successor:
+        return inventory, accounting
+    need(scope == "REPRESENTATIVE_NO_SERVICE" and accounting is not None, "RA_G1_ACCOUNTING_SCOPE")
+    inventory["schema_version"] = BOOTSTRAP_VERSION
+    inventory["graph_id"] += "_BOOTSTRAP30"
+    def extra(stage, component, count, reads, size, checks, basis):
+        inventory["cost_rows"].append(dict(stage_id=stage, component=component, invocations=count,
+            per_invocation_read_calls=reads, per_invocation_read_bytes=size, per_invocation_checks=checks,
+            basis=basis, original_read_calls=mul(count,reads), original_read_bytes=mul(count,size), check_calls=mul(count,checks)))
+    record = stream_bound(8192)
+    for stage in (6,7,1):
+        extra(stage,"BOOTSTRAP_ORIGINAL_WRITE_READBACK",1,record["read_calls"],record["read_bytes"],
+              8192+3*record["read_calls"]+14,"ONE_8192_PRECHARGED_ORIGINAL_WITHIN_EXISTING_ADMIN_RESERVE")
+        extra(stage,"BOOTSTRAP_ADOPTION_AND_READINESS_ORIGINALS",17,record["read_calls"],record["read_bytes"],
+              3*record["read_calls"]+2,"ONE_ADOPTION_CREATION_READ_PLUS_EIGHT_CAPPED_TWO_ORIGINAL_READINESS_CALLS")
+    for stage,count in ((7,1),(1,1),(9,3)):
+        extra(stage,"BOOTSTRAP_PARENT_FRESH_ORIGINALS",count,record["read_calls"],record["read_bytes"],
+              3*record["read_calls"]+2,"ACTUAL_PARENT_AND_FINAL_VERIFIER_BOOTSTRAP_REOPENS")
+    for stage in inventory["stage_accounting"]:
+        own=[r for r in inventory["cost_rows"] if r["stage_id"]==stage["stage_id"]]
+        stage.update(original_read_calls=add(*(r["original_read_calls"] for r in own)),
+            original_read_bytes=add(*(r["original_read_bytes"] for r in own)),
+            check_calls=add(*(r["check_calls"] for r in own),2))
+        stage["identity_calls"]=stage["check_calls"]
+    accounting={key:add(*(r[key] for r in inventory["stage_accounting"])) for key in ACCOUNTING_KEYS}
+    inventory["accounting"]=accounting
+    inventory["proof_count"]["cost_rows"]=len(inventory["cost_rows"])
+    inventory["bootstrap_proof_record_count"]=3
+    need(len(canonical(inventory))<=METADATA_MAX,"RA_G1_ACCOUNTING_METADATA_LIMIT")
+    return inventory,accounting
+
+
+def descriptor(*, bootstrap_successor: bool = False) -> dict[str,Any]:
+    value = _strict_descriptor()
+    if bootstrap_successor:
+        value = {**value, "descriptor_version": BOOTSTRAP_VERSION,
+            "outer_fields": [*value["outer_fields"], "bootstrap_proof_record_count"],
+            "bootstrap_proof_record_count": 3, "bootstrap_readiness_calls_per_phase": 8,
+            "existing_admin_reserve": "THREE_ADDITIONAL_8192_RECORDS_NO_CAP_INCREASE"}
+    return value

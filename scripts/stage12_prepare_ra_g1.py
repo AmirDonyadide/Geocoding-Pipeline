@@ -34,6 +34,8 @@ PHASES = (
     ("malformed", 180000, 0, 3),
 )
 VERSION = "stage12_ra_g1_representative_diagnostic_input_v1"
+BOOTSTRAP_VERSION = "stage12_ra_g1_representative_bootstrap30_diagnostic_input_v1"
+BOOTSTRAP_ALLOCATION_VERSION = "stage12_ra_g1_bootstrap30_allocation_selection_v1"
 CONFIG_VERSION = "stage12_ra_g1_representative_configuration_v1"
 
 
@@ -231,7 +233,7 @@ def build_campaigns(selection, facts, resource_selection, capacity):
     return config, phases, roles
 
 
-def resource_selection(
+def _strict_resource_selection(
     allocation,
     *,
     policy_sha256,
@@ -413,6 +415,18 @@ def resource_selection(
     )
     m.validate_selection(record)
     return record
+
+
+def resource_selection(allocation, **kwargs):
+    record = _strict_resource_selection(allocation, **kwargs)
+    if allocation.get("version") != BOOTSTRAP_ALLOCATION_VERSION:
+        return record
+    from safe_geocoding_pipeline.preprocessing.stages import s12_ra_g1_assurance as assurance
+    record = {**record, "schema_version": assurance.BOOTSTRAP_SELECTION,
+        "bootstrap_prefix_policy_sha256": digest(assurance.bootstrap_policy_descriptor()),
+        "bootstrap_prefix_adoption_sha256": allocation["bootstrap_prefix_adoption_sha256"]}
+    assurance.validate_bootstrap_adoption(allocation["bootstrap_prefix_adoption"], record)
+    return assurance.validate_selection(record)
 
 
 def build(
@@ -629,6 +643,9 @@ def build(
         record["configuration_scope_sha256"] == m.configuration_scope(config),
         "RA_G1_CONFIGURATION_CYCLE",
     )
+    if allocation.get("version") == BOOTSTRAP_ALLOCATION_VERSION:
+        retained = retain("adoptions", allocation["bootstrap_prefix_adoption"])
+        c.require(retained == allocation["bootstrap_prefix_adoption_sha256"], "RA_G1_BOOTSTRAP_POLICY")
     review = dict(
         version=DIAGNOSTIC_REVIEW,
         scope=SCOPE,
@@ -647,7 +664,7 @@ def build(
     replay = json.loads(replay_path.read_bytes())
     c.require(digest(replay) == allocation["replay_sha256"], "RA_G1_REPLAY_CHANGED")
     data = dict(
-        version=VERSION,
+        version=BOOTSTRAP_VERSION if allocation.get("version") == BOOTSTRAP_ALLOCATION_VERSION else VERSION,
         scope=SCOPE,
         source_sha=allocation["source_sha"],
         selection={

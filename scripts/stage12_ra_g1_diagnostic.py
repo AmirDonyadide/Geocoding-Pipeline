@@ -32,6 +32,8 @@ import sys
 import threading
 
 VERSION = "stage12_ra_g1_representative_diagnostic_input_v1"
+BOOTSTRAP_VERSION = "stage12_ra_g1_representative_bootstrap30_diagnostic_input_v1"
+BOOTSTRAP_SELECTION = "stage12_resource_selection_bootstrap30_ra_g1_v1"
 CONFIG_VERSION = "stage12_ra_g1_representative_configuration_v1"
 REVIEW_VERSION = "stage12_representative_review_binding_ra_g1_v1"
 SCOPE = "REPRESENTATIVE_NO_SERVICE"
@@ -255,10 +257,14 @@ def input_scope(data):
     return digest(value)
 
 
-def validate_envelope(data, source_sha, *, for_execution):
+def validate_envelope(data, source_sha, *, for_execution, defer_response_payloads=False):
     """Pure bounded metadata shape; this never creates a usable assurance record."""
     require(type(data) is dict and set(data) == _TOP)
-    require(data["version"] == VERSION and data["scope"] == SCOPE)
+    require(data["version"] in (VERSION, BOOTSTRAP_VERSION) and data["scope"] == SCOPE)
+    require(
+        not defer_response_payloads
+        or (for_execution and data["version"] == BOOTSTRAP_VERSION)
+    )
     require(hash_value(source_sha, 40) and data["source_sha"] == source_sha)
     selected = data["selection"]
     require(
@@ -373,21 +379,81 @@ def validate_envelope(data, source_sha, *, for_execution):
             and type(row["size"]) is int
             and row["size"] in (1, 40)
         )
-        require(
-            type(row["raw_utf8"]) is str
-            and 0 < len(row["raw_utf8"].encode("utf8")) <= 65536
-        )
-        require(
-            hashlib.sha256(row["raw_utf8"].encode("utf8")).hexdigest()
-            == row["payload_sha256"]
-        )
+        require(type(row["raw_utf8"]) is str and hash_value(row["payload_sha256"]))
         require(
             row["origin"] in ("RETAINED_PUBLIC_BODY", "MANUALLY_INVENTED_PUBLIC_BODY")
         )
         key = row["fixture_id"], row["size"]
         require(key not in keys)
         keys.add(key)
+    if not defer_response_payloads:
+        materialize_response_bodies(data)
     return data
+
+
+def materialize_response_bodies(data, *, check=lambda: None):
+    """Decode TEST_ONLY transport bodies only after acknowledged live monitoring.
+
+    Offline envelope validation also uses these unchanged payload checks. The
+    bounded canonical live input necessarily contains payload strings; that
+    control read does not construct transport response bytes or iterate work.
+    """
+    bodies = {}
+    for row in data["responses"]:
+        check()
+        payload = row["raw_utf8"].encode("utf8")
+        require(0 < len(payload) <= 65536)
+        require(hashlib.sha256(payload).hexdigest() == row["payload_sha256"])
+        bodies[row["fixture_id"], row["size"]] = payload
+    check()
+    return bodies
+
+
+def validate_resource_family(input_version, selected):
+    require(
+        input_version in (VERSION, BOOTSTRAP_VERSION)
+        and selected.get("scope") == SCOPE
+        and selected.get("schema_version")
+        == (
+            BOOTSTRAP_SELECTION
+            if input_version == BOOTSTRAP_VERSION
+            else "stage12_resource_selection_ra_g1_v1"
+        ),
+        "RA_G1_DIAGNOSTIC_RESOURCE_FAMILY",
+    )
+
+
+def start_phase_resource(
+    execution, *, source_entry_ns, phase_id, clock_ns, input_version=VERSION, **arguments
+):
+    """Preserve phase origins while opting only REP's first START into the prefix."""
+    validate_resource_family(input_version, arguments["selection"])
+    bootstrap = {}
+    if phase_id == 1 and input_version == BOOTSTRAP_VERSION:
+        bootstrap["bootstrap_prefix"] = dict(
+            role="PHASE_RUNNER",
+            source_entry_ns=source_entry_ns,
+            bootstrap_end_ns=clock_ns(),
+        )
+    return execution.start_session(
+        phase_id=phase_id, clock_ns=clock_ns, **arguments, **bootstrap
+    )
+
+
+def prepare_first_phase(session, data, *, initialize_runtime, validation, check):
+    """The real START and retained ACK original precede all runtime/work setup."""
+    session.require_start_acknowledged()
+    actual_runtime = initialize_runtime()
+    bodies = materialize_response_bodies(data, check=check)
+    control_raw = canonical(
+        {
+            "type": "FeatureCollection",
+            "features": [],
+            "geocoding": {"version": "TEST_ONLY"},
+        }
+    )
+    adapter = validation.Validation(validation.CORPUS_VERSION)
+    return actual_runtime, bodies, control_raw, adapter
 
 
 def validate_workloads(data):
@@ -1019,7 +1085,12 @@ def execute(args, *, started_ns, cpu_started_ns):
     )
     data = json.loads(raw)
     require(canonical(data) == raw)
-    validate_envelope(data, args.source_sha, for_execution=True)
+    validate_envelope(
+        data,
+        args.source_sha,
+        for_execution=True,
+        defer_response_payloads=data.get("version") == BOOTSTRAP_VERSION,
+    )
     require(
         data["configuration"]["command_paths"]
         == {
@@ -1088,6 +1159,7 @@ def execute(args, *, started_ns, cpu_started_ns):
         config["campaigns"][0]["profile"], data["phases"][0]["start"]
     )
     selected = original.resource_selection(record)
+    validate_resource_family(data["version"], selected)
     from safe_geocoding_pipeline.preprocessing.stages import (
         s12_ra_g1_execution as execution,
     )
@@ -1169,17 +1241,7 @@ def execute(args, *, started_ns, cpu_started_ns):
         "native_maximum": "NOT_PROVEN",
         "physical_capacity": "NOT_RESERVED_OR_PROVEN",
     }
-    bodies = {
-        (row["fixture_id"], row["size"]): row["raw_utf8"].encode("utf8")
-        for row in data["responses"]
-    }
-    control_raw = canonical(
-        {
-            "type": "FeatureCollection",
-            "features": [],
-            "geocoding": {"version": "TEST_ONLY"},
-        }
-    )
+    bodies, control_raw, adapter = None, None, None
     attempts, phases, failure = 0, [], None
     boundaries, first_failure, cleanup_failure = [], None, None
     cleanup_failure_count = 0
@@ -1229,8 +1291,8 @@ def execute(args, *, started_ns, cpu_started_ns):
     def initialize_current_runtime():
         runtime.verify_successor_assets(source, contract=ap)
         require(
-            (source / "docs/scientific_assets" / (VERSION + ".json")).read_bytes()
-            == canonical(descriptor()),
+            (source / "docs/scientific_assets" / (data["version"] + ".json")).read_bytes()
+            == canonical(descriptor(data["version"])),
             "RA_G1_DIAGNOSTIC_DESCRIPTOR_CHANGED",
         )
         validate_grants(data, bundle)
@@ -1261,7 +1323,6 @@ def execute(args, *, started_ns, cpu_started_ns):
         )
         return actual_runtime
 
-    adapter = validation.Validation(validation.CORPUS_VERSION)
     try:
         with instrumentation(check) as state:
             for phase_id, (item, phase) in enumerate(
@@ -1313,7 +1374,10 @@ def execute(args, *, started_ns, cpu_started_ns):
                         2 * 1500 * 32768 + limits["native_helper_bytes_reserve"],
                         1501 + limits["native_helper_creation_reserve"],
                     )
-                active_resource = execution.start_session(
+                active_resource = start_phase_resource(
+                    execution,
+                    source_entry_ns=started_ns,
+                    input_version=data["version"],
                     authority=original,
                     config=config,
                     binding=bound,
@@ -1330,10 +1394,23 @@ def execute(args, *, started_ns, cpu_started_ns):
                     scope_start_ns=phase_start_ns,
                 )
                 if phase_id == 1:
-                    handoff["verify_before_data"]()
-                    original.source_fence()
-                    actual_runtime = initialize_current_runtime()
-                    original.bind(item, plan, start)
+
+                    def initialize_first_runtime():
+                        handoff["verify_before_data"]()
+                        original.source_fence()
+                        current = initialize_current_runtime()
+                        original.bind(item, plan, start)
+                        return current
+
+                    actual_runtime, bodies, control_raw, adapter = prepare_first_phase(
+                        active_resource,
+                        data,
+                        initialize_runtime=initialize_first_runtime,
+                        validation=validation,
+                        check=boundary.check,
+                    )
+                else:
+                    active_resource.require_start_acknowledged()
                 with (
                     storage.allocation_controls(original.allocation_controls),
                     storage.cooperative_io(boundary.check),
@@ -1752,7 +1829,7 @@ def execute(args, *, started_ns, cpu_started_ns):
     # second charge; uncertainty retains this full reservation.
     original.allocation_controls.claim("ADMIN_FILE", limits["summary_reserve_bytes"])
     result = dict(
-        version=VERSION,
+        version=data["version"],
         scope=SCOPE,
         source_sha=args.source_sha,
         input_sha256=args.input_sha256,
@@ -1789,9 +1866,10 @@ def execute(args, *, started_ns, cpu_started_ns):
     return 0 if result["complete"] else 1
 
 
-def descriptor():
+def descriptor(version=VERSION):
+    require(version in (VERSION, BOOTSTRAP_VERSION))
     return dict(
-        descriptor_version=VERSION,
+        descriptor_version=version,
         configuration_version=CONFIG_VERSION,
         review_binding_version=REVIEW_VERSION,
         scope=SCOPE,
