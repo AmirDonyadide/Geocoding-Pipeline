@@ -14,6 +14,8 @@ ROLE_ENTRY_NS = time.monotonic_ns()
 # ruff: noqa: E402
 try:
     import argparse
+    from bisect import bisect_left
+    from types import MappingProxyType
     from concurrent.futures import ThreadPoolExecutor
     from datetime import datetime, timezone
     import hashlib
@@ -1965,7 +1967,130 @@ def verify(run):
     return result
 
 
-def allocation_path_policy(s, path, write=False):
+SOURCE_PERMISSION_MAXIMUM_ROWS = 2048
+SOURCE_PERMISSION_MAXIMUM_CHARACTERS = 512
+SOURCE_PERMISSION_MAXIMUM_ROOT_CHARACTERS = 512
+SOURCE_PERMISSION_MAXIMUM_ROOT_PARTS = 64
+SOURCE_PERMISSION_INDEX_REFERENCE_BYTES = 81920
+SOURCE_PERMISSION_FIXED_LOGICAL_BYTES = 1024
+SOURCE_PERMISSION_QUERY_LOGICAL_BYTES = 8192
+SOURCE_PERMISSION_APPLICATION_CALLERS = 4
+SOURCE_PERMISSION_LOGICAL_BYTES = (
+    SOURCE_PERMISSION_INDEX_REFERENCE_BYTES
+    + SOURCE_PERMISSION_FIXED_LOGICAL_BYTES
+    + SOURCE_PERMISSION_APPLICATION_CALLERS * SOURCE_PERMISSION_QUERY_LOGICAL_BYTES
+)
+_SOURCE_PERMISSION_BINDING_KEYS = (
+    "version", "scope", "source_sha", "valid_from", "valid_until",
+    "replay_sha256", "resource_selection_sha256", "intent_id",
+    "bootstrap_prefix_adoption_sha256",
+)
+
+
+class _SourcePermissionIndex(tuple):
+    """Immutable selected membership, not a filesystem or validity cache.
+
+    Relative strings are borrowed from a genuinely validated selection. Fresh
+    binding comparisons reject stale permission inputs. Native tuple/dict
+    headers, allocator retention and unexpected native callbacks are NOT_PROVEN.
+    The explicit logical subreservation is within the existing OTHER_LOGICAL
+    arena; no file-write counter or physical-memory entitlement is invented.
+    """
+
+    __slots__ = ()
+
+    def __new__(cls, selected):
+        need(type(selected) is dict and type(selected.get("paths")) is dict
+             and type(selected["paths"].get("source")) is str,
+             "RA_G1_SOURCE_INDEX_UNSUPPORTED")
+        source_text = selected["paths"]["source"]
+        need(len(source_text) <= SOURCE_PERMISSION_MAXIMUM_ROOT_CHARACTERS
+             and source_text.count("/") <= SOURCE_PERMISSION_MAXIMUM_ROOT_PARTS,
+             "RA_G1_SOURCE_INDEX_UNSUPPORTED")
+        rows = selected.get("source_files")
+        need(type(rows) is list and 1 <= len(rows) <= SOURCE_PERMISSION_MAXIMUM_ROWS,
+             "RA_G1_SOURCE_INDEX_UNSUPPORTED")
+        for row in rows:
+            need(type(row) is dict and type(row.get("path")) is str
+                 and len(row["path"]) <= SOURCE_PERMISSION_MAXIMUM_CHARACTERS,
+                 "RA_G1_SOURCE_INDEX_UNSUPPORTED")
+        validate_selection(selected)
+        source_parts = len(Path(source_text).parts)
+        need(source_parts <= SOURCE_PERMISSION_MAXIMUM_ROOT_PARTS,
+             "RA_G1_SOURCE_INDEX_UNSUPPORTED")
+        need(1 <= len(rows) <= SOURCE_PERMISSION_MAXIMUM_ROWS,
+             "RA_G1_SOURCE_INVENTORY")
+        names = tuple(row["path"] for row in rows)
+        entries = tuple((row["path"], row["bytes"], row["sha256"]) for row in rows)
+        policy = MappingProxyType({
+            "version": selected["version"],
+            "paths": MappingProxyType(dict(selected["paths"])),
+            "records": MappingProxyType(dict(selected["records"])),
+            "bootstrap_prefix_adoption_sha256": selected.get(
+                "bootstrap_prefix_adoption_sha256"),
+        })
+        scalar_binding = tuple(selected.get(key) for key in _SOURCE_PERMISSION_BINDING_KEYS)
+        return tuple.__new__(cls, (
+            selected, rows, names, entries, policy, scalar_binding, tuple(selected), source_parts,
+        ))
+
+    @property
+    def policy(self):
+        return self[4]
+
+    def matches(self, selected):
+        if (selected is not self[0]
+            or type(selected) is not dict
+            or len(selected) != len(self[6])
+            or any(key not in selected for key in self[6])
+            or selected.get("source_files") is not self[1]
+            or len(self[1]) != len(self[3])):
+            return False
+        for key, value in zip(_SOURCE_PERMISSION_BINDING_KEYS, self[5]):
+            current = selected.get(key)
+            if type(current) is not type(value) or current != value:
+                return False
+        for key in ("paths", "records"):
+            current, frozen = selected.get(key), self.policy[key]
+            if type(current) is not dict or len(current) != len(frozen):
+                return False
+            for name, value in frozen.items():
+                item = current.get(name)
+                if type(item) is not str or item != value:
+                    return False
+        for row, entry in zip(self[1], self[3]):
+            if (type(row) is not dict or len(row) != 3
+                or type(row.get("path")) is not str or row["path"] != entry[0]
+                or type(row.get("bytes")) is not int or row["bytes"] != entry[1]
+                or type(row.get("sha256")) is not str or row["sha256"] != entry[2]):
+                return False
+        return len(self[1]) == len(self[3])
+
+    def contains(self, resolved, source):
+        if resolved == source:
+            return True
+        text, source_text = str(resolved), str(source)
+        if (len(text) > len(source_text) + 1 + SOURCE_PERMISSION_MAXIMUM_CHARACTERS
+            or text.count("/") > self[7] + SOURCE_PERMISSION_MAXIMUM_CHARACTERS // 2 + 1
+            or not resolved.is_relative_to(source)):
+            return False
+        parts, first = resolved.parts, self[7]
+        characters = len(parts) - first - 1
+        for position in range(first, len(parts)):
+            characters += len(parts[position])
+            if characters > SOURCE_PERMISSION_MAXIMUM_CHARACTERS:
+                return False
+        relative = "/".join(parts[first:])
+        names = self[2]
+        position = bisect_left(names, relative)
+        if position < len(names) and names[position] == relative:
+            return True
+        prefix = relative + "/"
+        position = bisect_left(names, prefix)
+        return position < len(names) and names[position].startswith(prefix)
+
+
+def allocation_path_policy(s, path, write=False, *, source_index=None):
     original = Path(os.fsdecode(path))
     if not original.is_absolute() or ".." in original.parts:
         return False
@@ -1975,6 +2100,10 @@ def allocation_path_policy(s, path, write=False):
         for part in (*original.parts, *resolved.parts)
     ):
         return False
+    if source_index is not None:
+        need(type(source_index) is _SourcePermissionIndex and source_index.matches(s),
+             "RA_G1_SOURCE_CHANGED")
+        s = source_index.policy
     root = Path(s["paths"]["allocation_root"])
     controls = {
         Path(s["paths"][key]) for key in ("worker_return", "supervisor_state")
@@ -1996,14 +2125,17 @@ def allocation_path_policy(s, path, write=False):
     }:
         return True
     source = Path(s["paths"]["source"])
-    exact = {source / row["path"] for row in s["source_files"]}
-    directories = {source}
-    for item in exact:
-        parent = item.parent
-        while parent.is_relative_to(source):
-            directories.add(parent)
-            parent = parent.parent
-    if resolved == original and (resolved in exact or resolved in directories):
+    if source_index is None:
+        exact = {source / row["path"] for row in s["source_files"]}
+        directories = {source}
+        for item in exact:
+            parent = item.parent
+            while parent.is_relative_to(source):
+                directories.add(parent)
+                parent = parent.parent
+        if resolved == original and (resolved in exact or resolved in directories):
+            return True
+    elif resolved == original and source_index.contains(resolved, source):
         return True
     for prefix in (Path(sys.prefix).resolve(), Path(sys.base_prefix).resolve()):
         if resolved == prefix or resolved.is_relative_to(prefix):
@@ -2015,6 +2147,7 @@ def allocation_path_policy(s, path, write=False):
 
 def install_denials(s, *, check=lambda: None, read_charge=lambda calls, size: None):
     """Actual existing native network guard plus narrowed Python access policy."""
+    source_index = _SourcePermissionIndex(s)
     source = Path(s["paths"]["source"])
     sys.dont_write_bytecode = True
     guard = module(source, "stage12_ra_g1_diagnostic")
@@ -2073,7 +2206,7 @@ def install_denials(s, *, check=lambda: None, read_charge=lambda calls, size: No
             )
         if not write and original == resolved == report:
             return True
-        return allocation_path_policy(s, path, write)
+        return allocation_path_policy(s, path, write, source_index=source_index)
 
     guard.open_allowed = allowed
     native, network, creations, selected, charge, denied = guard.install_denials(
@@ -2100,7 +2233,7 @@ def install_denials(s, *, check=lambda: None, read_charge=lambda calls, size: No
 
 
 SAFE_CODES = frozenset(
-    "RA_G1_ALLOCATION_INVALID RA_G1_FIELDS RA_G1_PATH RA_G1_SELECTION_BINDING RA_G1_LIMITS RA_G1_ACCOUNTING RA_G1_SOURCE_INVENTORY RA_G1_AUTHORITY_REQUIRED RA_G1_WINDOW RA_G1_DEADLINE RA_G1_WRITE_UNCERTAIN RA_G1_CHECK_BUDGET RA_G1_MONITOR_THRESHOLD RA_G1_MONITOR_GAP RA_G1_BOOTSTRAP_REQUIRED RA_G1_BOOTSTRAP_LIMIT RA_G1_BOOTSTRAP_POLICY RA_G1_BOOTSTRAP_EVIDENCE RA_G1_REQUIRED_READING RA_G1_NATIVE_DISCOVERY RA_G1_PROTOCOL RA_G1_MONITOR_INCOMPLETE RA_G1_READ_LIMIT RA_G1_COUNTER_LIMIT RA_G1_SHARED_MARGIN RA_G1_WRITE_LIMIT RA_G1_SOURCE_CHANGED RA_G1_AUTHORITY_CHANGED RA_G1_ORIGINAL_CHANGED RA_G1_REVIEW_REQUIRED RA_G1_REVIEW_TIMEOUT RA_G1_BOOTSTRAP_BINDING RA_G1_BOOTSTRAP_REVIEW_REQUIRED RA_G1_EVIDENCE_CHANGED RA_G1_EXACT_INPUT_REVIEW_REQUIRED RA_G1_CHILD_FAILED RA_G1_DIAGNOSTIC_INCOMPLETE RA_G1_HANDOFF RA_G1_ADMIN_SCOPE RA_G1_PROCESS_SCOPE RA_G1_NATIVE_DENIAL_REQUIRED RA_G1_PROJECT_DISTRIBUTION_INCOMPATIBLE RA_G1_PROJECT_DISTRIBUTION_REQUIRED".split()
+    "RA_G1_ALLOCATION_INVALID RA_G1_FIELDS RA_G1_PATH RA_G1_SELECTION_BINDING RA_G1_LIMITS RA_G1_ACCOUNTING RA_G1_SOURCE_INVENTORY RA_G1_AUTHORITY_REQUIRED RA_G1_WINDOW RA_G1_DEADLINE RA_G1_WRITE_UNCERTAIN RA_G1_CHECK_BUDGET RA_G1_MONITOR_THRESHOLD RA_G1_MONITOR_GAP RA_G1_BOOTSTRAP_REQUIRED RA_G1_BOOTSTRAP_LIMIT RA_G1_BOOTSTRAP_POLICY RA_G1_BOOTSTRAP_EVIDENCE RA_G1_REQUIRED_READING RA_G1_NATIVE_DISCOVERY RA_G1_PROTOCOL RA_G1_MONITOR_INCOMPLETE RA_G1_READ_LIMIT RA_G1_COUNTER_LIMIT RA_G1_SHARED_MARGIN RA_G1_WRITE_LIMIT RA_G1_SOURCE_CHANGED RA_G1_SOURCE_INDEX_UNSUPPORTED RA_G1_AUTHORITY_CHANGED RA_G1_ORIGINAL_CHANGED RA_G1_REVIEW_REQUIRED RA_G1_REVIEW_TIMEOUT RA_G1_BOOTSTRAP_BINDING RA_G1_BOOTSTRAP_REVIEW_REQUIRED RA_G1_EVIDENCE_CHANGED RA_G1_EXACT_INPUT_REVIEW_REQUIRED RA_G1_CHILD_FAILED RA_G1_DIAGNOSTIC_INCOMPLETE RA_G1_HANDOFF RA_G1_ADMIN_SCOPE RA_G1_PROCESS_SCOPE RA_G1_NATIVE_DENIAL_REQUIRED RA_G1_PROJECT_DISTRIBUTION_INCOMPATIBLE RA_G1_PROJECT_DISTRIBUTION_REQUIRED".split()
 )
 
 

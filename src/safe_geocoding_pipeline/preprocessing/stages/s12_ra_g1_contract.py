@@ -667,6 +667,9 @@ def descriptors() -> Any:
                           (assurance.BOOTSTRAP_ADOPTION, assurance.BOOTSTRAP_ADOPTION_SCHEMA)):
         result[version] = dict(descriptor_version=version, closed=True, schema=spec,
                                maximum_canonical_bytes=8192, live_instance=False)
+    from . import s12_ra_g1_public as public
+
+    result[public.SHARED_ALLOCATION_DESCRIPTOR] = public.shared_allocation_descriptor()
     return result
 
 

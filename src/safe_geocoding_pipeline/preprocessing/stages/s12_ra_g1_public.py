@@ -39,6 +39,36 @@ ROLES = (
 PUBLIC_ROLES = ROLES + ("representative_outcomes",)
 
 
+SHARED_ALLOCATION_DESCRIPTOR = "stage12_ra_g1_shared_lease_public_allocation_selection_v1"
+
+
+def shared_allocation_descriptor():
+    """Pure PUBLIC wire delta; no authority, bootstrap exception or source I/O."""
+    from . import s12_ra_g1_accounting as accounting
+    from .s12_wf_ap2_scratch import RA_G1_CAPS
+
+    model = accounting.descriptor(shared_lease_successor=True)
+    return dict(
+        descriptor_version=SHARED_ALLOCATION_DESCRIPTOR,
+        scope="PUBLIC_SYNTHETIC_ONLY",
+        closed=True,
+        outer_shape_and_budgets="EXISTING_PUBLIC_WORKFLOW_FIELDS_AND_LIMITS_UNCHANGED",
+        source_parser="scripts/stage12_ra_g1_public_workflow.py::validate_selection",
+        accounting_inventory=accounting.SHARED_LEASE_VERSION,
+        bootstrap_proof_record_count=0,
+        logical_scratch_bytes=sum(RA_G1_CAPS.values()),
+        monitor_writer_readback_bytes=model["monitor_writer_readback_bytes"],
+        monitor_writer_max_read_calls=model["monitor_writer_original_readback_calls"]
+        + model["monitor_writer_codec_readback_calls"],
+        monitor_writer_original_readback_eof=model["monitor_writer_original_readback_eof"],
+        maximum_first_observation_gap_ms=1000,
+        bootstrap_prefix_authority="DENIED",
+        protected_input_authority="DENIED",
+        execution_permission="NOT_ISSUED",
+    )
+
+
+
 def _base():
     from . import s12_public_runtime
 

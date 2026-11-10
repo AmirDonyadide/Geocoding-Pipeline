@@ -30,9 +30,13 @@ from safe_geocoding_pipeline.preprocessing.stages.s12_ra_g1_public import (
     BOUND_REVIEW,
     REVIEW,
     PUBLIC_ROLES,
+    SHARED_ALLOCATION_DESCRIPTOR,
+    shared_allocation_descriptor,
 )
 
 SCOPE = "PUBLIC_SYNTHETIC_ONLY"
+LEGACY_ALLOCATION_VERSION = "stage12_ra_g1_public_allocation_selection_v1"
+SHARED_LEASE_ALLOCATION_VERSION = SHARED_ALLOCATION_DESCRIPTOR
 TEMPLATE_SHA256 = "c0669bd39dd9b7a71aee563e97245fc054c746adcc2d4d6420fe10afd43d43f4"
 PREPARED = "stage12_ra_g1_public_prepared_bound_v1"
 GRAPH = "stage12_ra_g1_public_invocation_graph_v1"
@@ -177,6 +181,49 @@ def invocation_graph(template: dict[str, Any], source_sha: str) -> dict[str, Any
     )
 
 
+
+def public_descriptor_inventory() -> dict[str, str]:
+    values = contract.descriptors()
+    descriptor = shared_allocation_descriptor()
+    prior = values.get(SHARED_ALLOCATION_DESCRIPTOR)
+    c.require(prior is None or prior == descriptor, "RA_G1_PUBLIC_DESCRIPTOR_CHANGED")
+    values = {**values, SHARED_ALLOCATION_DESCRIPTOR: descriptor}
+    return {name: digest(value) for name, value in values.items()}
+
+
+def public_accounting_inventory(allocation: dict[str, Any]) -> dict[str, Any]:
+    inventory = accounting_compiler.validate_inventory(allocation["accounting_inventory"])
+    version = allocation.get("version", LEGACY_ALLOCATION_VERSION)
+    c.require(version in (LEGACY_ALLOCATION_VERSION, SHARED_LEASE_ALLOCATION_VERSION),
+              "RA_G1_PUBLIC_ACCOUNTING_MODEL")
+    c.require(
+        inventory["scope"] == SCOPE
+        and inventory["sources"] == allocation["source_files"]
+        and inventory["accounting"] == allocation["accounting"],
+        "RA_G1_ACCOUNTING_CHANGED",
+    )
+    if version == SHARED_LEASE_ALLOCATION_VERSION:
+        c.require(inventory["schema_version"] == accounting_compiler.SHARED_LEASE_VERSION
+                  and inventory.get("bootstrap_proof_record_count") == 0,
+                  "RA_G1_PUBLIC_BOOTSTRAP_DENIED")
+    return inventory
+
+
+def validate_current_bound(bound: dict[str, Any]) -> None:
+    assurance.shape(bound, assurance.SCHEMA)
+    allocations = bound["logical_allocations"]
+    c.require([row["name"] for row in allocations] == list(assurance.ARENAS),
+              "RA_G1_LOGICAL_INVENTORY")
+    sizes = {row["name"]: row["bytes"] for row in allocations}
+    current = shared_allocation_descriptor()["logical_scratch_bytes"]
+    c.require(
+        current <= bound["logical_scratch_bytes"] <= assurance.SCRATCH_BYTES
+        and sizes["SERIALIZATION_SCRATCH"] == bound["logical_scratch_bytes"]
+        and sum(sizes.values()) == bound["total_logical_bytes"] <= assurance.LOGICAL_BYTES,
+        "RA_G1_LOGICAL_LIMIT",
+    )
+
+
 def compile_selection(
     allocation: dict[str, Any],
     template: dict[str, Any],
@@ -191,15 +238,7 @@ def compile_selection(
         invocation_graph(template, allocation["source_sha"]),
         compile_budget(template),
     )
-    accounting_inventory = accounting_compiler.validate_inventory(
-        allocation["accounting_inventory"]
-    )
-    c.require(
-        accounting_inventory["scope"] == SCOPE
-        and accounting_inventory["sources"] == allocation["source_files"]
-        and accounting_inventory["accounting"] == allocation["accounting"],
-        "RA_G1_ACCOUNTING_CHANGED",
-    )
+    accounting_inventory = public_accounting_inventory(allocation)
     stage_caps = {
         row["stage_id"]: accounting_compiler.stage_accounting(
             accounting_inventory, row["stage_id"]
@@ -398,6 +437,8 @@ def prepare(
     test_only: bool = False,
 ) -> dict[str, Any]:
     """Build an unissued subject using retained originals; review happens later."""
+    c.require(allocation.get("version") == SHARED_LEASE_ALLOCATION_VERSION,
+              "RA_G1_PUBLIC_CURRENT_MODEL_REQUIRED")
     template = read_template(template_raw, test_only=test_only)
     c.require(source_files == allocation["source_files"], "RA_G1_SOURCE_INVENTORY")
     c.require(set(role_originals) == set(ROLE_NAMES), "RA_G1_PUBLIC_ROLE_ORIGINALS")
@@ -460,9 +501,7 @@ def prepare(
         sum(row["bytes"] for row in source_files) <= 64 * 2**20,
         "RA_G1_SOURCE_INVENTORY",
     )
-    descriptors = {
-        name: digest(value) for name, value in contract.descriptors().items()
-    }
+    descriptors = public_descriptor_inventory()
     policy = contract.descriptors()[assurance.POLICY]
     paths = dict(
         scope=SCOPE,
@@ -614,7 +653,8 @@ def prepare(
         complete_descendant_coverage="NOT_ESTABLISHED",
     )
     assurance.validate_risk_inventory(risk)
-    sizes = [65536, 8 * 2**20, 2**21, 64640, 32768, 16384, 5 * 2**20]
+    scratch_bytes = shared_allocation_descriptor()["logical_scratch_bytes"]
+    sizes = [65536, 8 * 2**20, 2**21, scratch_bytes, 32768, 16384, 5 * 2**20]
     bound = dict(
         schema_version=assurance.BOUND,
         scope=SCOPE,
@@ -638,7 +678,7 @@ def prepare(
             for name, size in zip(assurance.ARENAS, sizes, strict=True)
         ],
         total_logical_bytes=sum(sizes),
-        logical_scratch_bytes=64640,
+        logical_scratch_bytes=scratch_bytes,
         valid_from=allocation["valid_from"],
         valid_until=allocation["valid_until"],
         native_component_guarantee="NOT_CLAIMED",
@@ -723,6 +763,7 @@ def finalize(
         "RA_G1_EXACT_TECHNICAL_REVIEW_REQUIRED",
     )
     bound["technical_review_sha256"] = digest(technical_review)
+    validate_current_bound(bound)
     config = deepcopy(prepared["configuration"])
     evidence = deepcopy(prepared["resource_evidence"])
     c.require(

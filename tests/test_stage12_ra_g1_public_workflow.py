@@ -75,7 +75,7 @@ def inputs(tmp_path):
 
     selected.update(valid_from=stamp(start), valid_until=stamp(end))
     s = dict(
-        version=w.VERSION,
+        version=w.SHARED_LEASE_VERSION,
         scope=w.SCOPE,
         source_sha=G,
         intent_id=H,
@@ -695,3 +695,97 @@ def test_public_existing_distribution_version_matches_pinned_project():
     project = tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]
     assert project["name"] == "safe-geocoding-pipeline"
     assert project["version"] == w.SOURCE_PROJECT_VERSION == "0.2.0"
+
+
+def test_current_public_outer_and_historical_parser_are_explicit(tmp_path):
+    from safe_geocoding_pipeline.preprocessing.stages import s12_ra_g1_accounting as ac
+    from safe_geocoding_pipeline.preprocessing.stages import s12_ra_g1_public as public
+
+    current, _, _ = inputs(tmp_path)
+    assert w.validate_selection(current) == current
+    assert w.require_current_selection(current) == current
+    assert current["accounting_inventory"]["schema_version"] == ac.SHARED_LEASE_VERSION
+    assert current["accounting_inventory"]["bootstrap_proof_record_count"] == 0
+    assert w.descriptor(w.SHARED_LEASE_VERSION) == public.shared_allocation_descriptor()
+    old = deepcopy(current)
+    old["version"] = w.VERSION
+    old["accounting_inventory"], old["accounting"] = public_accounting(
+        old["source_files"], shared_lease_successor=False)
+    assert w.validate_selection(old) == old
+    with pytest.raises(RuntimeError, match="RA_G1_PUBLIC_CURRENT_MODEL_REQUIRED"):
+        w.require_current_selection(old)
+    historical_shared = deepcopy(current)
+    historical_shared["version"] = w.VERSION
+    assert w.validate_selection(historical_shared) == historical_shared
+    with pytest.raises(RuntimeError, match="RA_G1_PUBLIC_CURRENT_MODEL_REQUIRED"):
+        w.require_current_selection(historical_shared)
+    mixed = deepcopy(current)
+    mixed["accounting_inventory"] = deepcopy(old["accounting_inventory"])
+    mixed["accounting"] = deepcopy(old["accounting"])
+    with pytest.raises(RuntimeError, match="RA_G1_PUBLIC_ACCOUNTING_MODEL"):
+        w.validate_selection(mixed)
+
+
+@pytest.mark.parametrize("mutation", ["proof3", "read_calls", "checks", "bootstrap_fields"])
+def test_current_public_outer_rejects_underfunding_and_rep_bootstrap(tmp_path, mutation):
+    from safe_geocoding_pipeline.preprocessing.stages import s12_retrieval_contract as c
+
+    current, _, _ = inputs(tmp_path)
+    if mutation == "proof3":
+        current["accounting_inventory"]["bootstrap_proof_record_count"] = 3
+    elif mutation == "read_calls":
+        current["accounting"]["original_read_calls"] -= 1
+    elif mutation == "checks":
+        current["accounting_inventory"]["stage_accounting"][0]["check_calls"] -= 1
+    else:
+        current["bootstrap_prefix_adoption_sha256"] = H
+    with pytest.raises((RuntimeError, c.Stage12Error)):
+        w.validate_selection(current)
+
+
+@pytest.mark.parametrize("current_model", [True, False])
+def test_actual_public_main_current_model_gate_and_real_local_site_denial(
+    tmp_path, monkeypatch, current_model
+):
+    """No child, kernel observation, B release or provider is supplied."""
+    selection, selected, _ = inputs(tmp_path)
+    selection["paths"]["source"] = str(ROOT)
+    if not current_model:
+        selection["version"] = w.VERSION
+        selection["accounting_inventory"], selection["accounting"] = public_accounting(
+            selection["source_files"], shared_lease_successor=False)
+    selection_path = tmp_path / "actual_main_selection.json"
+    raw = w.canonical(selection)
+    selection_path.write_bytes(raw)
+    selection_path.chmod(0o600)
+    resource_path = tmp_path / "actual_main_resource.json"
+    resource_path.write_bytes(w.canonical(selected))
+    resource_path.chmod(0o600)
+    monkeypatch.setenv("STAGE12_RA_EPOCH_NS", str(w.ROLE_ENTRY_NS))
+    monkeypatch.setenv("SAFE_EXECUTION_SITE", "macos")
+    monkeypatch.delenv("SLURM_JOB_ID", raising=False)
+    created, guarded = [], []
+    actual_run, actual_worker = w.Run, w.worker
+
+    def observe_run(*args, **kwargs):
+        result = actual_run(*args, **kwargs)
+        created.append(result.s["version"])
+        return result
+
+    def observe_worker(run):
+        try:
+            return actual_worker(run)
+        except Exception as error:
+            guarded.append(getattr(error, "code", None))
+            raise
+
+    monkeypatch.setattr(w, "Run", observe_run)
+    monkeypatch.setattr(w, "worker", observe_worker)
+    assert w.main(["worker", "--selection", str(selection_path),
+                   "--selection-sha256", w.hashed(raw),
+                   "--resource-selection", str(resource_path)]) == 2
+    if current_model:
+        assert created == [w.SHARED_LEASE_VERSION]
+        assert guarded == ["HEAVY_PROCESS_CLUSTER_REQUIRED"]
+    else:
+        assert created == [] and guarded == []

@@ -25,6 +25,7 @@ import sys
 import threading
 
 VERSION = "stage12_ra_g1_public_allocation_selection_v1"
+SHARED_LEASE_VERSION = "stage12_ra_g1_shared_lease_public_allocation_selection_v1"
 SCOPE = "PUBLIC_SYNTHETIC_ONLY"
 SOURCE_PROJECT_VERSION = "0.2.0"  # Exact reviewed pyproject.toml, not a fallback.
 BOOTSTRAP = "stage12_ra_g1_public_bootstrap_v1"
@@ -203,7 +204,7 @@ def validate_selection(value):
         "RA_G1_FIELDS",
     )
     need(
-        value["version"] == VERSION
+        value["version"] in (VERSION, SHARED_LEASE_VERSION)
         and value["scope"] == SCOPE
         and ishash(value["source_sha"], 40)
         and all(
@@ -277,12 +278,39 @@ def validate_selection(value):
         and inv["accounting"] == value["accounting"],
         "RA_G1_ACCOUNTING_CHANGED",
     )
+    if value["version"] == SHARED_LEASE_VERSION:
+        need(inv["schema_version"] == accounting.SHARED_LEASE_VERSION
+             and inv.get("bootstrap_proof_record_count") == 0, "RA_G1_PUBLIC_ACCOUNTING_MODEL")
     need(
         type(value["valid_from"]) is str
         and type(value["valid_until"]) is str
         and value["valid_from"] < value["valid_until"],
         "RA_G1_WINDOW",
     )
+    return value
+
+
+
+def descriptor(version=VERSION):
+    """The new wire delta is canonical in the installed public package."""
+    need(version in (VERSION, SHARED_LEASE_VERSION), "RA_G1_SELECTION_BINDING")
+    if version == SHARED_LEASE_VERSION:
+        from safe_geocoding_pipeline.preprocessing.stages.s12_ra_g1_public import (
+            SHARED_ALLOCATION_DESCRIPTOR, shared_allocation_descriptor,
+        )
+        need(SHARED_ALLOCATION_DESCRIPTOR == SHARED_LEASE_VERSION, "RA_G1_SELECTION_BINDING")
+        return shared_allocation_descriptor()
+    return dict(
+        descriptor_version=VERSION, scope=SCOPE, closed=True,
+        execution_permission="HISTORICAL_READ_ONLY",
+        accounting_inventory="stage12_ra_g1_accounting_inventory_v1",
+        bootstrap_prefix_authority="DENIED",
+    )
+
+
+def require_current_selection(value):
+    validate_selection(value)
+    need(value["version"] == SHARED_LEASE_VERSION, "RA_G1_PUBLIC_CURRENT_MODEL_REQUIRED")
     return value
 
 
@@ -1403,7 +1431,7 @@ def main(argv=None):
             "RA_G1_PROJECT_DISTRIBUTION_INCOMPATIBLE",
         )
         early_check()
-        s = validate_selection(parsed)
+        s = require_current_selection(parsed)
         selected = parse(
             original(
                 args.resource_selection, limit=65536, check=early_check, charge=charge

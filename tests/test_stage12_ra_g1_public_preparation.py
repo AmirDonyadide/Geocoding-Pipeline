@@ -33,6 +33,7 @@ def synthetic_inputs():
         validation.descriptor(validation.CORPUS_VERSION)
     )
     allocation = dict(
+        version=builder.SHARED_LEASE_ALLOCATION_VERSION,
         source_sha=G,
         task_id=H,
         valid_from=FROM,
@@ -59,9 +60,7 @@ def synthetic_inputs():
     project = {"SYNTHETIC_PROJECT_APPROVAL_NOT_AUTHORITY": True}
     report = b"Synthetic independent source review, not a live release.\n"
     resource_review = dict(source_sha=G, disposition="PASS", SYNTHETIC=True)
-    descriptors = {
-        name: builder.digest(value) for name, value in contract.descriptors().items()
-    }
+    descriptors = builder.public_descriptor_inventory()
     policy = contract.descriptors()[assurance.POLICY]
     paths = dict(
         scope=builder.SCOPE,
@@ -138,7 +137,7 @@ def synthetic_inputs():
     return template, allocation, bootstrap, kwargs
 
 
-def public_accounting(sources):
+def public_accounting(sources, *, shared_lease_successor=True):
     from safe_geocoding_pipeline.preprocessing.stages import s12_ra_g1_accounting as ac
 
     backends = [
@@ -152,7 +151,10 @@ def public_accounting(sources):
         )
         for i, name in enumerate(ac.MODULES, 1)
     ]
-    return ac.compile_inventory(sources, backends, "PUBLIC_SYNTHETIC_ONLY")
+    return ac.compile_inventory(
+        sources, backends, "PUBLIC_SYNTHETIC_ONLY",
+        shared_lease_successor=shared_lease_successor, bootstrap_successor=False,
+    )
 
 
 def prepared():
@@ -308,3 +310,164 @@ def test_public_historical_template_mutations_reject(mutation):
         builder.read_template(raw, test_only=True)
     with pytest.raises(c.Stage12Error):
         builder.read_template(c.canonical(configuration()))
+
+
+def test_current_public_uses_shared512_model_and_all_exact_liabilities():
+    from safe_geocoding_pipeline.preprocessing.stages import s12_ra_g1_accounting as ac
+    from safe_geocoding_pipeline.preprocessing.stages import s12_ra_g1_public as public
+
+    template, allocation, bootstrap, kwargs = synthetic_inputs()
+    inv = allocation["accounting_inventory"]
+    expected, totals = ac.compile_inventory(
+        inv["sources"], inv["backends"], builder.SCOPE,
+        shared_lease_successor=True, bootstrap_successor=False,
+    )
+    assert inv == expected and allocation["accounting"] == totals
+    assert inv["schema_version"] == ac.SHARED_LEASE_VERSION
+    assert inv["bootstrap_proof_record_count"] == 0
+    forbidden = {"BOOTSTRAP_ORIGINAL_WRITE_READBACK", "BOOTSTRAP_ADOPTION_AND_READINESS_ORIGINALS",
+                 "BOOTSTRAP_PARENT_FRESH_ORIGINALS"}
+    assert not any(row["component"] in forbidden for row in inv["cost_rows"])
+    assert "_BOOTSTRAP30" not in inv["graph_id"]
+    writers = [row for row in inv["cost_rows"]
+               if row["component"] == "MONITOR_WRITER_ORIGINAL_AND_CODEC_READBACK"]
+    assert writers and {row["per_invocation_read_calls"] for row in writers} == {31}
+    old, old_totals = public_accounting(allocation["source_files"], shared_lease_successor=False)
+    assert ac.validate_inventory(old) == old
+    writer_calls = sum(row["invocations"] for row in writers)
+    assert totals["original_read_calls"] - old_totals["original_read_calls"] == 26 * writer_calls
+    assert totals["check_calls"] - old_totals["check_calls"] == 26 * writer_calls
+    assert totals["original_read_bytes"] == old_totals["original_read_bytes"]
+
+    prepared_value = builder.prepare(c.canonical(template), allocation, bootstrap, **kwargs)
+    finalized = builder.finalize(prepared_value, review(prepared_value))
+    bound = finalized["binding"]
+    assert bound["logical_scratch_bytes"] == 65152
+    assert dict((row["name"], row["bytes"]) for row in bound["logical_allocations"])[
+        "SERIALIZATION_SCRATCH"] == 65152
+    assert bound["total_logical_bytes"] == 15908480 <= 16 * 2**20
+    assert bound["maximum_identity_checks"] == totals["identity_calls"]
+    assert bound["maximum_original_read_calls"] == totals["original_read_calls"]
+    assert bound["maximum_original_read_bytes"] == totals["original_read_bytes"]
+    for stage in finalized["resource_selection"]["limits"]["stages"]:
+        actual = ac.stage_accounting(inv, stage["id"])
+        assert {key: stage[key] for key in actual} == actual
+    descriptor = public.shared_allocation_descriptor()
+    assert descriptor["bootstrap_proof_record_count"] == 0
+    assert descriptor["bootstrap_prefix_authority"] == "DENIED"
+    assert descriptor["monitor_writer_readback_bytes"] == 512
+    assert descriptor["monitor_writer_max_read_calls"] == 31
+    assert prepared_value["descriptor_inventory"][public.SHARED_ALLOCATION_DESCRIPTOR] == builder.digest(descriptor)
+    assert finalized["resource_selection"]["descriptor_inventory_sha256"] == builder.digest(
+        prepared_value["descriptor_inventory"])
+
+
+def test_real_current_scratch_guard_reaches_closed_fact_gate_without_issuing_authority():
+    _, value = prepared()
+    finalized = builder.finalize(value, review(value))
+
+    class CurrentFactsRemainClosed(Exception):
+        pass
+
+    class Probe:
+        calls = 0
+
+        def charge_identity_check(self, record):
+            self.calls += 1
+            raise CurrentFactsRemainClosed("SYNTHETIC_CURRENT_FACTS_NOT_SUPPLIED")
+
+        def resource_facts(self, record):
+            raise AssertionError("no kernel fact or permission may be fabricated")
+
+    probe = Probe()
+    with pytest.raises(CurrentFactsRemainClosed):
+        assurance.verify_runtime(finalized["binding"], probe, {})
+    assert probe.calls == 1
+    # Historical bounded records remain readable, but cannot execute this source.
+    historical = deepcopy(finalized["binding"])
+    historical["logical_scratch_bytes"] = 64640
+    for arena in historical["logical_allocations"]:
+        if arena["name"] == "SERIALIZATION_SCRATCH":
+            arena["bytes"] = 64640
+    historical["total_logical_bytes"] = sum(row["bytes"] for row in historical["logical_allocations"])
+    profile = deepcopy(finalized["configuration"]["campaigns"][0]["profile"])
+    profile["sampling_runtime_bound_sha256"] = builder.digest(historical)
+    synthetic_original_identities = {
+        "client_git_sha": historical["source_git_sha"],
+        "runtime_inventory_sha256": historical["runtime_inventory_sha256"],
+    }
+    assert assurance.validate_record(historical, profile, synthetic_original_identities, contract) == historical
+    old_probe = Probe()
+    with pytest.raises(c.Stage12Error, match="RA_G1_LOGICAL_LIMIT"):
+        assurance.verify_runtime(historical, old_probe, {})
+    assert old_probe.calls == 0
+
+
+@pytest.mark.parametrize("mutation", [
+    "old_model", "read_calls", "check_calls", "stage_reads", "stage_checks",
+    "bootstrap_proof", "representative_model", "old_outer",
+])
+def test_current_public_rejects_mixed_or_underfunded_accounting(mutation):
+    from safe_geocoding_pipeline.preprocessing.stages import s12_ra_g1_accounting as ac
+
+    template, allocation, bootstrap, kwargs = synthetic_inputs()
+    inv = allocation["accounting_inventory"]
+    if mutation == "old_model":
+        allocation["accounting_inventory"], allocation["accounting"] = public_accounting(
+            allocation["source_files"], shared_lease_successor=False)
+    elif mutation == "read_calls":
+        allocation["accounting"]["original_read_calls"] -= 1
+    elif mutation == "check_calls":
+        allocation["accounting"]["check_calls"] -= 1
+    elif mutation == "stage_reads":
+        inv["stage_accounting"][0]["original_read_calls"] -= 1
+    elif mutation == "stage_checks":
+        inv["stage_accounting"][0]["check_calls"] -= 1
+    elif mutation == "bootstrap_proof":
+        inv["bootstrap_proof_record_count"] = 3
+    elif mutation == "representative_model":
+        allocation["accounting_inventory"], allocation["accounting"] = ac.compile_inventory(
+            inv["sources"], inv["backends"], "REPRESENTATIVE_NO_SERVICE",
+            shared_lease_successor=True, bootstrap_successor=True)
+    else:
+        allocation["version"] = builder.LEGACY_ALLOCATION_VERSION
+    with pytest.raises((c.Stage12Error, ac.AccountingError)) as caught:
+        builder.prepare(c.canonical(template), allocation, bootstrap, **kwargs)
+    assert caught.value.args[0] in {"RA_G1_ACCOUNTING_CHANGED", "RA_G1_ACCOUNTING_SCOPE",
+                                   "RA_G1_PUBLIC_CURRENT_MODEL_REQUIRED", "RA_G1_PUBLIC_BOOTSTRAP_DENIED"}
+
+
+@pytest.mark.parametrize("mutation", ["scratch", "arena", "total"])
+def test_current_public_finalize_rejects_rebound_underfunded_subject(mutation):
+    _, value = prepared()
+    changed = deepcopy(value)
+    bound = changed["bound_subject"]
+    if mutation == "scratch":
+        bound["logical_scratch_bytes"] = 64640
+        for arena in bound["logical_allocations"]:
+            if arena["name"] == "SERIALIZATION_SCRATCH":
+                arena["bytes"] = 64640
+        bound["total_logical_bytes"] = sum(row["bytes"] for row in bound["logical_allocations"])
+    elif mutation == "arena":
+        for arena in bound["logical_allocations"]:
+            if arena["name"] == "SERIALIZATION_SCRATCH":
+                arena["bytes"] -= 1
+        bound["total_logical_bytes"] -= 1
+    else:
+        bound["total_logical_bytes"] -= 1
+    changed["bound_scope_sha256"] = builder.digest(bound)
+    with pytest.raises(c.Stage12Error, match="RA_G1_LOGICAL_LIMIT"):
+        builder.finalize(changed, review(changed))
+
+
+def test_current_public_descriptor_registration_is_idempotent_and_exact(monkeypatch):
+    from safe_geocoding_pipeline.preprocessing.stages import s12_ra_g1_public as public
+
+    before = builder.public_descriptor_inventory()
+    registered = dict(contract.descriptors())
+    registered[public.SHARED_ALLOCATION_DESCRIPTOR] = public.shared_allocation_descriptor()
+    monkeypatch.setattr(contract, "descriptors", lambda: deepcopy(registered))
+    assert builder.public_descriptor_inventory() == before
+    registered[public.SHARED_ALLOCATION_DESCRIPTOR]["bootstrap_prefix_authority"] = "UNEXPECTED"
+    with pytest.raises(c.Stage12Error, match="RA_G1_PUBLIC_DESCRIPTOR_CHANGED"):
+        builder.public_descriptor_inventory()
