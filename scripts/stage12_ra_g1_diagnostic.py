@@ -1401,7 +1401,7 @@ def execute(args, *, started_ns, cpu_started_ns):
                     charge=original.allocation_controls.monitor_charge,
                     read_charge=original.charge_original,
                     clock_ns=clock.now_ns,
-                    native_roots=[output],
+                    native_roots=(output,),
                     scope_start_ns=phase_start_ns,
                     startup_trace=runtime_trace,
                 )
@@ -1695,7 +1695,7 @@ def execute(args, *, started_ns, cpu_started_ns):
                     charge=original.allocation_controls.monitor_charge,
                     read_charge=original.charge_original,
                     clock_ns=clock.now_ns,
-                    native_roots=[output],
+                    native_roots=(output,),
                     startup_trace=runtime_trace,
                 )
                 runtime_trace.bind_monitor(final_resource.monitor)

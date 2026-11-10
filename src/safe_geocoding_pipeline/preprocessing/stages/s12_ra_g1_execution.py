@@ -310,67 +310,89 @@ class PhaseSession:
             charge_read=self.read_charge,
             startup_trace=startup_trace,
         )
-        if startup_trace is not None:
-            m.emit_startup_trace(startup_trace, "WRITER_CREATED", writer=self.writer)
-        self.seed = o.digest(
-            dict(
-                schema_version="stage12_resource_monitor_seed_ra_g1_v1",
+        try:
+            if startup_trace is not None:
+                m.emit_startup_trace(startup_trace, "WRITER_CREATED", writer=self.writer)
+            self.seed = o.digest(
+                dict(
+                    schema_version="stage12_resource_monitor_seed_ra_g1_v1",
+                    binding_sha256=o.digest(binding),
+                    selection_sha256=o.digest(selection),
+                    phase_id=phase_id,
+                )
+            )
+
+            def retain(original: Any) -> str:
+                raw = m.export_original_observation(
+                    original, allow_synthetic=self.test_only
+                )
+                return self.writer.stage_original(raw)
+
+            if observer_factory is None:
+                c.require(cgroup_path is not None, "RA_G1_PROCESS_SCOPE")
+                self.observer = m.LinuxObserver(
+                    pids=pids,
+                    cgroup_path=cgroup_path,
+                    root=self.root,
+                    native_paths=native_paths,
+                    native_roots=native_roots,
+                    counter_provider=counter_provider,
+                    retain_originals=retain,
+                    admitted_process_provider=admitted_process_provider,
+                    read_charge=read_charge,
+                    check=self.check,
+                    clock_ns=clock_ns,
+                )
+            else:
+                c.require(self.test_only, "RA_G1_SYNTHETIC_DENIED")
+                self.observer = observer_factory(retain)
+            self.monitor = m.ResourceMonitor(
+                observer=self.observer,
+                writer=self.writer,
+                selected=selection,
+                binding_sha256=o.digest(binding),
+                phase_id=phase_id,
+                seed_sha256=self.seed,
+                deadline_ns=deadline_ns,
+                check=self.check,
+                clock_ns=clock_ns,
+                scope_start_ns=monitor_scope_start,
+                startup_trace=startup_trace,
+            )
+            self.protocol = m.PhaseProtocol(
                 binding_sha256=o.digest(binding),
                 selection_sha256=o.digest(selection),
                 phase_id=phase_id,
-            )
-        )
-
-        def retain(original: Any) -> str:
-            raw = m.export_original_observation(
-                original, allow_synthetic=self.test_only
-            )
-            return self.writer.stage_original(raw)
-
-        if observer_factory is None:
-            c.require(cgroup_path is not None, "RA_G1_PROCESS_SCOPE")
-            self.observer = m.LinuxObserver(
-                pids=pids,
-                cgroup_path=cgroup_path,
-                root=self.root,
-                native_paths=native_paths,
-                native_roots=native_roots,
-                counter_provider=counter_provider,
-                retain_originals=retain,
-                admitted_process_provider=admitted_process_provider,
-                read_charge=read_charge,
+                deadline_ns=deadline_ns,
                 check=self.check,
                 clock_ns=clock_ns,
             )
-        else:
-            c.require(self.test_only, "RA_G1_SYNTHETIC_DENIED")
-            self.observer = observer_factory(retain)
-        self.monitor = m.ResourceMonitor(
-            observer=self.observer,
-            writer=self.writer,
-            selected=selection,
-            binding_sha256=o.digest(binding),
-            phase_id=phase_id,
-            seed_sha256=self.seed,
-            deadline_ns=deadline_ns,
-            check=self.check,
-            clock_ns=clock_ns,
-            scope_start_ns=monitor_scope_start,
-            startup_trace=startup_trace,
-        )
-        self.protocol = m.PhaseProtocol(
-            binding_sha256=o.digest(binding),
-            selection_sha256=o.digest(selection),
-            phase_id=phase_id,
-            deadline_ns=deadline_ns,
-            check=self.check,
-            clock_ns=clock_ns,
-        )
-        self.cursor: Any = None
-        self.records: dict[str, Any] = {}
-        self.source_identities: dict[str, Any] = {}
-        self.supervisor_context: Any = None
-        self.supervisor_context_sha256: Any = None
+            self.cursor: Any = None
+            self.records: dict[str, Any] = {}
+            self.source_identities: dict[str, Any] = {}
+            self.supervisor_context: Any = None
+            self.supervisor_context_sha256: Any = None
+        except BaseException as error:
+            # The writer is owned here until construction returns to the caller.
+            if startup_trace is not None:
+                m.emit_startup_trace(startup_trace, "START_FAILED", error=error)
+            if self.monitor is not None:
+                self.monitor.stop_event.set()
+            with self.writer.condition:
+                self.writer.closing = True
+                self.writer.condition.notify_all()
+            try:
+                self.writer.close(self.deadline)
+            except BaseException as cleanup:
+                with self.writer.condition:
+                    self.writer.poisoned = True
+                if startup_trace is not None:
+                    m.emit_startup_trace(
+                        startup_trace, "ABORT_FAILED", error=cleanup, cleanup=True
+                    )
+            finally:
+                self.failed = True
+            raise
 
     def validate_binding(self, binding: Any) -> None:
         a.shape(binding, a.SCHEMA)

@@ -2238,7 +2238,7 @@ def execute(
                         charge=authority.allocation_controls.monitor_charge,
                         read_charge=authority.charge_original,
                         clock_ns=clock.now_ns,
-                        native_roots=[output],
+                        native_roots=(output,),
                         scope_start_ns=phase_start_ns,
                     )
                 if config["version"] in WF_CONFIGS:
@@ -2435,7 +2435,7 @@ def execute(
                         charge=authority.allocation_controls.monitor_charge,
                         read_charge=authority.charge_original,
                         clock_ns=clock.now_ns,
-                        native_roots=[output],
+                        native_roots=(output,),
                         scope_start_ns=whole_start_ns,
                     )
                 else:
