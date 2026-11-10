@@ -15,6 +15,7 @@ from test_stage12_ra_g1_allocation_controller import world  # noqa: F401
 from safe_geocoding_pipeline.preprocessing.stages import s12_ra_g1_monitor as m
 from safe_geocoding_pipeline.preprocessing.stages import s12_ra_g1_accounting as accounting
 from safe_geocoding_pipeline.preprocessing.stages import s12_retrieval_contract as c
+from safe_geocoding_pipeline.preprocessing.stages import s12_public_diagnostics as capture_diagnostics
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -632,6 +633,8 @@ def test_real_completed_session_actual_execute_tail_postemit_limits(
         data={"version": runner.SHARED_LEASE_VERSION},
         args=SimpleNamespace(source_sha=bound["source_git_sha"], input_sha256=H),
         failure=None, first_failure=None, cleanup_failure=None, cleanup_failure_count=0,
+        capture_failures=capture_diagnostics.Failures(clock),
+        runtime_trace=trace,
         boundaries=[], attempts=106, resource_observation={"scope": "SYNTHETIC_TAIL_ONLY"},
         network_guard="SYNTHETIC_NO_NATIVE_QUALIFICATION", creations=[0],
         started_ns=started_ns, cpu_started_ns=time.process_time_ns(), storage=storage, output=output,

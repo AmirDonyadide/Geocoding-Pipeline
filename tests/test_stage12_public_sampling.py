@@ -45,6 +45,7 @@ def component():
     )
     w.assert_owner = lambda: None
     co = NS(
+        contract=a,
         writer=w,
         journal=log,
         clock=clock,

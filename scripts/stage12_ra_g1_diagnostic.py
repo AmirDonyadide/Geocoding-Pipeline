@@ -1299,6 +1299,7 @@ def execute(args, *, started_ns, cpu_started_ns):
     from safe_geocoding_pipeline.preprocessing.stages import s12_storage as storage
     from safe_geocoding_pipeline.preprocessing.stages import s12_transport as transport
     from safe_geocoding_pipeline.preprocessing import stage12_probe_cli as cli
+    from safe_geocoding_pipeline.preprocessing.stages.s12_public_diagnostics import Failures
 
     transport.Secret.runtime = transport.Secret.private_file = denied
     config, clock = data["configuration"], runtime.Clock()
@@ -1418,6 +1419,7 @@ def execute(args, *, started_ns, cpu_started_ns):
     bodies, control_raw, adapter = None, None, None
     attempts, phases, failure = 0, [], None
     boundaries, first_failure, cleanup_failure = [], None, None
+    capture_failures = Failures(clock)
     cleanup_failure_count = 0
     negative_ready = threading.Event()
     attempts_lock = threading.Lock()
@@ -1623,6 +1625,7 @@ def execute(args, *, started_ns, cpu_started_ns):
                         writer_release_evidence=config["sources"]["owner"],
                         public_validation=adapter,
                         timing_observer=observer,
+                        diagnostics=capture_failures,
                         task_deadline_ns=phase_deadline,
                     )
                     summaries = boundary.operation(
@@ -1816,12 +1819,9 @@ def execute(args, *, started_ns, cpu_started_ns):
         require(106 <= attempts <= 107)
     except BaseException as error:
         runtime_trace("START_FAILED", error=error)
-        primary = runtime_trace.monitor_primary()
         first_failure = dict(
             at_mono_ns=clock.now_ns(), phase_id=len(boundaries), **safe_failure(error)
         )
-        if primary is not None:
-            first_failure.update(primary)
         failure = "RA_G1_DIAGNOSTIC_INCOMPLETE"
     finally:
         if active_resource is not None:
@@ -2023,6 +2023,9 @@ def execute(args, *, started_ns, cpu_started_ns):
         complete=failure is None and len(phases) == 4,
         error=failure,
         initiating_failure=first_failure,
+        initiating_failure_scope="CAUGHT_FOREGROUND_EXCEPTION_ONLY_SEE_CAPTURE_AND_MONITOR",
+        capture_failure_diagnostics=capture_failures.snapshot(),
+        resource_monitor_failure=runtime_trace.monitor_primary(),
         cleanup_failure=cleanup_failure,
         cleanup_failure_count=cleanup_failure_count,
         phase_timings=[boundary.snapshot() for boundary in boundaries],

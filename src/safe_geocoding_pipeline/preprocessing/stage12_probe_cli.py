@@ -749,6 +749,34 @@ def _run_operations_block(
             segment_authority,
             {"plan": plan, "block_id": block_id},
         )
+    # The current resource-assurance caller supplies its original phase bound.
+    # Bind it before the AP sampler snapshots the writer's remaining time.
+    initial_deadline = None
+    deadline_options = {}
+    if getattr(po, "RA_ENABLED", False) and task_deadline_ns is not None:
+        from datetime import datetime as selected_datetime
+
+        po.uint(task_deadline_ns, True)
+        initial_window_left = max(
+            0,
+            (
+                selected_datetime.fromisoformat(plan["window_end"])
+                - selected_datetime.fromisoformat(clock.utc())
+            ).total_seconds(),
+        )
+        initial_deadline = recovery.Deadline(
+            clock,
+            min(
+                task_deadline_ns,
+                clock.now_ns() + int(initial_window_left * 1_000_000_000),
+            ),
+        )
+        initial_deadline.check()
+        deadline_options = {
+            "cumulative_check": initial_deadline.check,
+            "cumulative_remaining": initial_deadline.remaining_seconds,
+        }
+
     coordinator = ps.Coordinator(
         profile,
         plan,
@@ -767,6 +795,7 @@ def _run_operations_block(
         diagnostics=diagnostics,
         timing_observer=timing_observer,
         contract=po,
+        **deadline_options,
     )
     writer, log = coordinator.writer, coordinator.journal
     if log.accounted_bytes is None:
@@ -792,9 +821,22 @@ def _run_operations_block(
         clock.now_ns() + int(window_left * 1_000_000_000),
     ]
     if task_deadline_ns is not None:
-        po.uint(task_deadline_ns, True)
+        if initial_deadline is None:
+            po.uint(task_deadline_ns, True)
         ends.append(task_deadline_ns)
-    finalization_deadline = recovery.Deadline(clock, min(ends))
+    if initial_deadline is None:
+        finalization_deadline = recovery.Deadline(clock, min(ends))
+    else:
+        # Retain the durable SEGMENT_OPEN/carry equations above. New information
+        # may tighten this owner and the sampler's cache, never extend them.
+        initial_deadline.end_ns = min(initial_deadline.end_ns, *ends)
+        finalization_deadline = initial_deadline
+        if coordinator.ap_sampler is not None:
+            with coordinator.ap_sampler.lock:
+                coordinator.ap_sampler.deadline_ns = min(
+                    coordinator.ap_sampler.deadline_ns,
+                    finalization_deadline.end_ns,
+                )
     writer.check_deadline = finalization_deadline.check
     writer.remaining_seconds = finalization_deadline.remaining_seconds
 
