@@ -314,6 +314,18 @@ def require_current_selection(value):
     return value
 
 
+def current_resource_cadence(value):
+    """The already-validated current outer/compiler pair, never scope alone."""
+    from safe_geocoding_pipeline.preprocessing.stages import s12_ra_g1_accounting
+
+    return (
+        value["version"] == SHARED_LEASE_VERSION
+        and value["accounting_inventory"]["schema_version"]
+        == s12_ra_g1_accounting.SHARED_LEASE_VERSION
+        and value["accounting_inventory"]["bootstrap_proof_record_count"] == 0
+    )
+
+
 def load_builder(source):
     name = "stage12_prepare_ra_g1_public"
     spec = importlib.util.spec_from_file_location(
@@ -836,6 +848,7 @@ def begin_setup(run):
         read_charge=run.ledger.read_charge,
         scope_start_ns=run.entry,
         deadline_ns=run.role_end,
+        start_to_start=current_resource_cadence(run.s),
     )
     run.write(run.s["paths"]["context"], context)
     run.write(run.session.root / "admin_binding.record", binding)
@@ -1064,6 +1077,7 @@ def worker(run):
         setup_session=run.session,
         setup_opener=setup_opener,
         processing_deadline_ns=run.end,
+        resource_start_to_start=current_resource_cadence(run.s),
     )
     need(
         summary["full_frozen_capability_matrix_completed"] is True

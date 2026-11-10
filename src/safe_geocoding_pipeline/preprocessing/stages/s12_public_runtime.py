@@ -1775,6 +1775,7 @@ def execute(
     setup_session=None,
     setup_opener=None,
     processing_deadline_ns=None,
+    resource_start_to_start=False,
 ):
     setup_cpu = time.process_time_ns()
     from ..stage12_probe_cli import run_operations_block
@@ -1784,6 +1785,11 @@ def execute(
 
     if config.get("version") in SAMPLING_CONFIGS:
         o = sampling_contract(config=config)
+    o.require(
+        type(resource_start_to_start) is bool
+        and (not resource_start_to_start or config.get("version") == RA_CONFIG),
+        "RA_G1_SELECTION_BINDING",
+    )
     require_goethe_nhr_slurm("stage12 explicit O-r2 public diagnostic")
     clock = clock or Clock()
     if config.get("version") == RA_CONFIG:
@@ -1800,6 +1806,11 @@ def execute(
             and setup_session.protocol.state == "RUNNING"
             and callable(setup_opener),
             "RA_G1_PUBLIC_SETUP_REQUIRED",
+        )
+        o.require(
+            getattr(setup_session.monitor, "start_to_start", False)
+            is resource_start_to_start,
+            "RA_G1_SELECTION_BINDING",
         )
         o.require(
             isinstance(source_counter_ledger, SourceCounterLedger)
@@ -2245,6 +2256,7 @@ def execute(
                         clock_ns=clock.now_ns,
                         native_roots=(output,),
                         scope_start_ns=phase_start_ns,
+                        start_to_start=resource_start_to_start,
                     )
                 if config["version"] in WF_CONFIGS:
                     active_timing_phase = phase_id
@@ -2442,6 +2454,7 @@ def execute(
                         clock_ns=clock.now_ns,
                         native_roots=(output,),
                         scope_start_ns=whole_start_ns,
+                        start_to_start=resource_start_to_start,
                     )
                 else:
                     whole_deadline = envelope

@@ -1011,7 +1011,10 @@ class ResourceMonitor:
         clock_ns: Any = time.monotonic_ns,
         scope_start_ns: Any = None,
         startup_trace: Any = None,
+        start_to_start: bool = False,
     ) -> None:
+        c.require(type(start_to_start) is bool, "RA_G1_PROTOCOL")
+        self.start_to_start = start_to_start
         self.observer, self.writer, self.selected, self.check, self.clock = (
             observer,
             writer,
@@ -1029,6 +1032,9 @@ class ResourceMonitor:
             deadline_ns,
             threading.Event(),
             threading.Lock(),
+        )
+        self._cadence_condition = (
+            threading.Condition(self.lock) if start_to_start else None
         )
         self.startup_trace = startup_trace
         self.seq, self.head, self.last, self.failure = 0, seed_sha256, None, None
@@ -1092,6 +1098,8 @@ class ResourceMonitor:
                             claimed_ns = None
                     except BaseException:
                         pass
+                if self._cadence_condition is not None:
+                    self._cadence_condition.notify_all()
                 publish = first and not self._diagnostic_published
                 if first:
                     self._diagnostic_published = True
@@ -1238,6 +1246,8 @@ class ResourceMonitor:
                 counters=dict(record["counters"]),
                 scope_start_ns=self.scope_start,
             )
+            if self._cadence_condition is not None:
+                self._cadence_condition.notify_all()
         return record
 
     def start(self: Any) -> Any:
@@ -1247,8 +1257,21 @@ class ResourceMonitor:
 
     def _run(self: Any) -> Any:
         try:
-            while not self.stop_event.wait(PERIOD_NS / 1e9):
-                self._acquire("PERIODIC")
+            if not self.start_to_start:
+                while not self.stop_event.wait(PERIOD_NS / 1e9):
+                    self._acquire("PERIODIC")
+            else:
+                while True:
+                    with self.lock:
+                        entered = self.last["enter_mono_ns"]
+                    remaining = max(0, entered + PERIOD_NS - self.clock())
+                    if self.stop_event.wait(remaining / 1e9):
+                        break
+                    if self.clock() < entered + PERIOD_NS:
+                        continue
+                    # One owner, one new actual-enter anchor. Missed time never
+                    # creates queued or catch-up acquisitions.
+                    self._acquire("PERIODIC")
         except BaseException as error:
             self._latch_failure(error)
 
@@ -1268,7 +1291,35 @@ class ResourceMonitor:
         self: Any, *, next_write_bytes: Any = 0, next_creations: Any = 0
     ) -> Any:
         try:
-            self.check()
+            if not self.start_to_start:
+                self.check()
+            if self._cadence_condition is not None:
+                with self._cadence_condition:
+                    row = self.last
+                    now = self.clock()
+                    c.require(now < self.deadline, "RA_G1_DEADLINE")
+                    incoming = self.acquisition_enter
+                    if (
+                        self.failure is None
+                        and row is not None
+                        and not self.writer.poisoned
+                        and self.writer.acked >= row["seq"]
+                        and now - row["enter_mono_ns"] > MAX_GAP_NS
+                        and self.acquisition_kind == "PERIODIC"
+                        and self.acquisition_stage != "PUBLISH"
+                        and type(incoming) is int
+                        and row["enter_mono_ns"] < incoming <= now
+                        and incoming - row["enter_mono_ns"] <= MAX_GAP_NS
+                        and now < min(self.deadline, incoming + MAX_GAP_NS)
+                    ):
+                        # Only an already-running next acquisition can help.
+                        # A single wait is bounded by that row's unchanged
+                        # freshness horizon and the original phase deadline.
+                        end = min(self.deadline, incoming + MAX_GAP_NS)
+                        self._cadence_condition.wait((end - now) / 1e9)
+                # One external check, as before. Waiting performs only bounded
+                # state/clock inspection; no evidence I/O or application write.
+                self.check()
             with self.lock:
                 row, failure = self.last, self.failure
             c.require(failure is None, failure or "RA_G1_MONITOR_INCOMPLETE")

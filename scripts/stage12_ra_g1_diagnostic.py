@@ -1166,8 +1166,15 @@ def instrumentation(check):
             and getattr(action, "__self__", None) is current.journal
             and getattr(action, "__name__", None) == "verify_storage"
         ):
-            while state["regular"] < state["target"]:
+            def held_check():
                 check()
+                resource = getattr(current.authority, "resource_monitor", None)
+                if getattr(resource, "start_to_start", False) is True:
+                    failure = resource.failure
+                    require(failure is None, failure or "RA_G1_MONITOR_INCOMPLETE")
+
+            while state["regular"] < state["target"]:
+                held_check()
                 require(
                     not self.failed.is_set() and current.stop_reason is None,
                     "RA_G1_DIAGNOSTIC_HOLD_FAILED",
@@ -1178,7 +1185,7 @@ def instrumentation(check):
                     witnessed = current.ap_sampler.witnessed
                 if witnessed >= state["target"]:
                     break
-                check()
+                held_check()
                 require(
                     not self.failed.is_set() and current.stop_reason is None,
                     "RA_G1_DIAGNOSTIC_HOLD_FAILED",

@@ -215,6 +215,21 @@ class GrowingPrefix:
             self.closed = True
 
 
+def resource_cadence_mode(selection: Any, requested: bool = False) -> bool:
+    """Current REP is closed by its schema; PUBLIC requires its admitted caller."""
+    c.require(type(requested) is bool, "RA_G1_SELECTION_BINDING")
+    representative = (
+        selection["scope"] == "REPRESENTATIVE_NO_SERVICE"
+        and selection["schema_version"] == a.REP_ADMIN_SELECTION
+    )
+    public = (
+        selection["scope"] == "PUBLIC_SYNTHETIC_ONLY"
+        and selection["schema_version"] == a.SELECTION
+    )
+    c.require(not requested or representative or public, "RA_G1_SELECTION_BINDING")
+    return representative or requested
+
+
 class PhaseSession:
     """Attach scoped monitoring to a public Authority or protected RuntimePort.
 
@@ -248,6 +263,7 @@ class PhaseSession:
         startup_trace: Any = None,
         bootstrap_prefix: Any = None,
         bootstrap_adoption_reader: Any = None,
+        start_to_start: bool = False,
     ) -> None:
         if startup_trace is not None:
             m.emit_startup_trace(startup_trace, "SESSION_SETUP_ENTER")
@@ -256,6 +272,7 @@ class PhaseSession:
             binding,
             a.validate_selection(selection),
         )
+        self.start_to_start = resource_cadence_mode(self.selection, start_to_start)
         self.validate_binding(binding)
         c.require(
             o.digest(selection) == binding["selection_sha256"]
@@ -358,6 +375,7 @@ class PhaseSession:
                 clock_ns=clock_ns,
                 scope_start_ns=monitor_scope_start,
                 startup_trace=startup_trace,
+                start_to_start=self.start_to_start,
             )
             self.protocol = m.PhaseProtocol(
                 binding_sha256=o.digest(binding),
@@ -1191,6 +1209,7 @@ def start_session(
     bootstrap_prefix: Any = None,
     bootstrap_adoption_reader: Any = None,
     startup_trace: Any = None,
+    start_to_start: bool = False,
 ) -> PhaseSession:
     """Actual CLI entry: exact original context, genuine Linux roles, real monitor."""
     request = validate_execution_request(config.get("resource_execution"))
@@ -1275,6 +1294,7 @@ def start_session(
         bootstrap_prefix=bootstrap_prefix,
         bootstrap_adoption_reader=bootstrap_adoption_reader if bootstrap_adoption_reader is not None else
             (lambda identity: authority._resource_evidence(identity, "adoptions")),
+        start_to_start=start_to_start,
     )
     value.supervisor_context = context
     value.supervisor_context_sha256 = request["supervisor_context_sha256"]
@@ -1351,6 +1371,7 @@ def start_administrative_session(
     startup_trace: Any = None,
     bootstrap_prefix: Any = None,
     bootstrap_adoption_reader: Any = None,
+    start_to_start: bool = False,
 ) -> AdministrativePhaseSession:
     """Metadata-only monitor entry, never a fabricated full AP binding."""
     authority = AdministrativeAuthority()
@@ -1381,6 +1402,7 @@ def start_administrative_session(
         startup_trace=startup_trace,
         bootstrap_prefix=bootstrap_prefix,
         bootstrap_adoption_reader=bootstrap_adoption_reader,
+        start_to_start=start_to_start,
     )
     value.start()
     return value
