@@ -19,7 +19,8 @@ ROOT = Path(__file__).resolve().parents[1]
 SHELL = ROOT / "cluster/goethe_nhr/stage12_ra_g1_allocation.sbatch"
 CONTROLLER = ROOT / "scripts/stage12_ra_g1_allocation.py"
 NON_EMITTER_SHA = "15104ee5c2baff27c7552f12dd19c8a03d116ff3ba17428b321c0ca14e3f0a9e"
-BASELINE_CONTROLLER_SHA = "5c631632dbdaabedee757e414dff0477af660ddd1428bfff46cbe9159848463d"
+# Historical mapper source 5c631632dbdaabedee757e414dff0477af660ddd1428bfff46cbe9159848463d
+# was verified in the sealed prior actual-producer run; later source is not its reconstruction.
 G, H = "2" * 40, "1" * 64
 LEGACY_WAIT_EMITTER = '        (set -o noclobber; printf \'{"version":"stage12_ra_g1_supervisor_wait_v1","source_sha":"%s","selection_sha256":"%s","supervisor_pid":%d,"pid":%d,"exit_code":%d,"wait_status":%d,"acquired_mono_ns":%d}\\n\' "$STAGE12_RA_SHA" "$STAGE12_RA_SELECTION_SHA" "$$" "$pid" "$status" "$((status*256))" "$STAGE12_RA_NOW" > "$return_path")'
 CASES = (
@@ -185,17 +186,24 @@ def test_non_emitters_and_durability_invocations_unchanged(produced):
     assert all(Path(path).is_file() for path in receipts)
 
 
-def test_preserved_actual_old_producer_is_rejected_and_old_mapper_stays_unknown(produced):
+def test_preserved_actual_old_producer_is_rejected_and_current_mapper_is_precise(produced):
     root, m = produced
     raw = wait_path(root, "baseline", "COLLECTOR").read_bytes()
     with pytest.raises(RuntimeError, match="CANONICAL_REQUIRED") as captured:
         m.parse(raw)
-    old_source = CONTROLLER.read_text().replace(
+    assert m.safe_failure(captured.value)["code"] == "RA_G1_CANONICAL_REQUIRED"
+
+
+def test_canonical_guard_mapping_requires_explicit_allowlist_entry():
+    m = controller()
+    with pytest.raises(RuntimeError, match="CANONICAL_REQUIRED") as captured:
+        m.parse(b" {}\n")
+    assert m.safe_failure(captured.value)["code"] == "RA_G1_CANONICAL_REQUIRED"
+    # Counterfactual current-code negative, not a historical source reconstruction.
+    without_guard = CONTROLLER.read_text().replace(
         "RA_G1_ALLOCATION_INVALID RA_G1_CANONICAL_REQUIRED RA_G1_FIELDS",
         "RA_G1_ALLOCATION_INVALID RA_G1_FIELDS", 1)
-    assert hashlib.sha256(old_source.encode()).hexdigest() == BASELINE_CONTROLLER_SHA
-    assert controller(old_source).safe_failure(captured.value)["code"] == "UNKNOWN"
-    assert m.safe_failure(captured.value)["code"] == "RA_G1_CANONICAL_REQUIRED"
+    assert controller(without_guard).safe_failure(captured.value)["code"] == "UNKNOWN"
 
 
 @pytest.mark.parametrize("label,producer,role,status,seconds", CASES[1:])

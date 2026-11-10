@@ -15,7 +15,7 @@ ROLE_ENTRY_NS = time.monotonic_ns()
 try:
     import argparse
     from bisect import bisect_left
-    from types import MappingProxyType
+    from types import MappingProxyType, ModuleType
     from concurrent.futures import ThreadPoolExecutor
     from datetime import datetime, timezone
     import hashlib
@@ -325,6 +325,172 @@ def synchronized(method):
     return locked
 
 
+FIRST_FAILURE_VERSION = "stage12_ra_g1_first_failure_descriptor_v1"
+FAILURE_ENVELOPE_VERSION = "stage12_ra_g1_allocation_failure_v2"
+FIRST_FAILURE_MAX_BYTES = 1024
+FIRST_FAILURE_MAX_WALK = 32
+FIRST_FAILURE_MAX_FRAMES = 4
+BINDER_OPERATIONS = tuple(
+    "UNKNOWN RESOURCE_SELECTION READ_CONTEXT ADOPT_HANDOFF START_REVIEW "
+    "VERIFY_COLLECTOR SOURCE_PRECHECK READ_BOOTSTRAP WAIT_REVIEW VERIFY_REVIEW "
+    "CLOSE_REVIEW START_BINDER CREATE_BUNDLE READ_SOFTWARE_REVIEW LOAD_BUILDER "
+    "BUILD_INPUT VERIFY_SELECTION WRITE_EVIDENCE WRITE_BINDING_RECORDS WRITE_INPUT "
+    "VALIDATE_INPUT WAIT_RELEASE VERIFY_RELEASE SOURCE_POSTCHECK OPEN_BINDING "
+    "CLOSE_BINDER WRITE_HANDOFF COMPLETE".split()
+)
+_FIRST_FAILURE_MODULES = (
+    ("scripts/stage12_ra_g1_allocation.py", "ALLOCATION_CONTROLLER"),
+    ("scripts/stage12_prepare_ra_g1.py", "REPRESENTATIVE_PREPARER"),
+    ("src/safe_geocoding_pipeline/preprocessing/stages/s12_ra_g1_assurance.py",
+     "RESOURCE_ASSURANCE"),
+    ("src/safe_geocoding_pipeline/preprocessing/stages/s12_retrieval_contract.py",
+     "RETRIEVAL_CONTRACT"),
+)
+_FIRST_EXCEPTION_KINDS = (
+    (RuntimeError, "RUNTIME_ERROR"), (ValueError, "VALUE_ERROR"),
+    (TypeError, "TYPE_ERROR"), (KeyError, "KEY_ERROR"),
+    (AssertionError, "ASSERTION_ERROR"), (MemoryError, "MEMORY_ERROR"),
+    (PermissionError, "PERMISSION_ERROR"), (FileNotFoundError, "FILE_NOT_FOUND_ERROR"),
+    (FileExistsError, "FILE_EXISTS_ERROR"), (NotADirectoryError, "NOT_A_DIRECTORY_ERROR"),
+    (IsADirectoryError, "IS_A_DIRECTORY_ERROR"), (TimeoutError, "TIMEOUT_ERROR"),
+    (InterruptedError, "INTERRUPTED_ERROR"), (BrokenPipeError, "BROKEN_PIPE_ERROR"),
+    (OSError, "OS_ERROR"),
+)
+
+
+class FirstFailureDescriptor:
+    """One first-owner scalar diagnostic; never retain exception/frame objects."""
+
+    def __init__(self, lock):
+        self.lock = lock
+        self.claimed = False
+        self.active = False
+        self.operation = "UNKNOWN"
+        self.root = self.catalog = None
+        self.pins = ()
+        self.output_reserved = False
+        self._value = dict(
+            schema_version=FIRST_FAILURE_VERSION, exception_kind="UNKNOWN",
+            guard_code="UNKNOWN", binder_operation="UNKNOWN",
+            source_inventory_sha256=None, frames=[], traceback_walked=0,
+            unmapped_frames=0, traceback_truncated=True, frames_truncated=False,
+            capture_status="UNAVAILABLE")
+
+    def configure(self, selected):
+        # Called only immediately after genuine selection validation. These are
+        # declared source pins, not cached filesystem acceptance or code proof.
+        root = selected["paths"]["source"]
+        catalog = selected["accounting_inventory"]["source_inventory_sha256"]
+        pins = []
+        if type(root) is not str or len(root) > 512 or not h(catalog):
+            return
+        for relative, module_id in _FIRST_FAILURE_MODULES:
+            for row in selected["source_files"]:
+                if row["path"] == relative:
+                    pins.append((row["path"], min(row["bytes"] + 1, 2**31 - 1), module_id))
+                    break
+        with self.lock:
+            if not self.claimed and self.root is None:
+                self.root, self.catalog, self.pins = root, catalog, tuple(pins)
+
+    def set_operation(self, operation):
+        value = operation if type(operation) is str and operation in BINDER_OPERATIONS else "UNKNOWN"
+        with self.lock:
+            self.operation = value
+
+    def _claim(self):
+        with self.lock:
+            if self.claimed:
+                return False
+            self.claimed = True
+            self._value["binder_operation"] = self.operation
+            self._value["source_inventory_sha256"] = self.catalog
+            return True
+
+    def capture(self, error, *, cleanup=False):
+        if cleanup or not self._claim():
+            return
+        tb = frame = filename = arguments = None
+        try:
+            kind = next((name for cls, name in _FIRST_EXCEPTION_KINDS
+                         if type(error) is cls), "UNKNOWN")
+            loaded = sys.modules.get(
+                "safe_geocoding_pipeline.preprocessing.stages.s12_retrieval_contract")
+            stage12 = None if type(loaded) is not ModuleType else loaded.__dict__.get("Stage12Error")
+            if stage12 is not None and type(error) is stage12:
+                kind = "STAGE12_ERROR"
+            code = "UNKNOWN"
+            if type(error) is RuntimeError or (stage12 is not None and type(error) is stage12):
+                arguments = BaseException.__dict__["args"].__get__(error, BaseException)
+                if (type(arguments) is tuple and len(arguments) == 1
+                    and type(arguments[0]) is str and len(arguments[0]) <= 128
+                    and arguments[0] in SAFE_CODES):
+                    code = next(item for item in SAFE_CODES if item == arguments[0])
+            frames, walked, unmapped, clipped = [], 0, 0, False
+            tb = BaseException.__dict__["__traceback__"].__get__(error, BaseException)
+            while tb is not None and walked < FIRST_FAILURE_MAX_WALK:
+                walked += 1
+                frame = tb.tb_frame
+                filename = frame.f_code.co_filename
+                line = tb.tb_lineno
+                found = False
+                if self.root is not None and type(filename) is str:
+                    first = len(self.root) + int(not self.root.endswith("/"))
+                    if (len(filename) <= first + 512 and filename.startswith(self.root)
+                        and (first == len(self.root) or filename[len(self.root)] == "/")):
+                        for relative, maximum_line, module_id in self.pins:
+                            if (len(filename) == first + len(relative)
+                                and filename.endswith(relative)
+                                and type(line) is int and 1 <= line <= maximum_line):
+                                if len(frames) == FIRST_FAILURE_MAX_FRAMES:
+                                    del frames[0]
+                                    clipped = True
+                                frames.append(dict(module_id=module_id, line=line))
+                                found = True
+                                break
+                unmapped += int(not found)
+                tb = tb.tb_next
+            value = dict(
+                self._value, exception_kind=kind, guard_code=code, frames=frames,
+                traceback_walked=walked, unmapped_frames=unmapped,
+                traceback_truncated=tb is not None, frames_truncated=clipped,
+                capture_status=("UNSUPPORTED_EXCEPTION" if kind == "UNKNOWN" else
+                                "NO_PINNED_SOURCE_CONTEXT" if self.root is None else "CAPTURED"))
+            with self.lock:
+                self._value = value
+        except BaseException:
+            pass  # First claim remains explicitly unavailable, never a later cause.
+        finally:
+            error = tb = frame = filename = arguments = None
+
+    def capture_monitor(self, actual):
+        if actual["monitor_failure"] is None or not self._claim():
+            return
+        fault = actual["first_primary"]
+        with self.lock:
+            self._value["traceback_truncated"] = False
+            self._value["capture_status"] = (
+                "MONITOR_PRIMARY_UNAVAILABLE" if fault is None
+                else "MONITOR_PRIMARY_NO_TRACEBACK")
+            if fault is not None and fault["code"] in SAFE_CODES:
+                self._value["guard_code"] = next(item for item in SAFE_CODES if item == fault["code"])
+
+    def snapshot(self):
+        with self.lock:
+            if not self.claimed:
+                return None
+            value = dict(self._value)
+            value["frames"] = [dict(row) for row in self._value["frames"]]
+            return value
+
+
+def binder_operation(run, operation):
+    trace = getattr(run, "startup_trace", None)
+    state = getattr(trace, "first_descriptor", None)
+    if state is not None:
+        state.set_operation(operation)
+
+
 class StartupTrace:
     """Supplementary bounded prefix, never a monitor receipt or closure."""
 
@@ -334,6 +500,9 @@ class StartupTrace:
 
     def __init__(self, role_entry_ns=ROLE_ENTRY_NS, *, clock_ns=time.monotonic_ns):
         self.lock = threading.Lock()
+        self.first_descriptor = FirstFailureDescriptor(self.lock)
+        self.failure_output_bytes = 0
+        self.trace_output_bytes = 0
         self.clock = clock_ns
         self.backing = bytearray(self.MAX_ENTRIES * 16)
         self.used = 0
@@ -360,9 +529,15 @@ class StartupTrace:
             at = None
         failure = None
         if error is not None:
-            safe = safe_failure(error)
-            failure = {key: safe[key] for key in ("family", "code", "errno", "at_mono_ns")}
-            failure["event"] = event
+            try:
+                self.first_descriptor.capture(error, cleanup=cleanup)
+            except BaseException:
+                pass
+            try:
+                failure = bounded_failure_fields(error)
+                failure["event"] = event
+            except BaseException:
+                failure = None
         with self.lock:
             if writer is not None:
                 self.writer = writer
@@ -530,6 +705,10 @@ class StartupTrace:
         except BaseException:
             self.note_instrumentation_fault()
             return
+        try:
+            self.first_descriptor.capture_monitor(actual)
+        except BaseException:
+            pass
         fault = actual["first_primary"]
         with self.lock:
             if self.monitor_state is None:
@@ -624,11 +803,21 @@ class StartupTrace:
 
         validate_scalar_tree(value)
         encoder = json.JSONEncoder(ensure_ascii=True, sort_keys=True, separators=(",", ":"), allow_nan=False)
-        total = 1  # canonical LF
-        for chunk in encoder.iterencode(value):
-            need(chunk.isascii() and len(chunk) <= 512, "RA_G1_WRITE_LIMIT")
-            total += len(chunk)
-            need(total <= self.MAX_BYTES, "RA_G1_WRITE_LIMIT")
+        with self.lock:
+            maximum = self.MAX_BYTES - self.failure_output_bytes
+            if self.first_descriptor.active and not self.failure_output_bytes:
+                maximum -= 4096  # Keep room for a first failure after final check.
+        while True:
+            total = 1  # canonical LF
+            for chunk in encoder.iterencode(value):
+                need(chunk.isascii() and len(chunk) <= 512, "RA_G1_WRITE_LIMIT")
+                total += len(chunk)
+            if total <= maximum:
+                break
+            need(bool(value["entries"]), "RA_G1_WRITE_LIMIT")
+            value["entries"].pop()
+            value["dropped_entries"] = min(2**64 - 1, value["dropped_entries"] + 1)
+            value["truncated"] = True
         arena = bytearray(total)
         offset = 0
         for chunk in encoder.iterencode(value):
@@ -644,7 +833,12 @@ class StartupTrace:
         return arena
 
     def emit(self, output):
+        with self.lock:
+            if self.first_descriptor.active and self.trace_output_bytes:
+                return
         raw = self.encoded_snapshot()
+        with self.lock:
+            self.trace_output_bytes = len(raw)  # Reserve before I/O; no refund on uncertainty.
         output.flush()  # earlier status record precedes the supplementary record
         binary = getattr(output, "buffer", None)
         if binary is not None:
@@ -675,6 +869,7 @@ class Run:
         PROCESS_TRACE.admin = self
         self._counter_lock = threading.RLock()
         self.s = validate_selection(s)
+        self.startup_trace.first_descriptor.configure(self.s)
         observed_now = time.monotonic_ns()
         self.started = observed_now if epoch_ns is None else epoch_ns
         need(
@@ -1570,12 +1765,17 @@ def validate_bootstrap_originals(run, raw, manifest_raw):
 
 def bind(run):
     s = run.s
+    binder_operation(run, "RESOURCE_SELECTION")
     resource_selection(run)
+    binder_operation(run, "READ_CONTEXT")
     context = parse(run.original(s["paths"]["context"]))
+    binder_operation(run, "ADOPT_HANDOFF")
     carried, collector_return = adopt_handoff(run, context, stage="collect")
+    binder_operation(run, "START_REVIEW")
     review_session = start_admin(
         run, "REVIEW", context, scope_start_ns=run.role_enter_ns
     )
+    binder_operation(run, "VERIFY_COLLECTOR")
     verify_administrative_sessions(
         context,
         resource_selection(run),
@@ -1587,7 +1787,9 @@ def bind(run):
         counter_digest=lambda: digest(run.counter_prefix()),
         deadline_ns=run.end,
     )
+    binder_operation(run, "SOURCE_PRECHECK")
     run.sources()
+    binder_operation(run, "READ_BOOTSTRAP")
     root = Path(s["paths"]["bootstrap"])
     raw = run.original(root / "bootstrap.record")
     b = parse(raw)
@@ -1595,7 +1797,9 @@ def bind(run):
     validate_bootstrap_originals(run, raw, manifest)
     b["manifest_sha256"] = hashlib.sha256(manifest).hexdigest()
     end = min(run.end, time.monotonic_ns() + 600 * 10**9)
+    binder_operation(run, "WAIT_REVIEW")
     review = wait_record(run, s["paths"]["review"], deadline_ns=end)
+    binder_operation(run, "VERIFY_REVIEW")
     need(
         review.get("disposition") == "PASS"
         and review.get("source_sha") == s["source_sha"]
@@ -1603,6 +1807,7 @@ def bind(run):
         and review.get("selection_sha256") == digest(s),
         "RA_G1_BOOTSTRAP_REVIEW_REQUIRED",
     )
+    binder_operation(run, "CLOSE_REVIEW")
     finish_admin(
         run,
         review_session,
@@ -1614,16 +1819,21 @@ def bind(run):
         ),
     )
     bind_enter = time.monotonic_ns()
+    binder_operation(run, "START_BINDER")
     binding_session = start_admin(run, "BINDER", context, scope_start_ns=bind_enter)
     end = min(run.end, binding_session.deadline)
+    binder_operation(run, "CREATE_BUNDLE")
     run.mkdir(s["paths"]["binding"])
     bundle = Path(s["paths"]["binding"])
     run.mkdir(bundle / "resource_evidence")
+    binder_operation(run, "READ_SOFTWARE_REVIEW")
     software = run.record("software_review")
     report = run.original(
         Path(s["paths"]["records"]) / (software["report_sha256"] + ".md")
     )
+    binder_operation(run, "LOAD_BUILDER")
     builder = module(s["paths"]["source"], "stage12_prepare_ra_g1")
+    binder_operation(run, "BUILD_INPUT")
     data, objects = builder.build(
         s,
         b,
@@ -1635,10 +1845,12 @@ def bind(run):
         independent_bootstrap_review=review,
         issued=True,
     )
+    binder_operation(run, "VERIFY_SELECTION")
     need(
         digest(objects["resource_selection"]) == s["resource_selection_sha256"],
         "RA_G1_SELECTION_BINDING",
     )
+    binder_operation(run, "WRITE_EVIDENCE")
     for role, values in objects["resource_evidence"].items():
         for identity_value, value in values.items():
             path = bundle / "resource_evidence" / (identity_value + ".record")
@@ -1646,19 +1858,24 @@ def bind(run):
                 need(run.original(path) == canonical(value), "RA_G1_EVIDENCE_CHANGED")
             else:
                 run.write(path, value)
+    binder_operation(run, "WRITE_BINDING_RECORDS")
     for role, value in objects["role_records"].items():
         run.write(bundle / (role + ".record"), value)
     run.write(bundle / "diagnostic_selection.record", objects["diagnostic_selection"])
     run.write(bundle / "diagnostic_resources.record", objects["diagnostic_resources"])
     run.write(bundle / "integration_review.binding.json", objects["integration_review"])
     run.write_raw(bundle / "integration_review.md", report)
+    binder_operation(run, "WRITE_INPUT")
     run.write(s["paths"]["input"], data)
+    binder_operation(run, "VALIDATE_INPUT")
     diagnostic = module(s["paths"]["source"], "stage12_ra_g1_diagnostic")
     diagnostic.validate_envelope(
         parse(run.original(s["paths"]["input"])), s["source_sha"], for_execution=True
     )
     diagnostic.validate_workloads(data)
+    binder_operation(run, "WAIT_RELEASE")
     release = wait_record(run, s["paths"]["release"], deadline_ns=end)
+    binder_operation(run, "VERIFY_RELEASE")
     need(
         set(release)
         == {
@@ -1681,10 +1898,12 @@ def bind(run):
         and release["resource_selection_sha256"] == s["resource_selection_sha256"],
         "RA_G1_EXACT_INPUT_REVIEW_REQUIRED",
     )
+    binder_operation(run, "SOURCE_POSTCHECK")
     run.sources()
     run.check()
 
     def actual_binding_open():
+        binder_operation(run, "OPEN_BINDING")
         actual_data = parse(run.original(s["paths"]["input"]))
         need(actual_data == data, "RA_G1_EVIDENCE_CHANGED")
         diagnostic.validate_envelope(actual_data, s["source_sha"], for_execution=True)
@@ -1705,8 +1924,10 @@ def bind(run):
                     "RA_G1_EVIDENCE_CHANGED",
                 )
         run.sources()
+        binder_operation(run, "CLOSE_BINDER")
         return actual_data
 
+    binder_operation(run, "CLOSE_BINDER")
     finish_admin(
         run,
         binding_session,
@@ -1718,7 +1939,9 @@ def bind(run):
         ],
         actual_binding_open,
     )
+    binder_operation(run, "WRITE_HANDOFF")
     handoff = write_handoff(run, context)
+    binder_operation(run, "COMPLETE")
     return {
         "status": "EXACT_DIAGNOSTIC_RELEASED",
         "input_sha256": digest(data),
@@ -2237,7 +2460,7 @@ SAFE_CODES = frozenset(
 )
 
 
-def safe_failure(error, run=None):
+def safe_failure(error, run=None, *, first_descriptor=None):
     code = "UNKNOWN"
     family = "UNKNOWN"
     number = None
@@ -2287,11 +2510,131 @@ def safe_failure(error, run=None):
         if run is None
         else ("POISONED" if run.poisoned else "HEALTHY"),
     )
+    if first_descriptor is not None:
+        value.update(
+            schema_version=FAILURE_ENVELOPE_VERSION,
+            first_failure_descriptor=first_descriptor,
+            counter_prefix_truncated=False)
     if run is not None:
         if run.first_failure is None:
             run.first_failure = value
         return run.first_failure
     return value
+
+
+
+def bounded_failure_fields(error):
+    """Diagnostic-only exact-type summary; never ask unsupported getters."""
+    arguments = None
+    try:
+        supported = any(type(error) is cls for cls, _ in _FIRST_EXCEPTION_KINDS)
+        loaded = sys.modules.get(
+            "safe_geocoding_pipeline.preprocessing.stages.s12_retrieval_contract")
+        stage12 = None if type(loaded) is not ModuleType else loaded.__dict__.get("Stage12Error")
+        if stage12 is not None and type(error) is stage12:
+            supported = True
+        if type(error) is RuntimeError or (stage12 is not None and type(error) is stage12):
+            arguments = BaseException.__dict__["args"].__get__(error, BaseException)
+            supported = (type(arguments) is tuple and len(arguments) == 1
+                         and type(arguments[0]) is str and len(arguments[0]) <= 128)
+        if supported:
+            safe = safe_failure(error)
+            return {key: safe[key] for key in ("family", "code", "errno", "at_mono_ns")}
+    except BaseException:
+        pass
+    finally:
+        error = arguments = None
+    return dict(family="UNKNOWN", code="UNKNOWN", errno=None,
+                at_mono_ns=time.monotonic_ns())
+
+
+def described_failure(error, run=None):
+    """New bounded envelope; historical safe_failure callers remain v1."""
+    trace = PROCESS_TRACE if run is None else getattr(run, "startup_trace", PROCESS_TRACE)
+    state = trace.first_descriptor
+    with trace.lock:
+        state.active = True
+    try:
+        state.capture(error)
+    except BaseException:
+        try:
+            state._claim()
+        except BaseException:
+            pass
+    try:
+        descriptor = state.snapshot()
+    except BaseException:
+        descriptor = None
+    if descriptor is None:
+        descriptor = dict(
+            schema_version=FIRST_FAILURE_VERSION, exception_kind="UNKNOWN",
+            guard_code="UNKNOWN", binder_operation="UNKNOWN",
+            source_inventory_sha256=None, frames=[], traceback_walked=0,
+            unmapped_frames=0, traceback_truncated=True, frames_truncated=False,
+            capture_status="UNAVAILABLE")
+    supported = any(type(error) is cls for cls, _ in _FIRST_EXCEPTION_KINDS)
+    loaded = sys.modules.get(
+        "safe_geocoding_pipeline.preprocessing.stages.s12_retrieval_contract")
+    stage12 = None if type(loaded) is not ModuleType else loaded.__dict__.get("Stage12Error")
+    if stage12 is not None and type(error) is stage12:
+        supported = True
+    if type(error) is RuntimeError or (stage12 is not None and type(error) is stage12):
+        arguments = BaseException.__dict__["args"].__get__(error, BaseException)
+        supported = (type(arguments) is tuple and len(arguments) == 1
+                     and type(arguments[0]) is str and len(arguments[0]) <= 128)
+        arguments = None
+    value = None
+    if supported:
+        try:
+            value = safe_failure(error, run, first_descriptor=descriptor)
+        except BaseException:
+            pass
+    if value is None:
+        value = dict(
+            schema_version=FAILURE_ENVELOPE_VERSION, status="INCOMPLETE",
+            family="UNKNOWN", code="UNKNOWN", errno=None,
+            at_mono_ns=time.monotonic_ns(), counter_prefix=None, writer="UNKNOWN",
+            first_failure_descriptor=descriptor, counter_prefix_truncated=True)
+        primary = trace.monitor_primary()
+        if primary is not None:
+            value.update(family=primary["family"], code=primary["code"],
+                         errno=primary["errno"], at_mono_ns=primary["at_mono_ns"])
+        if run is not None:
+            if run.first_failure is None:
+                run.first_failure = value
+            else:
+                value = run.first_failure
+    if value["schema_version"] == FAILURE_ENVELOPE_VERSION:
+        value = dict(value)
+        if descriptor["capture_status"] == "MONITOR_PRIMARY_UNAVAILABLE":
+            value.update(family="UNKNOWN", code="UNKNOWN", errno=None)
+        if run is not None and run.poisoned:
+            value["writer"] = "POISONED"
+    return value
+
+
+def print_failure(value, run=None):
+    """One first envelope and remaining trace share the existing8192 bytes."""
+    trace = PROCESS_TRACE if run is None else getattr(run, "startup_trace", PROCESS_TRACE)
+    with trace.lock:
+        if trace.failure_output_bytes:
+            return
+    if value["schema_version"] == FAILURE_ENVELOPE_VERSION:
+        value = dict(value)
+        if run is not None and run.poisoned:
+            value["writer"] = "POISONED"
+    with trace.lock:
+        maximum = min(4096, trace.MAX_BYTES - trace.trace_output_bytes)
+    raw = canonical(value)
+    if len(raw) > maximum and value["schema_version"] == FAILURE_ENVELOPE_VERSION:
+        value["counter_prefix"] = None
+        value["counter_prefix_truncated"] = True
+        raw = canonical(value)
+    need(len(raw) <= maximum, "RA_G1_WRITE_LIMIT")
+    with trace.lock:
+        trace.failure_output_bytes = len(raw)
+    print(raw.decode("ascii"), end="")
+
 
 
 def main():
@@ -2344,6 +2687,7 @@ def main():
     )
     bootstrap_check()
     s = validate_selection(parsed)
+    PROCESS_TRACE.first_descriptor.configure(s)
     epoch = os.environ.get("STAGE12_RA_EPOCH_NS")
     need(epoch is not None and epoch.isdigit(), "RA_G1_EPOCH_REQUIRED")
     install_denials(s, check=bootstrap_check, read_charge=bootstrap_read)
@@ -2387,8 +2731,8 @@ def main():
             args.command
         ](run)
     except BaseException as error:
+        failure = described_failure(error, run)
         PROCESS_TRACE("START_FAILED", error=error)
-        failure = safe_failure(error, run)
     finally:
         PROCESS_TRACE("RUN_CLOSE_ENTER")
         try:
@@ -2397,9 +2741,9 @@ def main():
         except BaseException as cleanup:
             PROCESS_TRACE("ABORT_FAILED", error=cleanup, cleanup=True)
             if failure is None:
-                failure = safe_failure(cleanup, run)
+                failure = described_failure(cleanup, run)
     if failure is not None:
-        print(canonical(failure).decode(), end="")
+        print_failure(failure, run)
         return 1
     print(canonical(result).decode(), end="")
     if run.stage == "ready":
@@ -2409,11 +2753,14 @@ def main():
 
 def cli_entry():
     """Retain supplementary prefix even when main bootstrap/imports fail."""
+    with PROCESS_TRACE.lock:
+        PROCESS_TRACE.first_descriptor.active = True
     try:
         result = main()
     except BaseException as error:
+        failure = described_failure(error)
         PROCESS_TRACE("START_FAILED", error=error)
-        print(canonical(safe_failure(error)).decode(), end="")
+        print_failure(failure)
         result = 1
     PROCESS_TRACE("EXIT_REPORT_ENTER")
     if PROCESS_TRACE.controller_command == "ready" or getattr(PROCESS_TRACE.admin, "stage", None) == "ready":
@@ -2424,7 +2771,7 @@ def cli_entry():
             PROCESS_TRACE.admin.check()  # emission cannot create a late successful return
     except BaseException as error:
         diagnostic_run = PROCESS_TRACE.admin if PROCESS_TRACE.output_reserved else None
-        print(canonical(safe_failure(error, diagnostic_run)).decode(), end="")
+        print_failure(described_failure(error, diagnostic_run), diagnostic_run)
         return 1
     return result
 

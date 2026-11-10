@@ -72,7 +72,7 @@ def test_unissued_builder_exact_shapes_and_no_strict_capacity_certificate():
         valid_until="2026-01-02T00:00:00.000000Z",
         paths={
             key: f"/SYNTHETIC/NOT_EXECUTABLE/{key}"
-            for key in ("source", "input", "output", "evidence")
+            for key in ("source", "input", "output", "binding")
         },
         replay_sha256=contract.digest(
             __import__("json").loads(

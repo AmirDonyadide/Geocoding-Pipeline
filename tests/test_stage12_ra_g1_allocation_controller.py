@@ -1049,7 +1049,8 @@ def test_startup_trace_bounds_static_values_and_early_failure(world, monkeypatch
     monkeypatch.setattr(world.m, "main", early)
     assert world.m.cli_entry() == 1
     records = [world.m.parse(line.encode() + b"\n") for line in capsys.readouterr().out.splitlines()]
-    assert records[0]["schema_version"] == "stage12_ra_g1_allocation_failure_v1"
+    assert records[0]["schema_version"] == "stage12_ra_g1_allocation_failure_v2"
+    assert records[0]["first_failure_descriptor"]["schema_version"] == "stage12_ra_g1_first_failure_descriptor_v1"
     assert records[1]["primary_failure"]["code"] == "RA_G1_PROJECT_DISTRIBUTION_REQUIRED"
     assert records[1]["hard_kill_guarantee"] == "NONE"
 

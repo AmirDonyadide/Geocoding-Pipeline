@@ -228,7 +228,7 @@ def build_campaigns(selection, facts, resource_selection, capacity):
                 ("source", "source"),
                 ("input", "input"),
                 ("output", "output"),
-                ("evidence_bundle", "evidence"),
+                ("evidence_bundle", "binding"),
             )
         },
     }
