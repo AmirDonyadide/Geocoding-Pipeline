@@ -36,6 +36,8 @@ PHASES = (
 VERSION = "stage12_ra_g1_representative_diagnostic_input_v1"
 BOOTSTRAP_VERSION = "stage12_ra_g1_representative_bootstrap30_diagnostic_input_v1"
 BOOTSTRAP_ALLOCATION_VERSION = "stage12_ra_g1_bootstrap30_allocation_selection_v1"
+SHARED_LEASE_VERSION = "stage12_ra_g1_shared_lease_representative_input_v1"
+SHARED_LEASE_ALLOCATION_VERSION = "stage12_ra_g1_shared_lease_allocation_selection_v1"
 CONFIG_VERSION = "stage12_ra_g1_representative_configuration_v1"
 
 
@@ -419,7 +421,7 @@ def _strict_resource_selection(
 
 def resource_selection(allocation, **kwargs):
     record = _strict_resource_selection(allocation, **kwargs)
-    if allocation.get("version") != BOOTSTRAP_ALLOCATION_VERSION:
+    if allocation.get("version") not in (BOOTSTRAP_ALLOCATION_VERSION, SHARED_LEASE_ALLOCATION_VERSION):
         return record
     from safe_geocoding_pipeline.preprocessing.stages import s12_ra_g1_assurance as assurance
     record = {**record, "schema_version": assurance.BOOTSTRAP_SELECTION,
@@ -571,7 +573,12 @@ def build(
     )
     m.validate_risk_inventory(risk)
     retain("risks", risk)
-    sizes = [65536, 8 * 2**20, 2**21, 64640, 32768, 16384, 5 * 2**20]
+    scratch_bytes = 64640  # Preserve historical builder bytes.
+    if allocation.get("version") == SHARED_LEASE_ALLOCATION_VERSION:
+        from safe_geocoding_pipeline.preprocessing.stages.s12_wf_ap2_scratch import RA_G1_CAPS
+
+        scratch_bytes = sum(RA_G1_CAPS.values())
+    sizes = [65536, 8 * 2**20, 2**21, scratch_bytes, 32768, 16384, 5 * 2**20]
     template = dict(
         schema_version=m.BOUND,
         scope=SCOPE,
@@ -595,7 +602,7 @@ def build(
             for name, size in zip(m.ARENAS, sizes, strict=True)
         ],
         total_logical_bytes=sum(sizes),
-        logical_scratch_bytes=64640,
+        logical_scratch_bytes=scratch_bytes,
         valid_from=allocation["valid_from"],
         valid_until=allocation["valid_until"],
         native_component_guarantee="NOT_CLAIMED",
@@ -643,7 +650,7 @@ def build(
         record["configuration_scope_sha256"] == m.configuration_scope(config),
         "RA_G1_CONFIGURATION_CYCLE",
     )
-    if allocation.get("version") == BOOTSTRAP_ALLOCATION_VERSION:
+    if allocation.get("version") in (BOOTSTRAP_ALLOCATION_VERSION, SHARED_LEASE_ALLOCATION_VERSION):
         retained = retain("adoptions", allocation["bootstrap_prefix_adoption"])
         c.require(retained == allocation["bootstrap_prefix_adoption_sha256"], "RA_G1_BOOTSTRAP_POLICY")
     review = dict(
@@ -664,7 +671,8 @@ def build(
     replay = json.loads(replay_path.read_bytes())
     c.require(digest(replay) == allocation["replay_sha256"], "RA_G1_REPLAY_CHANGED")
     data = dict(
-        version=BOOTSTRAP_VERSION if allocation.get("version") == BOOTSTRAP_ALLOCATION_VERSION else VERSION,
+        version=(SHARED_LEASE_VERSION if allocation.get("version") == SHARED_LEASE_ALLOCATION_VERSION
+                 else BOOTSTRAP_VERSION if allocation.get("version") == BOOTSTRAP_ALLOCATION_VERSION else VERSION),
         scope=SCOPE,
         source_sha=allocation["source_sha"],
         selection={

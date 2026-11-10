@@ -1152,6 +1152,7 @@ def start_session(
     scope_start_ns: Any = None,
     bootstrap_prefix: Any = None,
     bootstrap_adoption_reader: Any = None,
+    startup_trace: Any = None,
 ) -> PhaseSession:
     """Actual CLI entry: exact original context, genuine Linux roles, real monitor."""
     request = validate_execution_request(config.get("resource_execution"))
@@ -1232,6 +1233,7 @@ def start_session(
         read_charge=read_charge,
         clock_ns=clock_ns,
         scope_start_ns=scope_start_ns,
+        startup_trace=startup_trace,
         bootstrap_prefix=bootstrap_prefix,
         bootstrap_adoption_reader=bootstrap_adoption_reader if bootstrap_adoption_reader is not None else
             (lambda identity: authority._resource_evidence(identity, "adoptions")),

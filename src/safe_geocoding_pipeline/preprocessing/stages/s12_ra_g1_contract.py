@@ -661,6 +661,7 @@ def descriptors() -> Any:
         version = accounting.BOOTSTRAP_VERSION if bootstrap_successor else accounting.VERSION
         result[version] = accounting.descriptor(bootstrap_successor=bootstrap_successor)
     result[accounting.BOOTSTRAP_VERSION] = accounting.descriptor(bootstrap_successor=True)
+    result[accounting.SHARED_LEASE_VERSION] = accounting.descriptor(shared_lease_successor=True)
     result[assurance.BOOTSTRAP_POLICY] = assurance.bootstrap_policy_descriptor()
     for version, spec in ((assurance.BOOTSTRAP_SELECTION, assurance.BOOTSTRAP_SELECTION_SCHEMA),
                           (assurance.BOOTSTRAP_ADOPTION, assurance.BOOTSTRAP_ADOPTION_SCHEMA)):

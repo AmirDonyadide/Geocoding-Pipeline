@@ -98,11 +98,11 @@ def resource_factory(tmp_path):
         assert not value.monitor.thread.is_alive() and not value.writer.thread.is_alive()
 
 
-def first_session(runner, resource_factory, *, phase_id=1, scope_start=None):
+def first_session(runner, resource_factory, *, phase_id=1, scope_start=None, input_version=None):
     state = resource_factory
     return runner.start_phase_resource(
         state.execution, source_entry_ns=state.source_entry, phase_id=phase_id,
-        input_version=runner.BOOTSTRAP_VERSION, selection=state.selected,
+        input_version=runner.BOOTSTRAP_VERSION if input_version is None else input_version, selection=state.selected,
         clock_ns=lambda: state.now[0],
         scope_start_ns=state.source_entry if scope_start is None else scope_start,
         deadline_ns=state.source_entry + 346*SECOND, check=lambda: None,
@@ -115,13 +115,14 @@ def responses():
         payload_sha256=hashlib.sha256(raw.encode("utf8")).hexdigest())]}
 
 
+@pytest.mark.parametrize("input_family", ["BOOTSTRAP_VERSION", "SHARED_LEASE_VERSION"])
 @pytest.mark.parametrize("elapsed_ns", [29*SECOND, 30*SECOND])
 def test_first_entry_real_durable_ack_precedes_bodies_and_work(
-    runner, resource_factory, monkeypatch, elapsed_ns
+    runner, resource_factory, monkeypatch, elapsed_ns, input_family
 ):
     state = resource_factory
     state.now[0] = state.source_entry + elapsed_ns
-    value = first_session(runner, state)
+    value = first_session(runner, state, input_version=getattr(runner, input_family))
     events = []
     actual_ack = value.require_start_acknowledged
     actual_bodies = runner.materialize_response_bodies
@@ -169,9 +170,10 @@ def test_first_entry_real_durable_ack_precedes_bodies_and_work(
     assert state.selected["limits"]["stages"][0]["reserve_ms"] == 80000
 
 
+@pytest.mark.parametrize("input_family", ["BOOTSTRAP_VERSION", "SHARED_LEASE_VERSION"])
 @pytest.mark.parametrize("failure", ["late_ack", "missing_ack"])
 def test_late_or_missing_real_start_ack_never_reaches_body_or_work(
-    runner, resource_factory, monkeypatch, failure
+    runner, resource_factory, monkeypatch, failure, input_family
 ):
     state = resource_factory
     real_fsync = m.os.fsync
@@ -191,7 +193,7 @@ def test_late_or_missing_real_start_ack_never_reaches_body_or_work(
     state.before_start = before_start
     work = []
     with pytest.raises(c.Stage12Error):
-        value = first_session(runner, state)
+        value = first_session(runner, state, input_version=getattr(runner, input_family))
         runner.prepare_first_phase(
             value, responses(), initialize_runtime=lambda: work.append("RUNTIME"),
             validation=SimpleNamespace(Validation=lambda version: work.append("ADAPTER"),
@@ -207,14 +209,15 @@ def test_late_or_missing_real_start_ack_never_reaches_body_or_work(
         assert state.sessions[0].writer.poisoned
 
 
+@pytest.mark.parametrize("input_family", ["BOOTSTRAP_VERSION", "SHARED_LEASE_VERSION"])
 @pytest.mark.parametrize("phase_id", [2, 3, 4, 5])
 def test_later_phase_omits_exception_and_preserves_strict_original_gap(
-    runner, resource_factory, phase_id
+    runner, resource_factory, phase_id, input_family
 ):
     state = resource_factory
     with pytest.raises(c.Stage12Error, match="RA_G1_MONITOR_GAP"):
         first_session(runner, state, phase_id=phase_id,
-            scope_start=state.now[0]-SECOND-1)
+            scope_start=state.now[0]-SECOND-1, input_version=getattr(runner, input_family))
     assert "bootstrap_prefix" not in state.calls[0]
     assert state.calls[0]["scope_start_ns"] == state.now[0]-SECOND-1
     assert state.calls[0]["deadline_ns"] == state.source_entry+346*SECOND

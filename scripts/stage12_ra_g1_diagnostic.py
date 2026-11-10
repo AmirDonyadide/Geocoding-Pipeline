@@ -33,6 +33,9 @@ import threading
 
 VERSION = "stage12_ra_g1_representative_diagnostic_input_v1"
 BOOTSTRAP_VERSION = "stage12_ra_g1_representative_bootstrap30_diagnostic_input_v1"
+SHARED_LEASE_VERSION = "stage12_ra_g1_shared_lease_representative_input_v1"
+ACTIVE_DIAGNOSTIC_TRACE = None
+ACTIVE_DIAGNOSTIC_CHECK = None
 BOOTSTRAP_SELECTION = "stage12_resource_selection_bootstrap30_ra_g1_v1"
 CONFIG_VERSION = "stage12_ra_g1_representative_configuration_v1"
 REVIEW_VERSION = "stage12_representative_review_binding_ra_g1_v1"
@@ -260,10 +263,10 @@ def input_scope(data):
 def validate_envelope(data, source_sha, *, for_execution, defer_response_payloads=False):
     """Pure bounded metadata shape; this never creates a usable assurance record."""
     require(type(data) is dict and set(data) == _TOP)
-    require(data["version"] in (VERSION, BOOTSTRAP_VERSION) and data["scope"] == SCOPE)
+    require(data["version"] in (VERSION, BOOTSTRAP_VERSION, SHARED_LEASE_VERSION) and data["scope"] == SCOPE)
     require(
         not defer_response_payloads
-        or (for_execution and data["version"] == BOOTSTRAP_VERSION)
+        or (for_execution and data["version"] in (BOOTSTRAP_VERSION, SHARED_LEASE_VERSION))
     )
     require(hash_value(source_sha, 40) and data["source_sha"] == source_sha)
     selected = data["selection"]
@@ -411,12 +414,12 @@ def materialize_response_bodies(data, *, check=lambda: None):
 
 def validate_resource_family(input_version, selected):
     require(
-        input_version in (VERSION, BOOTSTRAP_VERSION)
+        input_version in (VERSION, BOOTSTRAP_VERSION, SHARED_LEASE_VERSION)
         and selected.get("scope") == SCOPE
         and selected.get("schema_version")
         == (
             BOOTSTRAP_SELECTION
-            if input_version == BOOTSTRAP_VERSION
+            if input_version in (BOOTSTRAP_VERSION, SHARED_LEASE_VERSION)
             else "stage12_resource_selection_ra_g1_v1"
         ),
         "RA_G1_DIAGNOSTIC_RESOURCE_FAMILY",
@@ -429,7 +432,7 @@ def start_phase_resource(
     """Preserve phase origins while opting only REP's first START into the prefix."""
     validate_resource_family(input_version, arguments["selection"])
     bootstrap = {}
-    if phase_id == 1 and input_version == BOOTSTRAP_VERSION:
+    if phase_id == 1 and input_version in (BOOTSTRAP_VERSION, SHARED_LEASE_VERSION):
         bootstrap["bootstrap_prefix"] = dict(
             role="PHASE_RUNNER",
             source_entry_ns=source_entry_ns,
@@ -1085,11 +1088,12 @@ def execute(args, *, started_ns, cpu_started_ns):
     )
     data = json.loads(raw)
     require(canonical(data) == raw)
+    require(data.get("version") == SHARED_LEASE_VERSION, "RA_G1_DIAGNOSTIC_RESOURCE_FAMILY")
     validate_envelope(
         data,
         args.source_sha,
         for_execution=True,
-        defer_response_payloads=data.get("version") == BOOTSTRAP_VERSION,
+        defer_response_payloads=data.get("version") in (BOOTSTRAP_VERSION, SHARED_LEASE_VERSION),
     )
     require(
         data["configuration"]["command_paths"]
@@ -1218,6 +1222,13 @@ def execute(args, *, started_ns, cpu_started_ns):
         2 * 1500 * 32768 + limits["native_helper_bytes_reserve"],
         1501 + limits["native_helper_creation_reserve"],
     )
+    global ACTIVE_DIAGNOSTIC_TRACE, ACTIVE_DIAGNOSTIC_CHECK
+    runtime_trace = allocation_module.StartupTrace(started_ns, clock_ns=clock.now_ns)
+    runtime_trace.enable_monitor_diagnostics()
+    runtime_trace.set_controller_command("phase_runner")
+    runtime_trace.first_start("PHASE_RUNNER")
+    runtime_trace.reserve_phase_stdout(original.allocation_controls)
+    ACTIVE_DIAGNOSTIC_TRACE, ACTIVE_DIAGNOSTIC_CHECK = runtime_trace, check
     observer = timing.SamplingTiming(
         output / "public_path_timing",
         phase_count=4,
@@ -1392,7 +1403,9 @@ def execute(args, *, started_ns, cpu_started_ns):
                     clock_ns=clock.now_ns,
                     native_roots=[output],
                     scope_start_ns=phase_start_ns,
+                    startup_trace=runtime_trace,
                 )
+                runtime_trace.bind_monitor(active_resource.monitor)
                 if phase_id == 1:
 
                     def initialize_first_runtime():
@@ -1638,9 +1651,13 @@ def execute(args, *, started_ns, cpu_started_ns):
                     )
         require(106 <= attempts <= 107)
     except BaseException as error:
+        runtime_trace("START_FAILED", error=error)
+        primary = runtime_trace.monitor_primary()
         first_failure = dict(
             at_mono_ns=clock.now_ns(), phase_id=len(boundaries), **safe_failure(error)
         )
+        if primary is not None:
+            first_failure.update(primary)
         failure = "RA_G1_DIAGNOSTIC_INCOMPLETE"
     finally:
         if active_resource is not None:
@@ -1651,6 +1668,8 @@ def execute(args, *, started_ns, cpu_started_ns):
                 cleanup_failure = dict(at_mono_ns=clock.now_ns(), **safe_failure(error))
                 failure = failure or "RA_G1_DIAGNOSTIC_RESOURCE_CLEANUP_FAILED"
         final_resource = None
+        final_phase_deadline_ns = None
+        final_bound_window = (None, None)
         try:
             check()
             if failure is None and len(phases) == 4:
@@ -1677,7 +1696,9 @@ def execute(args, *, started_ns, cpu_started_ns):
                     read_charge=original.charge_original,
                     clock_ns=clock.now_ns,
                     native_roots=[output],
+                    startup_trace=runtime_trace,
                 )
+                runtime_trace.bind_monitor(final_resource.monitor)
             summary = observer.close(
                 timeout_seconds=min(5, (deadline - clock.now_ns()) / 1e9)
             )
@@ -1802,6 +1823,8 @@ def execute(args, *, started_ns, cpu_started_ns):
                         records=final_records,
                     )
                 )
+                final_phase_deadline_ns = final_resource.deadline
+                final_bound_window = (final_resource.binding["valid_from"], final_resource.binding["valid_until"])
                 final_resource = None
             else:
                 # On a failed task retain supplementary evidence; it grants no completion.
@@ -1862,13 +1885,20 @@ def execute(args, *, started_ns, cpu_started_ns):
     )
     storage.write(output / "summary.json", summary_raw)
     check()
-    signal.alarm(0)
+    if result["complete"]:
+        def final_diagnostic_check(final_deadline_ns=final_phase_deadline_ns,
+                                   valid_from=final_bound_window[0], valid_until=final_bound_window[1]):
+            check()
+            require(type(final_deadline_ns) is int and clock.now_ns() < final_deadline_ns,
+                    "RA_G1_DIAGNOSTIC_PHASE_DEADLINE")
+            require(valid_from <= clock.utc() < valid_until, "RA_G1_EXPIRED")
+        ACTIVE_DIAGNOSTIC_CHECK = final_diagnostic_check
     return 0 if result["complete"] else 1
 
 
 def descriptor(version=VERSION):
-    require(version in (VERSION, BOOTSTRAP_VERSION))
-    return dict(
+    require(version in (VERSION, BOOTSTRAP_VERSION, SHARED_LEASE_VERSION))
+    value = dict(
         descriptor_version=version,
         configuration_version=CONFIG_VERSION,
         review_binding_version=REVIEW_VERSION,
@@ -1901,6 +1931,11 @@ def descriptor(version=VERSION):
         native_component_bound_claim=False,
         input_authority="NO_RECORDS_ISSUED;EXACT_REVIEWED_RESOURCES_AND_WORKLOAD_GRANT_REQUIRED",
     )
+    if version == SHARED_LEASE_VERSION:
+        value.update(runtime_diagnostic_version="stage12_ra_g1_startup_monitor_trace_v2",
+            diagnostic_stdout_bytes=8192,
+            required_accounting_inventory="stage12_ra_g1_shared_lease_accounting_inventory_v1")
+    return value
 
 
 def main():
@@ -1921,7 +1956,7 @@ def main():
     return execute(args, started_ns=started_ns, cpu_started_ns=cpu_started_ns)
 
 
-if __name__ == "__main__":
+def cli_entry():
     try:
         exit_code = main()
     except BaseException as error:
@@ -1932,4 +1967,20 @@ if __name__ == "__main__":
             end="",
         )
         exit_code = 1
-    raise SystemExit(exit_code)
+    trace = ACTIVE_DIAGNOSTIC_TRACE
+    if trace is not None:
+        try:
+            trace("EXIT_REPORT_ENTER")
+            trace.emit(sys.stdout)
+            if exit_code == 0:
+                require(callable(ACTIVE_DIAGNOSTIC_CHECK), "RA_G1_DIAGNOSTIC_LIVE_PROOF_REQUIRED")
+                ACTIVE_DIAGNOSTIC_CHECK()
+        except BaseException as error:
+            print(canonical(dict(failure=safe_failure(error), observed_mono_ns=time.monotonic_ns())).decode(), end="")
+            exit_code = 1
+    signal.alarm(0)
+    return exit_code
+
+
+if __name__ == "__main__":
+    raise SystemExit(cli_entry())

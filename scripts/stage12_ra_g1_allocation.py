@@ -36,6 +36,8 @@ STDLIB_IMPORTS_DONE_NS = time.monotonic_ns()
 
 VERSION = "stage12_ra_g1_allocation_selection_v1"
 BOOTSTRAP_VERSION = "stage12_ra_g1_bootstrap30_allocation_selection_v1"
+SHARED_LEASE_VERSION = "stage12_ra_g1_shared_lease_allocation_selection_v1"
+DIAGNOSTIC_VERSION = "stage12_ra_g1_startup_monitor_trace_v2"
 SCOPE = "REPRESENTATIVE_NO_SERVICE"
 SOURCE_PROJECT_VERSION = "0.2.0"  # Exact reviewed pyproject.toml, not a fallback.
 LIMITS = dict(
@@ -294,7 +296,7 @@ def _validate_legacy_selection(s):
 
 
 def validate_selection(value):
-    if value.get("version") != BOOTSTRAP_VERSION:
+    if value.get("version") not in (BOOTSTRAP_VERSION, SHARED_LEASE_VERSION):
         return _validate_legacy_selection(value)
     extra = {"bootstrap_prefix_adoption", "bootstrap_prefix_adoption_sha256"}
     need(extra <= set(value), "RA_G1_BOOTSTRAP_REQUIRED")
@@ -303,8 +305,11 @@ def validate_selection(value):
     _validate_legacy_selection(base)
     from safe_geocoding_pipeline.preprocessing.stages import s12_ra_g1_assurance as assurance
     from safe_geocoding_pipeline.preprocessing.stages import s12_ra_g1_accounting as accounting
-    need(value["scope"] == SCOPE and value["accounting_inventory"]["schema_version"] == accounting.BOOTSTRAP_VERSION,
+    expected_inventory = (accounting.SHARED_LEASE_VERSION if value["version"] == SHARED_LEASE_VERSION else accounting.BOOTSTRAP_VERSION)
+    need(value["scope"] == SCOPE and value["accounting_inventory"]["schema_version"] == expected_inventory,
          "RA_G1_BOOTSTRAP_POLICY")
+    if value["version"] == SHARED_LEASE_VERSION:
+        need(value["accounting_inventory"].get("bootstrap_proof_record_count") == 3, "RA_G1_ACCOUNTING")
     selected = {"bootstrap_prefix_adoption_sha256": value["bootstrap_prefix_adoption_sha256"]}
     assurance.validate_bootstrap_adoption(value["bootstrap_prefix_adoption"], selected)
     return value
@@ -339,6 +344,10 @@ class StartupTrace:
         self.administrative_phase_id = None
         self.instrumentation_faults = 0
         self.claimed = False
+        self.monitor_diagnostics = False
+        self.monitor_source = None
+        self.monitor_state = None
+        self.output_basis = "RESERVED_METADATA"
         self("ROLE_ENTRY", role_entry_ns)
 
     def __call__(self, event, at_mono_ns=None, *, writer=None, error=None, cleanup=False):
@@ -375,7 +384,7 @@ class StartupTrace:
 
     def set_controller_command(self, command):
         with self.lock:
-            self.controller_command = command if command in ("ready", "collect", "bind", "verify") else "UNKNOWN"
+            self.controller_command = command if command in (("ready", "collect", "bind", "verify", "phase_runner") if self.monitor_diagnostics else ("ready", "collect", "bind", "verify")) else "UNKNOWN"
 
     def first_start(self, role=None):
         with self.lock:
@@ -383,6 +392,8 @@ class StartupTrace:
                 return None
             self.claimed = True
             phases = {"COLLECTOR": 6, "REVIEW": 7, "BINDER": 8}
+            if self.monitor_diagnostics:
+                phases["PHASE_RUNNER"] = 1
             self.administrative_role = role if role in phases else "UNKNOWN"
             self.administrative_phase_id = phases.get(role)
         self("ADMIN_START_ENTER")
@@ -397,7 +408,7 @@ class StartupTrace:
             self.admin = run
             self.output_reserved = True
 
-    def snapshot(self):
+    def _startup_snapshot(self):
         with self.lock:
             def status(owner):
                 if owner is None:
@@ -433,6 +444,147 @@ class StartupTrace:
                     basis="EXISTING_CONTROLLER_METADATA_AND_PRECHARGED_16MIB_LOG",
                     observed_counter_charge="RESERVED_METADATA" if self.output_reserved else None),
                 maximum_json_bytes=self.MAX_BYTES, hard_kill_guarantee="NONE")
+
+
+
+    DIAGNOSTIC_STAGES = frozenset("IDLE CHECK OBSERVER COVERAGE PACK APPEND WAIT_ACK POST_ACK_CHECK PUBLISH ORIGINAL_WRITE ORIGINAL_FSYNC ORIGINAL_READBACK CODEC_WRITE CODEC_FSYNC CODEC_READBACK ACK CLOSED BARRIER".split())
+    DIAGNOSTIC_CODES = frozenset(('PUBLIC_PROBE_EVIDENCE_WRITE_FAILED', 'PUBLIC_PROBE_EXECUTABLE_MISMATCH', 'RA_G1_COUNTER_LIMIT', 'RA_G1_DEADLINE', 'RA_G1_MONITOR_GAP', 'RA_G1_MONITOR_INCOMPLETE', 'RA_G1_MONITOR_THRESHOLD', 'RA_G1_NATIVE_DISCOVERY', 'RA_G1_ORIGINAL_CHANGED', 'RA_G1_PROCESS_SCOPE', 'RA_G1_PROTOCOL', 'RA_G1_READ_LIMIT', 'RA_G1_REQUIRED_READING', 'RA_G1_WRITE_UNCERTAIN', 'RESPONSE_CONTRACT_INVALID', 'RETRY_BUDGET_EXHAUSTED', 'S12_CAPTURE_INCOMPLETE', 'S12_METADATA_INVALID', 'S12_PRIVATE_FILE_INVALID', 'S12_PUBLIC_AUTHORITY_CHANGED', 'S12_PUBLIC_AUTHORITY_SCOPE', 'S12_PUBLIC_OPERATIONS_INVALID', 'S12_PUBLIC_STORAGE_ACCOUNTING_MISMATCH', 'S12_PUBLIC_WINDOW_CLOSED', 'SECRET_ECHO_DETECTED', 'UNKNOWN', 'WF_AP2_SCRATCH_LIMIT', 'WF_AP2_SCRATCH_REENTRANT'))
+
+    def enable_monitor_diagnostics(self):
+        with self.lock:
+            self.monitor_diagnostics = True
+
+    @classmethod
+    def validated_monitor_snapshot(cls, value):
+        """Copy only the closed, fixed scalar diagnostic; never exception text."""
+        def fields(item, expected):
+            need(type(item) is dict and set(item) == set(expected), "RA_G1_FIELDS")
+
+        def integer(item, nullable=False):
+            need((nullable and item is None) or type(item) is int and 0 <= item < 2**64, "RA_G1_FIELDS")
+            return item
+
+        def enumeration(item, choices, nullable=False):
+            need((nullable and item is None) or type(item) is str and item in choices, "RA_G1_FIELDS")
+            return item
+
+        def fault(item):
+            if item is None:
+                return None
+            fields(item, ("family", "code", "errno", "mono_ns", "source", "stage"))
+            number = item["errno"]
+            need(number is None or type(number) is int and 0 <= number <= 4095, "RA_G1_FIELDS")
+            return dict(
+                family=enumeration(item["family"], ("STAGE12_ERROR", "OS_ERROR", "UNKNOWN")),
+                code=enumeration(item["code"], cls.DIAGNOSTIC_CODES),
+                errno=number, mono_ns=integer(item["mono_ns"], True),
+                source=enumeration(item["source"], ("WRITER", "MONITOR")),
+                stage=enumeration(item["stage"], cls.DIAGNOSTIC_STAGES),
+            )
+
+        fields(value, ("phase_id", "monitor_failure", "first_primary", "acquisition", "published", "writer"))
+        acquisition = value["acquisition"]
+        fields(acquisition, ("kind", "stage", "enter_mono_ns", "exit_mono_ns"))
+        acquisition = dict(
+            kind=enumeration(acquisition["kind"], ("START", "PERIODIC", "FINAL"), True),
+            stage=enumeration(acquisition["stage"], cls.DIAGNOSTIC_STAGES),
+            enter_mono_ns=integer(acquisition["enter_mono_ns"], True),
+            exit_mono_ns=integer(acquisition["exit_mono_ns"], True),
+        )
+        published = value["published"]
+        if published is not None:
+            fields(published, ("seq", "enter_mono_ns", "exit_mono_ns", "ack_mono_ns"))
+            published = {key: integer(published[key], key != "seq") for key in published}
+        writer = value["writer"]
+        if writer is not None:
+            fields(writer, ("rows", "acked", "ack_ns", "poisoned", "closing", "released",
+                            "thread_alive", "current_seq", "stage", "first_failure"))
+            copied = {}
+            for key in ("rows", "acked", "ack_ns", "current_seq"):
+                copied[key] = integer(writer[key], key in ("ack_ns", "current_seq"))
+            for key in ("poisoned", "closing", "released", "thread_alive"):
+                need(type(writer[key]) is bool, "RA_G1_FIELDS")
+                copied[key] = writer[key]
+            copied["stage"] = enumeration(writer["stage"], cls.DIAGNOSTIC_STAGES)
+            copied["first_failure"] = fault(writer["first_failure"])
+            writer = copied
+        return dict(
+            phase_id=integer(value["phase_id"]),
+            monitor_failure=enumeration(value["monitor_failure"], cls.DIAGNOSTIC_CODES, True),
+            first_primary=fault(value["first_primary"]), acquisition=acquisition,
+            published=published, writer=writer,
+        )
+
+    def bind_monitor(self, monitor):
+        if self.monitor_diagnostics:
+            with self.lock:
+                self.monitor_source = monitor
+
+    def monitor_failure(self, value):
+        if not self.monitor_diagnostics:
+            return
+        try:
+            actual = self.validated_monitor_snapshot(value)
+        except BaseException:
+            self.note_instrumentation_fault()
+            return
+        fault = actual["first_primary"]
+        with self.lock:
+            if self.monitor_state is None:
+                self.monitor_state = actual
+            if self.primary is None and fault is not None:
+                self.primary = dict(
+                    family="CONTRACT_OR_GUARD" if fault["family"] == "STAGE12_ERROR" else fault["family"],
+                    code=fault["code"], errno=fault["errno"], at_mono_ns=fault["mono_ns"],
+                    event="MONITOR_RUNTIME_FAILURE",
+                )
+
+    def monitor_primary(self):
+        with self.lock:
+            if not self.monitor_diagnostics or self.monitor_state is None:
+                return None
+            fault = self.monitor_state["first_primary"]
+            if fault is None:
+                return None
+            return dict(
+                family="CONTRACT_OR_GUARD" if fault["family"] == "STAGE12_ERROR" else fault["family"],
+                code=fault["code"] if fault["code"] in SAFE_CODES else "UNKNOWN",
+                errno=fault["errno"], at_mono_ns=fault["mono_ns"],
+            )
+
+    def snapshot(self):
+        value = self._startup_snapshot()
+        if not self.monitor_diagnostics:
+            return value
+        with self.lock:
+            source = self.monitor_source
+            actual = self.monitor_state
+        if actual is None and source is not None:
+            try:
+                actual = self.validated_monitor_snapshot(source.diagnostic_snapshot())
+            except BaseException:
+                self.note_instrumentation_fault()
+        with self.lock:
+            # A failure published while the healthy snapshot was copied wins.
+            actual = self.monitor_state if self.monitor_state is not None else actual
+            value["primary_failure"] = None if self.primary is None else dict(self.primary)
+            value["instrumentation_faults"] = self.instrumentation_faults
+        value.update(
+            schema_version=DIAGNOSTIC_VERSION, first_start_only=False,
+            trace_status="INCOMPLETE_INSTRUMENTATION" if value["instrumentation_faults"] else "BOUNDED_DIAGNOSTIC_NOT_CLOSURE",
+            runtime_monitor=actual, runtime_logical_scalar_bytes=31*8,
+        )
+        value["controller_scope"] = "ALL_SOURCE_OWNED_ATTACHED_MONITOR_SCOPES"
+        value["phase_runner"] = "SOURCE_OWNED_ATTACHMENT" if self.controller_command == "phase_runner" else "NOT_IN_THIS_PROCESS"
+        value["output_reservation"]["observed_counter_charge"] = self.output_basis if self.output_reserved else None
+        return value
+
+    def reserve_phase_stdout(self, controls):
+        # stdout belongs to the existing finite log. No output file is created.
+        controls.reserve_components(self.MAX_BYTES, 0)
+        with self.lock:
+            self.output_reserved = True
+            self.output_basis = "RESERVED_PHASE_LOG"
 
 
     def encoded_snapshot(self):
@@ -516,6 +668,8 @@ class Run:
     def __init__(self, s, *, epoch_ns=None, stage_seconds=None, stage="collect"):
         self.role_enter_ns = ROLE_ENTRY_NS
         self.startup_trace = PROCESS_TRACE
+        if s.get("version") == SHARED_LEASE_VERSION:
+            self.startup_trace.enable_monitor_diagnostics()
         PROCESS_TRACE.admin = self
         self._counter_lock = threading.RLock()
         self.s = validate_selection(s)
@@ -901,6 +1055,8 @@ def start_admin(run, role, context, *, scope_start_ns):
     from safe_geocoding_pipeline.preprocessing.stages import s12_ra_g1_execution as e
 
     selected = resource_selection(run)
+    if getattr(run.startup_trace, "monitor_diagnostics", False):
+        startup_trace = run.startup_trace
     phase = e.ADMIN_ROLES[role]
     limits = next(
         (row for row in selected["limits"]["stages"] if row["id"] == phase), None
@@ -962,6 +1118,8 @@ def start_admin(run, role, context, *, scope_start_ns):
         bootstrap_adoption_reader=lambda identity: run.original(
             Path(run.s["paths"]["records"]) / (identity + ".record"), limit=8192),
     )
+    if getattr(run.startup_trace, "monitor_diagnostics", False):
+        run.startup_trace.bind_monitor(session.monitor)
     run.write(root / "admin_binding.record", bound)
     risk_path = Path(run.s["paths"]["allocation_root"]) / "administrative_risk.record"
     if risk_path.exists():
@@ -1829,7 +1987,7 @@ def allocation_path_policy(s, path, write=False):
         )
     if resolved == original and (resolved == root or resolved.is_relative_to(root)):
         return True
-    if (not write and s.get("version") == BOOTSTRAP_VERSION
+    if (not write and s.get("version") in (BOOTSTRAP_VERSION, SHARED_LEASE_VERSION)
             and resolved == original == Path(s["paths"]["records"]) / (s["bootstrap_prefix_adoption_sha256"] + ".record")):
         return True
     if resolved == original and resolved in {
@@ -1979,13 +2137,18 @@ def safe_failure(error, run=None):
             number = error.errno
     if run is not None and run.poisoned:
         family = "WRITE_UNCERTAIN"
+    trace = None if run is None else getattr(run, "startup_trace", None)
+    primary_reader = getattr(trace, "monitor_primary", None)
+    primary = primary_reader() if callable(primary_reader) else None
+    if primary is not None:
+        family, code, number = primary["family"], primary["code"], primary["errno"]
     value = dict(
         schema_version="stage12_ra_g1_allocation_failure_v1",
         status="INCOMPLETE",
         family=family,
         code=code,
         errno=number,
-        at_mono_ns=time.monotonic_ns(),
+        at_mono_ns=time.monotonic_ns() if primary is None else primary["at_mono_ns"],
         counter_prefix=None if run is None else run.counter_prefix(),
         writer="UNKNOWN"
         if run is None
@@ -2054,6 +2217,7 @@ def main():
     from safe_geocoding_pipeline.execution_policy import require_goethe_nhr_slurm
 
     require_goethe_nhr_slurm("RA-G1 allocation controller metadata")
+    need(s["version"] == SHARED_LEASE_VERSION, "RA_G1_ACCOUNTING")
     os.umask(0o077)
     run = Run(
         s,
@@ -2350,10 +2514,11 @@ def load_verified_handoff(
     return result
 
 
-def descriptor():
+def descriptor(version=VERSION):
     """Closed successor selection; no instance, authority or capacity is issued."""
-    return dict(
-        descriptor_version=VERSION,
+    need(version in (VERSION, BOOTSTRAP_VERSION, SHARED_LEASE_VERSION))
+    value = dict(
+        descriptor_version=version,
         scope=SCOPE,
         limits=LIMITS,
         source_fields=["path", "bytes", "sha256"],
@@ -2375,6 +2540,11 @@ def descriptor():
         containment_claim="NOT_ESTABLISHED",
         physical_capacity_claim="NOT_RESERVED_OR_PROVEN",
     )
+    if version == SHARED_LEASE_VERSION:
+        value.update(runtime_diagnostic_version=DIAGNOSTIC_VERSION, diagnostic_bytes=8192,
+            required_accounting_inventory="stage12_ra_g1_shared_lease_accounting_inventory_v1",
+            bootstrap_proof_record_count=3)
+    return value
 
 
 if __name__ == "__main__":

@@ -186,7 +186,7 @@ def test_monitor_writer_real_original_and_codec_readbacks_are_charged(tmp_path):
     writer.append(block, 1, end)
     writer.wait(1, end)
     writer.close(end)
-    assert sum(c for c, n in calls) == (len(raw) + 4095) // 4096 + 1
+    assert sum(c for c, n in calls) == (len(raw) + 511) // 512 + 1
     assert sum(n for c, n in calls) == len(raw) + 1024
     assert (
         hashlib.sha256((originals / (identity + ".record")).read_bytes()).hexdigest()

@@ -33,6 +33,8 @@ BOOTSTRAP_ROLES = {6: "COLLECTOR", 7: "REVIEW", 1: "PHASE_RUNNER"}
 CAPACITY = "stage12_resource_capacity_observation_ra_g1_v1"
 CURRENT = "stage12_resource_current_facts_ra_g1_v1"
 LOGICAL_BYTES, SCRATCH_BYTES = 16 * 2**20, 65536
+# Historical record floor; actual current backing is checked at live activation.
+LEGACY_LOGICAL_SCRATCH_BYTES = 64640
 MIN_OTHER_LOGICAL = 393216
 MAX_JOB_BYTES = 6 * 2**30  # Requested allocation only, never an observed bound.
 ARENAS = strict.ARENAS
@@ -493,8 +495,6 @@ def validate_record(
         [row["name"] for row in allocations] == list(ARENAS), "RA_G1_LOGICAL_INVENTORY"
     )
     by_name = {row["name"]: row["bytes"] for row in allocations}
-    from .s12_wf_ap2_scratch import RA_G1_CAPS
-
     c.require(
         old.checked(sum(by_name.values()))
         == record["total_logical_bytes"]
@@ -503,7 +503,7 @@ def validate_record(
         and by_name["HISTORY_PAGES"] == 8 * 2**20
         and by_name["TELEMETRY_RING"] >= 4096 * 512
         and by_name["SERIALIZATION_SCRATCH"] == record["logical_scratch_bytes"]
-        and sum(RA_G1_CAPS.values()) <= record["logical_scratch_bytes"] <= SCRATCH_BYTES
+        and LEGACY_LOGICAL_SCRATCH_BYTES <= record["logical_scratch_bytes"] <= SCRATCH_BYTES
         and by_name["TRACE_METADATA"] >= 32768
         and by_name["CONTROLLER_METADATA"] >= 16384
         and by_name["OTHER_LOGICAL"] >= MIN_OTHER_LOGICAL,
@@ -561,6 +561,13 @@ def check_capacity(
 
 
 def verify_runtime(record: Any, authority: Any, context: Any) -> Any:
+    # Historical records remain readable; live execution must charge this source.
+    from .s12_wf_ap2_scratch import RA_G1_CAPS
+
+    c.require(
+        sum(RA_G1_CAPS.values()) <= record["logical_scratch_bytes"] <= SCRATCH_BYTES,
+        "RA_G1_LOGICAL_LIMIT",
+    )
     if record["scope"] == "REPRESENTATIVE_NO_SERVICE":
         c.require(
             getattr(authority, "diagnostic_scope", None) == "REPRESENTATIVE_NO_SERVICE"
@@ -1293,21 +1300,25 @@ def bounded_backend_reader(charge_read: Any) -> Callable[..., str]:
             digest, consumed = hashlib.sha256(), 0
             with scratch.lease("HASH"):
                 block = bytearray(4096)
-                while consumed < before.st_size:
+                try:
+                    while consumed < before.st_size:
+                        check()
+                        charge_read(1, 0)
+                        with memoryview(block)[: min(4096, before.st_size - consumed)] as view:
+                            size = os.readv(fd, [view])
+                        charge_read(0, size)
+                        c.require(size > 0, "RA_G1_RUNTIME_CHANGED")
+                        consumed += size
+                        with memoryview(block)[:size] as view:
+                            digest.update(view)
                     check()
                     charge_read(1, 0)
-                    size = os.readv(
-                        fd, [memoryview(block)[: min(4096, before.st_size - consumed)]]
-                    )
-                    charge_read(0, size)
-                    c.require(size > 0, "RA_G1_RUNTIME_CHANGED")
-                    consumed += size
-                    digest.update(memoryview(block)[:size])
-                check()
-                charge_read(1, 0)
-                extra = os.readv(fd, [memoryview(block)[:1]])
-                charge_read(0, extra)
-                c.require(extra == 0, "RA_G1_RUNTIME_CHANGED")
+                    with memoryview(block)[:1] as view:
+                        extra = os.readv(fd, [view])
+                    charge_read(0, extra)
+                    c.require(extra == 0, "RA_G1_RUNTIME_CHANGED")
+                finally:
+                    del block
             after, current = os.fstat(fd), path.stat(follow_symlinks=False)
             fields = (
                 "st_dev",

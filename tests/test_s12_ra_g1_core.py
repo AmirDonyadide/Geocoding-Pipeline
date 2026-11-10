@@ -157,7 +157,7 @@ def capacity(selected):
 
 def binding(selected):
     result = {key: H for key, spec in a.SCHEMA.items() if spec == "D"}
-    values = [65536, 8 * 2**20, 4096 * 512, 64640, 32768, 16384, a.MIN_OTHER_LOGICAL]
+    values = [65536, 8 * 2**20, 4096 * 512, sum(scratch.RA_G1_CAPS.values()), 32768, 16384, a.MIN_OTHER_LOGICAL]
     result.update(
         schema_version=a.BOUND,
         scope=selected["scope"],
@@ -173,7 +173,7 @@ def binding(selected):
             for name, value in zip(a.ARENAS, values, strict=True)
         ],
         total_logical_bytes=sum(values),
-        logical_scratch_bytes=64640,
+        logical_scratch_bytes=sum(scratch.RA_G1_CAPS.values()),
         valid_from=FROM,
         valid_until=UNTIL,
         native_component_guarantee="NOT_CLAIMED",
@@ -365,7 +365,7 @@ def test_ra04_logical_boundaries_and_concurrent_scratch_partition():
     start = dict(client_git_sha=G, runtime_inventory_sha256=H)
     a.validate_record(record, profile, start, contract)
     assert sum(scratch.CAPS.values()) == 63616
-    assert sum(scratch.RA_G1_CAPS.values()) == 64640
+    assert sum(scratch.RA_G1_CAPS.values()) == 65152
     with scratch.lease("KERNEL"), scratch.ra_g1_lease("MONITOR_CODEC"):
         with pytest.raises(c.Stage12Error):
             with scratch.lease("KERNEL"):
@@ -373,9 +373,9 @@ def test_ra04_logical_boundaries_and_concurrent_scratch_partition():
     with pytest.raises(c.Stage12Error):
         with scratch.lease("MONITOR_CODEC"):
             pass
-    record["logical_scratch_bytes"] = 64639
-    record["logical_allocations"][3]["bytes"] = 64639
-    record["total_logical_bytes"] -= 1
+    record["logical_scratch_bytes"] = a.LEGACY_LOGICAL_SCRATCH_BYTES - 1
+    record["logical_allocations"][3]["bytes"] = a.LEGACY_LOGICAL_SCRATCH_BYTES - 1
+    record["total_logical_bytes"] = sum(row["bytes"] for row in record["logical_allocations"])
     profile["sampling_runtime_bound_sha256"] = contract.digest(record)
     with pytest.raises(c.Stage12Error):
         a.validate_record(record, profile, start, contract)
@@ -466,16 +466,12 @@ def test_ra06_acquisition_duration_and_ack_cannot_refresh_old_observation():
     row = observation(selected, exit_ns=1000000101)
     with pytest.raises(c.Stage12Error):
         m.thresholds(row, selected)
-    monitor = object.__new__(m.ResourceMonitor)
-    monitor.check = lambda: None
-    monitor.lock = __import__("threading").Lock()
-    monitor.last, monitor.failure, monitor.selected = (
-        observation(selected),
-        None,
-        selected,
-    )
-    monitor.writer = SimpleNamespace(poisoned=False, acked=1, ack_ns=2000000000)
-    monitor.clock = lambda: 1000000101
+    monitor = m.ResourceMonitor(
+        observer=lambda kind: None,
+        writer=SimpleNamespace(poisoned=False, acked=1, ack_ns=2000000000),
+        selected=selected, binding_sha256=H, phase_id=1, seed_sha256=H,
+        deadline_ns=2000000000, check=lambda: None, clock_ns=lambda: 1000000101)
+    monitor.last = observation(selected)
     with pytest.raises(c.Stage12Error):
         monitor.barrier()
 

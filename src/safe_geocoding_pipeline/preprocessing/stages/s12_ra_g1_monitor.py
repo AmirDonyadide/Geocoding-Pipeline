@@ -69,6 +69,41 @@ FAILURE_CODES = sorted(
         "RA_G1_MONITOR_INCOMPLETE",
     }
 )
+DIAGNOSTIC_STAGES = (
+    "IDLE", "CHECK", "OBSERVER", "COVERAGE", "PACK", "APPEND", "WAIT_ACK",
+    "POST_ACK_CHECK", "PUBLISH", "ORIGINAL_WRITE", "ORIGINAL_FSYNC",
+    "ORIGINAL_READBACK", "CODEC_WRITE", "CODEC_FSYNC", "CODEC_READBACK",
+    "ACK", "CLOSED", "BARRIER",
+)
+DIAGNOSTIC_CODES = tuple(sorted(set(FAILURE_CODES) | {
+    "UNKNOWN", "WF_AP2_SCRATCH_LIMIT", "WF_AP2_SCRATCH_REENTRANT",
+}))
+DIAGNOSTIC_FAMILIES = ("STAGE12_ERROR", "OS_ERROR", "UNKNOWN")
+DIAGNOSTIC_SOURCES = ("WRITER", "MONITOR")
+DIAGNOSTIC_KINDS = ("START", "PERIODIC", "FINAL")
+
+
+def _diagnostic_fault(error: Any, *, source: str, stage: str, clock: Any) -> dict[str, Any]:
+    """Retain only bounded static classifications; never retain the exception."""
+    code, family, number = "UNKNOWN", "UNKNOWN", None
+    if type(error) is c.Stage12Error:
+        family = "STAGE12_ERROR"
+        if error.args and type(error.args[0]) is str and error.args[0] in DIAGNOSTIC_CODES:
+            code = error.args[0]
+    elif isinstance(error, OSError):
+        family = "OS_ERROR"
+        if type(error.errno) is int and 0 <= error.errno <= 4095:
+            number = error.errno
+    try:
+        observed = clock()
+        if type(observed) is not int or not 0 <= observed <= 2**64 - 1:
+            observed = None
+    except BaseException:
+        observed = None
+    return dict(family=family, code=code, errno=number, mono_ns=observed,
+                source=source, stage=stage)
+
+
 FAILURE = {
     "stage": old.enum(
         "PREFLIGHT",
@@ -571,8 +606,11 @@ def charged_read(fd: Any, size: Any, charge_read: Any, *, offset: Any = None) ->
     """One actual read/pread: reserve the call, then charge only returned bytes."""
     charge_read(1, 0)
     raw = os.read(fd, size) if offset is None else os.pread(fd, size, offset)
-    charge_read(0, len(raw))
-    return raw
+    try:
+        charge_read(0, len(raw))
+        return raw
+    finally:
+        del raw
 
 
 def emit_startup_trace(trace: Any, event: Any, *args: Any, **kwargs: Any) -> None:
@@ -668,11 +706,28 @@ class ObservationWriter:
         self.condition = threading.Condition()
         self.queue: deque[tuple[int, bytes, int, tuple[str, bytes] | None]] = deque()
         self.rows, self.acked = 0, 0
+        self.first_failure = None
+        self.stage, self.current_seq = "IDLE", 0
         self.ack_ns, self.poisoned, self.closing, self.released = 0, False, False, False
         self.thread = threading.Thread(
             target=self._run, name="ra-g1-evidence-writer", daemon=True
         )
         self.thread.start()
+
+    def _progress(self, stage: str, seq: Any = None) -> None:
+        with self.condition:
+            self.stage = stage
+            if seq is not None:
+                self.current_seq = seq
+
+    def diagnostic_snapshot(self) -> dict[str, Any]:
+        """Fixed scalar state, copied under a short lock without I/O."""
+        with self.condition:
+            return dict(rows=self.rows, acked=self.acked, ack_ns=self.ack_ns,
+                        poisoned=self.poisoned, closing=self.closing,
+                        released=self.released, thread_alive=self.thread.is_alive(),
+                        current_seq=self.current_seq, stage=self.stage,
+                        first_failure=deepcopy_record(self.first_failure))
 
     def stage_original(self, raw: Any) -> str:
         c.require(
@@ -718,6 +773,7 @@ class ObservationWriter:
         )
         try:
             identity = os.fstat(fd)
+            self._progress("ORIGINAL_WRITE")
             offset = 0
             while offset < len(raw):
                 self.check()
@@ -727,26 +783,31 @@ class ObservationWriter:
                 offset += n
             if trace is not None:
                 emit_startup_trace(trace, "ORIGINAL_FSYNC_BEFORE")
+            self._progress("ORIGINAL_FSYNC")
             os.fsync(fd)
             if trace is not None:
                 emit_startup_trace(trace, "ORIGINAL_FSYNC_AFTER")
                 emit_startup_trace(trace, "ORIGINAL_READBACK_BEFORE")
+            self._progress("ORIGINAL_READBACK")
             observed = hashlib.sha256()
-            with scratch.lease("HASH"):
-                for offset in range(0, len(raw), 4096):
+            with scratch.ra_g1_lease("MONITOR_READBACK") as readback_bytes:
+                for offset in range(0, len(raw), readback_bytes):
                     self.check()
                     c.require(self.clock() < deadline, "RA_G1_DEADLINE")
                     part = charged_read(
                         fd,
-                        min(4096, len(raw) - offset),
+                        min(readback_bytes, len(raw) - offset),
                         self.charge_read,
                         offset=offset,
                     )
-                    c.require(
-                        len(part) == min(4096, len(raw) - offset),
-                        "RA_G1_WRITE_UNCERTAIN",
-                    )
-                    observed.update(part)
+                    try:
+                        c.require(
+                            len(part) == min(readback_bytes, len(raw) - offset),
+                            "RA_G1_WRITE_UNCERTAIN",
+                        )
+                        observed.update(part)
+                    finally:
+                        del part
             c.require(
                 observed.hexdigest() == digest
                 and a.kernel_identity(identity)
@@ -801,6 +862,7 @@ class ObservationWriter:
                     if not self.queue:
                         break
                     seq, block, deadline, original = self.queue.popleft()
+                self._progress("CHECK", seq)
                 trace = self.startup_trace if seq == 1 else None
                 if trace is not None:
                     emit_startup_trace(trace, "WRITER_ENTER", writer=self)
@@ -822,6 +884,7 @@ class ObservationWriter:
                     self.prewrite(CODEC_BYTES, 0)
                 if trace is not None:
                     emit_startup_trace(trace, "CODEC_APPEND_ENTER")
+                self._progress("CODEC_WRITE")
                 offset = 0
                 while offset < len(block):
                     self.check()
@@ -831,10 +894,12 @@ class ObservationWriter:
                     offset += n
                 if trace is not None:
                     emit_startup_trace(trace, "CODEC_FSYNC_BEFORE")
+                self._progress("CODEC_FSYNC")
                 os.fsync(self.fd)
                 if trace is not None:
                     emit_startup_trace(trace, "CODEC_FSYNC_AFTER")
                     emit_startup_trace(trace, "CODEC_READBACK_BEFORE")
+                self._progress("CODEC_READBACK")
                 c.require(
                     charged_read(
                         self.fd,
@@ -851,13 +916,21 @@ class ObservationWriter:
                     emit_startup_trace(trace, "CODEC_READBACK_AFTER")
                 with self.condition:
                     self.acked, self.ack_ns = seq, self.clock()
+                    self.stage = "ACK"
                     self.condition.notify_all()
                 if trace is not None:
                     emit_startup_trace(trace, "ACK_PUBLISHED", self.ack_ns)
         except BaseException as error:
             with self.condition:
                 self.poisoned = True
-                self.condition.notify_all()
+                try:
+                    if self.first_failure is None:
+                        self.first_failure = _diagnostic_fault(
+                            error, source="WRITER", stage=self.stage, clock=self.clock)
+                except BaseException:
+                    pass  # Diagnostics cannot suppress the uncertainty latch.
+                finally:
+                    self.condition.notify_all()
             if self.startup_trace is not None and self.rows <= 1:
                 emit_startup_trace(self.startup_trace, "WRITER_FAILURE", writer=self, error=error)
         finally:
@@ -867,6 +940,7 @@ class ObservationWriter:
                 os.close(self.original_root_fd)
             with self.condition:
                 self.released = not self.poisoned
+                self.stage = "CLOSED"
                 self.condition.notify_all()
 
     def wait(self: Any, seq: Any, deadline_ns: Any) -> Any:
@@ -876,7 +950,15 @@ class ObservationWriter:
                 remaining = stop - self.clock()
                 if remaining <= 0:
                     self.poisoned = True
-                    self.condition.notify_all()
+                    try:
+                        if self.first_failure is None:
+                            self.first_failure = _diagnostic_fault(
+                                c.Stage12Error("RA_G1_WRITE_UNCERTAIN"),
+                                source="WRITER", stage="WAIT_ACK", clock=self.clock)
+                    except BaseException:
+                        pass
+                    finally:
+                        self.condition.notify_all()
                     break
                 self.condition.wait(min(remaining / 1e9, 0.1))
             c.require(not self.poisoned and self.acked >= seq, "RA_G1_WRITE_UNCERTAIN")
@@ -950,6 +1032,10 @@ class ResourceMonitor:
         )
         self.startup_trace = startup_trace
         self.seq, self.head, self.last, self.failure = 0, seed_sha256, None, None
+        self.first_primary = None
+        self.acquisition_kind, self.acquisition_stage = None, "IDLE"
+        self.acquisition_enter, self.acquisition_exit = None, None
+        self._diagnostic_published = False
         self._published_prefix: dict[str, Any] | None = None
         self.scope_start = self.clock() if scope_start_ns is None else scope_start_ns
         a.shape(self.scope_start, "U")
@@ -966,13 +1052,123 @@ class ResourceMonitor:
             target=self._run, name="ra-g1-resource-monitor", daemon=True
         )
 
+    def diagnostic_snapshot(self) -> dict[str, Any]:
+        """Bounded failure evidence, independent of the observation writer."""
+        with self.lock:
+            row = self.last
+            published = None if row is None else dict(
+                seq=row["seq"], enter_mono_ns=row["enter_mono_ns"],
+                exit_mono_ns=row["exit_mono_ns"],
+                ack_mono_ns=self._published_prefix["last_ack_ns"])
+            snapshot = dict(
+                phase_id=self.phase, monitor_failure=self.failure,
+                first_primary=deepcopy_record(self.first_primary),
+                acquisition=dict(kind=self.acquisition_kind, stage=self.acquisition_stage,
+                                 enter_mono_ns=self.acquisition_enter,
+                                 exit_mono_ns=self.acquisition_exit),
+                published=published)
+        reader = getattr(self.writer, "diagnostic_snapshot", None)
+        snapshot["writer"] = reader() if callable(reader) else None
+        if snapshot["first_primary"] is None:
+            with self.lock:
+                if self.failure is not None:
+                    snapshot["monitor_failure"] = self.failure
+                    snapshot["first_primary"] = deepcopy_record(self.first_primary)
+                elif snapshot["writer"] is not None:
+                    snapshot["first_primary"] = deepcopy_record(
+                        snapshot["writer"]["first_failure"])
+        return snapshot
+
+    def _latch_failure(self, error: Any) -> None:
+        claimed_ns = None
+        try:
+            with self.lock:
+                first = self.failure is None
+                if first:
+                    self.failure = "RA_G1_MONITOR_INCOMPLETE"
+                    try:
+                        claimed_ns = self.clock()
+                        if type(claimed_ns) is not int or not 0 <= claimed_ns <= 2**64 - 1:
+                            claimed_ns = None
+                    except BaseException:
+                        pass
+                publish = first and not self._diagnostic_published
+                if first:
+                    self._diagnostic_published = True
+        finally:
+            self.stop_event.set()
+        if not first:
+            return  # Only the first latch owner may install or publish its cause.
+        try:
+            code = (error.args[0] if type(error) is c.Stage12Error and error.args
+                    and error.args[0] in FAILURE_CODES else "RA_G1_MONITOR_INCOMPLETE")
+            with self.lock:
+                if first:
+                    self.failure = code
+        except BaseException:
+            pass  # The fallback failure and stop are already latched.
+        fault = None
+        try:
+            fault = _diagnostic_fault(
+                error, source="MONITOR", stage=self.acquisition_stage, clock=lambda: claimed_ns)
+        except BaseException:
+            pass
+        try:
+            reader = getattr(self.writer, "diagnostic_snapshot", None)
+            writer = reader() if callable(reader) else None
+            underlying = None if writer is None else writer["first_failure"]
+            if (fault is not None and underlying is not None
+                and type(fault["mono_ns"]) is int
+                and type(underlying["mono_ns"]) is int
+                and underlying["mono_ns"] < fault["mono_ns"]
+            ):
+                fault = underlying
+        except BaseException:
+            pass
+        if fault is not None:
+            try:
+                with self.lock:
+                    if self.first_primary is None:
+                        self.first_primary = deepcopy_record(fault)
+            except BaseException:
+                pass
+        if publish and self.startup_trace is not None:
+            try:
+                callback = getattr(self.startup_trace, "monitor_failure", None)
+                if callable(callback):
+                    callback(self.diagnostic_snapshot())
+            except BaseException:
+                try:
+                    self.startup_trace.note_instrumentation_fault()
+                except BaseException:
+                    pass
+
+    def _acquisition_progress(self, stage: str, *, enter: Any = None, exit_ns: Any = None) -> None:
+        with self.lock:
+            self.acquisition_stage = stage
+            if enter is not None:
+                self.acquisition_enter, self.acquisition_exit = enter, None
+            if exit_ns is not None:
+                self.acquisition_exit = exit_ns
+
     def _acquire(self: Any, kind: Any) -> Any:
+        with self.lock:
+            self.acquisition_kind, self.acquisition_stage = kind, "CHECK"
+            self.acquisition_enter, self.acquisition_exit = None, None
+        try:
+            return self._acquire_once(kind)
+        except BaseException as error:
+            self._latch_failure(error)
+            raise
+
+    def _acquire_once(self: Any, kind: Any) -> Any:
         self.check()
         enter = self.clock()
         trace = self.startup_trace if kind == "START" else None
         if trace is not None:
             emit_startup_trace(trace, "FIRST_ACQUIRE_ENTER", enter)
         c.require(enter < self.deadline, "RA_G1_DEADLINE")
+        self._acquisition_progress("OBSERVER", enter=enter)
         data = self.observer(kind)
         c.require(
             type(data) is dict
@@ -986,6 +1182,7 @@ class ResourceMonitor:
             "RA_G1_FIELDS",
         )
         exit_ns = self.clock()
+        self._acquisition_progress("COVERAGE", exit_ns=exit_ns)
         if trace is not None:
             emit_startup_trace(trace, "FIRST_ACQUIRE_EXIT", exit_ns)
         record = dict(
@@ -1006,20 +1203,25 @@ class ResourceMonitor:
         if trace is not None:
             emit_startup_trace(trace, "COVERAGE_AFTER")
             emit_startup_trace(trace, "PACK_BEFORE")
+        self._acquisition_progress("PACK")
         block = pack_observation(record)
         if trace is not None:
             emit_startup_trace(trace, "PACK_AFTER")
             emit_startup_trace(trace, "APPEND_BEFORE")
+        self._acquisition_progress("APPEND")
         self.writer.append(block, record["seq"], self.deadline)
         if trace is not None:
             emit_startup_trace(trace, "APPEND_AFTER")
+        self._acquisition_progress("WAIT_ACK")
         durable_ack_ns = self.writer.wait(record["seq"], self.deadline)
         if kind == "START":
             self.first_start_receipt = dict(row=deepcopy_record(record), ack_ns=durable_ack_ns)
         if trace is not None:
             emit_startup_trace(trace, "START_ACK", self.writer.ack_ns)
+        self._acquisition_progress("POST_ACK_CHECK")
         self.check()
         with self.lock:
+            self.acquisition_stage = "PUBLISH"
             self.seq, self.head, self.last = (
                 record["seq"],
                 head,
@@ -1048,15 +1250,7 @@ class ResourceMonitor:
             while not self.stop_event.wait(PERIOD_NS / 1e9):
                 self._acquire("PERIODIC")
         except BaseException as error:
-            with self.lock:
-                self.failure = (
-                    error.args[0]
-                    if type(error) is c.Stage12Error
-                    and error.args
-                    and error.args[0] in FAILURE_CODES
-                    else "RA_G1_MONITOR_INCOMPLETE"
-                )
-            self.stop_event.set()
+            self._latch_failure(error)
 
     def prefix(self) -> Any:
         """Atomic last ACKed H0 state; no campaign/acquisition lock or I/O."""
@@ -1073,26 +1267,23 @@ class ResourceMonitor:
     def barrier(
         self: Any, *, next_write_bytes: Any = 0, next_creations: Any = 0
     ) -> Any:
-        self.check()
-        with self.lock:
-            row = self.last
-            failure = self.failure
-        c.require(
-            failure is None
-            and row is not None
-            and not self.writer.poisoned
-            and self.writer.acked >= row["seq"]
-            and 0 <= self.clock() - row["enter_mono_ns"] <= MAX_GAP_NS
-            and self.clock() < self.deadline,
-            "RA_G1_MONITOR_GAP",
-        )
-        thresholds(
-            row,
-            self.selected,
-            next_write_bytes=next_write_bytes,
-            next_creations=next_creations,
-        )
-        return deepcopy_record(row)
+        try:
+            self.check()
+            with self.lock:
+                row, failure = self.last, self.failure
+            c.require(failure is None, failure or "RA_G1_MONITOR_INCOMPLETE")
+            c.require(row is not None, "RA_G1_MONITOR_INCOMPLETE")
+            c.require(not self.writer.poisoned and self.writer.acked >= row["seq"],
+                      "RA_G1_WRITE_UNCERTAIN")
+            c.require(0 <= self.clock() - row["enter_mono_ns"] <= MAX_GAP_NS,
+                      "RA_G1_MONITOR_GAP")
+            c.require(self.clock() < self.deadline, "RA_G1_DEADLINE")
+            thresholds(row, self.selected, next_write_bytes=next_write_bytes,
+                       next_creations=next_creations)
+            return deepcopy_record(row)
+        except BaseException as error:
+            self._latch_failure(error)
+            raise
 
     def finish(self: Any, *, opener_return_ns: Any) -> Any:
         c.require(self.failure is None, "RA_G1_MONITOR_INCOMPLETE")

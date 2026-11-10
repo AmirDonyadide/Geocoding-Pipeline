@@ -15,6 +15,7 @@ from typing import Any
 
 VERSION = "stage12_ra_g1_accounting_inventory_v1"
 BOOTSTRAP_VERSION = "stage12_ra_g1_bootstrap30_accounting_inventory_v1"
+SHARED_LEASE_VERSION = "stage12_ra_g1_shared_lease_accounting_inventory_v1"
 MAX_U = 2**64 - 1
 SOURCE_MAX = 64 * 2**20
 METADATA_MAX = 4 * 2**20
@@ -728,7 +729,11 @@ def stage_accounting(inventory: Any, stage_id: int) -> dict[str, int]:
 def validate_inventory(inventory: Any) -> dict[str, Any]:
     need(type(inventory) is dict, "RA_G1_ACCOUNTING_INVALID")
     expected, _ = compile_inventory(
-        inventory["sources"], inventory["backends"], inventory["scope"], bootstrap_successor=inventory.get("schema_version") == BOOTSTRAP_VERSION
+        inventory["sources"], inventory["backends"], inventory["scope"],
+        bootstrap_successor=(inventory.get("schema_version") == BOOTSTRAP_VERSION
+            or inventory.get("schema_version") == SHARED_LEASE_VERSION
+            and inventory.get("bootstrap_proof_record_count") == 3),
+        shared_lease_successor=inventory.get("schema_version") == SHARED_LEASE_VERSION,
     )
     need(inventory == expected, "RA_G1_ACCOUNTING_CHANGED")
     return dict(inventory)
@@ -819,7 +824,7 @@ def _strict_descriptor() -> dict[str, Any]:
     )
 
 
-def compile_inventory(sources: Any, backends: Any, scope: str, *, bootstrap_successor: bool = False) -> tuple[dict[str, Any], Any]:
+def _compile_bootstrap_inventory(sources: Any, backends: Any, scope: str, *, bootstrap_successor: bool = False) -> tuple[dict[str, Any], Any]:
     inventory, accounting = _compile_strict_inventory(sources, backends, scope)
     if not bootstrap_successor:
         return inventory, accounting
@@ -853,7 +858,7 @@ def compile_inventory(sources: Any, backends: Any, scope: str, *, bootstrap_succ
     return inventory,accounting
 
 
-def descriptor(*, bootstrap_successor: bool = False) -> dict[str,Any]:
+def _bootstrap_descriptor(*, bootstrap_successor: bool = False) -> dict[str,Any]:
     value = _strict_descriptor()
     if bootstrap_successor:
         value = {**value, "descriptor_version": BOOTSTRAP_VERSION,
@@ -861,3 +866,57 @@ def descriptor(*, bootstrap_successor: bool = False) -> dict[str,Any]:
             "bootstrap_proof_record_count": 3, "bootstrap_readiness_calls_per_phase": 8,
             "existing_admin_reserve": "THREE_ADDITIONAL_8192_RECORDS_NO_CAP_INCREASE"}
     return value
+
+
+
+def compile_inventory(sources: Any, backends: Any, scope: str, *,
+                      bootstrap_successor: bool = False,
+                      shared_lease_successor: bool = False) -> tuple[dict[str, Any], Any]:
+    """Explicit current writer primitive; historical grammars remain unchanged."""
+    inventory, accounting = _compile_bootstrap_inventory(
+        sources, backends, scope, bootstrap_successor=bootstrap_successor)
+    if not shared_lease_successor:
+        return inventory, accounting
+    need(scope in GRAPHS and accounting is not None, "RA_G1_ACCOUNTING_SCOPE")
+    inventory["schema_version"] = SHARED_LEASE_VERSION
+    inventory["graph_id"] += "_SHARED_READBACK512"
+    inventory.setdefault("bootstrap_proof_record_count", 0)
+    chunks = (RAW_MAX + 511) // 512
+    for row in inventory["cost_rows"]:
+        if row["component"] == "MONITOR_WRITER_ORIGINAL_AND_CODEC_READBACK":
+            row["per_invocation_read_calls"] = chunks + 1
+            row["per_invocation_checks"] = RAW_MAX + CODEC + 10 + chunks
+            row["basis"] = "THIRTY_512_ORIGINAL_PREADS_ONE_CODEC_PREAD_BYTE_SHORT_WRITES_NO_NEW_EOF"
+            row["original_read_calls"] = mul(row["invocations"], chunks + 1)
+            row["check_calls"] = mul(row["invocations"], row["per_invocation_checks"])
+    for stage in inventory["stage_accounting"]:
+        own = [r for r in inventory["cost_rows"] if r["stage_id"] == stage["stage_id"]]
+        stage.update(
+            original_read_calls=add(*(r["original_read_calls"] for r in own)),
+            original_read_bytes=add(*(r["original_read_bytes"] for r in own)),
+            check_calls=add(*(r["check_calls"] for r in own), 2))
+        stage["identity_calls"] = stage["check_calls"]
+    accounting = {
+        key: add(*(r[key] for r in inventory["stage_accounting"]))
+        for key in ACCOUNTING_KEYS}
+    inventory["accounting"] = accounting
+    need(len(canonical(inventory)) <= METADATA_MAX, "RA_G1_ACCOUNTING_METADATA_LIMIT")
+    return inventory, accounting
+
+
+def descriptor(*, bootstrap_successor: bool = False,
+               shared_lease_successor: bool = False) -> dict[str, Any]:
+    if not shared_lease_successor:
+        return _bootstrap_descriptor(bootstrap_successor=bootstrap_successor)
+    value = _strict_descriptor()
+    return {
+        **value,
+        "descriptor_version": SHARED_LEASE_VERSION,
+        "outer_fields": [*value["outer_fields"], "bootstrap_proof_record_count"],
+        "bootstrap_proof_record_count_allowed": [0, 3],
+        "bootstrap_readiness_calls_per_phase": 8,
+        "monitor_writer_readback_bytes": 512,
+        "monitor_writer_original_readback_calls": 30,
+        "monitor_writer_codec_readback_calls": 1,
+        "monitor_writer_original_readback_eof": "UNCHANGED_NONE",
+    }

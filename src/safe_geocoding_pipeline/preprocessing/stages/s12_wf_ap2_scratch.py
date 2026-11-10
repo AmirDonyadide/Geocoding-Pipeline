@@ -18,7 +18,7 @@ CAPS = {
     "HASH": 4096,
 }
 c.require(sum(CAPS.values()) <= 65536, "WF_AP2_SCRATCH_LIMIT")
-RA_G1_CAPS = {**CAPS, "MONITOR_CODEC": 1024}
+RA_G1_CAPS = {**CAPS, "MONITOR_CODEC": 1024, "MONITOR_READBACK": 512}
 c.require(sum(RA_G1_CAPS.values()) <= 65536, "WF_AP2_SCRATCH_LIMIT")
 _locks = {key: threading.RLock() for key in RA_G1_CAPS}
 _local = threading.local()
@@ -51,13 +51,13 @@ def lease(kind, *, requested=None):
 
 @contextmanager
 def ra_g1_lease(kind, *, requested=None):
-    """Successor codec partition; all other leases use the same global locks."""
-    if kind != "MONITOR_CODEC":
+    """Independent successor partitions; legacy keys retain their global locks."""
+    if kind not in ("MONITOR_CODEC", "MONITOR_READBACK"):
         with lease(kind, requested=requested) as size:
             yield size
         return
     c.require(
-        requested is None or type(requested) is int and 0 <= requested <= 1024,
+        requested is None or type(requested) is int and 0 <= requested <= RA_G1_CAPS[kind],
         "WF_AP2_SCRATCH_LIMIT",
     )
     occupied = getattr(_local, "occupied", set())
@@ -65,6 +65,6 @@ def ra_g1_lease(kind, *, requested=None):
     with _locks[kind]:
         _local.occupied = occupied | {kind}
         try:
-            yield 1024
+            yield RA_G1_CAPS[kind]
         finally:
             _local.occupied = occupied
