@@ -130,6 +130,70 @@ BOOTSTRAP_SELECTION_SCHEMA = {
     **SELECTION_SCHEMA, "schema_version": "=" + BOOTSTRAP_SELECTION,
     "bootstrap_prefix_policy_sha256": "D", "bootstrap_prefix_adoption_sha256": "D",
 }
+
+REP_ADMIN_SELECTION = "stage12_resource_selection_rep_admin_budget_ra_g1_v1"
+REP_ADMIN_POLICY = "stage12_rep_admin_budget_policy_ra_g1_v1"
+REP_ADMIN_ADOPTION = "stage12_advisory_delegated_rep_admin_budget_continuation_v1"
+REP_ADMIN_SECONDS = dict(collector=120, factual_review=480, binder_complete=240,
+                         combined_binder_watchdog=720)
+REP_ADMIN_SELECTION_SCHEMA = {
+    **BOOTSTRAP_SELECTION_SCHEMA, "schema_version": "=" + REP_ADMIN_SELECTION,
+    "rep_admin_budget_policy_sha256": "D", "rep_admin_budget_adoption_sha256": "D",
+}
+REP_ADMIN_ADOPTION_SCHEMA = {
+    "schema_version": "=" + REP_ADMIN_ADOPTION,
+    "additional_prospective_units": "=128", "administrator_attestation": "B",
+    "adopted_representative_admin_seconds": {key: "=" + str(value) for key, value in REP_ADMIN_SECONDS.items()},
+    "baseline": "G", "binder_operational_publication_target_seconds": "=180",
+    "binder_remaining_suffix_target_seconds": "=60", "cumulative_ceiling": "=704",
+    "direct_owner_detailed_statement_claimed": "B", "existing_conditional_public_unconsumed": "=2",
+    "historical_job1811762": "=FAILED_INCOMPLETE_WAIT_RELEASE_CONTENT_PASS_LATE_PUBLICATION_NO_B_UNCHANGED",
+    "independent_advisory_authentication": "B", "input_manifest_sha256": "D",
+    "new_allocation_grant": {"consumed": "=0", "id": "=REPRESENTATIVE_ADMIN_BUDGET_SUCCESSOR_ONE",
+        "maximum": "=1", "only_after_focused_verification_and_all_current_gates": "B",
+        "replacement_requeue_A_rerun": "B"},
+    "no_new_public_or_protected_slots": "B", "original_anchors_nonresetting": "B",
+    "original_recommendation_sha256": "D", "previous_cumulative_ceiling": "=576",
+    "prior_charged_actual_or_possible": "=512",
+    "provenance": "=ACTUAL_USER_RELAY_OF_GPT6_ASTRA_ULTRA_RECOMMENDATION_UNDER_STANDING_HUMAN_DELEGATION",
+    "public_operating_budgets_unchanged": "B", "recorded_utc": "=2026-11-10T06:16:57.603990+00:00",
+    "remaining_assigned_prospectively": "=192",
+    "unchanged_seconds": {"B": "=7200", "processing": "=8160", "scheduler": "=8400", "terminal_verifier": "=120"},
+    "unchanged_window_end": "=2026-11-11T19:13:21.620987Z",
+}
+
+
+def rep_admin_policy_descriptor() -> Any:
+    return dict(descriptor_version=REP_ADMIN_POLICY, closed=True, live_instance=False,
+        scope="REPRESENTATIVE_NO_SERVICE", administrative_seconds=REP_ADMIN_SECONDS,
+        unchanged_seconds=dict(B=7200, terminal_verifier=120, processing=8160, scheduler=8400),
+        role_anchors="ORIGINAL_ROLE_ENTRY_AND_BIND_ENTER_NONRESETTING",
+        binder_scope="PREPARATION_REVIEW_PUBLICATION_VALIDATION_REOPENING_AND_CLOSURE",
+        publication_target_seconds=180, remaining_suffix_target_seconds=60,
+        operational_targets="NOT_DEADLINE_REPLACEMENTS_OR_COMPLETION_GUARANTEES",
+        public_operating_budgets="UNCHANGED", original_adoption="DISTINCT_RETAINED_AUTHORITY_RECORD",
+        service_authority="NOT_ISSUED", protected_authority="NOT_ISSUED")
+
+
+def validate_rep_admin_adoption(value: Any, selected: Any) -> Any:
+    shape(value, REP_ADMIN_ADOPTION_SCHEMA)
+    c.require(
+        value["administrator_attestation"] is False
+        and value["direct_owner_detailed_statement_claimed"] is False
+        and value["independent_advisory_authentication"] is False
+        and value["new_allocation_grant"]["only_after_focused_verification_and_all_current_gates"] is True
+        and value["new_allocation_grant"]["replacement_requeue_A_rerun"] is False
+        and value["no_new_public_or_protected_slots"] is True
+        and value["original_anchors_nonresetting"] is True
+        and value["public_operating_budgets_unchanged"] is True
+        and old.digest(value) == selected["rep_admin_budget_adoption_sha256"]
+        and selected["rep_admin_budget_policy_sha256"] == old.digest(rep_admin_policy_descriptor()),
+        "RA_G1_SELECTION_BINDING",
+    )
+    if "valid_until" in selected:
+        c.require(selected["valid_until"] <= value["unchanged_window_end"], "RA_G1_EXPIRED")
+    return value
+
 BOOTSTRAP_ADOPTION_SCHEMA = {
     "schema_version": "=" + BOOTSTRAP_ADOPTION,
     "scope": "=REPRESENTATIVE_NO_SERVICE", "policy_sha256": "D",
@@ -328,8 +392,8 @@ def validate_scope_ceilings(record: Any) -> None:
             180000,
             6194000,
             120000,
-            600000,
-            120000,
+            480000 if record.get("schema_version") == REP_ADMIN_SELECTION else 600000,
+            240000 if record.get("schema_version") == REP_ADMIN_SELECTION else 120000,
             120000,
         )
         science_stages = 4
@@ -392,11 +456,14 @@ def validate_scope_ceilings(record: Any) -> None:
 
 
 def validate_selection(record: Any) -> Any:
-    shape(record, BOOTSTRAP_SELECTION_SCHEMA if record.get("schema_version") == BOOTSTRAP_SELECTION else SELECTION_SCHEMA)
-    if record["schema_version"] == BOOTSTRAP_SELECTION:
+    shape(record, REP_ADMIN_SELECTION_SCHEMA if record.get("schema_version") == REP_ADMIN_SELECTION
+          else BOOTSTRAP_SELECTION_SCHEMA if record.get("schema_version") == BOOTSTRAP_SELECTION else SELECTION_SCHEMA)
+    if record["schema_version"] in (BOOTSTRAP_SELECTION, REP_ADMIN_SELECTION):
         c.require(record["scope"] == "REPRESENTATIVE_NO_SERVICE"
                   and record["bootstrap_prefix_policy_sha256"] == old.digest(bootstrap_policy_descriptor()),
                   "RA_G1_BOOTSTRAP_POLICY")
+    if record["schema_version"] == REP_ADMIN_SELECTION:
+        c.require(record["rep_admin_budget_policy_sha256"] == old.digest(rep_admin_policy_descriptor()), "RA_G1_SELECTION_BINDING")
     c.require(record["valid_from"] < record["valid_until"], "RA_G1_EXPIRED")
     limits = record["limits"]
     validate_scope_ceilings(record)
@@ -1359,7 +1426,7 @@ def bootstrap_policy_descriptor() -> Any:
 
 
 def bootstrap_role(selected: Any, phase_id: Any) -> Any:
-    return BOOTSTRAP_ROLES.get(phase_id) if selected.get("schema_version") == BOOTSTRAP_SELECTION else None
+    return BOOTSTRAP_ROLES.get(phase_id) if selected.get("schema_version") in (BOOTSTRAP_SELECTION, REP_ADMIN_SELECTION) else None
 
 
 def validate_bootstrap_adoption(value: Any, selected: Any) -> Any:

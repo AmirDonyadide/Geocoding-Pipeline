@@ -39,6 +39,7 @@ STDLIB_IMPORTS_DONE_NS = time.monotonic_ns()
 VERSION = "stage12_ra_g1_allocation_selection_v1"
 BOOTSTRAP_VERSION = "stage12_ra_g1_bootstrap30_allocation_selection_v1"
 SHARED_LEASE_VERSION = "stage12_ra_g1_shared_lease_allocation_selection_v1"
+REP_ADMIN_VERSION = "stage12_ra_g1_rep_admin_budget_allocation_selection_v1"
 DIAGNOSTIC_VERSION = "stage12_ra_g1_startup_monitor_trace_v2"
 SCOPE = "REPRESENTATIVE_NO_SERVICE"
 SOURCE_PROJECT_VERSION = "0.2.0"  # Exact reviewed pyproject.toml, not a fallback.
@@ -58,6 +59,8 @@ LIMITS = dict(
     maximum_python_invocations=5,
     writer_guard_ms=5000,
 )
+
+REP_ADMIN_LIMITS = {**LIMITS, "review_seconds":480, "binder_seconds":240}
 
 
 def need(value, code="RA_G1_ALLOCATION_INVALID"):
@@ -178,7 +181,7 @@ def parse(raw):
     return value
 
 
-def _validate_legacy_selection(s):
+def _validate_legacy_selection(s, *, expected_limits=LIMITS):
     need(
         set(s)
         == {
@@ -208,7 +211,7 @@ def _validate_legacy_selection(s):
         and h(s["intent_id"]),
         "RA_G1_SELECTION_BINDING",
     )
-    need(s["limits"] == LIMITS, "RA_G1_LIMITS")
+    need(s["limits"] == expected_limits, "RA_G1_LIMITS")
     need(
         set(s["accounting"])
         == {
@@ -242,6 +245,8 @@ def _validate_legacy_selection(s):
     from safe_geocoding_pipeline.preprocessing.stages import s12_ra_g1_accounting
 
     s12_ra_g1_accounting.validate_inventory(s["accounting_inventory"])
+    need(s["accounting_inventory"]["schema_version"] != s12_ra_g1_accounting.REP_ADMIN_VERSION
+         or expected_limits == REP_ADMIN_LIMITS, "RA_G1_ACCOUNTING")
     need(
         s["accounting_inventory"]["sources"] == s["source_files"]
         and s["accounting_inventory"]["accounting"] == s["accounting"]
@@ -298,22 +303,29 @@ def _validate_legacy_selection(s):
 
 
 def validate_selection(value):
-    if value.get("version") not in (BOOTSTRAP_VERSION, SHARED_LEASE_VERSION):
+    if value.get("version") not in (BOOTSTRAP_VERSION, SHARED_LEASE_VERSION, REP_ADMIN_VERSION):
         return _validate_legacy_selection(value)
     extra = {"bootstrap_prefix_adoption", "bootstrap_prefix_adoption_sha256"}
+    if value["version"] == REP_ADMIN_VERSION:
+        extra |= {"rep_admin_budget_adoption", "rep_admin_budget_adoption_sha256"}
     need(extra <= set(value), "RA_G1_BOOTSTRAP_REQUIRED")
     base = {key: item for key, item in value.items() if key not in extra}
     base["version"] = VERSION
-    _validate_legacy_selection(base)
+    _validate_legacy_selection(base, expected_limits=REP_ADMIN_LIMITS if value["version"] == REP_ADMIN_VERSION else LIMITS)
     from safe_geocoding_pipeline.preprocessing.stages import s12_ra_g1_assurance as assurance
     from safe_geocoding_pipeline.preprocessing.stages import s12_ra_g1_accounting as accounting
-    expected_inventory = (accounting.SHARED_LEASE_VERSION if value["version"] == SHARED_LEASE_VERSION else accounting.BOOTSTRAP_VERSION)
+    expected_inventory = (accounting.REP_ADMIN_VERSION if value["version"] == REP_ADMIN_VERSION else accounting.SHARED_LEASE_VERSION if value["version"] == SHARED_LEASE_VERSION else accounting.BOOTSTRAP_VERSION)
     need(value["scope"] == SCOPE and value["accounting_inventory"]["schema_version"] == expected_inventory,
          "RA_G1_BOOTSTRAP_POLICY")
-    if value["version"] == SHARED_LEASE_VERSION:
+    if value["version"] in (SHARED_LEASE_VERSION, REP_ADMIN_VERSION):
         need(value["accounting_inventory"].get("bootstrap_proof_record_count") == 3, "RA_G1_ACCOUNTING")
     selected = {"bootstrap_prefix_adoption_sha256": value["bootstrap_prefix_adoption_sha256"]}
     assurance.validate_bootstrap_adoption(value["bootstrap_prefix_adoption"], selected)
+    if value["version"] == REP_ADMIN_VERSION:
+        assurance.validate_rep_admin_adoption(value["rep_admin_budget_adoption"], {
+            "rep_admin_budget_adoption_sha256": value["rep_admin_budget_adoption_sha256"],
+            "rep_admin_budget_policy_sha256": digest(assurance.rep_admin_policy_descriptor()),
+            "valid_until": value["valid_until"]})
     return value
 
 
@@ -864,7 +876,7 @@ class Run:
     def __init__(self, s, *, epoch_ns=None, stage_seconds=None, stage="collect"):
         self.role_enter_ns = ROLE_ENTRY_NS
         self.startup_trace = PROCESS_TRACE
-        if s.get("version") == SHARED_LEASE_VERSION:
+        if s.get("version") in (SHARED_LEASE_VERSION, REP_ADMIN_VERSION):
             self.startup_trace.enable_monitor_diagnostics()
         PROCESS_TRACE.admin = self
         self._counter_lock = threading.RLock()
@@ -1202,7 +1214,7 @@ def resource_selection(run):
             run.s["paths"]["source"], "stage12_prepare_ra_g1"
         ).resource_selection(
             run.s,
-            policy_sha256=digest(contract.descriptors()[a.POLICY]),
+            policy_sha256=digest(contract.descriptors(rep_admin_successor=run.s["version"] == REP_ADMIN_VERSION)[a.POLICY]),
             adoption_sha256=run.s["records"]["adoption"],
             descriptor_inventory_sha256=review["descriptor_inventory_sha256"],
             graph_sha256=review["workload_graph_sha256"],
@@ -1294,7 +1306,7 @@ def start_admin(run, role, context, *, scope_start_ns):
         application_creations=limits["creations"],
     )
     bootstrap_prefix = None
-    if selected.get("schema_version") == e.a.BOOTSTRAP_SELECTION and role in ("COLLECTOR", "REVIEW"):
+    if selected.get("schema_version") in (e.a.BOOTSTRAP_SELECTION, e.a.REP_ADMIN_SELECTION) and role in ("COLLECTOR", "REVIEW"):
         bootstrap_prefix = dict(role=role, source_entry_ns=scope_start_ns,
                                 bootstrap_end_ns=time.monotonic_ns())
     session = e.start_administrative_session(
@@ -1796,7 +1808,7 @@ def bind(run):
     manifest = run.original(root / "manifest.record")
     validate_bootstrap_originals(run, raw, manifest)
     b["manifest_sha256"] = hashlib.sha256(manifest).hexdigest()
-    end = min(run.end, time.monotonic_ns() + 600 * 10**9)
+    end = min(run.end, review_session.deadline) if s["version"] == REP_ADMIN_VERSION else min(run.end, time.monotonic_ns() + 600 * 10**9)
     binder_operation(run, "WAIT_REVIEW")
     review = wait_record(run, s["paths"]["review"], deadline_ns=end)
     binder_operation(run, "VERIFY_REVIEW")
@@ -2206,7 +2218,7 @@ SOURCE_PERMISSION_LOGICAL_BYTES = (
 _SOURCE_PERMISSION_BINDING_KEYS = (
     "version", "scope", "source_sha", "valid_from", "valid_until",
     "replay_sha256", "resource_selection_sha256", "intent_id",
-    "bootstrap_prefix_adoption_sha256",
+    "bootstrap_prefix_adoption_sha256", "rep_admin_budget_adoption_sha256",
 )
 
 
@@ -2252,6 +2264,8 @@ class _SourcePermissionIndex(tuple):
             "bootstrap_prefix_adoption_sha256": selected.get(
                 "bootstrap_prefix_adoption_sha256"),
         })
+        if selected["version"] == REP_ADMIN_VERSION:
+            policy = MappingProxyType({**policy, "rep_admin_budget_adoption_sha256": selected["rep_admin_budget_adoption_sha256"]})
         scalar_binding = tuple(selected.get(key) for key in _SOURCE_PERMISSION_BINDING_KEYS)
         return tuple.__new__(cls, (
             selected, rows, names, entries, policy, scalar_binding, tuple(selected), source_parts,
@@ -2339,8 +2353,11 @@ def allocation_path_policy(s, path, write=False, *, source_index=None):
         )
     if resolved == original and (resolved == root or resolved.is_relative_to(root)):
         return True
-    if (not write and s.get("version") in (BOOTSTRAP_VERSION, SHARED_LEASE_VERSION)
+    if (not write and s.get("version") in (BOOTSTRAP_VERSION, SHARED_LEASE_VERSION, REP_ADMIN_VERSION)
             and resolved == original == Path(s["paths"]["records"]) / (s["bootstrap_prefix_adoption_sha256"] + ".record")):
+        return True
+    if (not write and s.get("version") == REP_ADMIN_VERSION
+            and resolved == original == Path(s["paths"]["records"]) / (s["rep_admin_budget_adoption_sha256"] + ".record")):
         return True
     if resolved == original and resolved in {
         Path(s["paths"]["records"]) / (identity + ".record")
@@ -2694,7 +2711,7 @@ def main():
     from safe_geocoding_pipeline.execution_policy import require_goethe_nhr_slurm
 
     require_goethe_nhr_slurm("RA-G1 allocation controller metadata")
-    need(s["version"] == SHARED_LEASE_VERSION, "RA_G1_ACCOUNTING")
+    need(s["version"] in (SHARED_LEASE_VERSION, REP_ADMIN_VERSION), "RA_G1_ACCOUNTING")
     os.umask(0o077)
     run = Run(
         s,
@@ -2996,11 +3013,11 @@ def load_verified_handoff(
 
 def descriptor(version=VERSION):
     """Closed successor selection; no instance, authority or capacity is issued."""
-    need(version in (VERSION, BOOTSTRAP_VERSION, SHARED_LEASE_VERSION))
+    need(version in (VERSION, BOOTSTRAP_VERSION, SHARED_LEASE_VERSION, REP_ADMIN_VERSION))
     value = dict(
         descriptor_version=version,
         scope=SCOPE,
-        limits=LIMITS,
+        limits=REP_ADMIN_LIMITS if version == REP_ADMIN_VERSION else LIMITS,
         source_fields=["path", "bytes", "sha256"],
         accounting_inventory="RECOMPUTE_FROM_EXACT_SOURCE_BACKEND_AND_FINITE_GRAPH",
         authority_roles=[
@@ -3020,10 +3037,15 @@ def descriptor(version=VERSION):
         containment_claim="NOT_ESTABLISHED",
         physical_capacity_claim="NOT_RESERVED_OR_PROVEN",
     )
-    if version == SHARED_LEASE_VERSION:
+    if version in (SHARED_LEASE_VERSION, REP_ADMIN_VERSION):
         value.update(runtime_diagnostic_version=DIAGNOSTIC_VERSION, diagnostic_bytes=8192,
             required_accounting_inventory="stage12_ra_g1_shared_lease_accounting_inventory_v1",
             bootstrap_proof_record_count=3)
+    if version == REP_ADMIN_VERSION:
+        value.update(required_accounting_inventory="stage12_ra_g1_rep_admin_budget_accounting_inventory_v1",
+            required_resource_selection="stage12_resource_selection_rep_admin_budget_ra_g1_v1",
+            additional_original_fields=["rep_admin_budget_adoption", "rep_admin_budget_adoption_sha256"],
+            binder_clock="ORIGINAL_BIND_ENTER_NO_INPUT_READY_OR_RELEASE_RESET")
     return value
 
 

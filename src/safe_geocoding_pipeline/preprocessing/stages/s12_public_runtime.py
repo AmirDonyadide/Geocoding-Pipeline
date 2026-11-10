@@ -177,13 +177,13 @@ def validation_for(identity):
     raise c.Stage12Error("S12_PUBLIC_VALIDATION_BINDING_INVALID")
 
 
-def verify_successor_assets(repository, *, contract=None):
+def verify_successor_assets(repository, *, contract=None, rep_admin_successor=False):
     from . import s12_wf_ap2_contract as successor
 
     successor = successor if contract is None else contract
     from . import s12_wf_ap2_timing as wire
 
-    descriptors = successor.descriptors()
+    descriptors = successor.descriptors(**({"rep_admin_successor": True} if rep_admin_successor else {}))
     descriptors[successor.TIMING] = wire.descriptor(
         **(
             {"schema": successor.TIMING}

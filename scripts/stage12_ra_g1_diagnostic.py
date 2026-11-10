@@ -34,6 +34,8 @@ import threading
 VERSION = "stage12_ra_g1_representative_diagnostic_input_v1"
 BOOTSTRAP_VERSION = "stage12_ra_g1_representative_bootstrap30_diagnostic_input_v1"
 SHARED_LEASE_VERSION = "stage12_ra_g1_shared_lease_representative_input_v1"
+REP_ADMIN_VERSION = "stage12_ra_g1_rep_admin_budget_representative_input_v1"
+REP_ADMIN_SELECTION = "stage12_resource_selection_rep_admin_budget_ra_g1_v1"
 ACTIVE_DIAGNOSTIC_TRACE = None
 ACTIVE_DIAGNOSTIC_CHECK = None
 BOOTSTRAP_SELECTION = "stage12_resource_selection_bootstrap30_ra_g1_v1"
@@ -263,10 +265,10 @@ def input_scope(data):
 def validate_envelope(data, source_sha, *, for_execution, defer_response_payloads=False):
     """Pure bounded metadata shape; this never creates a usable assurance record."""
     require(type(data) is dict and set(data) == _TOP)
-    require(data["version"] in (VERSION, BOOTSTRAP_VERSION, SHARED_LEASE_VERSION) and data["scope"] == SCOPE)
+    require(data["version"] in (VERSION, BOOTSTRAP_VERSION, SHARED_LEASE_VERSION, REP_ADMIN_VERSION) and data["scope"] == SCOPE)
     require(
         not defer_response_payloads
-        or (for_execution and data["version"] in (BOOTSTRAP_VERSION, SHARED_LEASE_VERSION))
+        or (for_execution and data["version"] in (BOOTSTRAP_VERSION, SHARED_LEASE_VERSION, REP_ADMIN_VERSION))
     )
     require(hash_value(source_sha, 40) and data["source_sha"] == source_sha)
     selected = data["selection"]
@@ -414,12 +416,12 @@ def materialize_response_bodies(data, *, check=lambda: None):
 
 def validate_resource_family(input_version, selected):
     require(
-        input_version in (VERSION, BOOTSTRAP_VERSION, SHARED_LEASE_VERSION)
+        input_version in (VERSION, BOOTSTRAP_VERSION, SHARED_LEASE_VERSION, REP_ADMIN_VERSION)
         and selected.get("scope") == SCOPE
         and selected.get("schema_version")
         == (
-            BOOTSTRAP_SELECTION
-            if input_version in (BOOTSTRAP_VERSION, SHARED_LEASE_VERSION)
+            REP_ADMIN_SELECTION if input_version == REP_ADMIN_VERSION else BOOTSTRAP_SELECTION
+            if input_version in (BOOTSTRAP_VERSION, SHARED_LEASE_VERSION, REP_ADMIN_VERSION)
             else "stage12_resource_selection_ra_g1_v1"
         ),
         "RA_G1_DIAGNOSTIC_RESOURCE_FAMILY",
@@ -432,7 +434,7 @@ def start_phase_resource(
     """Preserve phase origins while opting only REP's first START into the prefix."""
     validate_resource_family(input_version, arguments["selection"])
     bootstrap = {}
-    if phase_id == 1 and input_version in (BOOTSTRAP_VERSION, SHARED_LEASE_VERSION):
+    if phase_id == 1 and input_version in (BOOTSTRAP_VERSION, SHARED_LEASE_VERSION, REP_ADMIN_VERSION):
         bootstrap["bootstrap_prefix"] = dict(
             role="PHASE_RUNNER",
             source_entry_ns=source_entry_ns,
@@ -1088,12 +1090,12 @@ def execute(args, *, started_ns, cpu_started_ns):
     )
     data = json.loads(raw)
     require(canonical(data) == raw)
-    require(data.get("version") == SHARED_LEASE_VERSION, "RA_G1_DIAGNOSTIC_RESOURCE_FAMILY")
+    require(data.get("version") in (SHARED_LEASE_VERSION, REP_ADMIN_VERSION), "RA_G1_DIAGNOSTIC_RESOURCE_FAMILY")
     validate_envelope(
         data,
         args.source_sha,
         for_execution=True,
-        defer_response_payloads=data.get("version") in (BOOTSTRAP_VERSION, SHARED_LEASE_VERSION),
+        defer_response_payloads=data.get("version") in (BOOTSTRAP_VERSION, SHARED_LEASE_VERSION, REP_ADMIN_VERSION),
     )
     require(
         data["configuration"]["command_paths"]
@@ -1300,7 +1302,7 @@ def execute(args, *, started_ns, cpu_started_ns):
         return result
 
     def initialize_current_runtime():
-        runtime.verify_successor_assets(source, contract=ap)
+        runtime.verify_successor_assets(source, contract=ap, rep_admin_successor=data["version"] == REP_ADMIN_VERSION)
         require(
             (source / "docs/scientific_assets" / (data["version"] + ".json")).read_bytes()
             == canonical(descriptor(data["version"])),
@@ -1897,7 +1899,7 @@ def execute(args, *, started_ns, cpu_started_ns):
 
 
 def descriptor(version=VERSION):
-    require(version in (VERSION, BOOTSTRAP_VERSION, SHARED_LEASE_VERSION))
+    require(version in (VERSION, BOOTSTRAP_VERSION, SHARED_LEASE_VERSION, REP_ADMIN_VERSION))
     value = dict(
         descriptor_version=version,
         configuration_version=CONFIG_VERSION,
@@ -1931,10 +1933,14 @@ def descriptor(version=VERSION):
         native_component_bound_claim=False,
         input_authority="NO_RECORDS_ISSUED;EXACT_REVIEWED_RESOURCES_AND_WORKLOAD_GRANT_REQUIRED",
     )
-    if version == SHARED_LEASE_VERSION:
+    if version in (SHARED_LEASE_VERSION, REP_ADMIN_VERSION):
         value.update(runtime_diagnostic_version="stage12_ra_g1_startup_monitor_trace_v2",
             diagnostic_stdout_bytes=8192,
             required_accounting_inventory="stage12_ra_g1_shared_lease_accounting_inventory_v1")
+    if version == REP_ADMIN_VERSION:
+        value.update(required_accounting_inventory="stage12_ra_g1_rep_admin_budget_accounting_inventory_v1",
+            required_resource_selection=REP_ADMIN_SELECTION, representative_admin_seconds={
+                "collector":120, "review":480, "binder_complete":240, "binder_process":720})
     return value
 
 

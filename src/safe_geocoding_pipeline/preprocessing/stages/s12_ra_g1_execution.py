@@ -528,6 +528,7 @@ class PhaseSession:
         try:
             if trace is not None:
                 self.check()
+            self._rep_admin_adoption()
             self.monitor.start()
             if self.bootstrap_prefix is not None:
                 self._save_bootstrap_original()
@@ -545,6 +546,20 @@ class PhaseSession:
         self.authority.resource_monitor = self.monitor
         self.authority.resource_session = self
         return self
+
+    def _rep_admin_adoption(self) -> Any:
+        if self.selection["schema_version"] != a.REP_ADMIN_SELECTION:
+            return None
+        c.require(callable(self.bootstrap_adoption_reader), "RA_G1_SELECTION_BINDING")
+        value = self.bootstrap_adoption_reader(self.selection["rep_admin_budget_adoption_sha256"])
+        if type(value) is bytes:
+            import json
+            c.require(len(value) <= 8192, "RA_G1_RECORD_LIMIT")
+            raw = value
+            value = json.loads(raw)
+            c.require(c.canonical(value) == raw, "RA_G1_SELECTION_BINDING")
+        c.require(len(c.canonical(value)) <= 8192, "RA_G1_RECORD_LIMIT")
+        return a.validate_rep_admin_adoption(value, self.selection)
 
     def _bootstrap_adoption(self) -> Any:
         value = self.bootstrap_adoption_reader(self.selection["bootstrap_prefix_adoption_sha256"])
@@ -665,6 +680,7 @@ class PhaseSession:
 
         def opening_stage() -> Any:
             self.require_start_acknowledged()
+            self._rep_admin_adoption()
             self.cursor = GrowingPrefix(
                 self.writer.path,
                 binding_sha256=o.digest(self.binding),
