@@ -28,7 +28,11 @@ class PublicReader:
     Only the entering thread owns the bounded descriptors. No state survives close.
     """
 
-    def __init__(self, root, *, check=io._checkpoint, direct_work=False):
+    def __init__(
+        self, root, *, check=io._checkpoint, direct_work=False, descriptor_relative=False
+    ):
+        c.require(type(descriptor_relative) is bool, "S12_PRIVATE_FILE_INVALID")
+        self.descriptor_relative = descriptor_relative
         self.root = os.path.abspath(os.fspath(root))
         c.require(os.fspath(root) == self.root, "S12_PRIVATE_FILE_INVALID")
         self.owner = threading.get_ident()
@@ -203,7 +207,11 @@ class PublicReader:
                     if sys.platform == "linux"
                     else name
                 )
-                fd = os.open(opening, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+                flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK
+                if self.descriptor_relative:
+                    fd = os.open(os.path.basename(name), flags, dir_fd=directory)
+                else:
+                    fd = os.open(opening, flags)
                 self.files[name] = fd
                 self.names_bytes += len(os.fsencode(name))
             self.files.move_to_end(name)

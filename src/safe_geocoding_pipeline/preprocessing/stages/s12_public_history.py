@@ -295,7 +295,10 @@ class Fresh:
         outputs: Any = (),
         events: Any = (),
         reader_root: Any = None,
+        descriptor_relative: bool = False,
     ) -> None:
+        c.require(type(descriptor_relative) is bool)
+        self.descriptor_relative = descriptor_relative
         self.root = Path(root).absolute()
         self.reader_root = (
             self.root if reader_root is None else Path(reader_root).absolute()
@@ -339,7 +342,10 @@ class Fresh:
                 check=self.check,
                 cache_bytes=CACHE_BYTES,
             )
-            self.reader = _reader_type(self.reader_root, check=self.check)
+            self.reader = _reader_type(
+                self.reader_root, check=self.check,
+                **({"descriptor_relative": True} if self.descriptor_relative else {}),
+            )
             scope = io.public_originals(self.reader)
             scope.__enter__()
             self.original_scope = scope

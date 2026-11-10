@@ -35,7 +35,10 @@ class FreshReads:
         outputs=frozenset(),
         events=(),
         reader_root=None,
+        descriptor_relative=False,
     ):
+        o.require(type(descriptor_relative) is bool)
+        self.descriptor_relative = descriptor_relative
         self.root = Path(root).absolute()
         self.reader_root = (
             self.root if reader_root is None else Path(reader_root).absolute()
@@ -125,7 +128,10 @@ class FreshReads:
             self.boundary()
             from .s12_public_reader import PublicReader
 
-            self.reader = PublicReader(self.reader_root, check=self.check)
+            self.reader = PublicReader(
+                self.reader_root, check=self.check,
+                **({"descriptor_relative": True} if self.descriptor_relative else {}),
+            )
             self.original_scope = io.public_originals(self.reader)
             self.original_scope.__enter__()
             self.directories, self.inputs = self._tree()
@@ -271,10 +277,14 @@ def _work_read(path):
     return raw
 
 
-def work_manifest_digest(root, count):
+def work_manifest_digest(root, count, *, descriptor_relative=False):
+    o.require(type(descriptor_relative) is bool)
     from .s12_public_reader import PublicReader
 
-    with PublicReader(root, direct_work=True) as reader, io.public_originals(reader):
+    with PublicReader(
+        root, direct_work=True,
+        **({"descriptor_relative": True} if descriptor_relative else {}),
+    ) as reader, io.public_originals(reader):
         return _work_manifest_digest(root, count)
 
 

@@ -184,13 +184,10 @@ def verify_successor_assets(repository, *, contract=None, rep_admin_successor=Fa
     from . import s12_wf_ap2_timing as wire
 
     descriptors = successor.descriptors(**({"rep_admin_successor": True} if rep_admin_successor else {}))
-    descriptors[successor.TIMING] = wire.descriptor(
-        **(
-            {"schema": successor.TIMING}
-            if getattr(successor, "RA_ENABLED", False)
-            else {}
-        )
-    )
+    # The shared wire descriptor keeps its frozen v3 identity. RA instance
+    # schema/policy/chunk limits are independently enforced by writer/readers.
+    timing_asset = wire.SCHEMA if getattr(successor, "RA_ENABLED", False) else successor.TIMING
+    descriptors[timing_asset] = wire.descriptor()
     for name, value in descriptors.items():
         raw = (repository / "docs/scientific_assets" / (name + ".json")).read_bytes()
         o.require(raw == c.canonical(value), "S12_ASSET_MISMATCH")
@@ -559,7 +556,7 @@ def runtime_inventory(
         "implementation": platform.python_implementation(),
         "openssl": ssl.OPENSSL_VERSION,
         "packages": sorted(
-            (d.metadata["Name"], d.version) for d in importlib.metadata.distributions()
+            [d.metadata["Name"], d.version] for d in importlib.metadata.distributions()
         ),
         "public_validation_sha256": validation_sha256
         or o.digest(validation.descriptor()),
@@ -990,7 +987,12 @@ def reopen_completed(
 
             stack.enter_context(selected(plan["history_limits"]))
             stack.enter_context(
-                FreshReads(root, check=io._checkpoint, limits=plan["history_limits"])
+                FreshReads(
+                    root, check=io._checkpoint, limits=plan["history_limits"],
+                    **({"descriptor_relative": True}
+                       if profile.get("schema_version") == "stage12_transport_operations_ra_g1_v1"
+                       else {}),
+                )
             )
         else:
             stack.enter_context(FreshReads(root, check=io._checkpoint))
@@ -1554,6 +1556,9 @@ def _reopen_sampling_completed(
             with FreshReads(
                 node,
                 check=io._checkpoint,
+                **({"descriptor_relative": True}
+                   if profile.get("schema_version") == "stage12_transport_operations_ra_g1_v1"
+                   else {}),
                 **(
                     {"limits": plan["history_limits"]}
                     if profile.get("schema_version")

@@ -579,7 +579,9 @@ def write_snapshot(
                         FreshReads = partial(history.Fresh, limits=history.current())
 
                 with FreshReads(
-                    writer.root, check=fence.check_live, boundary=fence.check
+                    writer.root, check=fence.check_live, boundary=fence.check,
+                    **({"descriptor_relative": True}
+                       if o.PROFILE == "stage12_transport_operations_ra_g1_v1" else {}),
                 ):
                     o.require(validate(len(raw)) == prepared)
                 bound()

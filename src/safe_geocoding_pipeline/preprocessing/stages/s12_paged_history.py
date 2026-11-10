@@ -508,7 +508,10 @@ class Fresh(old.Fresh):
                 self._reserved = needed
             self.bucket_digests = bytearray(BUCKETS * 32)
             self.numeric_digests = bytearray(BUCKETS * 32)
-            self.reader = old._reader_type(self.reader_root, check=self.check)
+            self.reader = old._reader_type(
+                self.reader_root, check=self.check,
+                **({"descriptor_relative": True} if self.descriptor_relative else {}),
+            )
             self.original_scope = io.public_originals(self.reader)
             self.original_scope.__enter__()
             self.baseline, _ = self._snapshot()

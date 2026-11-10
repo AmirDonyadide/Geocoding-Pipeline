@@ -18,6 +18,7 @@ _ENTRY_CPU_NS = time.process_time_ns()
 
 from contextlib import contextmanager
 from collections import namedtuple
+from bisect import bisect_left
 import hashlib
 import importlib.util
 import json
@@ -657,7 +658,121 @@ def public_input_layout(input_path, bundle, controlled):
         return False
 
 
-def open_allowed(path, *, write, source, output, input_path, evidence, self_proc=None):
+def _source_read_digest(entries, metadata=None):
+    """Stream the existing canonical grammar with one bounded hash workspace."""
+    from safe_geocoding_pipeline.preprocessing.stages.s12_public_bounded import Canonical
+    from safe_geocoding_pipeline.preprocessing.stages.s12_wf_ap2_scratch import lease
+
+    result = hashlib.sha256()
+    encoder = json.JSONEncoder(ensure_ascii=True, sort_keys=True,
+                               separators=(",", ":"), allow_nan=False)
+
+    def emit(value, maximum):
+        count = Canonical(maximum, count_only=True)
+        count.value(value)
+        iterator = encoder.iterencode(value)
+        chunk = raw = None
+        try:
+            for chunk in iterator:
+                # Validated row paths have <=512 UTF8 bytes; other scalars are
+                # fixed metadata or 64-character hashes. ASCII escapes fit 2KiB.
+                require(len(chunk) <= 2048, "RA_G1_SOURCE_INVENTORY")
+                raw = chunk.encode("ascii")
+                result.update(raw)
+                raw = chunk = None
+        finally:
+            raw = chunk = None
+            iterator.close()
+
+    def source_array():
+        result.update(b"[")
+        for ordinal, (name, size, identity) in enumerate(entries):
+            if ordinal:
+                result.update(b",")
+            emit(dict(path=name, bytes=size, sha256=identity), 2048)
+        result.update(b"]")
+
+    with lease("HASH"):
+        if metadata is None:
+            source_array()
+        else:
+            result.update(b"{")
+            for ordinal, key in enumerate(sorted((*metadata, "source_files"))):
+                if ordinal:
+                    result.update(b",")
+                emit(key, 128)
+                result.update(b":")
+                if key == "source_files":
+                    source_array()
+                else:
+                    emit(metadata[key], 65536)
+            result.update(b"}")
+        result.update(b"\n")
+    return result.hexdigest()
+
+
+class _ReviewedSourceReads(tuple):
+    """Immutable selected names only; every lookup retains fresh path checks."""
+
+    __slots__ = ()
+
+    def __new__(cls, source, rows, expected_inventory_sha256, *, metadata=None, review_sha256=None):
+        prefix = str(source)
+        require(source.is_absolute() and len(prefix) <= 512
+                and type(rows) is list and 1 <= len(rows) <= 2048,
+                "RA_G1_SOURCE_INVENTORY")
+        previous, total, entries = None, 0, []
+        for row in rows:
+            require(type(row) is dict and set(row) == {"path", "bytes", "sha256"},
+                    "RA_G1_SOURCE_INVENTORY")
+            name, size, identity = row["path"], row["bytes"], row["sha256"]
+            require(type(name) is str and len(name) <= 512
+                    and len(name.encode("utf8")) <= 512,
+                    "RA_G1_SOURCE_INVENTORY")
+            relative = Path(name)
+            require(not relative.is_absolute() and ".." not in relative.parts
+                    and str(relative) == name
+                    and not any(part in {".ssh", ".config", "credentials", ".git"}
+                                or part.startswith(".env") for part in relative.parts)
+                    and not any(ord(character) < 32 or ord(character) == 127 for character in name)
+                    and (previous is None or previous < name)
+                    and type(size) is int and 0 <= size <= 64 * 2**20
+                    and type(identity) is str and len(identity) == 64
+                    and all(character in "0123456789abcdef" for character in identity),
+                    "RA_G1_SOURCE_INVENTORY")
+            entries.append((name, size, identity))
+            previous, total = name, total + size
+        require(total <= 64 * 2**20
+                and expected_inventory_sha256 == _source_read_digest(entries),
+                "RA_G1_SOURCE_INVENTORY")
+        if metadata is not None:
+            require(review_sha256 == _source_read_digest(entries, metadata), "RA_G1_SOURCE_INVENTORY")
+        return tuple.__new__(cls, (prefix + "/", tuple(row[0] for row in entries), threading.Lock()))
+
+    def permits(self, original, resolved):
+        if original != resolved:
+            return False
+        text = str(original)
+        prefix, names, query_lock = self
+        if not text.startswith(prefix) or len(text) > len(prefix) + 512:
+            return False
+        # Serialize only the <=512-character query, never filesystem I/O.
+        with query_lock:
+            relative = text[len(prefix):]
+            try:
+                position = bisect_left(names, relative)
+                matched = position < len(names) and names[position] == relative
+            finally:
+                del relative
+        if not matched:
+            return False
+        try:
+            return stat.S_ISREG(original.lstat().st_mode)
+        except OSError:
+            return False
+
+
+def open_allowed(path, *, write, source, output, input_path, evidence, self_proc=None, source_reads=None):
     """Pure audit policy. Kernel/library allowances contain no protected inputs."""
     original = Path(os.fsdecode(path))
     if not original.is_absolute() or ".." in original.parts:
@@ -724,6 +839,8 @@ def open_allowed(path, *, write, source, output, input_path, evidence, self_proc
         or path.is_relative_to(output)
         or any(path == root or path.is_relative_to(root) for root in safe)
     ):
+        return True
+    if source_reads is not None and source_reads.permits(original, path):
         return True
     kernel_files = {
         "/dev/null",
@@ -830,7 +947,41 @@ def install_denials(source, output, input_path, evidence):
 
     creations = [0]
     selected_limit = [None]
+    source_reads = [None]
     lock = threading.Lock()
+
+    def bind_reviewed_source_reads(authority, bound):
+        from safe_geocoding_pipeline.preprocessing.stages.s12_ra_g1_public import Authority, ROLES
+
+        require(type(authority) is Authority and authority.repository == source
+                and authority.git_sha == bound["source_git_sha"]
+                and authority.diagnostic_scope == SCOPE and authority.service_authority is False
+                and authority.configuration_scope_sha256 == bound["configuration_scope_sha256"],
+                "RA_G1_SOURCE_INVENTORY")
+        review = authority.review
+        metadata = {key: value for key, value in review.items() if key != "source_files"}
+        require(set(metadata) == {"version", "scope", "disposition", "configuration_sha256", "report_sha256", "resource_evidence"}
+                and metadata["version"] == REVIEW_VERSION and metadata["scope"] == SCOPE
+                and metadata["disposition"] == "PASS", "RA_G1_SOURCE_INVENTORY")
+        require(all(type(metadata[key]) is str and len(metadata[key]) == 64
+                    and all(char in "0123456789abcdef" for char in metadata[key])
+                    for key in ("configuration_sha256", "report_sha256")), "RA_G1_SOURCE_INVENTORY")
+        require(type(metadata["resource_evidence"]) is dict
+                and set(metadata["resource_evidence"]) == set(ROLES), "RA_G1_SOURCE_INVENTORY")
+        frozen_evidence = {}
+        for key, values in metadata["resource_evidence"].items():
+            require(type(key) is str and len(key) <= 64 and type(values) is list
+                    and 1 <= len(values) <= 64
+                    and all(type(value) is str and len(value) == 64
+                            and all(char in "0123456789abcdef" for char in value) for value in values),
+                    "RA_G1_SOURCE_INVENTORY")
+            frozen_evidence[key] = tuple(values)
+        metadata["resource_evidence"] = frozen_evidence
+        selected = _ReviewedSourceReads(source, review["source_files"], bound["source_inventory_sha256"],
+                                        metadata=metadata, review_sha256=authority.review_hash)
+        with lock:
+            require(source_reads[0] is None, "RA_G1_SOURCE_INVENTORY")
+            source_reads[0] = selected
 
     def audit(event, values):
         if event.startswith(
@@ -852,6 +1003,8 @@ def install_denials(source, output, input_path, evidence):
                 input_path=input_path,
                 evidence=evidence,
                 self_proc=self_proc,
+                **({"source_reads": source_reads[0]}
+                   if not write and source_reads[0] is not None else {}),
             ):
                 denied()
             if flags & os.O_CREAT and not isinstance(values[0], int):
@@ -920,6 +1073,7 @@ def install_denials(source, output, input_path, evidence):
     for name in ("Popen", "run", "call", "check_output", "check_call"):
         setattr(subprocess, name, denied)
     sys.addaudithook(audit)
+    guard.bind_reviewed_source_reads = bind_reviewed_source_reads
     return guard, network, creations, selected_limit, charge, denied
 
 
@@ -1412,6 +1566,7 @@ def execute(args, *, started_ns, cpu_started_ns):
 
                     def initialize_first_runtime():
                         handoff["verify_before_data"]()
+                        guard.bind_reviewed_source_reads(original, bound)
                         original.source_fence()
                         current = initialize_current_runtime()
                         original.bind(item, plan, start)

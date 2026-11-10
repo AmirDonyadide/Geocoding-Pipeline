@@ -574,6 +574,11 @@ def _run_operations_block(
     diagnostics = diagnostics or Failures(clock)
     operation = "PREFLIGHT"
     po.verify_authorities(profile, plan, start, authority)
+    # Explicitly captured by writer callbacks; thread-local selections do not cross.
+    reader_options = (
+        {"descriptor_relative": True}
+        if po.PROFILE == "stage12_transport_operations_ra_g1_v1" else {}
+    )
     resource_limits = (po.resources_view(profile) if getattr(po, "RA_ENABLED", False) else profile["resources"])
     po.verify_work_manifest(work_factory, plan)
     po.require(po.digest(runtime_inventory) == start["runtime_inventory_sha256"])
@@ -997,7 +1002,7 @@ def _run_operations_block(
             )
 
             current_work_digest = (
-                work_manifest_digest(output / "work", total_rows)
+                work_manifest_digest(output / "work", total_rows, **reader_options)
                 if total_rows <= WORK_ROWS_BOUND
                 else po.manifest_digest(works())
             )
@@ -1094,7 +1099,7 @@ def _run_operations_block(
             if row["kind"] == "DATA":
                 from .stages.s12_public_reader import PublicReader
 
-                with PublicReader(root) as reader, io.public_originals(reader):
+                with PublicReader(root, **reader_options) as reader, io.public_originals(reader):
                     return oa.finish_data(
                         root,
                         row,
@@ -1449,7 +1454,8 @@ def _run_operations_block(
             with coordinator.safety:
                 po.require(not coordinator.slots)
             with FreshReads(
-                output / "attempts", check=comparison_checkpoint, reader_root=output
+                output / "attempts", check=comparison_checkpoint, reader_root=output,
+                **reader_options,
             ):
                 comparison_hash = log.stream_array(
                     "repeat_comparison.json", comparisons()
@@ -1501,6 +1507,7 @@ def _run_operations_block(
                 output,
                 check=writer.closure_fence.check_live,
                 boundary=writer.closure_fence.check,
+                **reader_options,
                 outputs={
                     "measurement_event_prefix.json",
                     "block_report.json",
