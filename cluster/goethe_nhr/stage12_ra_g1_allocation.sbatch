@@ -47,7 +47,7 @@ ra_record() {
     ra_tick
     if [[ "$((STAGE12_RA_NOW+10000000))" -ge "$STAGE12_RA_END_NS" && "$exit_code" == 0 ]]; then exit_code=124; fi
     if [[ -d "$STAGE12_RA_ROOT" && ! -e "$STAGE12_RA_STATE" ]]; then
-        (set -o noclobber; printf '{"version":"stage12_ra_g1_supervisor_terminal_intent_v1","source_sha":"%s","selection_sha256":"%s","status":"%s","exit_code":%d,"python_invocations":%d,"utility_invocations":%d,"observed_mono_ns_lower":%d,"deadline_mono_ns":%d,"B_service_authority":false}\n' "$STAGE12_RA_SHA" "$STAGE12_RA_SELECTION_SHA" "$STAGE12_RA_STATUS" "$exit_code" "$STAGE12_RA_PYTHONS" "$STAGE12_RA_UTILITIES" "$STAGE12_RA_NOW" "$STAGE12_RA_END_NS" > "$STAGE12_RA_STATE") || exit_code=74
+        (set -o noclobber; printf '{"B_service_authority":false,"deadline_mono_ns":%d,"exit_code":%d,"observed_mono_ns_lower":%d,"python_invocations":%d,"selection_sha256":"%s","source_sha":"%s","status":"%s","utility_invocations":%d,"version":"stage12_ra_g1_supervisor_terminal_intent_v1"}\n' "$STAGE12_RA_END_NS" "$exit_code" "$STAGE12_RA_NOW" "$STAGE12_RA_PYTHONS" "$STAGE12_RA_SELECTION_SHA" "$STAGE12_RA_SHA" "$STAGE12_RA_STATUS" "$STAGE12_RA_UTILITIES" > "$STAGE12_RA_STATE") || exit_code=74
         ra_utility timeout --signal=TERM --kill-after=1s 5s sync -f "$STAGE12_RA_STATE" || exit_code=74
         ra_check || exit_code=124
     else exit_code=74; fi
@@ -91,7 +91,7 @@ ra_run() {
     esac
     if [[ -n "$return_path" && -d "$STAGE12_RA_ROOT" ]]; then
         [[ ! -e "$return_path" ]]
-        (set -o noclobber; printf '{"version":"stage12_ra_g1_supervisor_wait_v1","source_sha":"%s","selection_sha256":"%s","supervisor_pid":%d,"pid":%d,"exit_code":%d,"wait_status":%d,"acquired_mono_ns":%d}\n' "$STAGE12_RA_SHA" "$STAGE12_RA_SELECTION_SHA" "$$" "$pid" "$status" "$((status*256))" "$STAGE12_RA_NOW" > "$return_path")
+        (set -o noclobber; printf '{"acquired_mono_ns":%d,"exit_code":%d,"pid":%d,"selection_sha256":"%s","source_sha":"%s","supervisor_pid":%d,"version":"stage12_ra_g1_supervisor_wait_v1","wait_status":%d}\n' "$STAGE12_RA_NOW" "$status" "$pid" "$STAGE12_RA_SELECTION_SHA" "$STAGE12_RA_SHA" "$$" "$((status*256))" > "$return_path")
         ra_utility timeout --signal=TERM --kill-after=1s 5s sync -f "$return_path"
     fi
     [[ "$((STAGE12_RA_NOW+10000000))" -lt "$end" ]] || return 124
