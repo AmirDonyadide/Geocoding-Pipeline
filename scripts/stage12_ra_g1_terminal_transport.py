@@ -307,6 +307,8 @@ import stat as _stat
 import secrets as _secrets
 
 BATCH_VERSION = "stage12_same_session_transfer_v2"
+PRESENCE_WIRE = b"S12B3"
+MAX_NAMED_STAT_LINE = 8192 + 512 + 2
 MAX_METADATA = 262144
 
 
@@ -342,20 +344,41 @@ def batch_remote_argv(rows, nonce, *, expected_uid, expected_gid=None, host=HOST
         tc.uint(expected_gid)
     snapshot = paths + extra + ancestors
     quoted = " ".join(shlex.quote(str(p)) for p in snapshot)
-    # All metadata and all DDs run in this one shell namespace. read/printf/mapfile
-    # are Bash builtins; exactly two stat and two readlink processes are used.
+    # Tagged metadata is bounded before launching the remote process.  A failed
+    # multi-argument stat still emits its successful named originals.  Capturing
+    # its status inside an if prevents errexit from discarding that evidence.
+    need(sum(len(os.fsencode(p)) + 513 for p in snapshot) <= MAX_METADATA, "LIMITS")
+    def snapshot_lines(stage, variable):
+        return [
+            f"{variable}_status=0",
+            "if " + variable + "=$(stat --printf='%n|%d|%i|%f|%u|%g|%h|%s|%y|%z|%F\\n' -- " + quoted + "); then :; else " + variable + "_status=$?; fi",
+            "printf '" + stage + "_STATUS|%s\\n' \"$" + variable + "_status\"",
+            "if [[ -n \"$" + variable + "\" ]]; then printf '%s\\n' \"$" + variable + "\"; fi",
+            "printf 'END_" + stage + "\\n'",
+        ]
+    # Same-session metadata/content/readback; two stat and two readlink
+    # processes remain.  All new framing and array work uses Bash builtins.
     lines = [
         "set -euo pipefail", "umask 077", "export LC_ALL=C TZ=UTC",
         "payload_pid=",
         "cleanup(){ code=$?; trap - EXIT HUP INT TERM; if [[ -n \"$payload_pid\" ]]; then kill -TERM \"$payload_pid\" 2>/dev/null || :; wait \"$payload_pid\" 2>/dev/null || :; fi; exit \"$code\"; }",
         "trap cleanup EXIT", "trap 'exit 2' HUP INT TERM",
         "domain(){ IFS= read -r host </proc/sys/kernel/hostname; IFS= read -r boot </proc/sys/kernel/random/boot_id; mount=$(readlink -- /proc/$$/ns/mnt); printf 'DOMAIN|%s|%s|%s|%s|%s\\n' \"$host\" \"$boot\" \"$mount\" " + shlex.quote(nonce) + " \"$$\"; }",
-        "printf 'S12B2|" + nonce + "|" + str(len(paths)) + "|" + str(len(extra)) + "|" + str(len(ancestors)) + "\\n'",
+        "printf 'S12B3|" + nonce + "|" + str(len(paths)) + "|" + str(len(extra)) + "|" + str(len(ancestors)) + "\\n'",
         "domain",
-        "before=$(stat --printf='%d|%i|%f|%u|%g|%h|%s|%y|%z|%F\\n' -- " + quoted + ")",
-        "printf 'BEFORE\\n%s\\n' \"$before\"",
-        "mapfile -t meta <<<\"$before\"",
+    ] + snapshot_lines("BEFORE", "before") + [
+        # Build the fixed ordinal array without dropping absent slots.  A name
+        # may intentionally occupy both an extra-metadata and ancestor slot.
+        "meta=(" + " ".join("''" for _ in snapshot) + ")",
+        "if [[ -n \"$before\" ]]; then",
+        "while IFS='|' read -r named info; do",
+        "case \"$named\" in",
     ]
+    for path in dict.fromkeys(snapshot):
+        assignments = "; ".join("meta[" + str(i) + "]=\"$info\""
+                                for i, expected in enumerate(snapshot) if expected == path)
+        lines.append(shlex.quote(str(path)) + ") " + assignments + ";;")
+    lines += ["*) exit 2;;", "esac", "done <<<\"$before\"", "fi"]
     # Reject unsupported metadata before any DD opens a source. All predicates
     # use Bash builtins over this session's own captured lstat snapshot.
     lines.append("[[ ${#meta[@]} -eq " + str(len(snapshot)) + " ]]")
@@ -375,6 +398,7 @@ def batch_remote_argv(rows, nonce, *, expected_uid, expected_gid=None, host=HOST
         ]
         if expected_gid is not None:
             lines.append("[[ \"$group\" == " + str(expected_gid) + " ]]")
+        lines.append("if [[ -n \"${meta[" + str(i) + "]}\" ]]; then")
         lines += [
             "IFS='|' read -r dev ino mode owner group links size mt ct kind <<<\"${meta[" + str(i) + "]}\"",
             "[[ \"$mode\" =~ ^[0-9a-f]+$ && \"$size\" =~ ^[0-9]+$ && \"$owner\" == " + str(expected_uid) + " && \"$links\" == 1 ]]",
@@ -385,25 +409,27 @@ def batch_remote_argv(rows, nonce, *, expected_uid, expected_gid=None, host=HOST
             lines.append("(( size == " + str(row["bytes"]) + " ))")
         if expected_gid is not None:
             lines.append("[[ \"$group\" == " + str(expected_gid) + " ]]")
+        lines.append("fi")
     if terminal_log_labels:
         positions=[i for i,row in enumerate(rows) if row["label"] in terminal_log_labels]
         lines.append("log_total=0")
         for i in positions:
-            lines += ["IFS='|' read -r dev ino mode owner group links size mt ct kind <<<\"${meta[" + str(i) + "]}\"",
-                      "(( log_total += size )) || [[ \"$log_total\" == 0 ]]"]
+            lines += ["if [[ -n \"${meta[" + str(i) + "]}\" ]]; then",
+                      "IFS='|' read -r dev ino mode owner group links size mt ct kind <<<\"${meta[" + str(i) + "]}\"",
+                      "(( log_total += size )) || [[ \"$log_total\" == 0 ]]", "fi"]
         lines.append("(( log_total <= 16777216 ))")
     for i, path in enumerate(paths):
         lines += [
+            "if [[ -n \"${meta[" + str(i) + "]}\" ]]; then",
             "IFS='|' read -r dev ino mode owner group links size mt ct kind <<<\"${meta[" + str(i) + "]}\"",
             "[[ \"$size\" =~ ^[0-9]+$ ]]",
             "printf 'DATA|" + str(i) + "|%s\\n' \"$size\"",
             "dd if=" + shlex.quote(str(path)) + " iflag=nofollow,nonblock bs=65536 status=none &",
             "payload_pid=$!", "wait \"$payload_pid\"", "payload_pid=",
             "printf '\\nEND_DATA|" + str(i) + "\\n'",
+            "else", "printf 'ABSENT_DATA|" + str(i) + "\\n'", "fi",
         ]
-    lines += [
-        "printf 'AFTER\\n'",
-        "stat --printf='%d|%i|%f|%u|%g|%h|%s|%y|%z|%F\\n' -- " + quoted,
+    lines += snapshot_lines("AFTER", "after") + [
         "domain", "printf 'END|" + nonce + "\\n'",
     ]
     if publication is not None:
@@ -462,6 +488,44 @@ def _stat_line(raw):
         return value
     except (UnicodeError, ValueError, OverflowError):
         raise tc.Stop("FRAME") from None
+
+
+def _named_stat_block(reader, stage, snapshot, values, states):
+    """Read every selected name before content; generic failures stay unknown."""
+    raw = reader.line()
+    prefix = (stage + "_STATUS|").encode()
+    need(raw.startswith(prefix) and raw.endswith(b"\n"), "FRAME")
+    status_raw = raw[len(prefix):-1]
+    need(status_raw.isdigit() and len(status_raw) <= 3, "FRAME")
+    status = int(status_raw)
+    need(0 <= status <= 255, "FRAME")
+    seen = set()
+    total = 0
+    while True:
+        raw = reader.line(MAX_NAMED_STAT_LINE)
+        if raw == ("END_" + stage + "\n").encode():
+            break
+        total += len(raw)
+        need(total <= MAX_METADATA and len(seen) < len(snapshot), "LIMITS")
+        named, separator, info = raw.partition(b"|")
+        need(separator == b"|", "FRAME")
+        try:
+            path = os.fsdecode(named)
+        except (ValueError, UnicodeError):
+            raise tc.Stop("FRAME") from None
+        # metadata_paths may also be an ancestor. Preserve its explicitly
+        # repeated slot rather than conflating equal pathnames.
+        index = next((i for i, expected in enumerate(snapshot)
+                      if str(expected) == path and i not in seen), None)
+        need(index is not None, "FRAME")
+        values[index] = _stat_line(info)
+        states[index] = "PRESENT"
+        seen.add(index)
+    for index in range(len(snapshot)):
+        if index not in seen:
+            states[index] = "UNAVAILABLE"
+    need((status == 0) == (len(seen) == len(snapshot)), "FRAME")
+    return status
 
 
 class _PipeReader:
@@ -563,15 +627,21 @@ def fetch_batch(rows, target_root, control, *, expected_uid, expected_gid=None,
     first = None
     phase = "START"
     before = after = []
+    presence_before = presence_after = None
+    before_stat_status = after_stat_status = None
     domain_before = domain_after = None
     file_reports = []
+    file_report_indices = []
     cleanup_uncertain = False
     remote_complete = False
     try:
         proc = subprocess.Popen(testing_argv if testing_argv is not None else batch_remote_argv(rows, nonce, expected_uid=expected_uid, expected_gid=expected_gid, metadata_paths=metadata_paths, publication=publication, terminal_log_labels=terminal_log_labels),
                                 stdin=subprocess.PIPE if input_bytes is not None else subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True)
         reader = _PipeReader(proc,control,kill_at,input_bytes)
-        need(reader.line() == f"S12B2|{nonce}|{len(paths)}|{len(extras)}|{len(ancestors)}\n".encode(), "FRAME")
+        header = reader.line()
+        suffix = f"|{nonce}|{len(paths)}|{len(extras)}|{len(ancestors)}\n".encode()
+        need(header in (b"S12B2" + suffix, PRESENCE_WIRE + suffix), "FRAME")
+        named_wire = header.startswith(PRESENCE_WIRE + b"|")
         def domain():
             try:
                 parts = reader.line().decode("ascii").rstrip("\n").split("|")
@@ -583,20 +653,29 @@ def fetch_batch(rows, target_root, control, *, expected_uid, expected_gid=None,
             return value
         phase = "BEFORE"
         domain_before = domain()
-        need(reader.line() == b"BEFORE\n", "FRAME")
-        before = []
-        for _ in paths+extras+ancestors:
-            before.append(_stat_line(reader.line()))
-        need(sum(before[i][6] for i,r in enumerate(rows) if r["label"] in terminal_log_labels) <= 16*2**20, "WRITE_BYTES")
+        snapshot = paths + extras + ancestors
+        if named_wire:
+            before = [None] * len(snapshot)
+            presence_before = ["UNOBSERVED"] * len(snapshot)
+            before_stat_status = _named_stat_block(reader, "BEFORE", snapshot, before, presence_before)
+        else:
+            need(reader.line() == b"BEFORE\n", "FRAME")
+            before = []
+            for _ in snapshot:
+                before.append(_stat_line(reader.line()))
+        need(sum(before[i][6] for i,r in enumerate(rows) if r["label"] in terminal_log_labels and before[i] is not None) <= 16*2**20, "WRITE_BYTES")
         for info in before[len(paths)+len(extras):]:
-            need(_stat.S_ISDIR(info[2]), "ANCESTOR")
+            need(info is not None and _stat.S_ISDIR(info[2]), "ANCESTOR")
         for path in paths:
             parent = ancestors.index(path.parent)+len(paths)+len(extras)
             info=before[parent]
-            need(_stat.S_ISDIR(info[2]) and _stat.S_IMODE(info[2]) == 0o700 and info[3] == expected_uid and (expected_gid is None or info[4] == expected_gid), "PRIVATE")
+            need(info is not None and _stat.S_ISDIR(info[2]) and _stat.S_IMODE(info[2]) == 0o700 and info[3] == expected_uid and (expected_gid is None or info[4] == expected_gid), "PRIVATE")
         for i,(row,path) in enumerate(zip(rows,paths,strict=True)):
             phase = "CONTENT"
             info = before[i]
+            if info is None:
+                need(named_wire and reader.line() == f"ABSENT_DATA|{i}\n".encode(), "FRAME")
+                continue
             need(_stat.S_ISREG(info[2]) and _stat.S_IMODE(info[2]) == 0o600 and info[3] == expected_uid
                  and (expected_gid is None or info[4] == expected_gid) and info[5] == 1, "PRIVATE")
             maximum = row.get("bytes",row.get("maximum"))
@@ -630,21 +709,32 @@ def fetch_batch(rows, target_root, control, *, expected_uid, expected_gid=None,
             tc.close_owned(control,(fd,))
             fd=None
             file_reports.append(dict(label=row["label"],path=str(path),before=info,after=None,bytes=info[6],sha256=sha.hexdigest()))
+            file_report_indices.append(i)
         phase="AFTER"
-        need(reader.line()==b"AFTER\n","FRAME")
-        after=[]
-        for _ in paths+extras+ancestors:
-            after.append(_stat_line(reader.line()))
+        if named_wire:
+            after = [None] * len(snapshot)
+            presence_after = ["UNOBSERVED"] * len(snapshot)
+            after_stat_status = _named_stat_block(reader, "AFTER", snapshot, after, presence_after)
+        else:
+            need(reader.line()==b"AFTER\n","FRAME")
+            after=[]
+            for _ in snapshot:
+                after.append(_stat_line(reader.line()))
         domain_after=domain()
         need(domain_after==domain_before,"DOMAIN")
-        for i,row in enumerate(file_reports):
+        for i, row in zip(file_report_indices, file_reports, strict=True):
             row["after"]=after[i]
-        need(before[:len(paths)+len(extras)]==after[:len(paths)+len(extras)],"SOURCE_CHANGED")
-        need([v[:6] for v in before[len(paths)+len(extras):]]==[v[:6] for v in after[len(paths)+len(extras):]],"ANCESTOR_CHANGED")
+        if not named_wire:
+            need(before[:len(paths)+len(extras)]==after[:len(paths)+len(extras)],"SOURCE_CHANGED")
+            need([v[:6] for v in before[len(paths)+len(extras):]]==[v[:6] for v in after[len(paths)+len(extras):]],"ANCESTOR_CHANGED")
         need(reader.line()==f"END|{nonce}\n".encode(),"FRAME")
         phase="JOIN"
         reader.finish()
         remote_complete = True
+        if named_wire:
+            need(before[:len(paths)+len(extras)]==after[:len(paths)+len(extras)],"SOURCE_CHANGED")
+            need(all(value is not None for value in after[len(paths)+len(extras):])
+                 and [v[:6] for v in before[len(paths)+len(extras):]]==[v[:6] for v in after[len(paths)+len(extras):]],"ANCESTOR_CHANGED")
         tc.check_ancestors(local_chain)
         need(tc.ident(target_root.lstat())[:5]==local_identity,"SOURCE_CHANGED")
         dfd=os.open(target_root,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW)
@@ -652,6 +742,9 @@ def fetch_batch(rows, target_root, control, *, expected_uid, expected_gid=None,
             os.fsync(dfd)
         finally:
             tc.close_owned(control,(dfd,))
+        if named_wire and (before_stat_status or after_stat_status):
+            phase = "BEFORE"
+            raise tc.Stop("RETENTION")
         evidence=dict(version=BATCH_VERSION,domain_before=domain_before,domain_after=domain_after,
                       ancestors=[dict(path=str(path),before=before[len(paths)+len(extras)+i],after=after[len(paths)+len(extras)+i]) for i,path in enumerate(ancestors)],
                       files=file_reports,exit_code=0,observed_joined=True)
@@ -664,6 +757,17 @@ def fetch_batch(rows, target_root, control, *, expected_uid, expected_gid=None,
                         first_mono_ns=time.monotonic_ns(),first_epoch_ns=time.time_ns(),
                         code=pair.safe_code(error),domain_before=domain_before,domain_after=domain_after,
                         metadata_before=before,metadata_after=after,cleanup_uncertain=False)
+        if presence_before is not None:
+            diagnostic["retained_files"] = file_reports
+        if presence_before is not None:
+            diagnostic["presence"] = dict(
+                version="stage12_named_control_presence_v1",
+                before_stat_exit=before_stat_status, after_stat_exit=after_stat_status,
+                entries=[dict(index=i, label=rows[i]["label"] if i < len(rows) else None,
+                              kind="CONTROL" if i < len(paths) else "METADATA" if i < len(paths)+len(extras) else "ANCESTOR",
+                              before=presence_before[i], after=presence_after[i] if presence_after is not None else "UNOBSERVED")
+                         for i in range(len(snapshot))],
+            )
     finally:
         if fd is not None:
             try:
