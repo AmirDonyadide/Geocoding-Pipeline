@@ -20,7 +20,9 @@ import sys
 import time
 
 VERSION = "stage12_terminal_stream_v1"
+FIFO_VERSION = "stage12_terminal_stream_v2_inert_fifo"
 MAGIC = b"S12TC001\n"
+FIFO_MAGIC = b"S12TC002\n"
 SCOPE = "TASK_ONLY_COLLECTION_INTEGRITY_NOT_NATIVE_PASS"
 LABEL = re.compile(r"[a-z][a-z0-9_-]{0,31}\Z")
 HEX = re.compile(r"[0-9a-f]{64}\Z")
@@ -245,12 +247,19 @@ def selection_read(path, expected, entered):
 
 class Selection:
     def __init__(self, value, offline, test_root):
-        need(type(value) is dict and set(value) == {
+        need(type(value) is dict, "SELECTION")
+        expected_keys = {
             "version", "scope", "state", "approval_sha256", "source_uid", "source_gid",
             "roots", "external_files", "required_logs", "limits", "valid_until_epoch_ns",
             "job_id", "source_git_sha",
-        }, "SELECTION")
-        need(value["version"] == VERSION, "SELECTION")
+        }
+        self.version = value.get("version")
+        need(self.version in (VERSION, FIFO_VERSION), "SELECTION")
+        if self.version == FIFO_VERSION:
+            expected_keys.add("inert_fifos")
+        need(set(value) == expected_keys, "SELECTION")
+        self.magic = FIFO_MAGIC if self.version == FIFO_VERSION else MAGIC
+        self.inert = {}
         if offline:
             need(value["scope"] == "TEST_ONLY_INVENTED" and value["state"] == "TEST_ONLY"
                  and value["approval_sha256"] is None and test_root is not None, "SCOPE")
@@ -311,6 +320,23 @@ class Selection:
             head = path.split("/")[0]
             need(head in self.roots or (head in self.external and path == head), "REQUIRED_LOGS")
             self.logs.add(path)
+        if self.version == FIFO_VERSION:
+            declarations = value["inert_fifos"]
+            need(type(declarations) is list and len(declarations) <= 16, "SPECIAL")
+            for row in declarations:
+                need(type(row) is dict and set(row) == {"path", "identity"}, "SPECIAL")
+                logical = self.relative(row["path"])
+                need(logical not in self.inert and len(logical.split("/")) > 1
+                     and logical.split("/")[0] in self.roots and logical not in self.logs,
+                     "SPECIAL")
+                identity = row["identity"]
+                need(type(identity) is list and len(identity) == 9, "IDENTITY")
+                for number in identity:
+                    uint(number)
+                need(stat.S_ISFIFO(identity[2]) and stat.S_IMODE(identity[2]) == 0o600
+                     and identity[3:5] == [self.uid, self.gid] and identity[5] == 1,
+                     "PRIVATE")
+                self.inert[logical] = list(identity)
 
     def relative(self, value):
         value = path_text(value)
@@ -576,12 +602,17 @@ def row_for(path, kind, info, digest):
 def validate_row(row, selected):
     need(type(row) is dict and set(row) == {"path", "kind", "size", "sha256", "identity"}, "ROW")
     selected.relative(row["path"])
-    need(row["kind"] in ("DIR", "FILE"), "SPECIAL")
+    need(row["kind"] in ("DIR", "FILE", "FIFO_INERT"), "SPECIAL")
     uint(row["size"])
     need(type(row["identity"]) is list and len(row["identity"]) == 9, "IDENTITY")
     for number in row["identity"]:
         uint(number)
     mode = row["identity"][2]
+    if row["kind"] == "FIFO_INERT":
+        need(selected.version == FIFO_VERSION and row["path"] in selected.inert
+             and row["identity"] == selected.inert[row["path"]]
+             and row["size"] == 0 and row["sha256"] is None, "SPECIAL")
+        return row
     need(stat.S_IMODE(mode) == (0o700 if row["kind"] == "DIR" else 0o600)
          and (stat.S_ISDIR(mode) if row["kind"] == "DIR" else stat.S_ISREG(mode))
          and row["identity"][3:5] == [selected.uid, selected.gid], "PRIVATE")
@@ -607,8 +638,9 @@ def hash_fd(fd, parent_fd, name, expected, budget):
 
 
 class Source:
-    def __init__(self, selected, budget, roots=None, external=None, local=False):
+    def __init__(self, selected, budget, roots=None, external=None, local=False, inert_root=None):
         self.s, self.b = selected, budget
+        self.local, self.inert_root = local, inert_root
         self.roots = selected.roots if roots is None else roots
         self.external = selected.external if external is None else external
         self.uid, self.gid = (os.geteuid(), None) if local else (selected.uid, selected.gid)
@@ -626,6 +658,17 @@ class Source:
             close_owned(self.b, (fd,))
         return row_for(logical, "FILE", info, digest)
 
+    def fifo(self, parent, name, logical, info):
+        self.b.check()
+        need(self.s.version == FIFO_VERSION and logical in self.s.inert
+             and list(ident(info)) == self.s.inert[logical], "SPECIAL")
+        need(stat.S_ISFIFO(info.st_mode) and stat.S_IMODE(info.st_mode) == 0o600
+             and info.st_uid == self.uid and info.st_gid == self.gid and info.st_nlink == 1,
+             "PRIVATE")
+        need(ident(os.stat(name, dir_fd=parent, follow_symlinks=False)) == ident(info),
+             "SOURCE_CHANGED")
+        return row_for(logical, "FIFO_INERT", info, None)
+
     def directory(self, fd, parent, name, logical, expected, depth, device):
         self.b.check()
         need(depth <= self.s.limits["depth"], "DEPTH")
@@ -640,12 +683,17 @@ class Source:
                 info = os.stat(entry.name, dir_fd=fd, follow_symlinks=False)
                 need(info.st_dev == device, "DEVICE")
                 target = logical + "/" + entry.name
-                if stat.S_ISDIR(info.st_mode):
+                if target in self.s.inert:
+                    need(not self.local and stat.S_ISFIFO(info.st_mode), "SPECIAL")
+                    yield self.fifo(fd, entry.name, target, info)
+                elif stat.S_ISDIR(info.st_mode):
                     child = os.open(entry.name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=fd)
                     try:
                         yield from self.directory(child, fd, entry.name, target, info, depth+1, device)
                     finally:
                         close_owned(self.b, (child,))
+                elif stat.S_ISFIFO(info.st_mode) and not self.local:
+                    yield self.fifo(fd, entry.name, target, info)
                 else:
                     need(stat.S_ISREG(info.st_mode), "SPECIAL")
                     yield self.file(fd, entry.name, target, info)
@@ -679,6 +727,28 @@ class Source:
                 close_owned(self.b, (parent,))
             check_ancestors(chain)
 
+        if self.local and self.s.inert:
+            need(self.inert_root is not None, "SPECIAL")
+            expected_names = {f"fifo{index:04d}.record" for index in range(len(self.s.inert))}
+            with os.scandir(self.inert_root) as entries:
+                seen = set()
+                for entry in entries:
+                    self.b.scan()
+                    need(entry.name in expected_names and entry.name not in seen, "OUTPUT_MEMBERSHIP")
+                    seen.add(entry.name)
+                need(seen == expected_names, "OUTPUT_MEMBERSHIP")
+            for index, logical in enumerate(sorted(self.s.inert)):
+                reader = Lines(self.inert_root/f"fifo{index:04d}.record", self.b,
+                               self.s.limits["record_bytes"])
+                try:
+                    raw = reader.next()
+                    need(raw is not None and reader.next() is None, "SPECIAL")
+                    row = validate_row(parse(raw), self.s)
+                    need(row["kind"] == "FIFO_INERT" and row["path"] == logical, "SPECIAL")
+                    yield row
+                finally:
+                    reader.close()
+
     def open_member(self, row):
         """Descriptor-relative lookup; return bounded chain held until payload EOF."""
         parts = row["path"].split("/")
@@ -707,6 +777,9 @@ class Source:
                 need(ident(os.fstat(child)) == ident(info), "SOURCE_CHANGED")
                 parent = child
             info = os.stat(tail[-1], dir_fd=parent, follow_symlinks=False)
+            if row["kind"] == "FIFO_INERT":
+                need(self.fifo(parent, tail[-1], row["path"], info) == row, "SOURCE_CHANGED")
+                return None, parent, tail[-1], info, held, chain
             private(info, row["kind"], self.uid, self.gid)
             need(list(ident(info)) == row["identity"], "SOURCE_CHANGED")
             flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK
@@ -736,12 +809,14 @@ def summarize(path, selected, budget, validate=True):
     digest = hashlib.sha256()
     count = payload = length = 0
     previous = None
-    found = set()
+    found, found_inert = set(), set()
     try:
         while (raw := reader.next()) is not None:
             row = parse(raw)
             if validate:
                 validate_row(row, selected)
+            if row["kind"] == "FIFO_INERT":
+                found_inert.add(row["path"])
             key = row["path"].encode()
             need(previous is None or previous < key, "ORDER")
             previous = key
@@ -755,6 +830,7 @@ def summarize(path, selected, budget, validate=True):
         need(count <= selected.limits["members"] and payload <= selected.limits["payload_bytes"]
              and length <= selected.limits["manifest_bytes"], "MANIFEST")
         need(found == selected.logs, "REQUIRED_LOG")
+        need(not validate or found_inert == set(selected.inert), "SPECIAL")
         return dict(members=count, payload_bytes=payload, manifest_bytes=length,
                     manifest_sha256=digest.hexdigest())
     finally:
@@ -838,8 +914,8 @@ def export(selected, output, stream, budget):
     before = make_manifest(output, "before", Source(selected, budget), selected, budget)
     summary = summarize(before, selected, budget)
     wire = WireOut(stream, selected, budget)
-    wire.raw(MAGIC)
-    wire.frame(dict(kind="BEGIN", version=VERSION, scope=SCOPE, selection_sha256=selected.sha))
+    wire.raw(selected.magic)
+    wire.frame(dict(kind="BEGIN", version=selected.version, scope=SCOPE, selection_sha256=selected.sha))
     wire.frame(dict(kind="BEFORE", summary=summary))
     reader = Lines(before, budget, selected.limits["record_bytes"])
     try:
@@ -865,8 +941,12 @@ def export(selected, output, stream, budget):
                         wire.raw(data)
                         left -= len(data)
                     need(not budget.read(fd, 1) and sha.hexdigest() == row["sha256"], "SOURCE_CHANGED")
-                need(ident(os.fstat(fd)) == ident(os.stat(name, dir_fd=parent, follow_symlinks=False))
-                     == ident(info), "SOURCE_CHANGED")
+                if row["kind"] == "FIFO_INERT":
+                    need(ident(os.stat(name, dir_fd=parent, follow_symlinks=False)) == ident(info),
+                         "SOURCE_CHANGED")
+                else:
+                    need(ident(os.fstat(fd)) == ident(os.stat(name, dir_fd=parent, follow_symlinks=False))
+                         == ident(info), "SOURCE_CHANGED")
             finally:
                 close_member(fd, held, chain, budget)
     finally:
@@ -901,6 +981,7 @@ def receive_manifest(wire, path, summary, selected, budget, expected=None):
          and type(summary["manifest_sha256"]) is str and HEX.fullmatch(summary["manifest_sha256"]), "SUMMARY")
     fd = create_file(path, budget)
     previous, digest, length, payload, found = None, hashlib.sha256(), 0, 0, set()
+    found_inert = set()
     try:
         for _ in range(summary["members"]):
             frame = wire.frame()
@@ -919,11 +1000,14 @@ def receive_manifest(wire, path, summary, selected, budget, expected=None):
             if row["path"] in selected.logs:
                 need(row["kind"] == "FILE", "REQUIRED_LOG")
                 found.add(row["path"])
+            if row["kind"] == "FIFO_INERT":
+                found_inert.add(row["path"])
             digest.update(raw)
             budget.write(fd, raw)
         need(length == summary["manifest_bytes"] and payload == summary["payload_bytes"]
              and digest.hexdigest() == summary["manifest_sha256"] and found == selected.logs,
              "MANIFEST")
+        need(found_inert == set(selected.inert), "SPECIAL")
         if expected is not None:
             need(expected.next() is None, "SOURCE_CHANGED")
         finish_file(fd, path, budget)
@@ -961,10 +1045,10 @@ def receive(selected, output, stream, budget):
     archive_fd = create_file(archive_path, budget)
     wire = WireIn(stream, archive_fd, selected, budget)
     try:
-        need(wire.exact(len(MAGIC)) == MAGIC, "MAGIC")
+        need(wire.exact(len(selected.magic)) == selected.magic, "MAGIC")
         begin = wire.frame()
         frame_kind(begin, "BEGIN", {"version", "scope", "selection_sha256"})
-        need(begin["version"] == VERSION and begin["scope"] == SCOPE
+        need(begin["version"] == selected.version and begin["scope"] == SCOPE
              and begin["selection_sha256"] == selected.sha, "BINDING")
         before_frame = wire.frame()
         frame_kind(before_frame, "BEFORE", {"summary"})
@@ -976,6 +1060,9 @@ def receive(selected, output, stream, budget):
         need(frame["summary"] == summary, "PROTOCOL")
         originals = output / "originals"
         mkdir(originals, budget)
+        inert_root = output / "inert-metadata"
+        if selected.inert:
+            mkdir(inert_root, budget)
         expected = Lines(before, budget, selected.limits["record_bytes"])
         try:
             for _ in range(summary["members"]):
@@ -985,6 +1072,16 @@ def receive(selected, output, stream, budget):
                 frame = wire.frame()
                 frame_kind(frame, "ENTRY", {"entry"})
                 need(canonical(frame["entry"]) == raw, "DATA_MEMBERSHIP")
+                if row["kind"] == "FIFO_INERT":
+                    index = sorted(selected.inert).index(row["path"])
+                    inert_path = inert_root/f"fifo{index:04d}.record"
+                    inert_fd = create_file(inert_path, budget)
+                    try:
+                        budget.write(inert_fd, raw)
+                        finish_file(inert_fd, inert_path, budget)
+                    finally:
+                        close_owned(budget, (inert_fd,))
+                    continue
                 parent, name, held = output_parent(originals, row["path"], budget)
                 try:
                     budget.claim("creations", 1)
@@ -1054,7 +1151,8 @@ def receive(selected, output, stream, budget):
         verify_spills = output / "verify-spills"
         mkdir(verify_spills, budget)
         verified = make_manifest(verify_spills, "verify",
-                                 Source(selected, budget, local_roots, local_external, local=True),
+                                 Source(selected, budget, local_roots, local_external, local=True,
+                                        inert_root=inert_root if selected.inert else None),
                                  selected, budget, project=True)
         actual = Lines(verified, budget, selected.limits["record_bytes"])
         expected = None
@@ -1104,14 +1202,16 @@ def plan(selected):
             break
         runs = (runs + limits["merge_fan_in"]-1)//limits["merge_fan_in"]
     m, p, wire, n = limits["manifest_bytes"], limits["payload_bytes"], limits["wire_bytes"], limits["members"]
-    return dict(version=VERSION, scope=SCOPE, per_manifest_run_files=files,
+    return dict(version=selected.version, scope=SCOPE, per_manifest_run_files=files,
                 retained_generations=generations,
                 exporter_scratch_bytes=2*generations*m+32768,
                 exporter_creation_bound=2*files+3,
-                receiver_filedata_bound=wire+p+(2+generations)*m+32768,
-                receiver_creation_bound=n+files+9,
-                total_filedata_bound=wire+p+(2+3*generations)*m+65536,
-                total_creation_bound=n+3*files+12,
+                receiver_filedata_bound=wire+p+(2+generations)*m+32768
+                +len(selected.inert)*limits["record_bytes"],
+                receiver_creation_bound=n+files+9+(1 if selected.inert else 0),
+                total_filedata_bound=wire+p+(2+3*generations)*m+65536
+                +len(selected.inert)*limits["record_bytes"],
+                total_creation_bound=n+3*files+12+(1 if selected.inert else 0),
                 sender_payload_read_bytes=3*p,
                 logical_sort_buffer_bytes=limits["sort_buffer_bytes"],
                 merge_line_buffer_bytes=limits["merge_fan_in"]*(limits["chunk_bytes"]+2*limits["record_bytes"]+limits["path_bytes"]),
@@ -1133,7 +1233,7 @@ def main(argv=None, *, stdin=None, stdout=None, stderr=None):
     stdin = sys.stdin.buffer if stdin is None else stdin
     stdout = sys.stdout.buffer if stdout is None else stdout
     stderr = sys.stderr if stderr is None else stderr
-    output = budget = None
+    output = budget = selected = None
     owned_output = False
     try:
         os.umask(0o077)
@@ -1165,7 +1265,7 @@ def main(argv=None, *, stdin=None, stdout=None, stderr=None):
         result = (export if args.action == "export" else receive)(
             selected, output, stdout if args.action == "export" else stdin, budget)
         need(not budget.cleanup_uncertain, "CLOSE_UNCERTAIN")
-        result.update(version=VERSION, status="COLLECTION_INTEGRITY_COMPLETE", scope=SCOPE,
+        result.update(version=selected.version, status="COLLECTION_INTEGRITY_COMPLETE", scope=SCOPE,
                       selection_sha256=selected.sha, counters_before_terminal_record=dict(budget.counts),
                       final_creation_liability=2, final_write_liability=32768,
                       completion_requires_zero_sender_and_receiver_exits_and_parent_envelopes=True,
@@ -1179,7 +1279,8 @@ def main(argv=None, *, stdin=None, stdout=None, stderr=None):
     except BaseException as error:
         code = (error.args[0] if type(error) is Stop and len(error.args) == 1
                 and type(error.args[0]) is str and error.args[0] in STOP_CODES else "UNCLASSIFIED")
-        result = dict(version=VERSION, status="INCOMPLETE", scope=SCOPE, code=code,
+        result = dict(version=selected.version if selected is not None else VERSION,
+                      status="INCOMPLETE", scope=SCOPE, code=code,
                       native_or_scientific_acceptance=False,
                       counters=dict(budget.counts) if budget is not None else None,
                       cleanup_uncertain=(True if type(error) is Stop

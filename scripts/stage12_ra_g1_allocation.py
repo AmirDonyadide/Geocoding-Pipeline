@@ -1209,6 +1209,8 @@ def ready(run):
         "RA_G1_AUTHORITY_REQUIRED",
     )
     run.prewrite(Path(s["paths"]["allocation_root"]).parent, 240 * 2**20, 1544)
+    if getattr(run, "environment_gate_sha256", None) is not None:
+        run.environment_gate_module.after_ready(run)
     return True
 
 
@@ -2402,22 +2404,40 @@ def allocation_path_policy(s, path, write=False, *, source_index=None):
     return False
 
 
-def install_denials(s, *, check=lambda: None, read_charge=lambda calls, size: None):
+def install_denials(s, *, check=lambda: None, read_charge=lambda calls, size: None,
+                    environment_gate_sha256=None):
     """Actual existing native network guard plus narrowed Python access policy."""
     source_index = _SourcePermissionIndex(s)
     source = Path(s["paths"]["source"])
     sys.dont_write_bytecode = True
     guard = module(source, "stage12_ra_g1_diagnostic")
     record_root = Path(s["paths"]["records"])
-    review = parse(
-        read(
-            record_root / (s["records"]["software_review"] + ".record"),
-            check=check,
-            read_charge=read_charge,
+    if environment_gate_sha256 is None:
+        review = parse(
+            read(
+                record_root / (s["records"]["software_review"] + ".record"),
+                check=check,
+                read_charge=read_charge,
+            )
         )
-    )
+    else:
+        review_raw = read(
+            record_root / (s["records"]["software_review"] + ".record"),
+            limit=16384, check=check, read_charge=read_charge,
+        )
+        need(hashlib.sha256(review_raw).hexdigest() == s["records"]["software_review"],
+             "RA_G1_ORIGINAL_CHANGED")
+        review = parse(review_raw)
+        review_raw = None
     need(h(review.get("report_sha256")), "RA_G1_REVIEW_REQUIRED")
     report = record_root / (review["report_sha256"] + ".md")
+    environment_gate_read = None
+    if environment_gate_sha256 is not None:
+        need(review.get("disposition") == "PASS" and review.get("source_sha") == s["source_sha"],
+             "RA_G1_REVIEW_REQUIRED")
+        gate = module(source, "stage12_ra_g1_environment_launch")
+        gate.validate_binding(review.get("environment_gate_binding"), s)
+        environment_gate_read = gate.gate_path(s, environment_gate_sha256)
 
     fd = os.open(f"/proc/{os.getpid()}/cgroup", os.O_RDONLY | os.O_NOFOLLOW)
     try:
@@ -2462,6 +2482,9 @@ def install_denials(s, *, check=lambda: None, read_charge=lambda calls, size: No
                 }
             )
         if not write and original == resolved == report:
+            return True
+        if (not write and environment_gate_read is not None
+                and original == resolved == environment_gate_read):
             return True
         return allocation_path_policy(s, path, write, source_index=source_index)
 
@@ -2677,6 +2700,7 @@ def main():
     parser.add_argument("command", choices=["ready", "collect", "bind", "verify"])
     parser.add_argument("--selection", type=Path, required=True)
     parser.add_argument("--selection-sha256", required=True)
+    parser.add_argument("--environment-gate-sha256")
     args = parser.parse_args()
     PROCESS_TRACE.set_controller_command(args.command)
     bootstrap_counts = {"checks": 0, "read_calls": 0, "read_bytes": 0}
@@ -2721,10 +2745,17 @@ def main():
     )
     bootstrap_check()
     s = validate_selection(parsed)
+    need(args.environment_gate_sha256 is None or (
+        args.command in ("ready", "collect") and s["version"] == REP512_VERSION
+        and h(args.environment_gate_sha256)), "RA_G1_AUTHORITY_REQUIRED")
     PROCESS_TRACE.first_descriptor.configure(s)
     epoch = os.environ.get("STAGE12_RA_EPOCH_NS")
     need(epoch is not None and epoch.isdigit(), "RA_G1_EPOCH_REQUIRED")
-    install_denials(s, check=bootstrap_check, read_charge=bootstrap_read)
+    if args.environment_gate_sha256 is None:
+        install_denials(s, check=bootstrap_check, read_charge=bootstrap_read)
+    else:
+        install_denials(s, check=bootstrap_check, read_charge=bootstrap_read,
+                        environment_gate_sha256=args.environment_gate_sha256)
     from safe_geocoding_pipeline.execution_policy import require_goethe_nhr_slurm
 
     require_goethe_nhr_slurm("RA-G1 allocation controller metadata")
@@ -2761,6 +2792,12 @@ def main():
     result = None
     failure = None
     try:
+        if args.environment_gate_sha256 is not None:
+            gate = module(s["paths"]["source"], "stage12_ra_g1_environment_launch")
+            run.environment_gate_sha256 = args.environment_gate_sha256
+            run.environment_gate_module = gate
+            run.environment_gate_parser = parse
+            gate.precheck(run)  # Original role/global origins; queue time is not refunded.
         result = {"ready": ready, "collect": collect, "bind": bind, "verify": verify}[
             args.command
         ](run)

@@ -527,3 +527,87 @@ if __name__ == "__main__":
     case = make_case(Path(sys.argv[1]))
     print(json.dumps({"scope": "TEST_ONLY_INVENTED", "selection": str(case[1]),
                       "sha256": case[2], "test_root": str(case[0])}, sort_keys=True))
+
+
+def fifo_case(root):
+    case = make_case(root)
+    fifo = case[0]/"allocation/supervisor_wait.fifo"
+    os.mkfifo(fifo, 0o600)
+    value = case[3]
+    value["version"] = tc.FIFO_VERSION
+    value["inert_fifos"] = [{"path": "allocation/supervisor_wait.fifo",
+                              "identity": list(tc.ident(fifo.lstat()))}]
+    selected = case[0]/"selection-v2.json"
+    raw = tc.canonical(value)
+    put(selected, raw)
+    return (case[0], selected, hashlib.sha256(raw).hexdigest(), value), fifo
+
+
+def test_v2_exact_fifo_metadata_roundtrip_never_opens_or_creates_fifo(tmp_path, monkeypatch):
+    case, fifo = fifo_case(tmp_path/"case")
+    original_open = os.open
+    def deny_fifo(path, *a, **kw):
+        assert Path(path).name != fifo.name, "FIFO must never be opened"
+        return original_open(path, *a, **kw)
+    monkeypatch.setattr(os, "open", deny_fifo)
+    code, raw, _ = exported(case)
+    assert code == 0 and raw.startswith(tc.FIFO_MAGIC)
+    assert received(case, raw)[0] == 0
+    assert stat.S_ISFIFO(fifo.lstat().st_mode)
+    assert not (case[0]/"receiver/originals/allocation/supervisor_wait.fifo").exists()
+    inert = case[0]/"receiver/inert-metadata/fifo0000.record"
+    record = tc.parse(inert.read_bytes())
+    assert record["kind"] == "FIFO_INERT" and record["identity"] == case[3]["inert_fifos"][0]["identity"]
+    assert stat.S_ISREG(inert.lstat().st_mode)
+    assert tc.parse((case[0]/"receiver/COLLECTION_COMPLETE.record").read_bytes())["independently_rehashed"]
+
+
+@pytest.mark.parametrize("change", ["undeclared", "wrong_identity", "missing", "wrong_type"])
+def test_v2_fifo_closed_allowlist_and_identity_rejected(tmp_path, change):
+    case, fifo = fifo_case(tmp_path/"case")
+    value = case[3]
+    if change == "undeclared":
+        value["inert_fifos"] = []
+    elif change == "wrong_identity":
+        value["inert_fifos"][0]["identity"][1] += 1
+    elif change == "missing":
+        fifo.unlink()
+    else:
+        fifo.unlink()
+        put(fifo, b"INVENTED not a FIFO")
+    path = case[0]/"changed-v2.json"
+    raw = tc.canonical(value)
+    put(path, raw)
+    changed = (case[0], path, hashlib.sha256(raw).hexdigest(), value)
+    assert exported(changed)[0] == 2
+
+
+def test_v2_fifo_requires_new_schema_and_rejects_v1_mixed_fields(tmp_path):
+    case, _ = fifo_case(tmp_path/"case")
+    mixed = dict(case[3], version=tc.VERSION)
+    with pytest.raises(tc.Stop):
+        tc.Selection(mixed, True, case[0])
+    missing = dict(case[3])
+    del missing["inert_fifos"]
+    with pytest.raises(tc.Stop):
+        tc.Selection(missing, True, case[0])
+
+
+@pytest.mark.parametrize("replacement", ["regular", "directory"])
+def test_v2_declared_fifo_wrong_kind_rejected_before_any_open(tmp_path, monkeypatch, replacement):
+    case, fifo = fifo_case(tmp_path/"case")
+    fifo.unlink()
+    if replacement == "regular":
+        put(fifo, b"INVENTED wrong type")
+    else:
+        fifo.mkdir(mode=0o700)
+    original_open = os.open
+    calls = []
+    def spy(path, *args, **kwargs):
+        if Path(path).name == fifo.name:
+            calls.append(str(path))
+            pytest.fail("declared FIFO path opened after kind substitution")
+        return original_open(path, *args, **kwargs)
+    monkeypatch.setattr(os, "open", spy)
+    assert exported(case)[0] == 2
+    assert calls == []

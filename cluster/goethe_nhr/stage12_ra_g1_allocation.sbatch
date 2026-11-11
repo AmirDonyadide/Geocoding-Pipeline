@@ -105,7 +105,12 @@ ra_capture changed git status --porcelain
 ra_capture actual sha256sum scripts/stage12_ra_g1_allocation.py
 [[ "${actual%% *}" == "$STAGE12_RA_HELPER_SHA" ]]
 # COLLECTOR executes ready() before metadata; no protected source/controller gate.
-ra_run 120 COLLECTOR scripts/stage12_ra_g1_allocation.py collect --selection "$STAGE12_RA_SELECTION" --selection-sha256 "$STAGE12_RA_SELECTION_SHA"
+STAGE12_RA_GATE_ARGS=()
+if [[ -n "${STAGE12_RA_ENVIRONMENT_GATE_SHA:-}" ]]; then
+    [[ "$STAGE12_RA_ENVIRONMENT_GATE_SHA" =~ ^[0-9a-f]{64}$ ]]
+    STAGE12_RA_GATE_ARGS=(--environment-gate-sha256 "$STAGE12_RA_ENVIRONMENT_GATE_SHA")
+fi
+ra_run 120 COLLECTOR scripts/stage12_ra_g1_allocation.py collect --selection "$STAGE12_RA_SELECTION" --selection-sha256 "$STAGE12_RA_SELECTION_SHA" "${STAGE12_RA_GATE_ARGS[@]}"
 STAGE12_RA_STATUS=BOOTSTRAP_COLLECTED_DIAGNOSTIC_NOT_RELEASED
 # One charged private FIFO lets builtin timed reads pace orchestration without
 # creating thousands of utilities or an unregistered concurrent sleep process.
