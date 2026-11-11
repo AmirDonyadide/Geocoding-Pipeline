@@ -560,7 +560,8 @@ def verify_authorities(profile: Any, plan: Any, start: Any, authority: Any) -> A
         authority.require("control_recipe", row["implementation_contract_sha256"], row)
 
 
-def descriptors(*, rep_admin_successor: bool = False) -> Any:
+def descriptors(*, rep_admin_successor: bool = False, first64_512_successor: bool = False) -> Any:
+    c.require(not first64_512_successor or rep_admin_successor, "RA_G1_SCOPE")
     result = {
         name: {
             "descriptor_version": name,
@@ -676,6 +677,15 @@ def descriptors(*, rep_admin_successor: bool = False) -> Any:
         for version, schema in (
             (assurance.REP_ADMIN_SELECTION, assurance.REP_ADMIN_SELECTION_SCHEMA),
             (assurance.REP_ADMIN_ADOPTION, assurance.REP_ADMIN_ADOPTION_SCHEMA),
+        ):
+            result[version] = dict(descriptor_version=version, closed=True, schema=schema,
+                maximum_canonical_bytes=8192, live_instance=False)
+    if first64_512_successor:
+        result[accounting.REP512_VERSION] = accounting.descriptor(first64_512_successor=True)
+        result[assurance.REP512_POLICY] = assurance.rep512_policy_descriptor()
+        for version, schema in (
+            (assurance.REP512_SELECTION, assurance.REP512_SELECTION_SCHEMA),
+            (assurance.REP512_ADOPTION, assurance.REP512_ADOPTION_SCHEMA),
         ):
             result[version] = dict(descriptor_version=version, closed=True, schema=schema,
                 maximum_canonical_bytes=8192, live_instance=False)

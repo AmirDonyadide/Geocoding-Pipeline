@@ -163,6 +163,57 @@ REP_ADMIN_ADOPTION_SCHEMA = {
 }
 
 
+REP512_SELECTION = "stage12_resource_selection_rep_first64_512_ra_g1_v1"
+REP512_POLICY = "stage12_rep_first64_512_policy_ra_g1_v1"
+REP512_ADOPTION = "stage12_advisory_delegated_rep_first64_512_adoption_v1"
+REP_ADMIN_SELECTIONS = (REP_ADMIN_SELECTION, REP512_SELECTION)
+REP512_SELECTION_SCHEMA = {
+    **REP_ADMIN_SELECTION_SCHEMA, "schema_version": "=" + REP512_SELECTION,
+    "rep_first64_512_policy_sha256": "D", "rep_first64_512_adoption_sha256": "D",
+}
+REP512_ADOPTION_SCHEMA = {
+    "schema_version":"=" + REP512_ADOPTION, "scope":"=REPRESENTATIVE_NO_SERVICE",
+    "policy_sha256":"D", "original_recommendation_sha256":"D", "recorded_utc":"Z",
+    "baseline_source":"=982cc871169fcb8215c163b8ed141965c829cd20",
+    "baseline_manifest_sha256":"=d1d473f241a1192004349629701524f5872ba1130f50d1d467781b7de6645ceb",
+    "derivation_sha256":"=59fe61efaca6187ee954f0cc9126be44b1e1388badba87598a66e2bbf0299d83",
+    "provenance":"=ACTUAL_USER_RELAY_OF_GPT6_ASTRA_ULTRA_RECOMMENDATION_UNDER_STANDING_HUMAN_DELEGATION",
+    "administrator_attestation":"B", "direct_owner_numerical_statement_claimed":"B",
+    "prospective_only":"B", "historical_346_unchanged":"B",
+    "other_stage_caps_unchanged":"B", "public_protected_budgets_unchanged":"B",
+    "workload_authority_issued":"B",
+}
+
+
+def rep512_policy_descriptor() -> Any:
+    return dict(descriptor_version=REP512_POLICY, closed=True, live_instance=False,
+        scope="REPRESENTATIVE_NO_SERVICE", first64_ms=512000,
+        phase1_observations=10242, phase1_sampling_event_tokens=20488,
+        phase1_events=26608, phase1_creations=77767,
+        global_event_files=57237, global_creations=204860,
+        whole_task_creations=30177, other_phase_and_administrative_caps="UNCHANGED",
+        logical_write_bytes=72 * 2**30, monitor_rows=16342, telemetry_chunks=1500,
+        first64_hold_regular_acks=1817, shutdown_reserve_ms=80000,
+        originals_and_deadline_origins="PRESERVED_NONRESETTING",
+        public_and_protected="UNCHANGED_NO_AUTHORITY_ISSUED",
+        historical_346="ORIGINAL_FAMILY_REMAINS_EXACT")
+
+
+def validate_rep512_adoption(value: Any, selected: Any) -> Any:
+    shape(value, REP512_ADOPTION_SCHEMA)
+    c.require(value["administrator_attestation"] is False
+        and value["direct_owner_numerical_statement_claimed"] is False
+        and value["prospective_only"] is True and value["historical_346_unchanged"] is True
+        and value["other_stage_caps_unchanged"] is True
+        and value["public_protected_budgets_unchanged"] is True
+        and value["workload_authority_issued"] is False
+        and value["policy_sha256"] == old.digest(rep512_policy_descriptor())
+        and selected["rep_first64_512_policy_sha256"] == value["policy_sha256"]
+        and selected["rep_first64_512_adoption_sha256"] == old.digest(value),
+        "RA_G1_SELECTION_BINDING")
+    return value
+
+
 def rep_admin_policy_descriptor() -> Any:
     return dict(descriptor_version=REP_ADMIN_POLICY, closed=True, live_instance=False,
         scope="REPRESENTATIVE_NO_SERVICE", administrative_seconds=REP_ADMIN_SECONDS,
@@ -366,7 +417,11 @@ SCOPE_CEILINGS: dict[str, dict[str, int]] = {
 
 def validate_scope_ceilings(record: Any) -> None:
     limits, scope = record["limits"], record["scope"]
-    for key, maximum in SCOPE_CEILINGS[scope].items():
+    ceilings = SCOPE_CEILINGS[scope]
+    if record.get("schema_version") == REP512_SELECTION:
+        c.require(scope == "REPRESENTATIVE_NO_SERVICE", "RA_G1_SCOPE")
+        ceilings = {**ceilings, "creations":204860}
+    for key, maximum in ceilings.items():
         c.require(limits[key] <= maximum, "RA_G1_ADOPTED_CEILING")
     c.require(
         limits["closure_reserve_bytes"] == 256 * 2**20
@@ -386,14 +441,14 @@ def validate_scope_ceilings(record: Any) -> None:
     stage_caps: tuple[int, ...]
     if scope == "REPRESENTATIVE_NO_SERVICE":
         stage_caps = (
-            346000,
+            512000 if record.get("schema_version") == REP512_SELECTION else 346000,
             300000,
             180000,
             180000,
             6194000,
             120000,
-            480000 if record.get("schema_version") == REP_ADMIN_SELECTION else 600000,
-            240000 if record.get("schema_version") == REP_ADMIN_SELECTION else 120000,
+            480000 if record.get("schema_version") in REP_ADMIN_SELECTIONS else 600000,
+            240000 if record.get("schema_version") in REP_ADMIN_SELECTIONS else 120000,
             120000,
         )
         science_stages = 4
@@ -456,17 +511,38 @@ def validate_scope_ceilings(record: Any) -> None:
 
 
 def validate_selection(record: Any) -> Any:
-    shape(record, REP_ADMIN_SELECTION_SCHEMA if record.get("schema_version") == REP_ADMIN_SELECTION
+    shape(record, REP512_SELECTION_SCHEMA if record.get("schema_version") == REP512_SELECTION
+          else REP_ADMIN_SELECTION_SCHEMA if record.get("schema_version") == REP_ADMIN_SELECTION
           else BOOTSTRAP_SELECTION_SCHEMA if record.get("schema_version") == BOOTSTRAP_SELECTION else SELECTION_SCHEMA)
-    if record["schema_version"] in (BOOTSTRAP_SELECTION, REP_ADMIN_SELECTION):
+    if record["schema_version"] in (BOOTSTRAP_SELECTION, *REP_ADMIN_SELECTIONS):
         c.require(record["scope"] == "REPRESENTATIVE_NO_SERVICE"
                   and record["bootstrap_prefix_policy_sha256"] == old.digest(bootstrap_policy_descriptor()),
                   "RA_G1_BOOTSTRAP_POLICY")
-    if record["schema_version"] == REP_ADMIN_SELECTION:
+    if record["schema_version"] in REP_ADMIN_SELECTIONS:
         c.require(record["rep_admin_budget_policy_sha256"] == old.digest(rep_admin_policy_descriptor()), "RA_G1_SELECTION_BINDING")
+    if record["schema_version"] == REP512_SELECTION:
+        c.require(record["rep_first64_512_policy_sha256"] == old.digest(rep512_policy_descriptor()), "RA_G1_SELECTION_BINDING")
     c.require(record["valid_from"] < record["valid_until"], "RA_G1_EXPIRED")
     limits = record["limits"]
     validate_scope_ceilings(record)
+    if record["schema_version"] == REP512_SELECTION:
+        signatures = [
+            (512000,80000,320,26608,43419598848,77767),
+            (300000,80000,160,15088,21805826048,44478),
+            (180000,80000,40,8008,5621055488,24369),
+            (180000,80000,15,7533,2265612288,23293),
+            (120000,5000,0,0,16777216,30177),
+            (120000,5000,0,0,16777216,760),
+            (480000,5000,0,0,33554432,2008),
+            (240000,5000,0,0,16777216,2008),
+        ]
+        keys = ("deadline_ms","reserve_ms","attempts","events","logical_write_bytes","creations")
+        c.require(len(limits["stages"]) == len(signatures)
+            and [tuple(row[key] for key in keys) for row in limits["stages"]] == signatures
+            and limits["creations"] == 204860
+            and limits["application_counters"]["EVENT_FILE"] == 57237
+            and limits["application_counters"]["EXCLUSIVE_FILE"] == 204860,
+            "RA_G1_SELECTION_BINDING")
     c.require(
         limits["processes"] == 4
         and limits["threads"] == 256
@@ -1426,7 +1502,7 @@ def bootstrap_policy_descriptor() -> Any:
 
 
 def bootstrap_role(selected: Any, phase_id: Any) -> Any:
-    return BOOTSTRAP_ROLES.get(phase_id) if selected.get("schema_version") in (BOOTSTRAP_SELECTION, REP_ADMIN_SELECTION) else None
+    return BOOTSTRAP_ROLES.get(phase_id) if selected.get("schema_version") in (BOOTSTRAP_SELECTION, *REP_ADMIN_SELECTIONS) else None
 
 
 def validate_bootstrap_adoption(value: Any, selected: Any) -> Any:

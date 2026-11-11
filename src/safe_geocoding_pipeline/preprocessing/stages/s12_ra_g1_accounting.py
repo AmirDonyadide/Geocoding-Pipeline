@@ -17,6 +17,7 @@ VERSION = "stage12_ra_g1_accounting_inventory_v1"
 BOOTSTRAP_VERSION = "stage12_ra_g1_bootstrap30_accounting_inventory_v1"
 SHARED_LEASE_VERSION = "stage12_ra_g1_shared_lease_accounting_inventory_v1"
 REP_ADMIN_VERSION = "stage12_ra_g1_rep_admin_budget_accounting_inventory_v1"
+REP512_VERSION = "stage12_ra_g1_rep_first64_512_accounting_inventory_v1"
 MAX_U = 2**64 - 1
 SOURCE_MAX = 64 * 2**20
 METADATA_MAX = 4 * 2**20
@@ -250,7 +251,8 @@ def stream_bound(size: int, *, failure_byte: bool = True) -> dict[str, int]:
 
 
 def _compile_strict_inventory(
-    sources: Any, backends: Any, scope: str, *, rep_admin_successor: bool = False
+    sources: Any, backends: Any, scope: str, *, rep_admin_successor: bool = False,
+    first64_512_successor: bool = False
 ) -> tuple[dict[str, Any], dict[str, int] | None]:
     sources, backends = validate_sources(sources), validate_backends(backends)
     need(scope in SCOPES, "RA_G1_ACCOUNTING_SCOPE")
@@ -281,6 +283,12 @@ def _compile_strict_inventory(
         graph = {**graph, "stages": [
             (phase, 480000 if phase == 7 else 240000 if phase == 8 else duration, passes)
             for phase, duration, passes in graph["stages"]]}
+    if first64_512_successor:
+        need(rep_admin_successor and scope == "REPRESENTATIVE_NO_SERVICE", "RA_G1_ACCOUNTING_SCOPE")
+        graph = {**graph, "stages": [
+            (phase, 512000 if phase == 1 else duration, passes)
+            for phase, duration, passes in graph["stages"]],
+            "events": 57237, "creations": 204860}
     inventory["status"] = "DERIVED_NUMERIC_ENVELOPE_REQUIRES_ORIGINAL_SOURCE_REVIEW"
     inventory["graph_id"] = graph["graph"]
     rows: list[dict[str, Any]] = inventory["cost_rows"]
@@ -527,7 +535,9 @@ def _compile_strict_inventory(
         if rep_admin_successor:
             creations[7] -= 480
             creations[8] += 480
-        durations = [346000, 300000, 180000, 180000]
+        if first64_512_successor:
+            creations[1] = 77767
+        durations = [512000 if first64_512_successor else 346000, 300000, 180000, 180000]
     else:
         durations = [500000] * 10 + [180000]
     for phase, (duration, q) in enumerate(zip(durations, attempts, strict=True), 1):
@@ -748,10 +758,11 @@ def validate_inventory(inventory: Any) -> dict[str, Any]:
     expected, _ = compile_inventory(
         inventory["sources"], inventory["backends"], inventory["scope"],
         bootstrap_successor=(inventory.get("schema_version") == BOOTSTRAP_VERSION
-            or inventory.get("schema_version") in (SHARED_LEASE_VERSION, REP_ADMIN_VERSION)
+            or inventory.get("schema_version") in (SHARED_LEASE_VERSION, REP_ADMIN_VERSION, REP512_VERSION)
             and inventory.get("bootstrap_proof_record_count") == 3),
-        shared_lease_successor=inventory.get("schema_version") in (SHARED_LEASE_VERSION, REP_ADMIN_VERSION),
-        rep_admin_successor=inventory.get("schema_version") == REP_ADMIN_VERSION,
+        shared_lease_successor=inventory.get("schema_version") in (SHARED_LEASE_VERSION, REP_ADMIN_VERSION, REP512_VERSION),
+        rep_admin_successor=inventory.get("schema_version") in (REP_ADMIN_VERSION, REP512_VERSION),
+        first64_512_successor=inventory.get("schema_version") == REP512_VERSION,
     )
     need(inventory == expected, "RA_G1_ACCOUNTING_CHANGED")
     return dict(inventory)
@@ -842,8 +853,9 @@ def _strict_descriptor() -> dict[str, Any]:
     )
 
 
-def _compile_bootstrap_inventory(sources: Any, backends: Any, scope: str, *, bootstrap_successor: bool = False, rep_admin_successor: bool = False) -> tuple[dict[str, Any], Any]:
-    inventory, accounting = _compile_strict_inventory(sources, backends, scope, rep_admin_successor=rep_admin_successor)
+def _compile_bootstrap_inventory(sources: Any, backends: Any, scope: str, *, bootstrap_successor: bool = False, rep_admin_successor: bool = False, first64_512_successor: bool = False) -> tuple[dict[str, Any], Any]:
+    inventory, accounting = _compile_strict_inventory(sources, backends, scope, rep_admin_successor=rep_admin_successor,
+        first64_512_successor=first64_512_successor)
     if not bootstrap_successor:
         return inventory, accounting
     need(scope == "REPRESENTATIVE_NO_SERVICE" and accounting is not None, "RA_G1_ACCOUNTING_SCOPE")
@@ -890,13 +902,15 @@ def _bootstrap_descriptor(*, bootstrap_successor: bool = False) -> dict[str,Any]
 def compile_inventory(sources: Any, backends: Any, scope: str, *,
                       bootstrap_successor: bool = False,
                       shared_lease_successor: bool = False,
-                      rep_admin_successor: bool = False) -> tuple[dict[str, Any], Any]:
+                      rep_admin_successor: bool = False,
+                       first64_512_successor: bool = False) -> tuple[dict[str, Any], Any]:
     """Explicit current writer primitive; historical grammars remain unchanged."""
+    need(not first64_512_successor or rep_admin_successor, "RA_G1_ACCOUNTING_SCOPE")
     need(not rep_admin_successor or (scope == "REPRESENTATIVE_NO_SERVICE"
         and bootstrap_successor and shared_lease_successor), "RA_G1_ACCOUNTING_SCOPE")
     inventory, accounting = _compile_bootstrap_inventory(
         sources, backends, scope, bootstrap_successor=bootstrap_successor,
-        rep_admin_successor=rep_admin_successor)
+        rep_admin_successor=rep_admin_successor, first64_512_successor=first64_512_successor)
     if not shared_lease_successor:
         return inventory, accounting
     need(scope in GRAPHS and accounting is not None, "RA_G1_ACCOUNTING_SCOPE")
@@ -939,6 +953,21 @@ def compile_inventory(sources: Any, backends: Any, scope: str, *,
             original_read_calls=METADATA_MAX + 1, original_read_bytes=METADATA_MAX + 1,
             check_calls=3 * (METADATA_MAX + 1) + 2))
         inventory["proof_count"]["cost_rows"] = len(inventory["cost_rows"])
+    if first64_512_successor:
+        inventory["schema_version"] = REP512_VERSION
+        inventory["graph_id"] += "_FIRST64_512_EVENTS57237_CREATIONS204860"
+        inventory["rep_first64_512"] = dict(first64_ms=512000,
+            maximum_observations=10242, sampling_event_tokens=20488,
+            phase1_events=26608, phase1_creations=77767,
+            global_events=57237, global_creations=204860,
+            other_stage_caps="UNCHANGED_INCLUDING_WHOLE_TASK_30177",
+            adoption_metadata="ONE_ORIGINAL_WITHIN_EXISTING_METADATA_PARTITION")
+        for row in list(inventory["cost_rows"]):
+            if row["component"] in ("REP_ADMIN_ADOPTION_START_AND_ACTUAL_OPENER", "REP_ADMIN_ADOPTION_BINDER_DAG_REOPEN"):
+                extra = dict(row)
+                extra["component"] = row["component"].replace("REP_ADMIN_ADOPTION", "REP512_ADOPTION")
+                inventory["cost_rows"].append(extra)
+        inventory["proof_count"]["cost_rows"] = len(inventory["cost_rows"])
     for stage in inventory["stage_accounting"]:
         own = [r for r in inventory["cost_rows"] if r["stage_id"] == stage["stage_id"]]
         stage.update(
@@ -956,7 +985,15 @@ def compile_inventory(sources: Any, backends: Any, scope: str, *,
 
 def descriptor(*, bootstrap_successor: bool = False,
                shared_lease_successor: bool = False,
-               rep_admin_successor: bool = False) -> dict[str, Any]:
+               rep_admin_successor: bool = False,
+               first64_512_successor: bool = False) -> dict[str, Any]:
+    if first64_512_successor:
+        value = descriptor(rep_admin_successor=True)
+        return {**value, "descriptor_version": REP512_VERSION,
+            "outer_fields": [*value["outer_fields"], "rep_first64_512"],
+            "first64_ms":512000, "phase1_observations":10242, "phase1_events":26608,
+            "phase1_creations":77767, "global_event_files":57237, "global_creations":204860,
+            "other_stage_caps":"UNCHANGED_INCLUDING_WHOLE_TASK_30177"}
     if rep_admin_successor:
         value = descriptor(shared_lease_successor=True)
         return {**value, "descriptor_version": REP_ADMIN_VERSION,

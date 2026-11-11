@@ -40,7 +40,14 @@ SHARED_LEASE_VERSION = "stage12_ra_g1_shared_lease_representative_input_v1"
 SHARED_LEASE_ALLOCATION_VERSION = "stage12_ra_g1_shared_lease_allocation_selection_v1"
 REP_ADMIN_VERSION = "stage12_ra_g1_rep_admin_budget_representative_input_v1"
 REP_ADMIN_ALLOCATION_VERSION = "stage12_ra_g1_rep_admin_budget_allocation_selection_v1"
+REP512_VERSION = "stage12_ra_g1_rep_first64_512_representative_input_v1"
+REP512_ALLOCATION_VERSION = "stage12_ra_g1_rep_first64_512_allocation_selection_v1"
+REP_ADMIN_ALLOCATION_VERSIONS = (REP_ADMIN_ALLOCATION_VERSION, REP512_ALLOCATION_VERSION)
 CONFIG_VERSION = "stage12_ra_g1_representative_configuration_v1"
+
+
+def phases_for(allocation):
+    return (("first64",512000,1817,64), *PHASES[1:]) if allocation.get("version") == REP512_ALLOCATION_VERSION else PHASES
 
 
 def canonical(value):
@@ -101,7 +108,7 @@ def build_campaigns(selection, facts, resource_selection, capacity):
         }
     )
     for index, (label, duration, hold, count) in zip(
-        (0, 9, 10, 0), diagnostic.PHASES, strict=True
+        (0, 9, 10, 0), phases_for(selection), strict=True
     ):
         work, recipes = matrix.work_for(index, digest(transport))
         work = work[:count]
@@ -262,8 +269,12 @@ def _strict_resource_selection(
         "RA_G1_ACCOUNTING_CHANGED",
     )
     c.require(
-        (accounting_inventory["schema_version"] == accounting_compiler.REP_ADMIN_VERSION)
-        == (allocation.get("version") == REP_ADMIN_ALLOCATION_VERSION),
+        accounting_inventory["schema_version"]
+        == (accounting_compiler.REP512_VERSION if allocation.get("version") == REP512_ALLOCATION_VERSION
+            else accounting_compiler.REP_ADMIN_VERSION if allocation.get("version") == REP_ADMIN_ALLOCATION_VERSION
+            else accounting_inventory["schema_version"])
+        and ((accounting_inventory["schema_version"] in (accounting_compiler.REP_ADMIN_VERSION,accounting_compiler.REP512_VERSION))
+             == (allocation.get("version") in REP_ADMIN_ALLOCATION_VERSIONS)),
         "RA_G1_ACCOUNTING_CHANGED",
     )
     stage_caps = {
@@ -272,8 +283,10 @@ def _strict_resource_selection(
         )
         for row in accounting_inventory["stage_accounting"]
     }
+    creation_total = 204860 if allocation.get("version") == REP512_ALLOCATION_VERSION else 184184
+    event_total = 57237 if allocation.get("version") == REP512_ALLOCATION_VERSION else 50597
     bounds = []
-    for n, (_, duration, _, count) in enumerate(PHASES, 1):
+    for n, (_, duration, _, count) in enumerate(phases_for(allocation), 1):
         observations = (duration + 49) // 50 + 2
         bounds.append(
             dict(
@@ -312,8 +325,8 @@ def _strict_resource_selection(
     for identity, duration, reserved, metadata_creations in (
         (5, 120000, 16 * 2**20, 256),
         (6, 120000, 16 * 2**20, 256),
-        (7, 480000 if allocation.get("version") == REP_ADMIN_ALLOCATION_VERSION else 600000, 32 * 2**20, 64),
-        (8, 240000 if allocation.get("version") == REP_ADMIN_ALLOCATION_VERSION else 120000, 16 * 2**20, 1024),
+        (7, 480000 if allocation.get("version") in REP_ADMIN_ALLOCATION_VERSIONS else 600000, 32 * 2**20, 64),
+        (8, 240000 if allocation.get("version") in REP_ADMIN_ALLOCATION_VERSIONS else 120000, 16 * 2**20, 1024),
     ):
         monitor_rows = (duration + 499) // 500 + 2
         bounds.append(
@@ -329,15 +342,15 @@ def _strict_resource_selection(
                 **stage_caps[identity],
             )
         )
-    residual = 184184 - sum(row["creations"] for row in bounds)
+    residual = creation_total - sum(row["creations"] for row in bounds)
     c.require(residual >= 0, "RA_G1_CREATION_PLAN_INFEASIBLE")
     # Unspent root administrative headroom is assigned to final task scope.
     bounds[4]["creations"] += residual
     counters = {role: 0 for role in m.LIMITS["application_counters"]}
     counters.update(
         COMPRESSED_FRAME=535,
-        EXCLUSIVE_FILE=184184,
-        EVENT_FILE=50597,
+        EXCLUSIVE_FILE=creation_total,
+        EVENT_FILE=event_total,
         PREFIX_FILE=64,
         COMPARISON_FILE=8,
         ADMIN_FILE=4096,
@@ -364,7 +377,7 @@ def _strict_resource_selection(
             metadata_bytes=4 * 2**20,
             attempts=535,
             logical_write_bytes=72 * 2**30,
-            creations=184184,
+            creations=creation_total,
             telemetry_chunks=1500,
             telemetry_bytes=2 * 1500 * 32768,
             telemetry_creations=1501,
@@ -422,21 +435,27 @@ def _strict_resource_selection(
         valid_until=allocation["valid_until"],
         review_sha256=implementation_review_sha256,
     )
-    if allocation.get("version") == REP_ADMIN_ALLOCATION_VERSION:
+    if allocation.get("version") in REP_ADMIN_ALLOCATION_VERSIONS:
         record.update(schema_version=m.REP_ADMIN_SELECTION,
             bootstrap_prefix_policy_sha256=digest(m.bootstrap_policy_descriptor()),
             bootstrap_prefix_adoption_sha256=allocation["bootstrap_prefix_adoption_sha256"],
             rep_admin_budget_policy_sha256=digest(m.rep_admin_policy_descriptor()),
             rep_admin_budget_adoption_sha256=allocation["rep_admin_budget_adoption_sha256"])
+    if allocation.get("version") == REP512_ALLOCATION_VERSION:
+        record.update(schema_version=m.REP512_SELECTION,
+            rep_first64_512_policy_sha256=digest(m.rep512_policy_descriptor()),
+            rep_first64_512_adoption_sha256=allocation["rep_first64_512_adoption_sha256"])
     m.validate_selection(record)
     return record
 
 
 def resource_selection(allocation, **kwargs):
     record = _strict_resource_selection(allocation, **kwargs)
-    if allocation.get("version") == REP_ADMIN_ALLOCATION_VERSION:
+    if allocation.get("version") in REP_ADMIN_ALLOCATION_VERSIONS:
         m.validate_bootstrap_adoption(allocation["bootstrap_prefix_adoption"], record)
         m.validate_rep_admin_adoption(allocation["rep_admin_budget_adoption"], record)
+        if allocation.get("version") == REP512_ALLOCATION_VERSION:
+            m.validate_rep512_adoption(allocation["rep_first64_512_adoption"], record)
         return record
     if allocation.get("version") not in (BOOTSTRAP_ALLOCATION_VERSION, SHARED_LEASE_ALLOCATION_VERSION):
         return record
@@ -502,7 +521,7 @@ def build(
                 hold_regular_acks=hold,
                 works=count,
             )
-            for i, (label, duration, hold, count) in enumerate(PHASES, 1)
+            for i, (label, duration, hold, count) in enumerate(phases_for(allocation), 1)
         ],
         "python_roles": list(m.ROLES),
         "maximum_attempts": 107,
@@ -512,7 +531,8 @@ def build(
     }
     descriptor_inventory = {
         name: digest(value) for name, value in a.descriptors(
-            rep_admin_successor=allocation.get("version") == REP_ADMIN_ALLOCATION_VERSION).items()
+            rep_admin_successor=allocation.get("version") in REP_ADMIN_ALLOCATION_VERSIONS,
+            first64_512_successor=allocation.get("version") == REP512_ALLOCATION_VERSION).items()
     }
     paths = {
         "scope": SCOPE,
@@ -592,7 +612,7 @@ def build(
     m.validate_risk_inventory(risk)
     retain("risks", risk)
     scratch_bytes = 64640  # Preserve historical builder bytes.
-    if allocation.get("version") in (SHARED_LEASE_ALLOCATION_VERSION, REP_ADMIN_ALLOCATION_VERSION):
+    if allocation.get("version") in (SHARED_LEASE_ALLOCATION_VERSION, *REP_ADMIN_ALLOCATION_VERSIONS):
         from safe_geocoding_pipeline.preprocessing.stages.s12_wf_ap2_scratch import RA_G1_CAPS
 
         scratch_bytes = sum(RA_G1_CAPS.values())
@@ -668,12 +688,15 @@ def build(
         record["configuration_scope_sha256"] == m.configuration_scope(config),
         "RA_G1_CONFIGURATION_CYCLE",
     )
-    if allocation.get("version") in (BOOTSTRAP_ALLOCATION_VERSION, SHARED_LEASE_ALLOCATION_VERSION, REP_ADMIN_ALLOCATION_VERSION):
+    if allocation.get("version") in (BOOTSTRAP_ALLOCATION_VERSION, SHARED_LEASE_ALLOCATION_VERSION, *REP_ADMIN_ALLOCATION_VERSIONS):
         retained = retain("adoptions", allocation["bootstrap_prefix_adoption"])
         c.require(retained == allocation["bootstrap_prefix_adoption_sha256"], "RA_G1_BOOTSTRAP_POLICY")
-    if allocation.get("version") == REP_ADMIN_ALLOCATION_VERSION:
+    if allocation.get("version") in REP_ADMIN_ALLOCATION_VERSIONS:
         retained = retain("adoptions", allocation["rep_admin_budget_adoption"])
         c.require(retained == allocation["rep_admin_budget_adoption_sha256"], "RA_G1_SELECTION_BINDING")
+    if allocation.get("version") == REP512_ALLOCATION_VERSION:
+        retained = retain("adoptions", allocation["rep_first64_512_adoption"])
+        c.require(retained == allocation["rep_first64_512_adoption_sha256"], "RA_G1_SELECTION_BINDING")
     review = dict(
         version=DIAGNOSTIC_REVIEW,
         scope=SCOPE,
@@ -692,7 +715,8 @@ def build(
     replay = json.loads(replay_path.read_bytes())
     c.require(digest(replay) == allocation["replay_sha256"], "RA_G1_REPLAY_CHANGED")
     data = dict(
-        version=(REP_ADMIN_VERSION if allocation.get("version") == REP_ADMIN_ALLOCATION_VERSION
+        version=(REP512_VERSION if allocation.get("version") == REP512_ALLOCATION_VERSION
+                  else REP_ADMIN_VERSION if allocation.get("version") == REP_ADMIN_ALLOCATION_VERSION
                  else SHARED_LEASE_VERSION if allocation.get("version") == SHARED_LEASE_ALLOCATION_VERSION
                  else BOOTSTRAP_VERSION if allocation.get("version") == BOOTSTRAP_ALLOCATION_VERSION else VERSION),
         scope=SCOPE,
@@ -707,7 +731,7 @@ def build(
         limits=dict(
             seconds=7200,
             maximum_bytes=72 * 2**30,
-            maximum_creations=184184,
+            maximum_creations=204860 if allocation.get("version") == REP512_ALLOCATION_VERSION else 184184,
             rss_bytes=768 * 2**20,
             maximum_input_bytes=4 * 2**20,
             summary_reserve_bytes=2**20,

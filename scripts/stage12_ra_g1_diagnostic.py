@@ -37,6 +37,9 @@ BOOTSTRAP_VERSION = "stage12_ra_g1_representative_bootstrap30_diagnostic_input_v
 SHARED_LEASE_VERSION = "stage12_ra_g1_shared_lease_representative_input_v1"
 REP_ADMIN_VERSION = "stage12_ra_g1_rep_admin_budget_representative_input_v1"
 REP_ADMIN_SELECTION = "stage12_resource_selection_rep_admin_budget_ra_g1_v1"
+REP512_VERSION = "stage12_ra_g1_rep_first64_512_representative_input_v1"
+REP512_SELECTION = "stage12_resource_selection_rep_first64_512_ra_g1_v1"
+REP_ADMIN_VERSIONS = (REP_ADMIN_VERSION, REP512_VERSION)
 ACTIVE_DIAGNOSTIC_TRACE = None
 ACTIVE_DIAGNOSTIC_CHECK = None
 BOOTSTRAP_SELECTION = "stage12_resource_selection_bootstrap30_ra_g1_v1"
@@ -49,6 +52,13 @@ PHASES = (
     ("controls8", 180000, 200, 8),
     ("malformed", 180000, 0, 3),
 )
+REP512_PHASES = (("first64", 512000, 1817, 64), *PHASES[1:])
+
+
+def phases_for(version):
+    return REP512_PHASES if version == REP512_VERSION else PHASES
+
+
 _RESOURCE_PURPOSES = frozenset(
     (
         "sampling_runtime_bound",
@@ -266,10 +276,10 @@ def input_scope(data):
 def validate_envelope(data, source_sha, *, for_execution, defer_response_payloads=False):
     """Pure bounded metadata shape; this never creates a usable assurance record."""
     require(type(data) is dict and set(data) == _TOP)
-    require(data["version"] in (VERSION, BOOTSTRAP_VERSION, SHARED_LEASE_VERSION, REP_ADMIN_VERSION) and data["scope"] == SCOPE)
+    require(data["version"] in (VERSION, BOOTSTRAP_VERSION, SHARED_LEASE_VERSION, *REP_ADMIN_VERSIONS) and data["scope"] == SCOPE)
     require(
         not defer_response_payloads
-        or (for_execution and data["version"] in (BOOTSTRAP_VERSION, SHARED_LEASE_VERSION, REP_ADMIN_VERSION))
+        or (for_execution and data["version"] in (BOOTSTRAP_VERSION, SHARED_LEASE_VERSION, *REP_ADMIN_VERSIONS))
     )
     require(hash_value(source_sha, 40) and data["source_sha"] == source_sha)
     selected = data["selection"]
@@ -290,7 +300,7 @@ def validate_envelope(data, source_sha, *, for_execution, defer_response_payload
     require(
         limits["seconds"] == 7200
         and limits["summary_reserve_bytes"] == 2**20
-        and limits["maximum_creations"] == 184184
+        and limits["maximum_creations"] == (204860 if data["version"] == REP512_VERSION else 184184)
         and limits["maximum_bytes"] == 72 * 2**30
         and limits["rss_bytes"] == 768 * 2**20
     )
@@ -329,7 +339,7 @@ def validate_envelope(data, source_sha, *, for_execution, defer_response_payload
     )
     require(type(data["phases"]) is list and len(data["phases"]) == 4)
     for item, phase, (label, duration, hold, count) in zip(
-        config["campaigns"], data["phases"], PHASES, strict=True
+        config["campaigns"], data["phases"], phases_for(data["version"]), strict=True
     ):
         require(
             type(item) is dict and set(item) == {"label", "profile", "plan", "work"}
@@ -365,6 +375,12 @@ def validate_envelope(data, source_sha, *, for_execution, defer_response_payload
             == plan["blocks"][0]["budget"]["active_duration_ms"]
             == duration
         )
+        if data["version"] == REP512_VERSION:
+            observations = (duration + 49) // 50 + 2
+            require(plan["sampling_budget"]["maximum_observations"] == observations
+                and plan["sampling_budget"]["additional_event_tokens"] == 2 * observations + 4
+                and plan["budgets"]["event_count"] == 19 * 5 * count + 40 + 2 * observations + 4,
+                "RA_G1_DIAGNOSTIC_RESOURCE_FAMILY")
         require(type(item["work"]) is list and len(item["work"]) == count)
         require(profile["transport_profile_sha256"] == digest(config["transport"]))
         require(profile["resources"] == config["resources"])
@@ -417,12 +433,13 @@ def materialize_response_bodies(data, *, check=lambda: None):
 
 def validate_resource_family(input_version, selected):
     require(
-        input_version in (VERSION, BOOTSTRAP_VERSION, SHARED_LEASE_VERSION, REP_ADMIN_VERSION)
+        input_version in (VERSION, BOOTSTRAP_VERSION, SHARED_LEASE_VERSION, *REP_ADMIN_VERSIONS)
         and selected.get("scope") == SCOPE
         and selected.get("schema_version")
         == (
+            REP512_SELECTION if input_version == REP512_VERSION else
             REP_ADMIN_SELECTION if input_version == REP_ADMIN_VERSION else BOOTSTRAP_SELECTION
-            if input_version in (BOOTSTRAP_VERSION, SHARED_LEASE_VERSION, REP_ADMIN_VERSION)
+            if input_version in (BOOTSTRAP_VERSION, SHARED_LEASE_VERSION, *REP_ADMIN_VERSIONS)
             else "stage12_resource_selection_ra_g1_v1"
         ),
         "RA_G1_DIAGNOSTIC_RESOURCE_FAMILY",
@@ -435,7 +452,7 @@ def start_phase_resource(
     """Preserve phase origins while opting only REP's first START into the prefix."""
     validate_resource_family(input_version, arguments["selection"])
     bootstrap = {}
-    if phase_id == 1 and input_version in (BOOTSTRAP_VERSION, SHARED_LEASE_VERSION, REP_ADMIN_VERSION):
+    if phase_id == 1 and input_version in (BOOTSTRAP_VERSION, SHARED_LEASE_VERSION, *REP_ADMIN_VERSIONS):
         bootstrap["bootstrap_prefix"] = dict(
             role="PHASE_RUNNER",
             source_entry_ns=source_entry_ns,
@@ -1251,12 +1268,12 @@ def execute(args, *, started_ns, cpu_started_ns):
     )
     data = json.loads(raw)
     require(canonical(data) == raw)
-    require(data.get("version") in (SHARED_LEASE_VERSION, REP_ADMIN_VERSION), "RA_G1_DIAGNOSTIC_RESOURCE_FAMILY")
+    require(data.get("version") in (SHARED_LEASE_VERSION, *REP_ADMIN_VERSIONS), "RA_G1_DIAGNOSTIC_RESOURCE_FAMILY")
     validate_envelope(
         data,
         args.source_sha,
         for_execution=True,
-        defer_response_payloads=data.get("version") in (BOOTSTRAP_VERSION, SHARED_LEASE_VERSION, REP_ADMIN_VERSION),
+        defer_response_payloads=data.get("version") in (BOOTSTRAP_VERSION, SHARED_LEASE_VERSION, *REP_ADMIN_VERSIONS),
     )
     require(
         data["configuration"]["command_paths"]
@@ -1405,7 +1422,7 @@ def execute(args, *, started_ns, cpu_started_ns):
         ),
         phase_windows=[
             dict(phase_id=i, selected_phase_ms=entry[1])
-            for i, entry in enumerate(PHASES, 1)
+            for i, entry in enumerate(phases_for(data["version"]), 1)
         ],
         cumulative_deadline_ns=deadline,
         clock_ns=clock.now_ns,
@@ -1465,7 +1482,9 @@ def execute(args, *, started_ns, cpu_started_ns):
         return result
 
     def initialize_current_runtime():
-        runtime.verify_successor_assets(source, contract=ap, rep_admin_successor=data["version"] == REP_ADMIN_VERSION)
+        runtime.verify_successor_assets(source, contract=ap,
+            rep_admin_successor=data["version"] in REP_ADMIN_VERSIONS,
+            first64_512_successor=data["version"] == REP512_VERSION)
         require(
             (source / "docs/scientific_assets" / (data["version"] + ".json")).read_bytes()
             == canonical(descriptor(data["version"])),
@@ -2064,7 +2083,7 @@ def execute(args, *, started_ns, cpu_started_ns):
 
 
 def descriptor(version=VERSION):
-    require(version in (VERSION, BOOTSTRAP_VERSION, SHARED_LEASE_VERSION, REP_ADMIN_VERSION))
+    require(version in (VERSION, BOOTSTRAP_VERSION, SHARED_LEASE_VERSION, *REP_ADMIN_VERSIONS))
     value = dict(
         descriptor_version=version,
         configuration_version=CONFIG_VERSION,
@@ -2088,7 +2107,7 @@ def descriptor(version=VERSION):
                 required_regular_ack_hold=hold,
                 planned_work=count,
             )
-            for label, duration, hold, count in PHASES
+            for label, duration, hold, count in phases_for(version)
         ],
         proposed_total_seconds=7200,
         expected_attempts=106,
@@ -2098,14 +2117,18 @@ def descriptor(version=VERSION):
         native_component_bound_claim=False,
         input_authority="NO_RECORDS_ISSUED;EXACT_REVIEWED_RESOURCES_AND_WORKLOAD_GRANT_REQUIRED",
     )
-    if version in (SHARED_LEASE_VERSION, REP_ADMIN_VERSION):
+    if version in (SHARED_LEASE_VERSION, *REP_ADMIN_VERSIONS):
         value.update(runtime_diagnostic_version="stage12_ra_g1_startup_monitor_trace_v2",
             diagnostic_stdout_bytes=8192,
             required_accounting_inventory="stage12_ra_g1_shared_lease_accounting_inventory_v1")
-    if version == REP_ADMIN_VERSION:
+    if version in REP_ADMIN_VERSIONS:
         value.update(required_accounting_inventory="stage12_ra_g1_rep_admin_budget_accounting_inventory_v1",
             required_resource_selection=REP_ADMIN_SELECTION, representative_admin_seconds={
                 "collector":120, "review":480, "binder_complete":240, "binder_process":720})
+    if version == REP512_VERSION:
+        value.update(required_accounting_inventory="stage12_ra_g1_rep_first64_512_accounting_inventory_v1",
+            required_resource_selection=REP512_SELECTION, maximum_creations=204860,
+            maximum_event_files=57237, historical_first64_ms=346000)
     return value
 
 

@@ -220,7 +220,7 @@ def resource_cadence_mode(selection: Any, requested: bool = False) -> bool:
     c.require(type(requested) is bool, "RA_G1_SELECTION_BINDING")
     representative = (
         selection["scope"] == "REPRESENTATIVE_NO_SERVICE"
-        and selection["schema_version"] == a.REP_ADMIN_SELECTION
+        and selection["schema_version"] in a.REP_ADMIN_SELECTIONS
     )
     public = (
         selection["scope"] == "PUBLIC_SYNTHETIC_ONLY"
@@ -566,9 +566,19 @@ class PhaseSession:
         return self
 
     def _rep_admin_adoption(self) -> Any:
-        if self.selection["schema_version"] != a.REP_ADMIN_SELECTION:
+        if self.selection["schema_version"] not in a.REP_ADMIN_SELECTIONS:
             return None
         c.require(callable(self.bootstrap_adoption_reader), "RA_G1_SELECTION_BINDING")
+        if self.selection["schema_version"] == a.REP512_SELECTION:
+            selected = self.bootstrap_adoption_reader(self.selection["rep_first64_512_adoption_sha256"])
+            if type(selected) is bytes:
+                import json
+                c.require(len(selected) <= 8192, "RA_G1_RECORD_LIMIT")
+                raw = selected
+                selected = json.loads(raw)
+                c.require(c.canonical(selected) == raw, "RA_G1_SELECTION_BINDING")
+            c.require(len(c.canonical(selected)) <= 8192, "RA_G1_RECORD_LIMIT")
+            a.validate_rep512_adoption(selected, self.selection)
         value = self.bootstrap_adoption_reader(self.selection["rep_admin_budget_adoption_sha256"])
         if type(value) is bytes:
             import json
