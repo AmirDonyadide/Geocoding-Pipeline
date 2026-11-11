@@ -76,6 +76,20 @@ def current():
     return getattr(_selected, "limits", None)
 
 
+def _attempt_key(name):
+    """Recognise only the supported canonical audit directory spelling."""
+    prefix, marker, ordinal = name.partition("_attempt_")
+    if not marker or not prefix.startswith("call_") or ordinal not in ("1", "2", "3", "4", "5"):
+        return None
+    digits = prefix[5:]
+    if not 4 <= len(digits) <= 20 or not digits.isascii() or not digits.isdigit():
+        return None
+    number = int(digits)
+    if not 0 < number < 2**64 or name != f"call_{number:04d}_attempt_{ordinal}":
+        return None
+    return name
+
+
 def _identity(info):
     return (
         info.st_dev,
@@ -315,6 +329,31 @@ class Fresh(old.Fresh):
                 return min(
                     buckets - 1, (n - 1) * buckets // self.limits["maximum_entries"]
                 )
+        # Affinity changes only the ephemeral page partition. Each selected
+        # page still validates its complete bucket and the exact whole-root
+        # membership; requested originals retain their identity/hash checks.
+        work = parent == "work" or (self.root.name == "work" and not parent)
+        stem = filename[:-5] if filename.endswith(".json") else ""
+        if work and len(stem) == 20 and stem.isascii() and stem.isdigit():
+            number = int(stem)
+            if 0 < number < min(2**64, self.limits["maximum_entries"] + 1):
+                return min(
+                    buckets - 1,
+                    (number - 1) * buckets // self.limits["maximum_entries"],
+                )
+        parts = name.split("/", 3)
+        attempt = (
+            parts[1]
+            if len(parts) == 3 and parts[0] == "attempts"
+            else parts[0]
+            if len(parts) == 2 and self.root.name == "attempts"
+            else self.root.name
+            if len(parts) == 1 and parts[0]
+            else ""
+        )
+        key = _attempt_key(attempt)
+        if key is not None:
+            name = key
         return (
             int.from_bytes(hashlib.sha256(name.encode("utf8")).digest()[:2], "big")
             % buckets
