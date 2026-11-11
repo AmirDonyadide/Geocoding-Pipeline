@@ -1436,7 +1436,20 @@ def execute(args, *, started_ns, cpu_started_ns):
     bodies, control_raw, adapter = None, None, None
     attempts, phases, failure = 0, [], None
     boundaries, first_failure, cleanup_failure = [], None, None
-    capture_failures = Failures(clock)
+    capture_failures = Failures(clock, closure=True)
+
+    def closure_mark(stage, *, completed=False, deadline=None, deadline_ns=None, guard=None):
+        try:
+            capture_failures.closure_boundary(
+                stage, completed=completed, deadline=deadline, deadline_ns=deadline_ns,
+                guard=guard or ("DIAGNOSTIC_PHASE" if deadline is not None else None),
+            )
+        except BaseException:
+            try:
+                capture_failures.closure_fault()
+            except BaseException:
+                pass
+
     cleanup_failure_count = 0
     negative_ready = threading.Event()
     attempts_lock = threading.Lock()
@@ -1647,6 +1660,7 @@ def execute(args, *, started_ns, cpu_started_ns):
                         diagnostics=capture_failures,
                         task_deadline_ns=phase_deadline,
                     )
+                    closure_mark("SAMPLING_INSPECTION", deadline=boundary)
                     summaries = boundary.operation(
                         "SAMPLING_INSPECTION",
                         sampling.inspect,
@@ -1662,6 +1676,8 @@ def execute(args, *, started_ns, cpu_started_ns):
                         summaries and all(row["complete"] for row in summaries),
                         "RA_G1_DIAGNOSTIC_SAMPLING_INCOMPLETE",
                     )
+                    closure_mark("SAMPLING_INSPECTION", completed=True, deadline=boundary)
+                    closure_mark("T3_PHASE_CLOSE", deadline=boundary)
                     boundary.operation(
                         "OBSERVER_CLOSE",
                         observer.phase_close,
@@ -1669,6 +1685,7 @@ def execute(args, *, started_ns, cpu_started_ns):
                         quiescent=True,
                         timeout_seconds=boundary.remaining(),
                     )
+                    closure_mark("T3_PHASE_CLOSE", completed=True, deadline=boundary)
                     require(state["regular"] >= phase["hold_regular_acks"])
                     from safe_geocoding_pipeline.preprocessing.stages import (
                         s12_public_recovery as recovery,
@@ -1755,6 +1772,7 @@ def execute(args, *, started_ns, cpu_started_ns):
                         original.charge_runtime_inventory_check(
                             original.runtime_inventory_budget()
                         )
+                        closure_mark("RUNTIME_RECHECK", deadline=boundary)
                         require(
                             boundary.operation(
                                 "RUNTIME_RECHECK",
@@ -1773,6 +1791,7 @@ def execute(args, *, started_ns, cpu_started_ns):
                             == actual_runtime,
                             "RA_G1_DIAGNOSTIC_RUNTIME_CHANGED",
                         )
+                        closure_mark("RUNTIME_RECHECK", completed=True, deadline=boundary)
                         assurance.verify_current_facts(bound, authority)
                         original.source_fence()
                         boundary.check()
@@ -1788,6 +1807,7 @@ def execute(args, *, started_ns, cpu_started_ns):
                             )
                         return opened
 
+                    closure_mark("NEGATIVE_OPEN" if negative else "NORMAL_OPEN", deadline=boundary)
                     _, resource_records = boundary.operation(
                         "NEGATIVE_OPEN" if negative else "NORMAL_OPEN",
                         active_resource.freeze_and_open,
@@ -1810,6 +1830,7 @@ def execute(args, *, started_ns, cpu_started_ns):
                             else {}
                         ),
                     )
+                    closure_mark("NEGATIVE_OPEN" if negative else "NORMAL_OPEN", completed=True, deadline=boundary)
                     boundary.check()
                     resource_sessions.append(
                         dict(
@@ -1837,6 +1858,10 @@ def execute(args, *, started_ns, cpu_started_ns):
                     )
         require(106 <= attempts <= 107)
     except BaseException as error:
+        try:
+            capture_failures.record("RUNTIME", error)
+        except BaseException:
+            capture_failures.closure_fault()
         runtime_trace("START_FAILED", error=error)
         first_failure = dict(
             at_mono_ns=clock.now_ns(), phase_id=len(boundaries), **safe_failure(error)
@@ -1882,9 +1907,11 @@ def execute(args, *, started_ns, cpu_started_ns):
                     startup_trace=runtime_trace,
                 )
                 runtime_trace.bind_monitor(final_resource.monitor)
+            closure_mark("T3_CLOSE", deadline_ns=deadline, guard="GLOBAL_TASK")
             summary = observer.close(
                 timeout_seconds=min(5, (deadline - clock.now_ns()) / 1e9)
             )
+            closure_mark("T3_CLOSE", completed=True, deadline_ns=deadline, guard="GLOBAL_TASK")
             require(summary["final_timing_coverage_complete"])
 
             def associate(ordinal, row):
@@ -1972,6 +1999,7 @@ def execute(args, *, started_ns, cpu_started_ns):
                             )
                     with storage.cooperative_io(final_resource.check):
                         final_resource.check()
+                        closure_mark("T3_REREAD", deadline_ns=final_resource.deadline, guard="WHOLE_TASK_RESOURCE")
                         reopened = cp.read_prefix(
                             observer.checkpoints.root,
                             timing_schema=cp.RA_SCHEMA,
@@ -1979,6 +2007,7 @@ def execute(args, *, started_ns, cpu_started_ns):
                             expected_snapshot=summary["checkpoint"],
                             record_consumer=associate,
                         )
+                        closure_mark("T3_REREAD", completed=True, deadline_ns=final_resource.deadline, guard="WHOLE_TASK_RESOURCE")
                         check()
                     require(
                         not reopened["incomplete"], "RA_G1_DIAGNOSTIC_TIMING_INCOMPLETE"
@@ -1988,12 +2017,14 @@ def execute(args, *, started_ns, cpu_started_ns):
 
             if final_resource is not None:
                 original._deadline_check = final_resource.check
+                closure_mark("WHOLE_OPEN", deadline_ns=final_resource.deadline, guard="WHOLE_TASK_RESOURCE")
                 _, final_records = final_resource.freeze_and_open(
                     frozen_data_inventory_sha256=ap.digest(
                         {"phases": phases, "timing": summary}
                     ),
                     actual_opener=actual_whole_open,
                 )
+                closure_mark("WHOLE_OPEN", completed=True, deadline_ns=final_resource.deadline, guard="WHOLE_TASK_RESOURCE")
                 resource_sessions.append(
                     dict(
                         phase_id=5,
@@ -2012,6 +2043,7 @@ def execute(args, *, started_ns, cpu_started_ns):
             else:
                 # On a failed task retain supplementary evidence; it grants no completion.
                 with storage.cooperative_io(check):
+                    closure_mark("T3_REREAD", deadline_ns=deadline, guard="GLOBAL_TASK")
                     cp.read_prefix(
                         observer.checkpoints.root,
                         timing_schema=cp.RA_SCHEMA,
@@ -2019,7 +2051,12 @@ def execute(args, *, started_ns, cpu_started_ns):
                         expected_snapshot=summary["checkpoint"],
                         record_consumer=associate,
                     )
+                    closure_mark("T3_REREAD", completed=True, deadline_ns=deadline, guard="GLOBAL_TASK")
         except BaseException as error:
+            try:
+                capture_failures.record("RUNTIME_REOPEN" if failure is None else "CLEANUP", error)
+            except BaseException:
+                capture_failures.closure_fault()
             cleanup_failure_count += 1
             if cleanup_failure is None:
                 cleanup_failure = dict(at_mono_ns=clock.now_ns(), **safe_failure(error))

@@ -49,6 +49,20 @@ CODES = frozenset(
 )
 
 
+CLOSURE_GUARDS = frozenset(("CAPTURE_CUMULATIVE", "DIAGNOSTIC_PHASE", "GLOBAL_TASK", "WHOLE_TASK_RESOURCE"))
+
+CLOSURE_STAGES = frozenset((
+    "STORAGE_RECONCILE", "SAMPLING_VERIFY", "SNAPSHOT_PRECHECK",
+    "PREPARE_ORIGINAL_VERIFY", "PREPARE_EVIDENCE", "PREPARE_STORAGE",
+    "FRESH_FINISH", "SNAPSHOT_PERSIST", "REVALIDATE_FRESH",
+    "REVALIDATE_ORIGINAL_VERIFY", "REVALIDATE_EVIDENCE", "REVALIDATE_STORAGE",
+    "SNAPSHOT_SEAL", "ORIGINAL_WORK_VERIFY", "ORIGINAL_RECEIPT_VERIFY",
+    "ORIGINAL_REPLAY", "CAMPAIGN_REPORT", "CAMPAIGN_PERSIST", "WRITER_RELEASE",
+    "SAMPLING_INSPECTION", "T3_PHASE_CLOSE", "T3_CLOSE", "NORMAL_OPEN",
+    "NEGATIVE_OPEN", "RUNTIME_RECHECK", "T3_REREAD", "WHOLE_OPEN",
+))
+
+
 def classify(error):
     # Never stringify arbitrary objects, subclasses, messages or unsafe content.
     family, code, number = "UNCLASSIFIED", None, None
@@ -76,13 +90,75 @@ def classify(error):
 class Failures:
     """Two fixed records plus counters; first initiating failure never replaced."""
 
-    def __init__(self, clock):
+    def __init__(self, clock, *, closure=False):
         self.clock = clock
         self.lock = threading.Lock()
         self.first = None
         self.secondary = None
         self.secondary_count = 0
         self.response_rejection = None
+        # Opt-in supplementary successor: no historical/default snapshot change.
+        self.closure_enabled = closure is True
+        self.closure_entered = None
+        self.closure_completed = None
+        self.closure_first = None
+        self.closure_faults = 0
+        self.closure_ordinal = 0
+        self.closure_deadline_ordinal = 0
+        self._closure_deadline = None
+        self._closure_deadline_ns = None
+
+    def closure_fault(self):
+        # A supplementary failure can never replace an original exception.
+        try:
+            with self.lock:
+                self.closure_faults = min(2**64 - 1, self.closure_faults + 1)
+        except BaseException:
+            pass
+
+    def closure_boundary(self, stage, *, completed=False, writer=None, deadline=None, deadline_ns=None, guard=None):
+        """Last actual boundary facts, never a claim about the failing callee.
+
+        No I/O, worker, callback replacement or deadline enforcement occurs here.
+        A completed inner boundary is not labelled as an active outer operation.
+        """
+        if not self.closure_enabled:
+            return
+        try:
+            if type(stage) is not str or stage not in CLOSURE_STAGES:
+                self.closure_fault()
+                return
+            now = self.clock.now_ns()
+            end = getattr(deadline, "end_ns", None) if deadline is not None else deadline_ns
+            if guard is not None and (type(guard) is not str or guard not in CLOSURE_GUARDS):
+                self.closure_fault()
+                guard = None
+            if type(now) is not int or not 0 <= now < 2**64:
+                self.closure_fault()
+                return
+            if type(end) is not int or not 0 < end < 2**64:
+                end = None
+            failed = writer.failed.is_set() if writer is not None else None
+            with self.lock:
+                if deadline is not None and deadline is not self._closure_deadline:
+                    self.closure_deadline_ordinal += 1
+                    self._closure_deadline, self._closure_deadline_ns = deadline, end
+                unchanged = deadline is self._closure_deadline and end == self._closure_deadline_ns
+                if deadline is not None and not unchanged:
+                    self.closure_faults = min(2**64 - 1, self.closure_faults + 1)
+                self.closure_ordinal += 1
+                row = {"stage": stage, "ordinal": self.closure_ordinal, "mono_ns": now,
+                       "deadline_ns": end, "deadline_identity": self.closure_deadline_ordinal if deadline is not None else None,
+                       "deadline_identity_unchanged": unchanged if deadline is not None else None,
+                       "writer_failed": failed, "guard_kind": guard,
+                       "deadline_unit": "MONOTONIC_NS" if end is not None else None,
+                       "deadline_identity_source": "ACTUAL_BOUND_OBJECT" if deadline is not None else "ACTUAL_ORIGINAL_SCALAR" if end is not None else "UNAVAILABLE"}
+                if completed:
+                    self.closure_completed = row
+                else:
+                    self.closure_entered = row
+        except BaseException:
+            self.closure_fault()
 
     def record(
         self, tag, error, *, work_id=None, attempt=None, writer=None, deadline=None
@@ -108,6 +184,13 @@ class Failures:
                 self.secondary_count += 1
                 if self.secondary is None:
                     self.secondary = row
+            if (self.closure_enabled and tag != "CLEANUP"
+                    and self.closure_entered is not None and self.closure_first is None):
+                self.closure_first = {
+                    "failure": row.copy(),
+                    "last_entered": self.closure_entered.copy(),
+                    "last_completed": self.closure_completed.copy() if self.closure_completed else None,
+                }
 
     def rejected(self, reason):
         with self.lock:
@@ -120,7 +203,7 @@ class Failures:
 
     def snapshot(self):
         with self.lock:
-            return {
+            result = {
                 "version": "stage12_public_failure_diagnostics_v1",
                 "scope": "SUPPLEMENTARY_NOT_CLOSURE_EVIDENCE",
                 "first_initiating_failure": self.first.copy() if self.first else None,
@@ -130,3 +213,16 @@ class Failures:
                 "secondary_observations": self.secondary_count,
                 "earlier_response_rejection": self.response_rejection,
             }
+            if self.closure_enabled:
+                result["closure_boundary"] = {
+                    "version": "stage12_public_closure_boundary_diagnostics_v1",
+                    "scope": "LAST_BOUNDARIES_NOT_CAUSE_OR_CLOSURE_PROOF",
+                    "last_entered": self.closure_entered.copy() if self.closure_entered else None,
+                    "last_completed": self.closure_completed.copy() if self.closure_completed else None,
+                    "first_failure": {key: (value.copy() if value else None)
+                                      for key, value in self.closure_first.items()} if self.closure_first else None,
+                    "observation_faults": self.closure_faults,
+                    "retention_uncertain": self.closure_faults != 0,
+                    "persistence": "NOT_ESTABLISHED_BY_IN_MEMORY_SNAPSHOT",
+                }
+            return result

@@ -26,7 +26,7 @@ from test_stage12_public_operations_v2 import (
 from test_stage12_public_scheduler import repair_common, synthetic_dispatch
 
 
-def campaign(tmp_path, *, clock=None, count=2):
+def campaign(tmp_path, *, clock=None, count=2, diagnostics=None):
     p, plan, start, rows, inv = inputs(count)
     p["resources"]["writer_guard_ms"] = 5000
     rebind(p, plan, start, rows)
@@ -41,6 +41,7 @@ def campaign(tmp_path, *, clock=None, count=2):
         epoch=H,
         dispatch=synthetic_dispatch(clock),
         public_validation=validation.Validation(validation.FAMILY_VERSION),
+        diagnostics=diagnostics,
         **repair_common(rows, inv),
     )
     return root, result, (p, plan, start)
@@ -571,3 +572,124 @@ def test_reopening_comparison_join_is_bounded_and_revalidates_each_body(
     assert len(passes) == (count - 1 + 127) // 128
     assert len(decompressions) >= 2 * (count - 1)
     assert set(bodies) == set(range(1, count + 1))
+
+
+@pytest.mark.parametrize("stage", ["prepare", "fresh_finish", "persist", "revalidate", "seal", "campaign", "release"])
+def test_closure_first_static_substage_is_retained_before_defensive_poison(
+    tmp_path, monkeypatch, stage
+):
+    from safe_geocoding_pipeline.preprocessing.stages.s12_public_diagnostics import Failures
+
+    clock = FakeClock()
+    owner = Failures(clock, closure=True)
+    evidence, write, snapshot = rec.snapshot_evidence, io.write, rec.write_snapshot
+    calls = 0
+    initiating = rec.FinalizationExpired("INVENTED_PRIVATE_DETAILS")
+
+    def fail_evidence(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        if (stage == "prepare" and calls == 1) or (stage == "revalidate" and calls == 2):
+            raise initiating
+        return evidence(*args, **kwargs)
+
+    def fail_write(path, raw):
+        selected = {"persist": "snapshot.json", "seal": "_SEGMENT_SEALED",
+                    "campaign": "campaign_report.json", "release": "_WRITER_RELEASED.json"}.get(stage)
+        if path.name == selected:
+            raise initiating
+        return write(path, raw)
+
+    def fail_finish(writer, value, **kwargs):
+        if stage == "fresh_finish":
+            def fail():
+                raise initiating
+            kwargs["read_stage"].finish = fail
+        return snapshot(writer, value, **kwargs)
+
+    monkeypatch.setattr(rec, "snapshot_evidence", fail_evidence)
+    monkeypatch.setattr(io, "write", fail_write)
+    monkeypatch.setattr(rec, "write_snapshot", fail_finish)
+    root, report, data = campaign(tmp_path, clock=clock, diagnostics=owner)
+    state = owner.snapshot()
+    first = state["closure_boundary"]["first_failure"]
+    expected = {"prepare": "PREPARE_EVIDENCE", "fresh_finish": "FRESH_FINISH",
+                "persist": "SNAPSHOT_PERSIST", "revalidate": "REVALIDATE_EVIDENCE",
+                "seal": "SNAPSHOT_SEAL", "campaign": "CAMPAIGN_PERSIST",
+                "release": "WRITER_RELEASE"}[stage]
+    assert first["last_entered"]["stage"] == expected
+    assert first["failure"]["family"] == "CUMULATIVE_DEADLINE"
+    assert first["failure"]["writer_failed"] is False
+    assert type(first["last_entered"]["deadline_ns"]) is int
+    assert first["last_entered"]["deadline_identity_unchanged"] is True
+    assert report["disposition"] == "RECOVERY_BLOCKED" and not report["report_complete"]
+    assert not (root / "_WRITER_RELEASED.json").exists()
+    assert b"INVENTED_PRIVATE_DETAILS" not in c.canonical(state)
+    with pytest.raises((c.Stage12Error, OSError, rec.FinalizationExpired)):
+        reopen(root, data)
+
+
+def test_closure_supplementary_boundary_failure_preserves_original_publication_error(
+    tmp_path, monkeypatch
+):
+    from safe_geocoding_pipeline.preprocessing.stages.s12_public_diagnostics import Failures
+
+    owner = Failures(FakeClock(), closure=True)
+    initiating = rec.FinalizationExpired("INVENTED_PRIVATE_DETAILS")
+
+    def broken(*args, **kwargs):
+        raise RuntimeError("INVENTED_SUPPLEMENTARY_DETAILS")
+
+    def fail_evidence(*args, **kwargs):
+        raise initiating
+
+    monkeypatch.setattr(owner, "closure_boundary", broken)
+    monkeypatch.setattr(rec, "snapshot_evidence", fail_evidence)
+    root, report, _ = campaign(tmp_path, diagnostics=owner)
+    assert report["disposition"] == "RECOVERY_BLOCKED"
+    assert owner.snapshot()["first_initiating_failure"]["family"] == "CUMULATIVE_DEADLINE"
+    assert owner.snapshot()["closure_boundary"]["retention_uncertain"]
+    assert not (root / "_SEGMENT_SEALED").exists()
+
+
+def test_opt_in_closure_completes_original_reopening_without_acceptance_changes(tmp_path):
+    from safe_geocoding_pipeline.preprocessing.stages.s12_public_diagnostics import Failures
+
+    clock = FakeClock()
+    owner = Failures(clock, closure=True)
+    root, report, data = campaign(tmp_path, clock=clock, diagnostics=owner)
+    assert report["disposition"] == "COMPLETED" and report["report_complete"]
+    assert reopen(root, data) == report["blocks"][0]
+    state = owner.snapshot()["closure_boundary"]
+    assert state["first_failure"] is None and not state["retention_uncertain"]
+    assert state["last_entered"]["stage"] == state["last_completed"]["stage"] == "WRITER_RELEASE"
+
+
+def test_new_prepoison_record_failure_does_not_mask_original_exception(tmp_path, monkeypatch):
+    from safe_geocoding_pipeline.preprocessing.stages.s12_public_diagnostics import Failures
+
+    clock = FakeClock()
+    owner = Failures(clock, closure=True)
+    record = owner.record
+    failed_new_record = []
+
+    def one_shot(tag, error, **kwargs):
+        if tag == "CLOSURE" and not failed_new_record:
+            failed_new_record.append(True)
+            raise RuntimeError("INVENTED_SUPPLEMENTARY_DETAILS")
+        return record(tag, error, **kwargs)
+
+    def fail_evidence(*args, **kwargs):
+        raise rec.FinalizationExpired("INVENTED_ORIGINAL_DETAILS")
+
+    monkeypatch.setattr(owner, "record", one_shot)
+    monkeypatch.setattr(rec, "snapshot_evidence", fail_evidence)
+    root, report, _ = campaign(tmp_path, clock=clock, diagnostics=owner)
+    assert failed_new_record == [True]
+    assert report["disposition"] == "RECOVERY_BLOCKED" and not report["report_complete"]
+    state = owner.snapshot()
+    assert state["first_initiating_failure"]["family"] == "CUMULATIVE_DEADLINE"
+    assert state["closure_boundary"]["retention_uncertain"]
+    assert not (root / "_SEGMENT_SEALED").exists()
+    assert not (root / "_WRITER_RELEASED.json").exists()
+    assert b"INVENTED_" not in c.canonical(state)

@@ -477,6 +477,7 @@ def write_snapshot(
     log: journal.Journal,
     state_binding: Callable[[], tuple],
     read_stage=None,
+    deadline=None,
 ) -> str:
     """Prepare/validate/persist/revalidate/commit under one cumulative budget.
 
@@ -485,6 +486,20 @@ def write_snapshot(
     A timeout may leave an unsealed partial file, never a follow-on seal/release.
     """
     o = log.contract
+    failures = writer.failures
+
+    def mark(stage, *, completed=False):
+        if failures is not None:
+            try:
+                failures.closure_boundary(stage, completed=completed, writer=writer, deadline=deadline, guard="CAPTURE_CUMULATIVE")
+            except BaseException:
+                # Supplementary retention must not replace publication failure.
+                try:
+                    failures.closure_fault()
+                except BaseException:
+                    pass
+
+    mark("SNAPSHOT_PRECHECK")
     fence = writer.closure_fence
     o.require(fence is not None and log.writer is writer)
     fence.check()
@@ -521,10 +536,16 @@ def write_snapshot(
             )
         )
 
-    def validate(extra_bytes):
+    def validate(extra_bytes, *, revalidate=False):
+        verify_stage = "REVALIDATE_ORIGINAL_VERIFY" if revalidate else "PREPARE_ORIGINAL_VERIFY"
+        evidence_stage = "REVALIDATE_EVIDENCE" if revalidate else "PREPARE_EVIDENCE"
+        storage_stage = "REVALIDATE_STORAGE" if revalidate else "PREPARE_STORAGE"
+        mark(verify_stage)
         bound()
         state, report_hash = verify()
+        mark(verify_stage, completed=True)
         o.require(state["last_event"]["epoch_id"] == frozen[2])
+        mark(evidence_stage)
         identities = snapshot_evidence(
             writer.root,
             snapshot,
@@ -532,11 +553,14 @@ def write_snapshot(
             report_hash,
             check=writer.check_deadline,
         )
+        mark(evidence_stage, completed=True)
+        mark(storage_stage)
         o.require(
             log.prior_bytes + log.reconcile_storage()
             == snapshot["controller"]["stored_bytes"] + extra_bytes
         )
         bound()
+        mark(storage_stage, completed=True)
         return identities, c.canonical(state["last_event"])
 
     try:
@@ -550,8 +574,10 @@ def write_snapshot(
         with io.cooperative_io(writer.check_deadline):
             prepared = validate(0)
             if read_stage is not None:
+                mark("FRESH_FINISH")
                 read_stage.finish()
                 bound()
+                mark("FRESH_FINISH", completed=True)
 
             def persist():
                 bound()
@@ -560,9 +586,11 @@ def write_snapshot(
                 o.require(io.read(writer.root / "snapshot.json") == raw)
                 bound()
 
+            mark("SNAPSHOT_PERSIST")
             writer.call(persist)
+            mark("SNAPSHOT_PERSIST", completed=True)
             if read_stage is None:
-                o.require(validate(len(raw)) == prepared)
+                o.require(validate(len(raw), revalidate=True) == prepared)
             else:
                 from .s12_public_fresh_reads import FreshReads
 
@@ -578,13 +606,15 @@ def write_snapshot(
 
                         FreshReads = partial(history.Fresh, limits=history.current())
 
+                mark("REVALIDATE_FRESH")
                 with FreshReads(
                     writer.root, check=fence.check_live, boundary=fence.check,
                     **({"descriptor_relative": True}
                        if o.PROFILE == "stage12_transport_operations_ra_g1_v1" else {}),
                 ):
-                    o.require(validate(len(raw)) == prepared)
+                    o.require(validate(len(raw), revalidate=True) == prepared)
                 bound()
+                mark("REVALIDATE_FRESH", completed=True)
 
             def commit():
                 bound()
@@ -603,9 +633,20 @@ def write_snapshot(
                 o.require(io.read(writer.root / "_SEGMENT_SEALED", limit=0) == b"")
                 bound()
 
+            mark("SNAPSHOT_SEAL")
             writer.call(commit)
+            mark("SNAPSHOT_SEAL", completed=True)
             return c.sha(raw).hex()
-    except BaseException:
+    except BaseException as error:
+        # Capture the original boundary/state BEFORE defensive writer poisoning.
+        if failures is not None and getattr(failures, "closure_enabled", False):
+            try:
+                failures.record("CLOSURE", error, writer=writer, deadline=deadline)
+            except BaseException:
+                try:
+                    failures.closure_fault()
+                except BaseException:
+                    pass
         # No recovery/cleanup path may finish an uncertain publication.
         writer.failed.set()
         writer.stop()

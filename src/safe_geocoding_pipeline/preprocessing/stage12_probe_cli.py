@@ -840,6 +840,18 @@ def _run_operations_block(
     writer.check_deadline = finalization_deadline.check
     writer.remaining_seconds = finalization_deadline.remaining_seconds
 
+    def closure_mark(stage, *, completed=False):
+        try:
+            diagnostics.closure_boundary(
+                stage, completed=completed, writer=writer, deadline=finalization_deadline, guard="CAPTURE_CUMULATIVE"
+            )
+        except BaseException:
+            # Supplementary observation can never replace the primary outcome.
+            try:
+                diagnostics.closure_fault()
+            except BaseException:
+                pass
+
     def incomplete():
         coordinator.stop_sampling()
 
@@ -1696,7 +1708,9 @@ def _run_operations_block(
                     {"start": start, "disposition": disposition},
                 )
                 operation = "CLOSURE"
+                closure_mark("STORAGE_RECONCILE")
                 stored_bytes = log.prior_bytes + log.reconcile_storage()
+                closure_mark("STORAGE_RECONCILE", completed=True)
                 snapshot = {
                     "schema_version": po.SNAPSHOT,
                     "campaign_start_sha256": po.digest(start),
@@ -1742,6 +1756,7 @@ def _run_operations_block(
                 if coordinator.ap_enabled:
                     from .stages.s12_public_sampling import inspect
 
+                    closure_mark("SAMPLING_VERIFY")
                     summary = inspect(
                         events,
                         profile,
@@ -1755,6 +1770,7 @@ def _run_operations_block(
                         if e["kind"] == "SAMPLING_CLOSE"
                         and e["seq"] == summary["close_event_seq"]
                     )
+                    closure_mark("SAMPLING_VERIFY", completed=True)
                     snapshot.update(
                         sampling_policy_sha256=po.POLICY_SHA,
                         sampling_close_event_sha256=close_head,
@@ -1769,7 +1785,9 @@ def _run_operations_block(
                 def original_closure_evidence():
                     # Fresh original event and receipt validation in each stage;
                     # no projection/cache is authority for snapshot publication.
+                    closure_mark("ORIGINAL_WORK_VERIFY")
                     po.verify_work_manifest(works, plan)
+                    closure_mark("ORIGINAL_WORK_VERIFY", completed=True)
                     report_head = None
 
                     def original_events():
@@ -1793,8 +1811,10 @@ def _run_operations_block(
                                 verify_receipt(row, body)
                             yield event
 
+                    closure_mark("ORIGINAL_REPLAY")
                     original = recovery.replay(original_events(), contract=po)
                     po.require(report_head is not None)
+                    closure_mark("ORIGINAL_REPLAY", completed=True)
                     return original, report_head
 
                 snap_hash = recovery.write_snapshot(
@@ -1804,6 +1824,7 @@ def _run_operations_block(
                     log=log,
                     state_binding=closure_state,
                     read_stage=read_stage,
+                    deadline=finalization_deadline,
                 )
                 reports = {block_id: report}
                 snapshots = [snap_hash]
@@ -1815,6 +1836,7 @@ def _run_operations_block(
                     reports.setdefault(prior_report["block_id"], prior_report)
                     snapshots.append(po.digest(previous))
                     node = pj.predecessor_root(node)
+                closure_mark("CAMPAIGN_REPORT")
                 campaign = pr.campaign_report(
                     start,
                     event_inventory_sha256=event_hash,
@@ -1850,13 +1872,18 @@ def _run_operations_block(
                     plan=plan,
                     contract=po,
                 )
+                closure_mark("CAMPAIGN_REPORT", completed=True)
+                closure_mark("CAMPAIGN_PERSIST")
                 writer.call(lambda: log.write("campaign_report.json", campaign))
+                closure_mark("CAMPAIGN_PERSIST", completed=True)
+                closure_mark("WRITER_RELEASE")
                 writer.release(
                     {
                         "writer_release_evidence_sha256": writer_release_evidence,
                         "snapshot_sha256": snap_hash,
                     }
                 )
+                closure_mark("WRITER_RELEASE", completed=True)
                 return campaign
     except (Exception, KeyboardInterrupt) as error:
         diagnostics.record(

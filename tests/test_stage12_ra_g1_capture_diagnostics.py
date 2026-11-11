@@ -178,3 +178,130 @@ def test_legacy_supplementary_summary_remains_readable():
     old = {"version": "stage12_ra_g1_rep_admin_budget_representative_input_v1",
            "complete": False, "initiating_failure": None, "attempts": 0}
     assert storage.metadata(contract.canonical(old)) == old
+
+
+def test_closure_successor_is_opt_in_and_preserves_historical_snapshot():
+    owner = diagnostics.Failures(Clock())
+    before = owner.snapshot()
+    owner.closure_boundary("SNAPSHOT_PERSIST")
+    assert owner.snapshot() == before
+    assert set(before) == {"version", "scope", "first_initiating_failure",
+                           "first_secondary_failure", "secondary_observations",
+                           "earlier_response_rejection"}
+    assert storage.metadata(contract.canonical(before)) == before
+
+
+def test_closure_fixed_boundaries_preserve_primary_and_prepoison_state():
+    from safe_geocoding_pipeline.preprocessing.stages.s12_public_recovery import Deadline
+
+    clock = Clock(100)
+    owner = diagnostics.Failures(clock, closure=True)
+    failed = threading.Event()
+    writer = SimpleNamespace(failed=failed)
+    deadline = Deadline(clock, 1000)
+    owner.closure_boundary("PREPARE_ORIGINAL_VERIFY", writer=writer, deadline=deadline)
+    clock.value = 200
+    owner.closure_boundary("ORIGINAL_REPLAY", completed=True, writer=writer, deadline=deadline)
+    owner.record("CLOSURE", TimeoutError("secret-bearing content"), writer=writer, deadline=deadline)
+    first = owner.snapshot()
+    failed.set()
+    clock.value = 300
+    owner.closure_boundary("SNAPSHOT_SEAL", writer=writer, deadline=deadline)
+    owner.record("CLEANUP", RuntimeError("private content"), writer=writer)
+    actual = owner.snapshot()
+    assert actual["first_initiating_failure"] == first["first_initiating_failure"]
+    assert actual["closure_boundary"]["first_failure"] == first["closure_boundary"]["first_failure"]
+    retained = actual["closure_boundary"]["first_failure"]
+    assert retained["failure"]["writer_failed"] is False
+    assert retained["last_entered"]["stage"] == "PREPARE_ORIGINAL_VERIFY"
+    assert retained["last_completed"]["stage"] == "ORIGINAL_REPLAY"
+    assert retained["last_entered"]["deadline_ns"] == 1000
+    assert retained["last_entered"]["deadline_identity"] == 1
+    assert actual["first_secondary_failure"]["writer_failed"] is True
+    assert len(contract.canonical(actual)) < 4096
+    assert b"secret" not in contract.canonical(actual)
+
+
+def test_closure_boundary_invalid_values_are_uncertain_and_never_formatted():
+    owner = diagnostics.Failures(Clock(), closure=True)
+    owner.closure_boundary("private arbitrary path text")
+    owner.closure_boundary(object())
+    assert owner.snapshot()["closure_boundary"]["retention_uncertain"]
+    assert owner.snapshot()["closure_boundary"]["observation_faults"] == 2
+    assert b"private" not in contract.canonical(owner.snapshot())
+
+
+def test_closure_deadline_identity_detects_in_place_change_without_reset():
+    from safe_geocoding_pipeline.preprocessing.stages.s12_public_recovery import Deadline
+
+    clock = Clock(100)
+    deadline = Deadline(clock, 1000)
+    owner = diagnostics.Failures(clock, closure=True)
+    owner.closure_boundary("SNAPSHOT_PRECHECK", deadline=deadline)
+    deadline.end_ns = 2000
+    owner.closure_boundary("SNAPSHOT_PERSIST", deadline=deadline)
+    state = owner.snapshot()["closure_boundary"]
+    assert state["last_entered"]["deadline_ns"] == 2000
+    assert state["last_entered"]["deadline_identity_unchanged"] is False
+    assert state["retention_uncertain"] is True
+    assert deadline.end_ns == 2000  # telemetry did not mutate the actual deadline
+
+
+def test_closure_cleanup_only_does_not_claim_an_initiating_closure_failure():
+    owner = diagnostics.Failures(Clock(), closure=True)
+    owner.closure_boundary("T3_CLOSE")
+    owner.record("CLEANUP", OSError(5, "private content"))
+    assert owner.snapshot()["closure_boundary"]["first_failure"] is None
+
+
+def test_closure_boundary_recorder_fault_does_not_retain_arbitrary_objects():
+    class BrokenClock:
+        def now_ns(self):
+            raise RuntimeError("private content")
+
+    owner = diagnostics.Failures(BrokenClock(), closure=True)
+    owner.closure_boundary("SNAPSHOT_PERSIST")
+    state = owner.snapshot()["closure_boundary"]
+    assert state["last_entered"] is None and state["retention_uncertain"]
+    assert b"private" not in contract.canonical(state)
+
+
+def test_actual_earlier_writer_failure_is_not_relabelled_as_closure_cause(tmp_path):
+    owner = diagnostics.Failures(Clock(), closure=True)
+    writer = journal.Writer(tmp_path / "writer", 1, 5000, lambda: None)
+    writer.failures = owner
+
+    def failing_action():
+        raise OSError(5, "INVENTED_PRIVATE_DETAILS")
+
+    try:
+        with pytest.raises(OSError):
+            writer.call(failing_action)
+        earlier = owner.snapshot()["first_initiating_failure"]
+        assert earlier["operation"] == "WRITER_ACTION"
+        assert earlier["writer_failed"] is False
+        owner.closure_boundary("SNAPSHOT_PRECHECK", writer=writer)
+        owner.record("CLOSURE", TimeoutError(), writer=writer)
+        state = owner.snapshot()
+        assert state["first_initiating_failure"] == earlier
+        assert state["closure_boundary"]["first_failure"]["failure"]["writer_failed"] is True
+        assert b"INVENTED_PRIVATE_DETAILS" not in contract.canonical(state)
+    finally:
+        writer.abort()
+        assert not writer.thread.is_alive()
+
+
+def test_closure_actual_original_scalar_guard_and_invalid_kind_redaction():
+    owner = diagnostics.Failures(Clock(), closure=True)
+    original = 123456789012345
+    owner.closure_boundary("T3_REREAD", deadline_ns=original, guard="GLOBAL_TASK")
+    row = owner.snapshot()["closure_boundary"]["last_entered"]
+    assert row["deadline_ns"] == original and row["deadline_unit"] == "MONOTONIC_NS"
+    assert row["guard_kind"] == "GLOBAL_TASK"
+    assert row["deadline_identity_source"] == "ACTUAL_ORIGINAL_SCALAR"
+    assert row["deadline_identity"] is None  # no invented object identity
+    owner.closure_boundary("T3_REREAD", deadline_ns=original, guard="PRIVATE_UNKNOWN_GUARD")
+    state = owner.snapshot()
+    assert state["closure_boundary"]["last_entered"]["guard_kind"] is None
+    assert state["closure_boundary"]["retention_uncertain"]
+    assert b"PRIVATE_UNKNOWN_GUARD" not in contract.canonical(state)
