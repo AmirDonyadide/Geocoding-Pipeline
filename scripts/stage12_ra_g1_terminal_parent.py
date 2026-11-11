@@ -29,7 +29,29 @@ RECEIPT_VERSION = "stage12_terminal_local_retention_v1"
 FINAL_VERSION = "stage12_terminal_final_log_verification_v1"
 NATIVE = "NATIVE_SYNTHETIC_TERMINAL"
 TEST = "TEST_ONLY_INVENTED"
-WINDOW_END_NS = 1794424401620987000
+WINDOW_END_NS = 1794424401620987000  # Legacy family, never extended.
+SUCCESSOR_VERSION = "stage12_terminal_same_domain_pair_v2"
+SUCCESSOR_AUTH_VERSION = "stage12_terminal_same_domain_pair_authority_v2"
+SUCCESSOR_READY_VERSION = "stage12_terminal_same_domain_transport_ready_v2"
+SUCCESSOR_FINAL_VERSION = "stage12_terminal_same_domain_final_log_verification_v2"
+SUCCESSOR_RECEIPT_VERSION = "stage12_terminal_same_domain_local_retention_v2"
+QUALIFICATION_VERSION = "stage12_terminal_collection_qualification_v1"
+SUCCESSOR_CONTEXT_FIELDS = "window collection_purpose original_source_root original_producer_path original_producer_sha256"
+
+
+def family_end(value):
+    if value.get("version") in (SUCCESSOR_VERSION, SUCCESSOR_READY_VERSION):
+        from safe_geocoding_pipeline.preprocessing.stages import s12_ra_g1_windows as windows
+        return windows.epoch_ns(windows.WINDOW_END)
+    return WINDOW_END_NS
+
+
+def validate_collection_window(value, *, now_epoch_ns, required_remaining_seconds):
+    from safe_geocoding_pipeline.preprocessing.stages import s12_ra_g1_windows as windows
+    return windows.validate_window(value, scope="TERMINAL_COLLECTION_NO_SERVICE",
+                                   now_epoch_ns=now_epoch_ns,
+                                   required_remaining_seconds=required_remaining_seconds)
+
 PRACTICAL = dict(
     members=131072,
     payload_bytes=1073741824,
@@ -87,7 +109,7 @@ SAFE_CODES = frozenset(
         "RETENTION",
         "FINAL_LOGS",
         "CLOSE_UNCERTAIN",
-        "UNCLASSIFIED",
+        "UNCLASSIFIED", "DOMAIN", "FRAME", "ANCESTOR", "ANCESTOR_CHANGED", "TRUNCATED", "PROTOCOL", "PAYLOAD_HASH",
     }
 )
 
@@ -114,6 +136,7 @@ class Control:
     """Fixed parent/local counters; logical limits do not certify native containment."""
 
     def __init__(self, entered, epoch_end, seconds, output=None):
+        self.entered = entered
         self.end = entered + seconds * 10**9
         self.epoch_end = epoch_end
         self.output = output
@@ -260,13 +283,15 @@ def load_control(path, expected, control):
 
 
 def validate_authority(authority, binding, offline):
+    successor = binding.get("version") == SUCCESSOR_VERSION
+    admission_field = "collection_admission_sha256" if successor else "environment_gate_sha256"
     fields(
         authority,
-        "version scope state grant_nonce adoption_sha256 environment_gate_sha256 source_git_sha original_job_id original_scheduler_sha256 original_log_policy_sha256 max_collection_jobs max_collection_seconds collection_pool_bytes collection_pool_creations control_pool_bytes window_start_epoch_ns valid_until_epoch_ns",
+        ("version scope state grant_nonce adoption_sha256 "+admission_field+" source_git_sha original_job_id original_scheduler_sha256 original_log_policy_sha256 max_collection_jobs max_collection_seconds collection_pool_bytes collection_pool_creations control_pool_bytes window_start_epoch_ns valid_until_epoch_ns") + (" window collection_purpose historical_collection_sha256" if successor else ""),
         "AUTHORITY",
     )
     need(
-        authority["version"] == AUTH_VERSION
+        authority["version"] == (SUCCESSOR_AUTH_VERSION if successor else AUTH_VERSION)
         and authority["grant_nonce"] == binding["grant_nonce"]
         and authority["scope"] == binding["scope"]
         and authority["source_git_sha"] == binding["source_git_sha"]
@@ -301,31 +326,52 @@ def validate_authority(authority, binding, offline):
         and authority["valid_until_epoch_ns"] == binding["valid_until_epoch_ns"],
         "AUTHORITY",
     )
+    if successor:
+        hash_string(authority[admission_field])
+        need(authority["window"] == binding["window"] and authority["collection_purpose"] == binding["collection_purpose"] and authority["historical_collection_sha256"] == digest(tc.canonical(binding["historical_collection"])), "AUTHORITY")
     if offline:
         need(
             authority["state"] == "TEST_ONLY"
             and authority["adoption_sha256"] is None
-            and authority["environment_gate_sha256"] is None,
+            and (successor or authority["environment_gate_sha256"] is None),
             "AUTHORITY",
         )
     else:
         need(
             authority["state"] == "ISSUED"
             and authority["adoption_sha256"] != "0" * 64
-            and authority["environment_gate_sha256"] != "0" * 64,
+            and authority[admission_field] != "0" * 64,
             "AUTHORITY",
         )
         hash_string(authority["adoption_sha256"])
-        hash_string(authority["environment_gate_sha256"])
+        hash_string(authority[admission_field])
+
+
+def validate_collection_source_scope(binding, offline):
+    """Closed workload boundaries for the two specifically authorized collections."""
+    if offline:
+        return
+    from safe_geocoding_pipeline.preprocessing.stages import s12_ra_g1_windows as windows
+    job=binding["original_job_id"]
+    need(type(job) is int and job > 0, "SCOPE")
+    if binding["collection_purpose"] == "QUALIFICATION":
+        need(binding["original_source_git_sha"] == windows.ORIGINAL_SOURCE
+             and job == int(windows.ORIGINAL_JOB)
+             and binding["original_selection_sha256"] == windows.ORIGINAL_SELECTION, "SCOPE")
+    else:
+        need(binding["collection_purpose"] == "POST_B"
+             and binding["original_source_git_sha"] == binding["source_git_sha"]
+             and job not in (int(windows.ORIGINAL_JOB),1813045), "SCOPE")
 
 
 def validate_binding(binding, offline, test_root):
+    successor = binding.get("version") == SUCCESSOR_VERSION
     fields(
         binding,
-        "version scope state grant_nonce authority_sha256 original_job_id original_source_git_sha source_git_sha helper_sha256 parent_sha256 interpreter_path selection_template_path selection_template_sha256 original_terminal_path original_terminal_sha256 original_scheduler_path original_scheduler_sha256 original_log_policy original_log_policy_sha256 original_selection_path original_selection_sha256 allocation_producer_sha256 verifier_path verifier_sha256 output_path seconds window_start_epoch_ns valid_until_epoch_ns allowed_inert_fifo_paths collection_external_logs",
+        "version scope state grant_nonce authority_sha256 original_job_id original_source_git_sha source_git_sha helper_sha256 parent_sha256 interpreter_path selection_template_path selection_template_sha256 original_terminal_path original_terminal_sha256 original_scheduler_path original_scheduler_sha256 original_log_policy original_log_policy_sha256 original_selection_path original_selection_sha256 allocation_producer_sha256 verifier_path verifier_sha256 output_path seconds window_start_epoch_ns valid_until_epoch_ns allowed_inert_fifo_paths collection_external_logs" + (" window collection_purpose original_source_root original_producer_path historical_collection collection_admission_path" if successor else ""),
     )
     need(
-        binding["version"] == VERSION
+        binding["version"] in (VERSION, SUCCESSOR_VERSION)
         and type(binding["grant_nonce"]) is str
         and re.fullmatch(r"[0-9a-f]{32}", binding["grant_nonce"]),
         "BINDING",
@@ -432,9 +478,61 @@ def validate_binding(binding, offline, test_root):
             and binding["seconds"] == 1800
             and binding["source_git_sha"] != "0" * 40
             and binding["original_source_git_sha"] != "0" * 40
-            and binding["valid_until_epoch_ns"] <= WINDOW_END_NS,
+            and binding["valid_until_epoch_ns"] <= family_end(binding),
             "SCOPE",
         )
+
+    if successor:
+        need(binding["collection_purpose"] in ("QUALIFICATION", "POST_B"), "BINDING")
+        validate_collection_source_scope(binding,offline)
+        source = tc.absolute(binding["original_source_root"])
+        producer = tc.absolute(binding["original_producer_path"])
+        need(producer == source / "scripts/stage12_ra_g1_allocation.py", "BINDING")
+        admission_path = tc.absolute(binding["collection_admission_path"])
+        need(admission_path == tc.absolute(binding["selection_template_path"]).parent/"collection_admission.record", "BINDING")
+        if offline:
+            need(tc.contained(admission_path,test_root), "SCOPE")
+        history = binding["historical_collection"]
+        if binding["collection_purpose"] == "QUALIFICATION":
+            fields(history, "job_id source_git_sha scheduler_state exit_code signal raw_scheduler_sha256 roots", "BINDING")
+            need(history["job_id"] == 1813045 and type(history["job_id"]) is int
+                 and history["source_git_sha"] == binding["original_source_git_sha"]
+                 and history["scheduler_state"] in TERMINAL_STATES and history["scheduler_state"] != "COMPLETED", "BINDING")
+            tc.uint(history["exit_code"])
+            tc.uint(history["signal"])
+            hash_string(history["raw_scheduler_sha256"])
+            base = tc.absolute(binding["original_selection_path"]).parent.parent
+            need(history["roots"] == [dict(label=name, path=str(base/name)) for name in ("terminal_pair","terminal_bindings","terminal_logs")], "BINDING")
+        else:
+            need(history is None, "BINDING")
+        if not offline:
+            validate_collection_window(binding["window"], now_epoch_ns=time.time_ns(), required_remaining_seconds=1920)
+            from safe_geocoding_pipeline.preprocessing.stages import s12_ra_g1_windows as windows
+            need(binding["window_start_epoch_ns"] == windows.epoch_ns(windows.WINDOW_START)
+                 and binding["valid_until_epoch_ns"] == windows.epoch_ns(windows.WINDOW_END), "BINDING")
+
+
+def validate_collection_admission(value, binding, authority, offline):
+    fields(value, "version scope state source_git_sha original_job_id original_source_git_sha original_selection_sha256 original_source_root allocation_producer_sha256 historical_collection_sha256 window grant_nonce collection_purpose helper_sha256 parent_sha256 verifier_sha256 collection_plan_sha256 collection_review_sha256 software_review_sha256 process_graph_sha256 maximum_preparation_and_native_processes max_collection_jobs max_collection_seconds collection_pool_bytes collection_pool_creations control_pool_bytes B_authorized public_authorized protected_authorized scientific_acceptance", "AUTHORITY")
+    need(value["version"] == "stage12_collection_only_admission_v1" and value["scope"] == "TERMINAL_COLLECTION_NO_SERVICE"
+         and value["state"] == ("TEST_ONLY" if offline else "ISSUED"), "AUTHORITY")
+    for key in ("source_git_sha","original_job_id","original_source_git_sha","original_selection_sha256","original_source_root",
+                "allocation_producer_sha256","window","grant_nonce","helper_sha256","parent_sha256","verifier_sha256","collection_purpose"):
+        need(value[key] == binding[key], "AUTHORITY")
+    need(value["historical_collection_sha256"] == digest(tc.canonical(binding["historical_collection"])), "AUTHORITY")
+    for key in ("collection_plan_sha256","collection_review_sha256","software_review_sha256","process_graph_sha256"):
+        hash_string(value[key])
+        need(value[key] != "0"*64, "AUTHORITY")
+    for key in ("max_collection_jobs","max_collection_seconds","collection_pool_bytes","collection_pool_creations","control_pool_bytes"):
+        tc.uint(value[key])
+        need(value[key] == authority[key], "AUTHORITY")
+    need(type(value["maximum_preparation_and_native_processes"]) is int
+         and value["maximum_preparation_and_native_processes"] == 69, "AUTHORITY")
+    need(all(value[key] is False for key in ("B_authorized","public_authorized","protected_authorized","scientific_acceptance")), "SCOPE")
+    if not offline:
+        validate_collection_window(value["window"],now_epoch_ns=time.time_ns(),
+                                   required_remaining_seconds=12240 if binding["collection_purpose"] == "QUALIFICATION" else 1920)
+    return value
 
 
 def source_hash(path, expected, control):
@@ -529,7 +627,7 @@ def bind_template(value, binding, control, offline, test_root):
     return actual, selected
 
 
-def verified_source_module(control, expected_source_sha256, filename):
+def verified_source_module(control, expected_source_sha256, filename, *, source_path=None):
     """Execute only verified bytes from the fixed reviewed producer sibling."""
     from types import ModuleType
 
@@ -537,7 +635,8 @@ def verified_source_module(control, expected_source_sha256, filename):
         filename in ("stage12_ra_g1_allocation.py", "stage12_ra_g1_terminal_verify.py"),
         "BINDING",
     )
-    path = Path(__file__).absolute().with_name(filename)
+    path = Path(__file__).absolute().with_name(filename) if source_path is None else tc.absolute(str(source_path))
+    need(source_path is None or filename == "stage12_ra_g1_allocation.py", "BINDING")
     before = path.lstat()
     chain = tc.ancestors(path)
     need(
@@ -575,18 +674,18 @@ def verified_source_module(control, expected_source_sha256, filename):
     return module
 
 
-def allocation_producer(control, expected_source_sha256):
+def allocation_producer(control, expected_source_sha256, producer_path=None):
     return verified_source_module(
-        control, expected_source_sha256, "stage12_ra_g1_allocation.py"
+        control, expected_source_sha256, "stage12_ra_g1_allocation.py", source_path=producer_path
     )
 
 
 def load_control_large(
-    path, expected, control, producer_source_sha256, *, return_producer=False
+    path, expected, control, producer_source_sha256, *, return_producer=False, producer_path=None
 ):
     raw = read_original(path, control, 1048576)
     need(digest(raw) == hash_string(expected), "BINDING")
-    producer = allocation_producer(control, producer_source_sha256)
+    producer = allocation_producer(control, producer_source_sha256, producer_path)
     value = producer.parse(
         raw
     )  # actual allocation producer contract, ensure_ascii=True
@@ -688,6 +787,8 @@ def validate_original_namespace(original, template, binding, producer, offline):
             original
         )  # actual production schema, no copied predicate
     paths = original.get("paths")
+    if binding.get("version") == SUCCESSOR_VERSION:
+        need(type(paths) is dict and paths.get("source") == binding["original_source_root"], "BINDING")
     need(
         type(paths) is dict and {"allocation_root", "records"} <= set(paths), "BINDING"
     )
@@ -695,6 +796,8 @@ def validate_original_namespace(original, template, binding, producer, offline):
         dict(label="allocation", path=str(tc.absolute(paths["allocation_root"]))),
         dict(label="records", path=str(tc.absolute(paths["records"]))),
     ]
+    if binding.get("version") == SUCCESSOR_VERSION and binding["historical_collection"] is not None:
+        roots += binding["historical_collection"]["roots"]
     need(template.get("roots") == roots, "BINDING")
     policy = binding["original_log_policy"]
     need(
@@ -732,11 +835,10 @@ def require_stderr_bytes(size):
 
 def require_full_collection_window(binding, now_epoch_ns):
     tc.uint(now_epoch_ns)
-    need(
-        now_epoch_ns + 1920 * 10**9
-        <= min(binding["valid_until_epoch_ns"], WINDOW_END_NS),
-        "DEADLINE",
-    )
+    remaining = 12240 if binding.get("version") == SUCCESSOR_VERSION and binding["collection_purpose"] == "QUALIFICATION" else 1920
+    need(now_epoch_ns + remaining * 10**9 <= min(binding["valid_until_epoch_ns"], family_end(binding)), "DEADLINE")
+    if binding.get("version") == SUCCESSOR_VERSION:
+        validate_collection_window(binding["window"], now_epoch_ns=now_epoch_ns, required_remaining_seconds=remaining)
 
 
 def role_kill_at(deadline_ns, parent_end_ns):
@@ -848,12 +950,16 @@ def run_pair(
         verifier_path == parent.with_name("stage12_ra_g1_terminal_verify.py"), "BINDING"
     )
     source_hash(verifier_path, binding["verifier_sha256"], control)
+    if binding["version"] == SUCCESSOR_VERSION:
+        admission = load_control(Path(binding["collection_admission_path"]), authority["collection_admission_sha256"], control)
+        validate_collection_admission(admission, binding, authority, offline)
     original_selection, original_producer = load_control_large(
         Path(binding["original_selection_path"]),
         binding["original_selection_sha256"],
         control,
         binding["allocation_producer_sha256"],
         return_producer=True,
+        producer_path=binding.get("original_producer_path"),
     )
     need(
         binding["original_selection_sha256"] == terminal["workload_selection_sha256"],
@@ -903,6 +1009,8 @@ def run_pair(
         external_logs=binding["collection_external_logs"],
         native_or_scientific_acceptance=False,
     )
+    if binding["version"] == SUCCESSOR_VERSION:
+        sourceinfo.update(version=SUCCESSOR_VERSION, window=binding["window"], collection_purpose=binding["collection_purpose"], original_source_root=binding["original_source_root"], original_producer_path=binding["original_producer_path"], original_producer_sha256=binding["allocation_producer_sha256"])
     control.record(output / "PAIR_CONTEXT.record", sourceinfo)
     filesystem_enter = time.monotonic_ns()
     destination_info = output.lstat()
@@ -1134,7 +1242,7 @@ def run_pair(
             dict(label="verification", path=str(verification_path), **proof_hash)
         )
         ready = dict(
-            version=READY_VERSION,
+            version=SUCCESSOR_READY_VERSION if binding["version"] == SUCCESSOR_VERSION else READY_VERSION,
             scope=binding["scope"],
             context=sourceinfo,
             artifacts=artifacts,
@@ -1145,6 +1253,8 @@ def run_pair(
             local_receipt_path=str(output / "RETENTION_RECEIPT.record"),
             native_or_scientific_acceptance=False,
         )
+        if binding["version"] == SUCCESSOR_VERSION:
+            ready["collection_selection"] = actual
         ready_sha = control.record(output / "TRANSPORT_READY.record", ready)
         receipt_path = output / "RETENTION_RECEIPT.record"
         while not receipt_path.exists():
@@ -1155,7 +1265,7 @@ def run_pair(
         receipt_ack_sha = control.record(
             output / "RETENTION_RECEIPT_ACK.record",
             dict(
-                version=VERSION,
+                version=binding["version"],
                 status="RETENTION_RECEIPT_DURABLY_ACKNOWLEDGED",
                 ready_sha256=ready_sha,
                 receipt_sha256=digest(tc.canonical(receipt)),
@@ -1175,7 +1285,7 @@ def run_pair(
         control.check()
         need(not control.cleanup_uncertain, "CLOSE_UNCERTAIN")
         result = dict(
-            version=VERSION,
+            version=binding["version"],
             status="PROVISIONAL_INTEGRITY_COMPLETE_PENDING_TERMINAL_LOGS_AND_REVIEW",
             scope=binding["scope"],
             context=sourceinfo,
@@ -1217,7 +1327,7 @@ def run_pair(
                 control.record(
                     output / "PAIR_INCOMPLETE.record",
                     dict(
-                        version=VERSION,
+                        version=binding["version"],
                         status="INCOMPLETE",
                         primary_code=first_code,
                         children_joined=all(p.poll() is not None for p in children),
@@ -1261,13 +1371,263 @@ def run_pair(
             control.cleanup_uncertain = True
 
 
+def validate_transport_domain(value):
+    fields(value, "host boot_id mount_namespace session_nonce session_pid", "DOMAIN")
+    need(type(value["host"]) is str and re.fullmatch(r"[A-Za-z0-9_.-]{1,255}", value["host"]), "DOMAIN")
+    need(type(value["boot_id"]) is str and re.fullmatch(r"[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}", value["boot_id"]), "DOMAIN")
+    need(type(value["mount_namespace"]) is str and re.fullmatch(r"mnt:\[[0-9]{1,20}\]", value["mount_namespace"]), "DOMAIN")
+    need(type(value["session_nonce"]) is str and re.fullmatch(r"[0-9a-f]{32}", value["session_nonce"]), "DOMAIN")
+    tc.uint(value["session_pid"], True)
+
+
+def validate_transport_evidence(evidence, ready=None):
+    fields(evidence, "version domain_before domain_after ancestors files exit_code observed_joined", "DOMAIN")
+    need(evidence["version"] == "stage12_same_session_transfer_v2" and evidence["exit_code"] == 0
+         and type(evidence["exit_code"]) is int and evidence["observed_joined"] is True, "CHILD_EXIT")
+    validate_transport_domain(evidence["domain_before"])
+    validate_transport_domain(evidence["domain_after"])
+    need(evidence["domain_before"] == evidence["domain_after"], "DOMAIN")
+    need(type(evidence["ancestors"]) is list and 1 <= len(evidence["ancestors"]) <= 1280, "ANCESTOR")
+    seen = set()
+    import stat
+    for row in evidence["ancestors"]:
+        fields(row, "path before after", "ANCESTOR")
+        path = tc.absolute(row["path"])
+        need(path not in seen, "ANCESTOR")
+        seen.add(path)
+        for value in (row["before"], row["after"]):
+            need(type(value) is list and len(value) == 9, "ANCESTOR")
+            for n in value:
+                tc.uint(n)
+            need(stat.S_ISDIR(value[2]), "ANCESTOR")
+        need(row["before"][:6] == row["after"][:6], "ANCESTOR_CHANGED")
+    need(type(evidence["files"]) is list and 1 <= len(evidence["files"]) <= 16, "FRAME")
+    labels, paths = set(), set()
+    for row in evidence["files"]:
+        fields(row, "label path before after bytes sha256", "FRAME")
+        path = tc.absolute(row["path"])
+        need(type(row["label"]) is str and tc.LABEL.fullmatch(row["label"]) and row["label"] not in labels and path not in paths, "FRAME")
+        labels.add(row["label"])
+        paths.add(path)
+        identity = row["before"]
+        need(type(identity) is list and len(identity) == 9 and identity == row["after"], "SOURCE_CHANGED")
+        for n in identity:
+            tc.uint(n)
+        tc.uint(row["bytes"])
+        hash_string(row["sha256"])
+        need(stat.S_ISREG(identity[2]) and stat.S_IMODE(identity[2]) == 0o600 and identity[5] == 1
+             and identity[6] == row["bytes"], "PRIVATE")
+        need(all(parent in seen for parent in path.parents), "ANCESTOR")
+    if ready is not None:
+        need([{k: r[k] for k in ("label", "path", "bytes", "sha256")} for r in evidence["files"]]
+             == [{k: r[k] for k in ("label", "path", "bytes", "sha256")} for r in ready["artifacts"]], "RETENTION")
+        need(all(r["before"][3] == ready["context"]["collection_uid"] for r in evidence["files"]), "PRIVATE")
+    need(len(tc.canonical(evidence)) <= 49152, "LIMITS")
+    return evidence
+
+
+def validate_archive_open(value, ready):
+    fields(value, "version status selection_sha256 archive_sha256 summary actual_read_bytes actual_read_calls entered_epoch_ns completed_epoch_ns source_identity native_or_scientific_acceptance", "RETENTION")
+    need(value["version"] == "stage12_readonly_collection_archive_open_v1" and value["status"] == "COMPLETE"
+         and value["selection_sha256"] == ready["context"]["selection_sha256"]
+         and value["archive_sha256"] == ready["artifacts"][0]["sha256"]
+         and value["native_or_scientific_acceptance"] is False, "RETENTION")
+    fields(value["summary"], "members payload_bytes manifest_bytes manifest_sha256", "SUMMARY")
+    for key in ("actual_read_bytes", "actual_read_calls", "entered_epoch_ns", "completed_epoch_ns"):
+        tc.uint(value[key])
+    need(value["entered_epoch_ns"] <= value["completed_epoch_ns"] < ready["context"]["overall_deadline_epoch_ns"]
+         and value["actual_read_bytes"] <= 8*2**30 and value["actual_read_calls"] <= 262144, "DEADLINE")
+    need(type(value["source_identity"]) is list and len(value["source_identity"]) == 9, "RETENTION")
+    for n in value["source_identity"]:
+        tc.uint(n)
+
+
+class _FreshReader:
+    """One immutable FD with bounded buffering; no write or source materialization."""
+
+    def __init__(self, path, control, maximum):
+        self.path, self.control = tc.absolute(str(path)), control
+        self.chain = tc.ancestors(self.path)
+        self.before = self.path.lstat()
+        tc.private(self.before, "FILE", os.geteuid())
+        need(self.before.st_size <= maximum, "READ_BYTES")
+        self.fd = os.open(self.path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        self.buffer = bytearray()
+        self.returned = self.fetched = 0
+        self.sha = hashlib.sha256()
+        self.closed = False
+        try:
+            need(tc.ident(os.fstat(self.fd)) == tc.ident(self.before), "SOURCE_CHANGED")
+        except BaseException:
+            self.close()
+            raise
+
+    def read(self, amount):
+        need(type(amount) is int and 0 <= amount <= 65536, "READ_BYTES")
+        while len(self.buffer) < amount and self.fetched < self.before.st_size:
+            part = self.control.read(self.fd, min(65536, self.before.st_size - self.fetched))
+            need(part, "TRUNCATED")
+            self.fetched += len(part)
+            self.sha.update(part)
+            self.buffer.extend(part)
+        out = bytes(self.buffer[:amount])
+        del self.buffer[:len(out)]
+        self.returned += len(out)
+        return out
+
+    def line(self, limit):
+        raw = bytearray()
+        while True:
+            if not self.buffer and self.fetched < self.before.st_size:
+                part = self.control.read(self.fd, min(65536, self.before.st_size - self.fetched))
+                need(part, "TRUNCATED")
+                self.fetched += len(part)
+                self.sha.update(part)
+                self.buffer.extend(part)
+            if not self.buffer:
+                need(not raw, "FRAME")
+                return None
+            pos = self.buffer.find(b"\n")
+            size = len(self.buffer) if pos < 0 else pos + 1
+            need(len(raw) + size <= limit, "FRAME")
+            raw.extend(self.buffer[:size])
+            del self.buffer[:size]
+            self.returned += size
+            if pos >= 0:
+                return bytes(raw)
+
+    def finish(self):
+        need(not self.buffer and self.returned == self.fetched == self.before.st_size, "TRUNCATED")
+        need(not self.control.read(self.fd, 1)
+             and tc.ident(os.fstat(self.fd)) == tc.ident(self.before) == tc.ident(self.path.lstat()), "SOURCE_CHANGED")
+        tc.check_ancestors(self.chain)
+        return dict(bytes=self.fetched, sha256=self.sha.hexdigest(), identity=list(tc.ident(self.before)))
+
+    def close(self):
+        if not self.closed:
+            self.closed = True
+            tc.close_owned(self.control, (self.fd,))
+
+
+def open_retained_archive(ready, local_root, control):
+    """Actual read-only complete frame/payload opener, using tc's wire/row contracts."""
+    selected = tc.Selection(ready["collection_selection"], ready["scope"] == TEST,
+                            tc.absolute(ready["collection_selection"]["roots"][0]["path"]).parent if ready["scope"] == TEST else None)
+    need(selected.sha == ready["context"]["selection_sha256"], "BINDING")
+    root = Path(local_root)
+    entered = time.time_ns()
+    archive = _FreshReader(root / "archive.original", control, ready["artifacts"][0]["bytes"])
+    readers = []
+    class Wire(tc.WireIn):
+        def __init__(self):
+            self.s = selected
+        def read(self, n):
+            return archive.read(n)
+    wire = Wire()
+    summary = None
+    try:
+        need(wire.exact(len(selected.magic)) == selected.magic, "PROTOCOL")
+        frame = wire.frame()
+        tc.frame_kind(frame, "BEGIN", {"version", "scope", "selection_sha256"})
+        need(frame == dict(kind="BEGIN", version=selected.version, scope=tc.SCOPE, selection_sha256=selected.sha), "BINDING")
+        before_frame = wire.frame()
+        tc.frame_kind(before_frame, "BEFORE", {"summary"})
+        summary = before_frame["summary"]
+        fields(summary, "members payload_bytes manifest_bytes manifest_sha256", "SUMMARY")
+        for key in ("members", "payload_bytes", "manifest_bytes"):
+            tc.uint(summary[key])
+            need(summary[key] <= selected.limits[key], "LIMITS")
+        hash_string(summary["manifest_sha256"])
+        before = _FreshReader(root / "before.original", control, selected.limits["manifest_bytes"])
+        readers.append(before)
+        count = payload = length = 0
+        sha = hashlib.sha256()
+        previous = None
+        found, inert = set(), set()
+        for _ in range(summary["members"]):
+            raw = before.line(selected.limits["record_bytes"])
+            need(raw is not None, "TRUNCATED")
+            row = tc.validate_row(tc.parse(raw), selected)
+            key = row["path"].encode()
+            need(previous is None or previous < key, "PROTOCOL")
+            previous = key
+            frame = wire.frame()
+            tc.frame_kind(frame, "MEMBER", {"entry"})
+            need(tc.canonical(frame["entry"]) == raw, "PROTOCOL")
+            count += 1
+            length += len(raw)
+            payload += row["size"] if row["kind"] == "FILE" else 0
+            sha.update(raw)
+            if row["path"] in selected.logs:
+                need(row["kind"] == "FILE", "PROTOCOL")
+                found.add(row["path"])
+            if row["kind"] == "FIFO_INERT":
+                inert.add(row["path"])
+        need(before.line(selected.limits["record_bytes"]) is None and found == selected.logs and inert == set(selected.inert), "PROTOCOL")
+        manifest = before.finish()
+        need(summary == dict(members=count, payload_bytes=payload, manifest_bytes=length, manifest_sha256=sha.hexdigest()), "SUMMARY")
+        need(manifest["sha256"] == summary["manifest_sha256"], "PAYLOAD_HASH")
+        before.close()
+        frame = wire.frame()
+        tc.frame_kind(frame, "DATA", {"summary"})
+        need(frame["summary"] == summary, "SUMMARY")
+        before = _FreshReader(root / "before.original", control, selected.limits["manifest_bytes"])
+        readers.append(before)
+        for _ in range(summary["members"]):
+            raw = before.line(selected.limits["record_bytes"])
+            need(raw is not None, "TRUNCATED")
+            row = tc.validate_row(tc.parse(raw), selected)
+            frame = wire.frame()
+            tc.frame_kind(frame, "ENTRY", {"entry"})
+            need(tc.canonical(frame["entry"]) == raw, "PROTOCOL")
+            if row["kind"] == "FILE":
+                left, content_sha = row["size"], hashlib.sha256()
+                while left:
+                    part = wire.read(min(65536, left))
+                    need(part, "TRUNCATED")
+                    left -= len(part)
+                    content_sha.update(part)
+                need(content_sha.hexdigest() == row["sha256"], "PAYLOAD_HASH")
+        need(before.line(selected.limits["record_bytes"]) is None, "PROTOCOL")
+        need(before.finish()["sha256"] == summary["manifest_sha256"], "SOURCE_CHANGED")
+        before.close()
+        frame = wire.frame()
+        tc.frame_kind(frame, "AFTER", {"summary"})
+        need(frame["summary"] == summary, "SUMMARY")
+        after = _FreshReader(root / "after.original", control, selected.limits["manifest_bytes"])
+        readers.append(after)
+        for _ in range(summary["members"]):
+            raw = after.line(selected.limits["record_bytes"])
+            need(raw is not None, "TRUNCATED")
+            frame = wire.frame()
+            tc.frame_kind(frame, "MEMBER", {"entry"})
+            need(tc.canonical(frame["entry"]) == raw, "SOURCE_CHANGED")
+        need(after.line(selected.limits["record_bytes"]) is None, "PROTOCOL")
+        need(after.finish()["sha256"] == summary["manifest_sha256"], "SOURCE_CHANGED")
+        after.close()
+        frame = wire.frame()
+        tc.frame_kind(frame, "END", {"summary", "scope"})
+        need(frame["summary"] == summary and frame["scope"] == tc.SCOPE and not wire.read(1), "PROTOCOL")
+        actual = archive.finish()
+        need(actual["bytes"] == ready["artifacts"][0]["bytes"] and actual["sha256"] == ready["artifacts"][0]["sha256"], "PAYLOAD_HASH")
+        return actual, dict(version="stage12_readonly_collection_archive_open_v1", status="COMPLETE",
+                            selection_sha256=selected.sha, archive_sha256=actual["sha256"], summary=summary,
+                            actual_read_bytes=control.read_bytes, actual_read_calls=control.read_calls,
+                            entered_epoch_ns=entered, completed_epoch_ns=time.time_ns(),
+                            source_identity=actual["identity"], native_or_scientific_acceptance=False)
+    finally:
+        for reader in [archive, *readers]:
+            reader.close()
+
+
 def validate_ready(ready):
+    successor = ready.get("version") == SUCCESSOR_READY_VERSION
     fields(
         ready,
-        "version scope context artifacts parent_controls_byte_limit local_retention_byte_limit local_receipt_path native_or_scientific_acceptance",
+        "version scope context artifacts parent_controls_byte_limit local_retention_byte_limit local_receipt_path native_or_scientific_acceptance" + (" collection_selection" if successor else ""),
     )
     need(
-        ready["version"] == READY_VERSION
+        ready["version"] in (READY_VERSION, SUCCESSOR_READY_VERSION)
         and ready["scope"] in (TEST, NATIVE)
         and ready["native_or_scientific_acceptance"] is False,
         "RETENTION",
@@ -1308,13 +1668,14 @@ def validate_ready(ready):
         "RETENTION",
     )
     context = ready["context"]
+    successor = ready["version"] == SUCCESSOR_READY_VERSION
     fields(
         context,
-        "version status scope original_job_id collection_job_id original_source_git_sha collection_source_git_sha original_workload_selection_sha256 collection_uid original_scheduler_state original_exit_code original_signal original_scheduler_sha256 selection_sha256 binding_sha256 authority_sha256 entry_mono_ns entry_epoch_ns overall_deadline_epoch_ns parent_deadline_epoch_ns external_logs native_or_scientific_acceptance",
+        "version status scope original_job_id collection_job_id original_source_git_sha collection_source_git_sha original_workload_selection_sha256 collection_uid original_scheduler_state original_exit_code original_signal original_scheduler_sha256 selection_sha256 binding_sha256 authority_sha256 entry_mono_ns entry_epoch_ns overall_deadline_epoch_ns parent_deadline_epoch_ns external_logs native_or_scientific_acceptance" + (" " + SUCCESSOR_CONTEXT_FIELDS if successor else ""),
         "RETENTION",
     )
     need(
-        context["version"] == VERSION
+        context["version"] == (SUCCESSOR_VERSION if successor else VERSION)
         and context["scope"] == ready["scope"]
         and context["native_or_scientific_acceptance"] is False,
         "RETENTION",
@@ -1348,18 +1709,22 @@ def validate_ready(ready):
 
 
 def validate_receipt(receipt, ready, ready_sha):
+    successor = ready["version"] == SUCCESSOR_READY_VERSION
     fields(
         receipt,
-        "version scope ready_sha256 original_job_id collection_job_id selection_sha256 artifacts local_root local_root_identity local_start_epoch_ns local_complete_epoch_ns actual_read_bytes actual_read_calls native_or_scientific_acceptance",
+        "version scope ready_sha256 original_job_id collection_job_id selection_sha256 artifacts local_root local_root_identity local_start_epoch_ns local_complete_epoch_ns actual_read_bytes actual_read_calls native_or_scientific_acceptance" + (" transport_evidence whole_collection_opener" if successor else ""),
     )
     need(
-        receipt["version"] == RECEIPT_VERSION
+        receipt["version"] == (SUCCESSOR_RECEIPT_VERSION if successor else RECEIPT_VERSION)
         and receipt["scope"] == ready["scope"]
         and receipt["ready_sha256"] == ready_sha
         and receipt["native_or_scientific_acceptance"] is False,
         "RETENTION",
     )
     ctx = ready["context"]
+    if successor:
+        validate_transport_evidence(receipt["transport_evidence"], ready)
+        validate_archive_open(receipt["whole_collection_opener"], ready)
     for key in [
         "original_job_id",
         "collection_job_id",
@@ -1432,10 +1797,13 @@ def verify_retention(
     entered_epoch,
     *,
     control=None,
+    transport_evidence=None,
 ):
     validate_ready(ready)
     need(digest(tc.canonical(ready)) == ready_sha, "RETENTION")
     ctx = ready["context"]
+    if ready["version"] == SUCCESSOR_READY_VERSION:
+        need(ready["collection_selection"] is not None, "BINDING")
     if control is None:
         control = Control(entered_mono, ctx["parent_deadline_epoch_ns"], 900)
     else:
@@ -1456,9 +1824,13 @@ def verify_retention(
             seen.add(entry.name)
         need(seen == expected_names, "RETENTION")
     result_artifacts = []
+    opener = None
     for row in ready["artifacts"]:
         path = local_root / (row["label"] + ".original")
-        got = hash_original(path, control, row["bytes"])
+        if ready["version"] == SUCCESSOR_READY_VERSION and row["label"] == "archive":
+            got, opener = open_retained_archive(ready, local_root, control)
+        else:
+            got = hash_original(path, control, row["bytes"])
         need(
             got["bytes"] == row["bytes"] and got["sha256"] == row["sha256"], "RETENTION"
         )
@@ -1469,7 +1841,7 @@ def verify_retention(
             )
         )
     receipt = dict(
-        version=RECEIPT_VERSION,
+        version=SUCCESSOR_RECEIPT_VERSION if ready["version"] == SUCCESSOR_READY_VERSION else RECEIPT_VERSION,
         scope=ready["scope"],
         ready_sha256=ready_sha,
         original_job_id=ctx["original_job_id"],
@@ -1484,6 +1856,9 @@ def verify_retention(
         actual_read_calls=control.read_calls,
         native_or_scientific_acceptance=False,
     )
+    if ready["version"] == SUCCESSOR_READY_VERSION:
+        receipt["transport_evidence"] = transport_evidence
+        receipt["whole_collection_opener"] = opener
     validate_receipt(receipt, ready, ready_sha)
     need(tc.contained(tc.absolute(str(receipt_path)), local_root), "PATH")
     control.record(receipt_path, receipt)
@@ -1502,10 +1877,12 @@ def verify_local_retained(ready, receipt, retained_root, control):
         list(tc.ident(root.lstat())[:5]) == receipt["local_root_identity"],
         "SOURCE_CHANGED",
     )
+    opener = None
     for expected, stored in zip(ready["artifacts"], receipt["artifacts"], strict=True):
-        current = hash_original(
-            root / (expected["label"] + ".original"), control, expected["bytes"]
-        )
+        if ready["version"] == SUCCESSOR_READY_VERSION and expected["label"] == "archive":
+            current, opener = open_retained_archive(ready, root, control)
+        else:
+            current = hash_original(root / (expected["label"] + ".original"), control, expected["bytes"])
         need(
             current["bytes"] == expected["bytes"]
             and current["sha256"] == expected["sha256"]
@@ -1513,6 +1890,7 @@ def verify_local_retained(ready, receipt, retained_root, control):
             "SOURCE_CHANGED",
         )
     control.check()
+    return opener
 
 
 def verify_final_logs(
@@ -1526,10 +1904,11 @@ def verify_final_logs(
     entered_epoch,
     *,
     retained_root=None,
+    control=None,
 ):
     need(
         type(provisional) is dict
-        and provisional.get("version") == VERSION
+        and provisional.get("version") in (VERSION, SUCCESSOR_VERSION)
         and provisional.get("status")
         == "PROVISIONAL_INTEGRITY_COMPLETE_PENDING_TERMINAL_LOGS_AND_REVIEW"
         and provisional.get("children_joined") is True
@@ -1574,17 +1953,21 @@ def verify_final_logs(
     effective_end = min(
         ctx["overall_deadline_epoch_ns"],
         terminal["start_epoch_ns"] + 1800 * 10**9,
-        WINDOW_END_NS,
+        family_end(ctx),
     )
-    control = Control(entered_mono, effective_end, 120)
+    if control is None:
+        control = Control(entered_mono, effective_end, 120)
+    else:
+        control.epoch_end = min(control.epoch_end, effective_end)
+        need(control.end == entered_mono + 120*10**9, "DEADLINE")
     control.check()
     fields(
         index,
-        "version context_sha256 logs transport_start_epoch_ns transport_complete_epoch_ns",
+        "version context_sha256 logs transport_start_epoch_ns transport_complete_epoch_ns" + (" transport_evidence" if ctx["version"] == SUCCESSOR_VERSION else ""),
         "FINAL_LOGS",
     )
     need(
-        index["version"] == "stage12_terminal_log_copies_v1"
+        index["version"] == ("stage12_terminal_same_domain_log_copies_v2" if ctx["version"] == SUCCESSOR_VERSION else "stage12_terminal_log_copies_v1")
         and index["context_sha256"] == digest(tc.canonical(ctx))
         and type(index["logs"]) is list,
         "FINAL_LOGS",
@@ -1621,7 +2004,7 @@ def verify_final_logs(
         "RETENTION",
     )
     need(
-        ack["version"] == VERSION
+        ack["version"] == ctx["version"]
         and ack["status"] == "RETENTION_RECEIPT_DURABLY_ACKNOWLEDGED"
         and ack["ready_sha256"] == provisional["ready_sha256"]
         and ack["receipt_sha256"] == provisional["receipt_sha256"]
@@ -1639,7 +2022,7 @@ def verify_final_logs(
         "RETENTION",
     )
     need(retained_root is not None, "RETENTION")
-    verify_local_retained(ready, receipt, retained_root, control)
+    opener = verify_local_retained(ready, receipt, retained_root, control)
     seen = set()
     size = 0
     hashes = []
@@ -1689,7 +2072,7 @@ def verify_final_logs(
     need(seen == set(expected), "FINAL_LOGS")
     control.check()
     result = dict(
-        version=FINAL_VERSION,
+        version=SUCCESSOR_FINAL_VERSION if ctx["version"] == SUCCESSOR_VERSION else FINAL_VERSION,
         status="COLLECTION_INTEGRITY_COMPLETE",
         scope=ctx["scope"],
         provisional_sha256=provisional_sha,
@@ -1708,6 +2091,12 @@ def verify_final_logs(
         original_overall_deadline_epoch_ns=ctx["overall_deadline_epoch_ns"],
         observed_complete_epoch_ns=time.time_ns(),
     )
+    if ctx["version"] == SUCCESSOR_VERSION:
+        validate_transport_evidence(index["transport_evidence"])
+        need([{k:r[k] for k in ("label","path","bytes","sha256")} for r in index["transport_evidence"]["files"]] == [dict(label=r["label"],path=r["remote_path"],bytes=r["bytes"],sha256=r["sha256"]) for r in index["logs"]], "FINAL_LOGS")
+        result["whole_collection_opener"] = opener
+        result["collection_source_git_sha"] = ctx["collection_source_git_sha"]
+        result["original_source_git_sha"] = ctx["original_source_git_sha"]
     need(tc.contained(tc.absolute(str(result_path)), root), "PATH")
     control.record(result_path, result)
     control.check()
@@ -1746,6 +2135,7 @@ def main(argv=None):
     parser.add_argument("--log-index", type=Path)
     parser.add_argument("--log-index-sha256")
     parser.add_argument("--result-out", type=Path)
+    parser.add_argument("--same-domain-successor", action="store_true")
     parser.add_argument("--offline-invented", action="store_true")
     parser.add_argument("--test-root", type=Path)
     args = parser.parse_args(argv)
@@ -1753,13 +2143,14 @@ def main(argv=None):
         os.umask(0o077)
         bootstrap = Control(
             _ENTRY_MONO_NS,
-            WINDOW_END_NS if not args.offline_invented else time.time_ns() + 30 * 10**9,
+            (family_end({"version": SUCCESSOR_VERSION}) if args.same_domain_successor else WINDOW_END_NS) if not args.offline_invented else time.time_ns() + 30 * 10**9,
             5,
         )
         if args.action == "verify-final-logs":
             provisional = load_control(
                 args.provisional, args.provisional_sha256, bootstrap
             )
+            need(args.same_domain_successor == (provisional.get("version") == SUCCESSOR_VERSION), "SCOPE")
             terminal = load_control(
                 args.collection_terminal, args.collection_terminal_sha256, bootstrap
             )
@@ -1777,6 +2168,7 @@ def main(argv=None):
             )
         elif args.action == "verify-retention":
             ready = load_control(args.ready, args.ready_sha256, bootstrap)
+            need(args.same_domain_successor == (ready.get("version") == SUCCESSOR_READY_VERSION), "SCOPE")
             result = verify_retention(
                 ready,
                 args.ready_sha256,
@@ -1793,6 +2185,7 @@ def main(argv=None):
 
                 require_goethe_nhr_slurm("stage12_terminal_original_pair")
             binding = load_control(args.binding, args.binding_sha256, bootstrap)
+            need(args.same_domain_successor == (binding.get("version") == SUCCESSOR_VERSION), "SCOPE")
             validate_binding(binding, args.offline_invented, args.test_root)
             authority = load_control(args.authority, args.authority_sha256, bootstrap)
             need(binding["authority_sha256"] == args.authority_sha256, "AUTHORITY")

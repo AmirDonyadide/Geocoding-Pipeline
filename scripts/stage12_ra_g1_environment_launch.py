@@ -9,6 +9,8 @@ from __future__ import annotations
 from datetime import datetime, timezone
 import hashlib
 import json
+import os
+import stat
 from pathlib import Path
 import time
 
@@ -149,7 +151,7 @@ def descriptor():
     )
 
 
-def validate_binding(binding, selected):
+def _validate_legacy_binding(binding, selected):
     need(
         type(binding) is dict
         and set(binding) == {"version", "source_tree", *BINDING_HASHES},
@@ -239,7 +241,7 @@ def selection_digest(selected):
     return result.hexdigest()
 
 
-def validate_gate(gate, selected, binding, *, now_epoch_ns):
+def _validate_legacy_gate(gate, selected, binding, *, now_epoch_ns):
     validate_binding(binding, selected)
     keys = {
         "version",
@@ -320,6 +322,151 @@ def validate_gate(gate, selected, binding, *, now_epoch_ns):
     )
 
 
+
+COLLECTION_VERSION = "stage12_collection_first_environment_launch_gate_v1"
+COLLECTION_BINDING = "stage12_collection_first_environment_binding_v1"
+COLLECTION_POLICY = "RA_G1_COLLECTION_FIRST_ENVIRONMENT_GATE_r1"
+COLLECTION_DOCUMENT = "docs/stages/STAGE12_COLLECTION_FIRST_SUCCESSOR.md"
+QUALIFICATION_MAX_BYTES = 65536
+COLLECTION_BINDING_HASHES = (*BINDING_HASHES, "window_policy_sha256", "owner_authority_sha256", "qualification_bundle_sha256", "qualification_review_sha256")
+COLLECTION_HISTORY = dict(HISTORY, historical_representative_job="1812987",
+    historical_representative_source="4a154308474dc8bfdbdd113322dd1335e41ce8fc",
+    historical_representative_result="FAILED_BEFORE_B_DUPLICATE_FACTUAL_SEAL_EEXIST",
+    historical_collection_job="1813045", historical_collection_result="FAILED_INCOMPLETE_UNCHANGED",
+    historical_grant_consumed=True, new_representative_grant_conditional_on_collection_qualification=True)
+
+
+def window_module():
+    from safe_geocoding_pipeline.preprocessing.stages import s12_ra_g1_windows
+    return s12_ra_g1_windows
+
+
+def collection_descriptor():
+    windows = window_module()
+    value = descriptor()
+    value.update(version=COLLECTION_VERSION, policy=COLLECTION_POLICY,
+        amendment_document=COLLECTION_DOCUMENT, grant_kind=windows.REP_GRANT,
+        maximum_existing_grant_submissions=0, maximum_fresh_grant_submissions=1,
+        no_new_representative_or_public_slot=False, no_new_public_slot=True,
+        outer_window_end=windows.WINDOW_END, window_policy_sha256=windows.digest(windows.descriptor()),
+        qualification_bundle_max_bytes=QUALIFICATION_MAX_BYTES,
+        history=dict(COLLECTION_HISTORY))
+    return value
+
+
+def validate_binding(binding, selected):
+    if type(binding) is not dict or binding.get("version") != COLLECTION_BINDING:
+        return _validate_legacy_binding(binding, selected)
+    windows = window_module()
+    need(set(binding) == {"version", "source_tree", *COLLECTION_BINDING_HASHES}, "RA_G1_FIELDS")
+    need(is_hash(binding["source_tree"], 40) and all(is_hash(binding[key]) for key in COLLECTION_BINDING_HASHES))
+    need(binding["policy_sha256"] == digest(collection_descriptor()) and binding["window_policy_sha256"] == windows.digest(windows.descriptor()))
+    need(selected.get("version") == ALLOCATION and selected.get("scope") == SCOPE, "RA_G1_AUTHORITY_REQUIRED")
+    rows = selected.get("source_files")
+    need(type(rows) is list and len(rows) <= 2048, "RA_G1_SOURCE_INVENTORY")
+    for name in (*REQUIRED_SOURCE, COLLECTION_DOCUMENT,
+            "src/safe_geocoding_pipeline/preprocessing/stages/s12_ra_g1_windows.py",
+            "scripts/stage12_ra_g1_terminal_verify.py"):
+        found = [row for row in rows if type(row) is dict and row.get("path") == name]
+        need(len(found) == 1 and is_hash(found[0].get("sha256")), "RA_G1_SOURCE_INVENTORY")
+        if name == COLLECTION_DOCUMENT:
+            need(found[0]["sha256"] == binding["amendment_sha256"], "RA_G1_SOURCE_CHANGED")
+    adoption = selected.get("rep_admin_budget_adoption")
+    need(type(adoption) is dict and adoption.get("schema_version") == windows.WINDOW_ADOPTION, "RA_G1_AUTHORITY_REQUIRED")
+    need(adoption["qualification_bundle_sha256"] == binding["qualification_bundle_sha256"]
+        and adoption["qualification_review_sha256"] == binding["qualification_review_sha256"]
+        and adoption["window"]["grant_nonce"] == binding["grant_nonce"]
+        and adoption["window"]["owner_authority_sha256"] == binding["owner_authority_sha256"], "RA_G1_SELECTION_BINDING")
+    return binding
+
+
+def qualification_path(selected, binding):
+    need(binding.get("version") == COLLECTION_BINDING, "RA_G1_AUTHORITY_REQUIRED")
+    return gate_path(selected, binding["qualification_bundle_sha256"]).parent / (binding["qualification_bundle_sha256"] + ".collection-qualification.record")
+
+
+def allowed_original_paths(selected, binding, identity):
+    paths = [gate_path(selected, identity)]
+    if binding["version"] == COLLECTION_BINDING:
+        paths.append(qualification_path(selected, binding))
+    return tuple(paths)
+
+
+def validate_gate(gate, selected, binding, *, now_epoch_ns, qualification=None, qualification_validator=None):
+    if type(binding) is not dict or binding.get("version") != COLLECTION_BINDING:
+        need(qualification is None and qualification_validator is None, "RA_G1_AUTHORITY_REQUIRED")
+        return _validate_legacy_gate(gate, selected, binding, now_epoch_ns=now_epoch_ns)
+    validate_binding(binding, selected)
+    windows = window_module()
+    keys = {"version", "scope", "state", "source_git_sha", "source_tree", "valid_from", "valid_until", "outer_window_end", "grant_kind", "maximum_submissions", "task_profiling", "budget", "history", "window", *GATE_HASHES, *COLLECTION_BINDING_HASHES}
+    need(type(gate) is dict and set(gate) == keys, "RA_G1_FIELDS")
+    need(gate["version"] == COLLECTION_VERSION and gate["scope"] == SCOPE
+        and gate["state"] == "ISSUED_FOR_COLLECTION_QUALIFIED_ONE_FRESH_REP", "RA_G1_AUTHORITY_REQUIRED")
+    need(all(is_hash(gate[key]) for key in (*GATE_HASHES, *COLLECTION_BINDING_HASHES)))
+    need(all(gate[key] == binding[key] for key in (*COLLECTION_BINDING_HASHES, "source_tree")))
+    actual_selection = selection_digest(selected)
+    need(gate["source_git_sha"] == selected["source_sha"] and is_hash(gate["source_git_sha"], 40)
+        and gate["selection_sha256"] == actual_selection
+        and gate["resource_selection_sha256"] == selected["resource_selection_sha256"]
+        and gate["software_review_sha256"] == selected["records"]["software_review"]
+        and gate["resource_review_sha256"] == selected["records"]["resource_review"]
+        and gate["source_inventory_sha256"] == selected["accounting_inventory"]["source_inventory_sha256"])
+    need(gate["grant_kind"] == windows.REP_GRANT and type(gate["maximum_submissions"]) is int
+        and gate["maximum_submissions"] == 1 and gate["task_profiling"] == "DISABLED", "RA_G1_AUTHORITY_REQUIRED")
+    need(canonical(gate["budget"]) == canonical(BUDGET) and canonical(gate["history"]) == canonical(COLLECTION_HISTORY), "RA_G1_LIMITS")
+    need(gate["valid_from"] == selected["valid_from"] == windows.WINDOW_START
+        and gate["valid_until"] == selected["valid_until"] == gate["outer_window_end"] == windows.WINDOW_END, "RA_G1_WINDOW")
+    window = gate["window"]
+    windows.validate_window(window, scope=SCOPE, now_epoch_ns=now_epoch_ns, required_remaining_seconds=REQUIRED_REMAINING_SECONDS)
+    need(window == selected["rep_admin_budget_adoption"]["window"]
+        and window["grant_nonce"] == binding["grant_nonce"] and window["owner_authority_sha256"] == binding["owner_authority_sha256"])
+    need(type(qualification) is dict and digest(qualification) == binding["qualification_bundle_sha256"], "RA_G1_COLLECTION_QUALIFICATION_REQUIRED")
+    need(callable(qualification_validator), "RA_G1_COLLECTION_QUALIFICATION_REQUIRED")
+    qualification_validator(qualification, expected_window=dict(window, scope="TERMINAL_COLLECTION_NO_SERVICE"),
+        expected_original_source_git_sha=windows.ORIGINAL_SOURCE, expected_original_job_id=int(windows.ORIGINAL_JOB),
+        expected_original_selection_sha256=windows.ORIGINAL_SELECTION,
+        expected_collector_source_git_sha=selected["source_sha"], expected_qualification_review_sha256=binding["qualification_review_sha256"])
+    return dict(status="COLLECTION_QUALIFIED_ENVIRONMENT_DIAGNOSTIC_ELIGIBLE_NOT_NATIVE_QUALIFIED",
+        gate_sha256=digest(gate), selection_sha256=actual_selection,
+        resource_selection_sha256=selected["resource_selection_sha256"], policy_sha256=binding["policy_sha256"],
+        grant_nonce=binding["grant_nonce"], qualification_bundle_sha256=binding["qualification_bundle_sha256"],
+        checked_epoch_ns=now_epoch_ns, remaining_ns=epoch_ns(windows.WINDOW_END)-now_epoch_ns,
+        required_remaining_ns=REQUIRED_REMAINING_SECONDS*10**9, native_timing_PASS=False, service_or_protected_authority=False)
+
+
+def verified_qualification_validator(run):
+    """Bounded source read, permitting immutable Git 0644 files/0755 directories."""
+    name = "scripts/stage12_ra_g1_terminal_verify.py"
+    row = next(item for item in run.s["source_files"] if item["path"] == name)
+    need(type(row["bytes"]) is int and 0 < row["bytes"] <= 131072, "RA_G1_SOURCE_INVENTORY")
+    path = Path(run.s["paths"]["source"]) / name
+    run.check()
+    before = path.lstat()
+    identity = lambda value: (value.st_dev,value.st_ino,value.st_mode,value.st_uid,value.st_gid,value.st_nlink,value.st_size,value.st_mtime_ns,value.st_ctime_ns)
+    need(path.resolve(strict=True) == path and stat.S_ISREG(before.st_mode)
+        and before.st_nlink == 1 and before.st_uid == os.geteuid()
+        and not stat.S_IMODE(before.st_mode) & 0o022 and before.st_size == row["bytes"], "RA_G1_SOURCE_CHANGED")
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+    raw = bytearray()
+    try:
+        need(identity(before) == identity(os.fstat(fd)), "RA_G1_SOURCE_CHANGED")
+        while len(raw) < row["bytes"]:
+            run.check();run.read_charge(1,0)
+            chunk = os.read(fd,min(4096,row["bytes"]-len(raw)))
+            run.read_charge(0,len(chunk))
+            need(bool(chunk), "RA_G1_SOURCE_CHANGED");raw.extend(chunk)
+        run.check();run.read_charge(1,0)
+        eof = os.read(fd,1);run.read_charge(0,len(eof))
+        need(not eof and path.resolve(strict=True) == path
+            and identity(before) == identity(os.fstat(fd)) == identity(path.lstat()), "RA_G1_SOURCE_CHANGED")
+    finally:
+        os.close(fd)
+    need(hashlib.sha256(raw).hexdigest() == row["sha256"], "RA_G1_SOURCE_CHANGED")
+    namespace = {"__file__": str(path), "__name__": "actual_collection_qualification"}
+    exec(compile(raw,str(path),"exec"),namespace)
+    run.check()
+    return namespace["validate_qualification"]
+
 def validate_original_gate(run):
     """Fresh counted control reads; exact opt-in path was admitted by the hook."""
     run.check()
@@ -343,7 +490,15 @@ def validate_original_gate(run):
     need(hashlib.sha256(raw).hexdigest() == identity, "RA_G1_ORIGINAL_CHANGED")
     # Use the actual production canonical parser rather than a parallel permissive one.
     gate = run.environment_gate_parser(raw)
-    proof = validate_gate(gate, run.s, binding, now_epoch_ns=time.time_ns())
+    if binding["version"] == COLLECTION_BINDING:
+        qualification_raw = run.original(qualification_path(run.s, binding), limit=QUALIFICATION_MAX_BYTES)
+        need(hashlib.sha256(qualification_raw).hexdigest() == binding["qualification_bundle_sha256"], "RA_G1_ORIGINAL_CHANGED")
+        qualification = run.environment_gate_parser(qualification_raw)
+        # Verify the exact selected source bytes before executing on BOTH checks.
+        validator = verified_qualification_validator(run)
+        proof = validate_gate(gate, run.s, binding, now_epoch_ns=time.time_ns(), qualification=qualification, qualification_validator=validator)
+    else:
+        proof = validate_gate(gate, run.s, binding, now_epoch_ns=time.time_ns())
     run.check()
     return proof
 

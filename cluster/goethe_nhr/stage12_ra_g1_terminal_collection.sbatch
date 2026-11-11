@@ -15,6 +15,12 @@ ulimit -c 0
 : "${STAGE12_TC_SOURCE:?}" "${STAGE12_TC_SHA:?}" "${STAGE12_TC_PYTHON:?}"
 : "${STAGE12_TC_BINDING:?}" "${STAGE12_TC_BINDING_SHA:?}"
 : "${STAGE12_TC_AUTHORITY:?}" "${STAGE12_TC_AUTHORITY_SHA:?}"
+successor_args=()
+case "${STAGE12_TC_SAME_DOMAIN_SUCCESSOR-}" in
+  "") ;;
+  1) successor_args=(--same-domain-successor) ;;
+  *) exit 2 ;;
+esac
 export SAFE_EXECUTION_SITE=goethe-nhr PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1
 unset SAFE_PELIAS_API_KEY SAFE_PELIAS_API_KEY_FILE PYTHONPATH
 cd -- "$STAGE12_TC_SOURCE"
@@ -23,4 +29,4 @@ cd -- "$STAGE12_TC_SOURCE"
 # Resolve package imports from this exact clean checkout, as do owned children.
 export PYTHONPATH="$STAGE12_TC_SOURCE/src"
 # One parent process replaces this shell. It owns the original deadline and two children.
-exec "$STAGE12_TC_PYTHON" -B scripts/stage12_ra_g1_terminal_parent.py run-pair   --binding "$STAGE12_TC_BINDING" --binding-sha256 "$STAGE12_TC_BINDING_SHA"   --authority "$STAGE12_TC_AUTHORITY" --authority-sha256 "$STAGE12_TC_AUTHORITY_SHA"
+exec "$STAGE12_TC_PYTHON" -B scripts/stage12_ra_g1_terminal_parent.py run-pair   --binding "$STAGE12_TC_BINDING" --binding-sha256 "$STAGE12_TC_BINDING_SHA"   --authority "$STAGE12_TC_AUTHORITY" --authority-sha256 "$STAGE12_TC_AUTHORITY_SHA" "${successor_args[@]}"

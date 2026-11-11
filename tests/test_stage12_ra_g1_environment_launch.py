@@ -356,3 +356,94 @@ def test_install_rejects_changed_review_before_any_companion_permission(
                 raise AssertionError("changed review admitted a companion read")
     finally:
         run.close()
+
+
+def setup_collection_gate(world):
+    from safe_geocoding_pipeline.preprocessing.stages import s12_ra_g1_windows as windows
+    from test_stage12_ra_g1_terminal_verify import invented_qualification
+    bundle, expected = invented_qualification()
+    selected = deepcopy(world.s)
+    selected["source_sha"] = expected["expected_collector_source_git_sha"]
+    for name in ("software_review", "resource_review"):
+        old = world.m.parse((world.records/(selected["records"][name]+".record")).read_bytes())
+        old["source_sha"] = selected["source_sha"]
+        identity = world.m.digest(old)
+        original(world.m,world.records/(identity+".record"),old)
+        selected["records"][name] = identity
+    gate, selected, _, _, _ = setup_gate(world.m,selected,world.source,world.records)
+    for name in (gate.COLLECTION_DOCUMENT,"src/safe_geocoding_pipeline/preprocessing/stages/s12_ra_g1_windows.py","scripts/stage12_ra_g1_terminal_verify.py"):
+        path = world.source/name;path.parent.mkdir(parents=True,exist_ok=True,mode=0o755)
+        raw=(ROOT/name).read_bytes();path.write_bytes(raw);path.chmod(0o644)
+        selected["source_files"] = [row for row in selected["source_files"] if row["path"] != name]
+        selected["source_files"].append(dict(path=name,bytes=len(raw),sha256=hashlib.sha256(raw).hexdigest()))
+    selected["source_files"].sort(key=lambda row:row["path"])
+    selected=upgrade(selected)
+    selected.update(valid_from=windows.WINDOW_START,valid_until=windows.WINDOW_END)
+    window=dict(bundle["window"],scope=gate.SCOPE)
+    prior=selected["rep_admin_budget_adoption"]
+    wrapped=dict(schema_version=windows.WINDOW_ADOPTION,scope=gate.SCOPE,window=window,
+        original_adoption=prior,original_adoption_sha256=gate.digest(prior),grant_kind=windows.REP_GRANT,
+        maximum_submissions=1,qualification_bundle_sha256=gate.digest(bundle),
+        qualification_review_sha256=expected["expected_qualification_review_sha256"],
+        historical_grant_consumed=True,original_budget_terms_unchanged=True)
+    selected["rep_admin_budget_adoption"]=wrapped
+    selected["rep_admin_budget_adoption_sha256"]=gate.digest(wrapped)
+    binding=dict(version=gate.COLLECTION_BINDING,source_tree=G,
+        **{key:H for key in gate.COLLECTION_BINDING_HASHES})
+    binding.update(policy_sha256=gate.digest(gate.collection_descriptor()),
+        window_policy_sha256=windows.digest(windows.descriptor()),owner_authority_sha256=window["owner_authority_sha256"],
+        grant_nonce=window["grant_nonce"],qualification_bundle_sha256=gate.digest(bundle),
+        qualification_review_sha256=expected["expected_qualification_review_sha256"],
+        amendment_sha256=hashlib.sha256((ROOT/gate.COLLECTION_DOCUMENT).read_bytes()).hexdigest())
+    review=world.m.parse((world.records/(selected["records"]["software_review"]+".record")).read_bytes())
+    review["environment_gate_binding"]=binding
+    identity=world.m.digest(review);original(world.m,world.records/(identity+".record"),review)
+    selected["records"]["software_review"]=identity
+    value=dict(version=gate.COLLECTION_VERSION,scope=gate.SCOPE,state="ISSUED_FOR_COLLECTION_QUALIFIED_ONE_FRESH_REP",
+        source_git_sha=selected["source_sha"],source_tree=G,**{key:binding[key] for key in gate.COLLECTION_BINDING_HASHES},
+        selection_sha256=gate.digest(selected),resource_selection_sha256=selected["resource_selection_sha256"],
+        software_review_sha256=selected["records"]["software_review"],resource_review_sha256=selected["records"]["resource_review"],
+        source_inventory_sha256=selected["accounting_inventory"]["source_inventory_sha256"],valid_from=windows.WINDOW_START,
+        valid_until=windows.WINDOW_END,outer_window_end=windows.WINDOW_END,grant_kind=windows.REP_GRANT,maximum_submissions=1,
+        task_profiling="DISABLED",budget=deepcopy(gate.BUDGET),history=deepcopy(gate.COLLECTION_HISTORY),window=window)
+    identity=gate.digest(value)
+    original(world.m,gate.gate_path(selected,identity),value)
+    original(world.m,gate.qualification_path(selected,binding),bundle)
+    world.m.validate_selection(selected)
+    return gate,selected,binding,value,identity,bundle
+
+
+def test_collection_first_actual_ready_and_fresh_0644_verifier(world,monkeypatch):
+    from safe_geocoding_pipeline.preprocessing.stages import s12_ra_g1_windows as windows
+    gate,selected,_,_,identity,_=setup_collection_gate(world)
+    (world.source/"scripts").chmod(0o755)
+    verifier=world.source/"scripts/stage12_ra_g1_terminal_verify.py"
+    assert verifier.stat().st_mode & 0o777 == 0o644
+    monkeypatch.setattr(world.m,"now",lambda:windows.WINDOW_START)
+    monkeypatch.setattr(gate.time,"time_ns",lambda:windows.epoch_ns(windows.WINDOW_START)+2000)
+    run=world.m.Run(selected,stage="ready",stage_seconds=120)
+    try:
+        attach(run,gate,identity,world.m.parse)
+        proof=gate.precheck(run)
+        assert proof["qualification_bundle_sha256"]==selected["rep_admin_budget_adoption"]["qualification_bundle_sha256"]
+        assert world.m.ready(run)
+        verifier.write_bytes(verifier.read_bytes()+b"# INVENTED MUTATION\n")
+        with pytest.raises(RuntimeError,match="RA_G1_SOURCE_CHANGED"):
+            gate.after_ready(run)
+    finally:run.close()
+
+
+def test_collection_first_requires_gate_and_rejects_historical_grant(world,monkeypatch):
+    from safe_geocoding_pipeline.preprocessing.stages import s12_ra_g1_windows as windows
+    gate,selected,binding,value,_,bundle=setup_collection_gate(world)
+    monkeypatch.setattr(world.m,"now",lambda:windows.WINDOW_START)
+    run=world.m.Run(selected,stage="ready",stage_seconds=120)
+    try:
+        with pytest.raises(RuntimeError,match="RA_G1_COLLECTION_QUALIFICATION_REQUIRED"):
+            world.m.ready(run)
+    finally:run.close()
+    value["grant_kind"]="EXISTING_SINGLE_UNUSED_NATIVE_SYNTHETIC_GRANT"
+    import stage12_ra_g1_terminal_verify as verifier
+    with pytest.raises(RuntimeError,match="RA_G1_AUTHORITY_REQUIRED"):
+        gate.validate_gate(value,selected,binding,now_epoch_ns=windows.epoch_ns(windows.WINDOW_START),
+            qualification=bundle,qualification_validator=verifier.validate_qualification)

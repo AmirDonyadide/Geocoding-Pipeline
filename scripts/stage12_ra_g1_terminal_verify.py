@@ -748,3 +748,192 @@ def verify_original_workload(selection, *, check, charge_read):
         )
     check()
     return result
+
+
+# Pure, source-bound gate for independently reviewed collection qualification.
+# Runtime callers must freshly read the canonical bundle and pin the genuine
+# independent review hash. This function cannot authenticate a human issuer.
+QUALIFICATION_VERSION = "stage12_terminal_collection_qualification_v1"
+
+
+def _q_canonical(value):
+    import json
+    return (json.dumps(value, ensure_ascii=True, sort_keys=True, separators=(",", ":"), allow_nan=False) + "\n").encode()
+
+
+def _q_digest(value):
+    return hashlib.sha256(_q_canonical(value)).hexdigest()
+
+
+def _q_fields(value, keys):
+    need(type(value) is dict and set(value) == set(keys.split()))
+
+
+def _q_hash(value, size=64):
+    need(type(value) is str and len(value) == size and set(value) <= set("0123456789abcdef") and set(value) != {"0"})
+    return value
+
+
+def _q_uint(value):
+    need(type(value) is int and value >= 0)
+    return value
+
+
+def _q_domain(value):
+    import re
+    _q_fields(value, "host boot_id mount_namespace session_nonce session_pid")
+    need(type(value["host"]) is str and re.fullmatch(r"[A-Za-z0-9_.-]{1,255}", value["host"]))
+    need(type(value["boot_id"]) is str and re.fullmatch(r"[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}", value["boot_id"]))
+    need(type(value["mount_namespace"]) is str and re.fullmatch(r"mnt:\[[0-9]{1,20}\]", value["mount_namespace"]))
+    _q_hash(value["session_nonce"],32)
+    need(_q_uint(value["session_pid"]) > 0)
+
+
+def _q_transfer(evidence, expected):
+    import stat
+    _q_fields(evidence, "version domain_before domain_after ancestors files exit_code observed_joined")
+    need(evidence["version"] == "stage12_same_session_transfer_v2"
+         and type(evidence["exit_code"]) is int and evidence["exit_code"] == 0 and evidence["observed_joined"] is True)
+    _q_domain(evidence["domain_before"])
+    _q_domain(evidence["domain_after"])
+    need(evidence["domain_before"] == evidence["domain_after"])
+    need(type(evidence["ancestors"]) is list and 1 <= len(evidence["ancestors"]) <= 1280)
+    ancestors = set()
+    for row in evidence["ancestors"]:
+        _q_fields(row,"path before after")
+        need(type(row["path"]) is str and row["path"].startswith("/") and ".." not in Path(row["path"]).parts)
+        need(row["path"] not in ancestors)
+        ancestors.add(row["path"])
+        for identity in (row["before"],row["after"]):
+            need(type(identity) is list and len(identity) == 9)
+            for n in identity:
+                _q_uint(n)
+            need(stat.S_ISDIR(identity[2]))
+        need(row["before"][:6] == row["after"][:6])
+    need(type(evidence["files"]) is list and len(evidence["files"]) == len(expected))
+    for row, target in zip(evidence["files"],expected,strict=True):
+        _q_fields(row,"label path before after bytes sha256")
+        need({k:row[k] for k in ("label","path","bytes","sha256")} == target)
+        need(type(row["before"]) is list and len(row["before"]) == 9 and row["before"] == row["after"])
+        for n in row["before"]:
+            _q_uint(n)
+        info=row["before"]
+        need(stat.S_ISREG(info[2]) and stat.S_IMODE(info[2]) == 0o600 and info[5] == 1 and info[6] == row["bytes"])
+        need(all(str(parent) in ancestors for parent in Path(row["path"]).parents))
+        _q_hash(row["sha256"])
+
+
+def _q_open(value, ready):
+    _q_fields(value,"version status selection_sha256 archive_sha256 summary actual_read_bytes actual_read_calls entered_epoch_ns completed_epoch_ns source_identity native_or_scientific_acceptance")
+    need(value["version"] == "stage12_readonly_collection_archive_open_v1" and value["status"] == "COMPLETE"
+         and value["selection_sha256"] == ready["context"]["selection_sha256"]
+         and value["archive_sha256"] == ready["artifacts"][0]["sha256"] and value["native_or_scientific_acceptance"] is False)
+    for key in ("actual_read_bytes","actual_read_calls","entered_epoch_ns","completed_epoch_ns"):
+        _q_uint(value[key])
+    need(value["actual_read_bytes"] <= 8*2**30 and value["actual_read_calls"] <= 262144)
+    need(value["entered_epoch_ns"] <= value["completed_epoch_ns"] < ready["context"]["overall_deadline_epoch_ns"])
+    _q_fields(value["summary"],"members payload_bytes manifest_bytes manifest_sha256")
+    for key in ("members","payload_bytes","manifest_bytes"):
+        _q_uint(value["summary"][key])
+        need(value["summary"][key] <= ready["collection_selection"]["limits"][key])
+    _q_hash(value["summary"]["manifest_sha256"])
+    need(value["summary"]["manifest_sha256"] == ready["artifacts"][1]["sha256"] == ready["artifacts"][2]["sha256"])
+    need(type(value["source_identity"]) is list and len(value["source_identity"]) == 9)
+    for n in value["source_identity"]:
+        _q_uint(n)
+
+
+def validate_qualification(bundle, *, expected_window, expected_original_source_git_sha,
+                           expected_original_job_id, expected_original_selection_sha256,
+                           expected_collector_source_git_sha, expected_qualification_review_sha256):
+    """Validate freshly read complete originals; never qualify the failed source B."""
+    from safe_geocoding_pipeline.preprocessing.stages import s12_ra_g1_windows as windows
+    _q_fields(bundle,"version window review final provisional ready receipt ack terminal index transport opener")
+    need(len(_q_canonical(bundle)) <= 65536 and bundle["version"] == QUALIFICATION_VERSION)
+    window=bundle["window"]
+    need(window["scope"] == "TERMINAL_COLLECTION_NO_SERVICE")
+    need({k:v for k,v in window.items() if k != "scope"} == {k:v for k,v in expected_window.items() if k != "scope"})
+    windows.validate_window(window,scope="TERMINAL_COLLECTION_NO_SERVICE",
+                            now_epoch_ns=windows.epoch_ns(windows.WINDOW_START),required_remaining_seconds=12240)
+    for sha in (expected_original_source_git_sha,expected_collector_source_git_sha):
+        _q_hash(sha,40)
+    _q_hash(expected_original_selection_sha256)
+    _q_hash(expected_qualification_review_sha256)
+    need(expected_original_source_git_sha == windows.ORIGINAL_SOURCE and expected_original_job_id == int(windows.ORIGINAL_JOB)
+         and expected_original_selection_sha256 == windows.ORIGINAL_SELECTION
+         and expected_collector_source_git_sha != expected_original_source_git_sha)
+    ready, receipt, ack = (bundle[k] for k in ("ready","receipt","ack"))
+    final, provisional, terminal, index, transport, review = (bundle[k] for k in ("final","provisional","terminal","index","transport","review"))
+    ctx=ready["context"]
+    need(ready["version"] == "stage12_terminal_same_domain_transport_ready_v2"
+         and ready["scope"] == ctx["scope"] == "NATIVE_SYNTHETIC_TERMINAL"
+         and ctx["version"] == provisional["version"] == ack["version"] == "stage12_terminal_same_domain_pair_v2"
+         and ctx["collection_purpose"] == "QUALIFICATION" and ctx["window"] == window)
+    need(ctx["original_job_id"] == expected_original_job_id
+         and ctx["original_source_git_sha"] == expected_original_source_git_sha
+         and ctx["original_workload_selection_sha256"] == expected_original_selection_sha256
+         and ctx["collection_source_git_sha"] == expected_collector_source_git_sha
+         and type(ctx["collection_job_id"]) is int and ctx["collection_job_id"] > 0
+         and ctx["collection_job_id"] not in (expected_original_job_id,1813045)
+         and ctx["original_scheduler_state"] == "FAILED" and ctx["original_exit_code"] != 0)
+    _q_hash(ctx["original_producer_sha256"])
+    need(ctx["original_producer_path"] == ctx["original_source_root"] + "/scripts/stage12_ra_g1_allocation.py")
+    need(_q_digest(ready["collection_selection"]) == ctx["selection_sha256"])
+    need(provisional["context"] == ctx and provisional["status"] == "PROVISIONAL_INTEGRITY_COMPLETE_PENDING_TERMINAL_LOGS_AND_REVIEW"
+         and provisional["children_joined"] is True and provisional["exits"] == {"receive":0,"export":0}
+         and provisional["local_transport_and_hash_receipt_verified"] is True
+         and provisional["candidate_native_eligible"] is False)
+    for name in ("ready","receipt","ack"):
+        key={"ready":"ready_sha256","receipt":"receipt_sha256","ack":"receipt_ack_sha256"}[name]
+        need(provisional[key] == _q_digest(bundle[name]))
+    need(receipt["version"] == "stage12_terminal_same_domain_local_retention_v2"
+         and receipt["ready_sha256"] == _q_digest(ready) and receipt["selection_sha256"] == ctx["selection_sha256"])
+    need(ack["status"] == "RETENTION_RECEIPT_DURABLY_ACKNOWLEDGED" and ack["receipt"] == receipt
+         and ack["receipt_sha256"] == _q_digest(receipt) and ack["ready_sha256"] == _q_digest(ready))
+    need(terminal["version"] == "stage12_terminal_collection_scheduler_v1"
+         and terminal["scheduler_state"] == "COMPLETED" and terminal["exit_code"] == "0:0"
+         and terminal["source_git_sha"] == expected_collector_source_git_sha
+         and terminal["binding_sha256"] == ctx["binding_sha256"])
+    need(terminal["start_epoch_ns"] <= ctx["entry_epoch_ns"] <= terminal["end_epoch_ns"] <= terminal["observed_epoch_ns"]
+         <= review["reviewed_epoch_ns"] < ctx["overall_deadline_epoch_ns"]
+         and ctx["entry_epoch_ns"] + 12240*10**9 <= windows.epoch_ns(windows.WINDOW_END))
+    need(final["version"] == "stage12_terminal_same_domain_final_log_verification_v2"
+         and final["status"] == "COLLECTION_INTEGRITY_COMPLETE"
+         and final["local_retained_artifacts_freshly_reopened"] is True
+         and final["candidate_native_eligible"] is False
+         and final["provisional_sha256"] == _q_digest(provisional)
+         and final["terminal_sha256"] == _q_digest(terminal) and final["log_index_sha256"] == _q_digest(index)
+         and final["original_workload_selection_sha256"] == expected_original_selection_sha256)
+    for value in (receipt,ack,terminal,final,transport):
+        need(value["collection_job_id"] == ctx["collection_job_id"])
+    for value in (receipt,ack,final,transport):
+        need(value["original_job_id"] == expected_original_job_id and value["native_or_scientific_acceptance"] is False)
+    need(transport["version"] == "stage12_terminal_same_domain_bounded_transport_v2"
+         and transport["status"] == "LOCAL_STREAMS_HASHED_AWAITING_NATIVE_ACK"
+         and transport["ready_sha256"] == _q_digest(ready) and transport["receipt_sha256"] == _q_digest(receipt)
+         and transport["transport_evidence"] == receipt["transport_evidence"])
+    _q_transfer(receipt["transport_evidence"],[{k:r[k] for k in ("label","path","bytes","sha256")} for r in ready["artifacts"]])
+    need(index["version"] == "stage12_terminal_same_domain_log_copies_v2"
+         and index["context_sha256"] == _q_digest(ctx)
+         and terminal["end_epoch_ns"] <= index["transport_start_epoch_ns"] <= index["transport_complete_epoch_ns"] <= final["observed_complete_epoch_ns"])
+    need([{k:r[k] for k in ("label","remote_path")} for r in index["logs"]] == [dict(label=r["label"],remote_path=r["path"]) for r in ctx["external_logs"]])
+    _q_transfer(index["transport_evidence"],[dict(label=r["label"],path=r["remote_path"],bytes=r["bytes"],sha256=r["sha256"]) for r in index["logs"]])
+    for row, evidence in zip(index["logs"],index["transport_evidence"]["files"],strict=True):
+        need(row["source_identity_before"] == evidence["before"] == row["source_identity_after"] == evidence["after"])
+    _q_open(receipt["whole_collection_opener"],ready)
+    _q_open(bundle["opener"],ready)
+    need(bundle["opener"] == final["whole_collection_opener"]
+         and terminal["end_epoch_ns"] <= bundle["opener"]["entered_epoch_ns"]
+         and receipt["whole_collection_opener"]["completed_epoch_ns"] <= receipt["local_complete_epoch_ns"]
+         and receipt["local_complete_epoch_ns"] < ctx["parent_deadline_epoch_ns"])
+    _q_fields(review,"version scope status collection_job_id collection_source_git_sha original_job_id original_source_git_sha original_selection_sha256 final_sha256 ready_sha256 receipt_ack_sha256 terminal_sha256 index_sha256 transport_sha256 opener_sha256 reviewed_epoch_ns reviewer_role independent_review")
+    need(review["version"] == "stage12_terminal_collection_qualification_review_v1" and review["scope"] == window["scope"]
+         and review["status"] == "PASS" and review["reviewer_role"] == "INDEPENDENT_COLLECTION_QUALIFICATION"
+         and review["independent_review"] is True and _q_digest(review) == expected_qualification_review_sha256)
+    need(review["collection_job_id"] == ctx["collection_job_id"] and review["collection_source_git_sha"] == expected_collector_source_git_sha
+         and review["original_job_id"] == expected_original_job_id and review["original_source_git_sha"] == expected_original_source_git_sha
+         and review["original_selection_sha256"] == expected_original_selection_sha256)
+    for name,key in (("final","final_sha256"),("ready","ready_sha256"),("ack","receipt_ack_sha256"),("terminal","terminal_sha256"),
+                     ("index","index_sha256"),("transport","transport_sha256"),("opener","opener_sha256")):
+        need(review[key] == _q_digest(bundle[name]))
+    return bundle

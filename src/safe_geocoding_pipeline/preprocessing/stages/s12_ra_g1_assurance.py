@@ -227,6 +227,11 @@ def rep_admin_policy_descriptor() -> Any:
 
 
 def validate_rep_admin_adoption(value: Any, selected: Any) -> Any:
+    from . import s12_ra_g1_windows as windows
+    if type(value) is dict and value.get("schema_version") == windows.WINDOW_ADOPTION:
+        return windows.validate_adoption(value, selected,
+            original_validator=validate_rep_admin_adoption,
+            budget_policy_sha256=old.digest(rep_admin_policy_descriptor()))
     shape(value, REP_ADMIN_ADOPTION_SCHEMA)
     c.require(
         value["administrator_attestation"] is False

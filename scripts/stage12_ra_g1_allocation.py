@@ -327,10 +327,13 @@ def validate_selection(value):
     selected = {"bootstrap_prefix_adoption_sha256": value["bootstrap_prefix_adoption_sha256"]}
     assurance.validate_bootstrap_adoption(value["bootstrap_prefix_adoption"], selected)
     if value["version"] in REP_ADMIN_VERSIONS:
+        from safe_geocoding_pipeline.preprocessing.stages import s12_ra_g1_windows as windows
+        if value["rep_admin_budget_adoption"].get("schema_version") == windows.WINDOW_ADOPTION:
+            need(value["version"] == REP512_VERSION, "RA_G1_AUTHORITY_REQUIRED")
         assurance.validate_rep_admin_adoption(value["rep_admin_budget_adoption"], {
             "rep_admin_budget_adoption_sha256": value["rep_admin_budget_adoption_sha256"],
             "rep_admin_budget_policy_sha256": digest(assurance.rep_admin_policy_descriptor()),
-            "valid_until": value["valid_until"]})
+            "valid_until": value["valid_until"], "valid_from": value["valid_from"], "scope": value["scope"]})
     if value["version"] == REP512_VERSION:
         assurance.validate_rep512_adoption(value["rep_first64_512_adoption"], {
             "rep_first64_512_adoption_sha256":value["rep_first64_512_adoption_sha256"],
@@ -1179,6 +1182,10 @@ class Run:
 
 def ready(run):
     run.check()
+    from safe_geocoding_pipeline.preprocessing.stages import s12_ra_g1_windows as windows
+    if run.s.get("rep_admin_budget_adoption", {}).get("schema_version") == windows.WINDOW_ADOPTION:
+        need(getattr(run, "environment_gate_sha256", None) is not None,
+             "RA_G1_COLLECTION_QUALIFICATION_REQUIRED")
     run.sources()
     s = run.s
     for name in ("adoption", "project_approval", "software_review", "resource_review"):
@@ -2431,13 +2438,13 @@ def install_denials(s, *, check=lambda: None, read_charge=lambda calls, size: No
         review_raw = None
     need(h(review.get("report_sha256")), "RA_G1_REVIEW_REQUIRED")
     report = record_root / (review["report_sha256"] + ".md")
-    environment_gate_read = None
+    environment_gate_reads = ()
     if environment_gate_sha256 is not None:
         need(review.get("disposition") == "PASS" and review.get("source_sha") == s["source_sha"],
              "RA_G1_REVIEW_REQUIRED")
         gate = module(source, "stage12_ra_g1_environment_launch")
-        gate.validate_binding(review.get("environment_gate_binding"), s)
-        environment_gate_read = gate.gate_path(s, environment_gate_sha256)
+        binding = gate.validate_binding(review.get("environment_gate_binding"), s)
+        environment_gate_reads = gate.allowed_original_paths(s, binding, environment_gate_sha256)
 
     fd = os.open(f"/proc/{os.getpid()}/cgroup", os.O_RDONLY | os.O_NOFOLLOW)
     try:
@@ -2483,8 +2490,7 @@ def install_denials(s, *, check=lambda: None, read_charge=lambda calls, size: No
             )
         if not write and original == resolved == report:
             return True
-        if (not write and environment_gate_read is not None
-                and original == resolved == environment_gate_read):
+        if (not write and original == resolved and original in environment_gate_reads):
             return True
         return allocation_path_policy(s, path, write, source_index=source_index)
 

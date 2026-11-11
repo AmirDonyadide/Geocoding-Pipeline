@@ -319,3 +319,105 @@ def test_legacy_later_scope_rejects_mixed_bootstrap_family_before_stream(
     finally:
         if not value.completed:
             value.abort()
+
+
+def invented_qualification():
+    """Complete invented control originals for pure gate tests; never live authority."""
+    from safe_geocoding_pipeline.preprocessing.stages import s12_ra_g1_windows as win
+    import stage12_ra_g1_terminal_parent as pair
+    import stage12_ra_g1_terminal_verify as verify
+    import stat
+    canon = verify._q_digest
+    start=win.epoch_ns(win.WINDOW_START)
+    window=dict(version=win.WINDOW_VERSION,scope="TERMINAL_COLLECTION_NO_SERVICE",valid_from=win.WINDOW_START,
+                valid_until=win.WINDOW_END,policy_sha256=win.digest(win.descriptor()),owner_authority_sha256="2"*64,grant_nonce="3"*64)
+    domain=dict(host="invented-host",boot_id="11111111-1111-1111-1111-111111111111",mount_namespace="mnt:[11]",session_nonce="4"*32,session_pid=11)
+    directory=[1,2,stat.S_IFDIR|0o700,1,1,2,0,1,1]
+    file=[1,3,stat.S_IFREG|0o600,1,1,1,8,1,1]
+    selection=dict(limits=pair.PRACTICAL)
+    selection_sha=canon(selection)
+    ctx=dict(version=pair.SUCCESSOR_VERSION,status="PAIR_ENTERED_NOT_COMPLETE",scope=pair.NATIVE,original_job_id=1812987,collection_job_id=1900001,
+             original_source_git_sha=win.ORIGINAL_SOURCE,collection_source_git_sha="b"*40,
+             original_workload_selection_sha256=win.ORIGINAL_SELECTION,collection_uid=1,original_scheduler_state="FAILED",
+             original_exit_code=1,original_signal=0,original_scheduler_sha256="a"*64,selection_sha256=selection_sha,
+             binding_sha256="b"*64,authority_sha256="c"*64,entry_mono_ns=1,entry_epoch_ns=start+1,
+             overall_deadline_epoch_ns=start+1800*10**9,parent_deadline_epoch_ns=start+1680*10**9,
+             external_logs=[dict(label="stdout",path="/invented/log")],native_or_scientific_acceptance=False,
+             window=window,collection_purpose="QUALIFICATION",original_source_root="/invented-source",
+             original_producer_path="/invented-source/scripts/stage12_ra_g1_allocation.py",original_producer_sha256="d"*64)
+    artifacts=[dict(label=label,path="/invented/"+label,bytes=8,sha256=("e" if label=="archive" else "f")*64,identity=list(file))
+               for label in ("archive","before","after","verification")]
+    ready=dict(version=pair.SUCCESSOR_READY_VERSION,scope=pair.NATIVE,context=ctx,artifacts=artifacts,collection_selection=selection,
+               parent_controls_byte_limit=16*2**20,local_retention_byte_limit=32,local_receipt_path="/invented/RETENTION_RECEIPT.record",native_or_scientific_acceptance=False)
+    def evidence(rows):
+        return dict(version="stage12_same_session_transfer_v2",domain_before=domain,domain_after=domain,
+                    ancestors=[dict(path=path,before=list(directory),after=list(directory)) for path in ("/","/invented")],
+                    files=[dict(label=r["label"],path=r["path"],before=list(file),after=list(file),bytes=r["bytes"],sha256=r["sha256"]) for r in rows],
+                    exit_code=0,observed_joined=True)
+    def opener(at):
+        return dict(version="stage12_readonly_collection_archive_open_v1",status="COMPLETE",selection_sha256=selection_sha,
+                    archive_sha256="e"*64,summary=dict(members=1,payload_bytes=8,manifest_bytes=8,manifest_sha256="f"*64),
+                    actual_read_bytes=64,actual_read_calls=8,entered_epoch_ns=at,completed_epoch_ns=at+1,
+                    source_identity=list(file),native_or_scientific_acceptance=False)
+    receipt=dict(version=pair.SUCCESSOR_RECEIPT_VERSION,scope=pair.NATIVE,ready_sha256=canon(ready),original_job_id=1812987,
+                 collection_job_id=ctx["collection_job_id"],selection_sha256=selection_sha,artifacts=[],local_root="/retained",
+                 local_root_identity=directory[:5],local_start_epoch_ns=start+2,local_complete_epoch_ns=start+101,
+                 actual_read_bytes=100,actual_read_calls=10,native_or_scientific_acceptance=False,
+                 transport_evidence=evidence(artifacts),whole_collection_opener=opener(start+90))
+    ack=dict(version=pair.SUCCESSOR_VERSION,status="RETENTION_RECEIPT_DURABLY_ACKNOWLEDGED",ready_sha256=canon(ready),receipt_sha256=canon(receipt),
+             receipt=receipt,original_job_id=1812987,collection_job_id=ctx["collection_job_id"],acknowledgement_mono_ns=3,native_or_scientific_acceptance=False)
+    provisional=dict(version=pair.SUCCESSOR_VERSION,status="PROVISIONAL_INTEGRITY_COMPLETE_PENDING_TERMINAL_LOGS_AND_REVIEW",context=ctx,
+                     children_joined=True,exits=dict(receive=0,export=0),local_transport_and_hash_receipt_verified=True,
+                     candidate_native_eligible=False,ready_sha256=canon(ready),receipt_sha256=canon(receipt),receipt_ack_sha256=canon(ack))
+    terminal=dict(version="stage12_terminal_collection_scheduler_v1",scope=pair.NATIVE,collection_job_id=ctx["collection_job_id"],
+                  source_git_sha=ctx["collection_source_git_sha"],binding_sha256=ctx["binding_sha256"],scheduler_state="COMPLETED",exit_code="0:0",
+                  start_epoch_ns=start,end_epoch_ns=start+1000,observed_epoch_ns=start+1001)
+    log=dict(label="stdout",remote_path="/invented/log",source_identity_before=list(file),source_identity_after=list(file),bytes=8,sha256="e"*64,local_name="stdout.log.original")
+    index=dict(version="stage12_terminal_same_domain_log_copies_v2",context_sha256=canon(ctx),logs=[log],
+               transport_start_epoch_ns=start+1002,transport_complete_epoch_ns=start+1003,
+               transport_evidence=evidence([dict(label="stdout",path="/invented/log",bytes=8,sha256="e"*64)]))
+    post=opener(start+1004)
+    final=dict(version=pair.SUCCESSOR_FINAL_VERSION,status="COLLECTION_INTEGRITY_COMPLETE",local_retained_artifacts_freshly_reopened=True,
+               candidate_native_eligible=False,provisional_sha256=canon(provisional),terminal_sha256=canon(terminal),log_index_sha256=canon(index),
+               original_workload_selection_sha256=win.ORIGINAL_SELECTION,original_job_id=1812987,collection_job_id=ctx["collection_job_id"],
+               native_or_scientific_acceptance=False,whole_collection_opener=post,observed_complete_epoch_ns=start+1006)
+    transport=dict(version="stage12_terminal_same_domain_bounded_transport_v2",status="LOCAL_STREAMS_HASHED_AWAITING_NATIVE_ACK",
+                   ready_sha256=canon(ready),receipt_sha256=canon(receipt),original_job_id=1812987,collection_job_id=ctx["collection_job_id"],
+                   native_or_scientific_acceptance=False,transport_evidence=receipt["transport_evidence"])
+    bundle=dict(version=verify.QUALIFICATION_VERSION,window=window,final=final,provisional=provisional,ready=ready,receipt=receipt,ack=ack,
+                terminal=terminal,index=index,transport=transport,opener=post)
+    review=dict(version="stage12_terminal_collection_qualification_review_v1",scope=window["scope"],status="PASS",
+                collection_job_id=ctx["collection_job_id"],collection_source_git_sha=ctx["collection_source_git_sha"],original_job_id=1812987,
+                original_source_git_sha=win.ORIGINAL_SOURCE,original_selection_sha256=win.ORIGINAL_SELECTION,
+                final_sha256=canon(final),ready_sha256=canon(ready),receipt_ack_sha256=canon(ack),terminal_sha256=canon(terminal),
+                index_sha256=canon(index),transport_sha256=canon(transport),opener_sha256=canon(post),reviewed_epoch_ns=start+1007,
+                reviewer_role="INDEPENDENT_COLLECTION_QUALIFICATION",independent_review=True)
+    bundle["review"]=review
+    kwargs=dict(expected_window=window,expected_original_source_git_sha=win.ORIGINAL_SOURCE,expected_original_job_id=1812987,
+                expected_original_selection_sha256=win.ORIGINAL_SELECTION,expected_collector_source_git_sha=ctx["collection_source_git_sha"],
+                expected_qualification_review_sha256=canon(review))
+    return bundle,kwargs
+
+
+def test_invented_collection_qualification_exact_bindings():
+    import stage12_ra_g1_terminal_verify as verify
+    bundle,kwargs=invented_qualification()
+    assert verify.validate_qualification(bundle,**kwargs) is bundle
+
+
+@pytest.mark.parametrize("part,key,value", [
+    ("ready","version","stage12_terminal_transport_ready_v1"),
+    ("terminal","exit_code","1:0"),
+    ("provisional","children_joined",False),
+    ("ack","status","MISSING"),
+    ("review","independent_review",False),
+    ("opener","status","INCOMPLETE"),
+])
+def test_invented_collection_qualification_fails_closed(part,key,value):
+    import copy
+    import stage12_ra_g1_terminal_verify as verify
+    bundle,kwargs=invented_qualification()
+    bundle=copy.deepcopy(bundle)
+    bundle[part][key]=value
+    with pytest.raises((RuntimeError,KeyError)):
+        verify.validate_qualification(bundle,**kwargs)

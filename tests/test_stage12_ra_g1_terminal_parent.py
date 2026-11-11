@@ -205,8 +205,9 @@ def copy_stream(source, target):
         os.close(src)
 
 
+@pytest.mark.parametrize("same_domain", [False, True])
 def test_actual_pair_fifo_transport_receipt_and_final_log_boundary(
-    tmp_path, monkeypatch
+    tmp_path, monkeypatch, same_domain
 ):
     # Real test source-entry precedes all fixture setup; no fake or reset clock.
     entered = time.monotonic_ns()
@@ -214,6 +215,26 @@ def test_actual_pair_fifo_transport_receipt_and_final_log_boundary(
     monkeypatch.setattr(pair, "_ENTRY_MONO_NS", entered)
     monkeypatch.setattr(pair, "_ENTRY_EPOCH_NS", epoch)
     binding, authority, template, terminal = case(tmp_path / "case")
+    if same_domain:
+        monkeypatch.setenv("SAFE_STAGE12_INVENTED_TRANSPORT","1")
+        binding.update(version=pair.SUCCESSOR_VERSION,window={"scope":"TEST_ONLY"},
+                       collection_purpose="POST_B",original_source_root=str(ROOT),
+                       original_producer_path=str(ROOT/"scripts/stage12_ra_g1_allocation.py"),
+                       historical_collection=None,collection_admission_path=str(tmp_path/"case/collection_admission.record"))
+        authority.update(version=pair.SUCCESSOR_AUTH_VERSION,window=binding["window"],collection_purpose="POST_B",
+                         historical_collection_sha256=pair.digest(tc.canonical(None)))
+        authority.pop("environment_gate_sha256")
+        admission=dict(version="stage12_collection_only_admission_v1",scope="TERMINAL_COLLECTION_NO_SERVICE",state="TEST_ONLY",
+                       **{k:binding[k] for k in ("source_git_sha","original_job_id","original_source_git_sha","original_selection_sha256","original_source_root",
+                            "allocation_producer_sha256","window","grant_nonce","helper_sha256","parent_sha256","verifier_sha256","collection_purpose")},
+                       historical_collection_sha256=authority["historical_collection_sha256"],
+                       collection_plan_sha256="1"*64,collection_review_sha256="2"*64,software_review_sha256="3"*64,process_graph_sha256="4"*64,
+                       maximum_preparation_and_native_processes=69,
+                       **{k:authority[k] for k in ("max_collection_jobs","max_collection_seconds","collection_pool_bytes","collection_pool_creations","control_pool_bytes")},
+                       B_authorized=False,public_authorized=False,protected_authorized=False,scientific_acceptance=False)
+        authority["collection_admission_sha256"]=put(Path(binding["collection_admission_path"]),admission)
+        binding["authority_sha256"]=pair.digest(tc.canonical(authority))
+        (tmp_path/"case/authority.record").write_bytes(tc.canonical(authority))
     binding_path = tmp_path / "case/binding.record"
     binding_sha = put(binding_path, binding)
     root = tmp_path / "case"
@@ -247,12 +268,14 @@ def test_actual_pair_fifo_transport_receipt_and_final_log_boundary(
             # Actual adapter and finite real producer children; no SSH/native facts.
             owner = pair.Control(entered, pair.WINDOW_END_NS, 60)
             original_monotonic_deadline = owner.end
+            from test_stage12_ra_g1_terminal_transport import framed_fixture
             receipt, transport_report = adapter.fetch_ready(
                 ready,
                 ready_sha,
                 local,
                 transport_controls,
-                testing_command_factory=lambda row: ["/bin/cat", row["path"]],
+                testing_command_factory=None if same_domain else lambda row: ["/bin/cat", row["path"]],
+                testing_batch_command_factory=(lambda rows: framed_fixture(root,rows)) if same_domain else None,
                 control=owner,
             )
             assert transport_report["artifacts"] and not owner.cleanup_uncertain
@@ -285,7 +308,7 @@ def test_actual_pair_fifo_transport_receipt_and_final_log_boundary(
                 "--offline-invented",
                 "--test-root",
                 str(root),
-            ]
+            ] + (["--same-domain-successor"] if same_domain else [])
         )
     finally:
         stop_transport.set()
@@ -295,7 +318,7 @@ def test_actual_pair_fifo_transport_receipt_and_final_log_boundary(
     assert not thread.is_alive() and not errors
     assert (
         len(worker_results) == 1
-        and worker_results[0].get("version") == pair.READY_VERSION
+        and worker_results[0].get("version") == (pair.SUCCESSOR_READY_VERSION if same_domain else pair.READY_VERSION)
     )
     fs = tc.parse((output / "FILESYSTEM_OBSERVATION.record").read_bytes())
     assert fs["scope"] == "FILESYSTEM_REPORTED_NOT_RESERVED"
@@ -376,12 +399,23 @@ def test_actual_pair_fifo_transport_receipt_and_final_log_boundary(
         observed_epoch_ns=time.time_ns(),
     )
     index = dict(
-        version="stage12_terminal_log_copies_v1",
+        version="stage12_terminal_same_domain_log_copies_v2" if same_domain else "stage12_terminal_log_copies_v1",
         context_sha256=pair.digest(tc.canonical(ctx)),
         logs=logs,
         transport_start_epoch_ns=ended,
         transport_complete_epoch_ns=time.time_ns(),
     )
+    if same_domain:
+        import stage12_ra_g1_terminal_transport as adapter
+        from test_stage12_ra_g1_terminal_transport import framed_fixture
+        wire_root=root/"log-frame"
+        wire_root.mkdir(mode=0o700)
+        log_copy=root/"log-copy"
+        log_copy.mkdir(mode=0o700)
+        log_rows=[dict(label=r["label"],path=r["remote_path"],bytes=r["bytes"],sha256=r["sha256"]) for r in logs]
+        evidence,_=adapter.fetch_batch(log_rows,log_copy,pair.Control(time.monotonic_ns(),time.time_ns()+10**10,10),
+                         expected_uid=os.geteuid(),testing_argv=framed_fixture(wire_root,log_rows),nonce="1"*32)
+        index["transport_evidence"]=evidence
     final = pair.verify_final_logs(
         result,
         pair.digest(tc.canonical(result)),
@@ -397,6 +431,9 @@ def test_actual_pair_fifo_transport_receipt_and_final_log_boundary(
     assert final["workload_verification_complete"] is False
     assert final["local_retained_artifacts_freshly_reopened"] is True
     assert final["independent_outcome_review_still_required"] is True
+    if same_domain:
+        assert final["whole_collection_opener"]["status"] == "COMPLETE"
+        assert result["context"]["version"] == pair.SUCCESSOR_VERSION
 
 
 @pytest.mark.parametrize(
@@ -890,3 +927,65 @@ def test_retention_carries_transport_owner_and_rejects_its_expiry(tmp_path):
         )
     assert raised.value.args == ("DEADLINE",)
     assert not (local / "late.record").exists()
+
+
+@pytest.mark.parametrize("mixed",["legacy_with_admission","successor_with_legacy_gate","successor_both","wrong_authority_family"])
+def test_collection_admission_and_legacy_environment_gate_never_mix(tmp_path,mixed):
+    binding,authority,_,_=case(tmp_path/"case")
+    if mixed=="legacy_with_admission":
+        authority["collection_admission_sha256"]="1"*64
+    else:
+        binding.update(version=pair.SUCCESSOR_VERSION,window={"scope":"TEST_ONLY"},collection_purpose="POST_B",
+                       original_source_root=str(ROOT),original_producer_path=str(ROOT/"scripts/stage12_ra_g1_allocation.py"),
+                       historical_collection=None,collection_admission_path=str(tmp_path/"case/collection_admission.record"))
+        authority.update(version=pair.SUCCESSOR_AUTH_VERSION,window=binding["window"],collection_purpose="POST_B",
+                         historical_collection_sha256=pair.digest(tc.canonical(None)))
+        if mixed!="successor_with_legacy_gate":
+            authority["collection_admission_sha256"]="1"*64
+        if mixed=="wrong_authority_family":
+            authority.pop("environment_gate_sha256")
+            authority["version"]=pair.AUTH_VERSION
+    with pytest.raises(tc.Stop):
+        pair.validate_authority(authority,binding,True)
+
+
+def test_collection_admission_has_no_B_or_public_permissions(tmp_path):
+    binding,authority,_,_=case(tmp_path/"case")
+    binding.update(window={"scope":"TEST_ONLY"},collection_purpose="POST_B",original_source_root=str(ROOT),historical_collection=None)
+    value=dict(version="stage12_collection_only_admission_v1",scope="TERMINAL_COLLECTION_NO_SERVICE",state="TEST_ONLY",
+               **{k:binding[k] for k in ("source_git_sha","original_job_id","original_source_git_sha","original_selection_sha256","original_source_root",
+                     "allocation_producer_sha256","window","grant_nonce","helper_sha256","parent_sha256","verifier_sha256","collection_purpose")},
+               historical_collection_sha256=pair.digest(tc.canonical(None)),collection_plan_sha256="1"*64,
+               collection_review_sha256="2"*64,software_review_sha256="3"*64,process_graph_sha256="4"*64,
+               maximum_preparation_and_native_processes=69,
+               **{k:authority[k] for k in ("max_collection_jobs","max_collection_seconds","collection_pool_bytes","collection_pool_creations","control_pool_bytes")},
+               B_authorized=False,public_authorized=False,protected_authorized=False,scientific_acceptance=False)
+    assert pair.validate_collection_admission(value,binding,authority,True) is value
+    for key in ("B_authorized","public_authorized","protected_authorized","scientific_acceptance"):
+        changed=dict(value,**{key:True})
+        with pytest.raises(tc.Stop):
+            pair.validate_collection_admission(changed,binding,authority,True)
+
+
+@pytest.mark.parametrize("purpose,changed",[
+    ("QUALIFICATION","source"),("QUALIFICATION","job"),("QUALIFICATION","selection"),
+    ("POST_B","source"),("POST_B","historical_job"),("POST_B","historical_collector"),
+])
+def test_collection_source_scope_rejects_unselected_originals(purpose,changed):
+    from safe_geocoding_pipeline.preprocessing.stages import s12_ra_g1_windows as win
+    binding=dict(collection_purpose=purpose,original_job_id=int(win.ORIGINAL_JOB) if purpose=="QUALIFICATION" else 1900001,
+                 original_source_git_sha=win.ORIGINAL_SOURCE if purpose=="QUALIFICATION" else "b"*40,
+                 original_selection_sha256=win.ORIGINAL_SELECTION,source_git_sha="b"*40)
+    pair.validate_collection_source_scope(binding,False)
+    if changed=="source":
+        binding["original_source_git_sha"]="c"*40
+    elif changed=="job":
+        binding["original_job_id"]=1900002
+    elif changed=="selection":
+        binding["original_selection_sha256"]="d"*64
+    elif changed=="historical_job":
+        binding["original_job_id"]=1812987
+    else:
+        binding["original_job_id"]=1813045
+    with pytest.raises(tc.Stop):
+        pair.validate_collection_source_scope(binding,False)

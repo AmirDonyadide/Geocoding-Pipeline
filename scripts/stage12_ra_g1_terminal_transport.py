@@ -213,13 +213,14 @@ def fetch_ready(
     *,
     host=HOST,
     testing_command_factory=None,
+    testing_batch_command_factory=None,
     control=None,
 ):
     entered = time.monotonic_ns()
     epoch = time.time_ns()
     pair.validate_ready(ready)
     need(pair.digest(tc.canonical(ready)) == ready_sha)
-    if testing_command_factory is not None:
+    if testing_command_factory is not None or testing_batch_command_factory is not None:
         need(ready["scope"] == pair.TEST, "SCOPE")
     else:
         need(ready["scope"] == pair.NATIVE and host == HOST, "SCOPE")
@@ -250,25 +251,33 @@ def fetch_ready(
         <= ready["local_retention_byte_limit"],
         "WRITE_BYTES",
     )
-    reports = []
-    for row in ready["artifacts"]:
-        control.check()
-        argv = (
-            testing_command_factory(row)
-            if testing_command_factory is not None
-            else remote_argv(host, row["path"])
-        )
-        reports.append(
-            dict(
-                label=row["label"],
-                **copy_process(
-                    argv, local_root / (row["label"] + ".original"), row, control
-                ),
+    evidence = None
+    if ready["version"] == pair.SUCCESSOR_READY_VERSION:
+        need(testing_command_factory is None, "SCOPE")
+        test_argv = testing_batch_command_factory(ready["artifacts"]) if testing_batch_command_factory is not None else None
+        evidence, _ = fetch_batch(ready["artifacts"], local_root, control,
+                                  expected_uid=ready["context"]["collection_uid"], testing_argv=test_argv, nonce="1"*32 if test_argv is not None else None)
+        reports = evidence["files"]
+    else:
+        reports = []
+        for row in ready["artifacts"]:
+            control.check()
+            argv = (
+                testing_command_factory(row)
+                if testing_command_factory is not None
+                else remote_argv(host, row["path"])
             )
-        )
+            reports.append(
+                dict(
+                    label=row["label"],
+                    **copy_process(
+                        argv, local_root / (row["label"] + ".original"), row, control
+                    ),
+                )
+            )
     receipt_path = local_root / "RETENTION_RECEIPT.record"
     receipt = pair.verify_retention(
-        ready, ready_sha, local_root, receipt_path, entered, epoch, control=control
+        ready, ready_sha, local_root, receipt_path, entered, epoch, control=control, transport_evidence=evidence
     )
     control.check()
     result = dict(
@@ -285,8 +294,417 @@ def fetch_ready(
         completed_mono_ns=time.monotonic_ns(),
         native_or_scientific_acceptance=False,
     )
+    if evidence is not None:
+        result["version"] = "stage12_terminal_same_domain_bounded_transport_v2"
+        result["transport_evidence"] = evidence
     control.record(control_root / "LOCAL_TRANSPORT_RESULT.record", result)
     return receipt, result
+
+
+# Successor transport. Legacy raw-dd API above remains readable.
+import datetime as _dt
+import stat as _stat
+import secrets as _secrets
+
+BATCH_VERSION = "stage12_same_session_transfer_v2"
+MAX_METADATA = 262144
+
+
+def batch_paths(rows, metadata_paths=()):
+    need(type(rows) is list and 1 <= len(rows) <= 16, "FRAME")
+    paths, labels = [], set()
+    for row in rows:
+        need(type(row) is dict and set(row) <= {"label", "path", "bytes", "sha256", "maximum", "local_name", "identity"}, "FRAME")
+        path = tc.absolute(row["path"])
+        need(type(row["label"]) is str and tc.LABEL.fullmatch(row["label"]) and row["label"] not in labels and path not in paths, "FRAME")
+        need(len(os.fsencode(path)) <= 8192 and len(path.parts) <= 81 and "\n" not in str(path) and "|" not in str(path), "PATH")
+        labels.add(row["label"])
+        paths.append(path)
+        maximum = row.get("bytes", row.get("maximum"))
+        tc.uint(maximum)
+        need(maximum <= 3 * 2**30, "LIMITS")
+        if "sha256" in row:
+            pair.hash_string(row["sha256"])
+    extra = [tc.absolute(str(p)) for p in metadata_paths]
+    need(len(extra) <= 16 and len(set(extra)) == len(extra) and not set(paths) & set(extra), "FRAME")
+    for path in extra:
+        need(len(os.fsencode(path)) <= 8192 and len(path.parts) <= 81 and "\n" not in str(path) and "|" not in str(path), "PATH")
+    ancestors = sorted({p for path in paths + extra for p in path.parents}, key=str)
+    need(len(ancestors) <= 1280, "ANCESTOR")
+    return paths, extra, ancestors
+
+
+def batch_remote_argv(rows, nonce, *, expected_uid, expected_gid=None, host=HOST, metadata_paths=(), publication=None, terminal_log_labels=()):
+    need(host == HOST and type(nonce) is str and __import__("re").fullmatch("[0-9a-f]{32}", nonce), "DOMAIN")
+    paths, extra, ancestors = batch_paths(rows, metadata_paths)
+    tc.uint(expected_uid)
+    if expected_gid is not None:
+        tc.uint(expected_gid)
+    snapshot = paths + extra + ancestors
+    quoted = " ".join(shlex.quote(str(p)) for p in snapshot)
+    # All metadata and all DDs run in this one shell namespace. read/printf/mapfile
+    # are Bash builtins; exactly two stat and two readlink processes are used.
+    lines = [
+        "set -euo pipefail", "umask 077", "export LC_ALL=C TZ=UTC",
+        "payload_pid=",
+        "cleanup(){ code=$?; trap - EXIT HUP INT TERM; if [[ -n \"$payload_pid\" ]]; then kill -TERM \"$payload_pid\" 2>/dev/null || :; wait \"$payload_pid\" 2>/dev/null || :; fi; exit \"$code\"; }",
+        "trap cleanup EXIT", "trap 'exit 2' HUP INT TERM",
+        "domain(){ IFS= read -r host </proc/sys/kernel/hostname; IFS= read -r boot </proc/sys/kernel/random/boot_id; mount=$(readlink -- /proc/$$/ns/mnt); printf 'DOMAIN|%s|%s|%s|%s|%s\\n' \"$host\" \"$boot\" \"$mount\" " + shlex.quote(nonce) + " \"$$\"; }",
+        "printf 'S12B2|" + nonce + "|" + str(len(paths)) + "|" + str(len(extra)) + "|" + str(len(ancestors)) + "\\n'",
+        "domain",
+        "before=$(stat --printf='%d|%i|%f|%u|%g|%h|%s|%y|%z|%F\\n' -- " + quoted + ")",
+        "printf 'BEFORE\\n%s\\n' \"$before\"",
+        "mapfile -t meta <<<\"$before\"",
+    ]
+    # Reject unsupported metadata before any DD opens a source. All predicates
+    # use Bash builtins over this session's own captured lstat snapshot.
+    lines.append("[[ ${#meta[@]} -eq " + str(len(snapshot)) + " ]]")
+    for i in range(len(paths)+len(extra),len(snapshot)):
+        lines += [
+            "IFS='|' read -r dev ino mode owner group links size mt ct kind <<<\"${meta[" + str(i) + "]}\"",
+            "[[ \"$mode\" =~ ^[0-9a-f]+$ ]]",
+            "(( (16#$mode & 0170000) == 0040000 ))",
+        ]
+    for i,row in enumerate(rows):
+        maximum=row.get("bytes",row.get("maximum"))
+        parent=ancestors.index(paths[i].parent)+len(paths)+len(extra)
+        lines += [
+            "IFS='|' read -r dev ino mode owner group links size mt ct kind <<<\"${meta[" + str(parent) + "]}\"",
+            "[[ \"$owner\" == " + str(expected_uid) + " ]]",
+            "(( (16#$mode & 0177777) == 0040700 ))",
+        ]
+        if expected_gid is not None:
+            lines.append("[[ \"$group\" == " + str(expected_gid) + " ]]")
+        lines += [
+            "IFS='|' read -r dev ino mode owner group links size mt ct kind <<<\"${meta[" + str(i) + "]}\"",
+            "[[ \"$mode\" =~ ^[0-9a-f]+$ && \"$size\" =~ ^[0-9]+$ && \"$owner\" == " + str(expected_uid) + " && \"$links\" == 1 ]]",
+            "(( (16#$mode & 0177777) == 0100600 ))",
+            "(( size <= " + str(maximum) + " ))",
+        ]
+        if "bytes" in row:
+            lines.append("(( size == " + str(row["bytes"]) + " ))")
+        if expected_gid is not None:
+            lines.append("[[ \"$group\" == " + str(expected_gid) + " ]]")
+    if terminal_log_labels:
+        positions=[i for i,row in enumerate(rows) if row["label"] in terminal_log_labels]
+        lines.append("log_total=0")
+        for i in positions:
+            lines += ["IFS='|' read -r dev ino mode owner group links size mt ct kind <<<\"${meta[" + str(i) + "]}\"",
+                      "(( log_total += size )) || [[ \"$log_total\" == 0 ]]"]
+        lines.append("(( log_total <= 16777216 ))")
+    for i, path in enumerate(paths):
+        lines += [
+            "IFS='|' read -r dev ino mode owner group links size mt ct kind <<<\"${meta[" + str(i) + "]}\"",
+            "[[ \"$size\" =~ ^[0-9]+$ ]]",
+            "printf 'DATA|" + str(i) + "|%s\\n' \"$size\"",
+            "dd if=" + shlex.quote(str(path)) + " iflag=nofollow,nonblock bs=65536 status=none &",
+            "payload_pid=$!", "wait \"$payload_pid\"", "payload_pid=",
+            "printf '\\nEND_DATA|" + str(i) + "\\n'",
+        ]
+    lines += [
+        "printf 'AFTER\\n'",
+        "stat --printf='%d|%i|%f|%u|%g|%h|%s|%y|%z|%F\\n' -- " + quoted,
+        "domain", "printf 'END|" + nonce + "\\n'",
+    ]
+    if publication is not None:
+        pair.fields(publication,"target job_id deadline_epoch_ns bytes","RETENTION")
+        need(len(rows)==1 and rows[0]["path"]==publication["target"] and rows[0]["bytes"]==publication["bytes"],"RETENTION")
+        target=tc.absolute(publication["target"])
+        need(target.name=="RETENTION_RECEIPT.record","PATH")
+        tc.uint(publication["job_id"],True)
+        tc.uint(publication["deadline_epoch_ns"],True)
+        need(0 < publication["bytes"] <= 65536,"LIMITS")
+        quoted_target=shlex.quote(str(target))
+        parent=shlex.quote(str(target.parent))
+        prefix=[
+            "set -euo pipefail", "umask 077", "export LC_ALL=C TZ=UTC",
+            "target="+quoted_target,
+            "[[ ! -e \"$target\" && ! -L \"$target\" ]]",
+            "[[ \"$(stat -c '%a:%u' -- "+parent+")\" == \"700:$UID\" ]]",
+            "[[ $(date +%s%N) -lt "+str(publication["deadline_epoch_ns"])+" ]]",
+            "[[ \"$(squeue -h -j "+str(publication["job_id"])+" -o '%T')\" == RUNNING ]]",
+            "set -C; : > \"$target.upload-reservation\"; set +C",
+            "dd of=\"$target.upload-pending\" oflag=excl bs=65536 status=none",
+            "sync -f -- \"$target.upload-pending\"",
+            "[[ ! -e \"$target\" && ! -L \"$target\" ]]",
+            "mv -T -n -- \"$target.upload-pending\" \"$target\"",
+            "[[ ! -e \"$target.upload-pending\" ]]",
+            "sync -f -- "+parent,
+            "[[ $(date +%s%N) -lt "+str(publication["deadline_epoch_ns"])+" ]]",
+        ]
+        lines=prefix+lines
+    # Bash 3.2 does not apply errexit to every arithmetic command. Explicit
+    # exits make every metadata predicate fail closed on both supported shells.
+    lines=[line+" || exit 2" if line.startswith(("[[ ","((")) else line for line in lines]
+    command = "exec bash -c " + shlex.quote("\n".join(lines))
+    return ["ssh", "-T", "-o", "BatchMode=yes", "-o", "ConnectTimeout=15", host, command]
+
+
+def _stat_line(raw):
+    need(type(raw) is bytes and len(raw) <= 512 and raw.endswith(b"\n"), "FRAME")
+    try:
+        parts = raw[:-1].decode("ascii").split("|")
+        need(len(parts) == 10, "FRAME")
+        def ns(text):
+            match = __import__("re").fullmatch(r"(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d)\.(\d{9}) \+0000", text)
+            need(match is not None, "FRAME")
+            stamp = _dt.datetime.strptime(match[1], "%Y-%m-%d %H:%M:%S").replace(tzinfo=_dt.timezone.utc)
+            delta = stamp - _dt.datetime(1970,1,1,tzinfo=_dt.timezone.utc)
+            return (delta.days*86400+delta.seconds)*10**9+int(match[2])
+        value = [int(parts[0]), int(parts[1]), int(parts[2],16), int(parts[3]), int(parts[4]), int(parts[5]), int(parts[6]), ns(parts[7]), ns(parts[8])]
+        for n in value:
+            tc.uint(n)
+        need(parts[9] in ("regular file", "regular empty file", "directory", "fifo"), "FRAME")
+        need((_stat.S_ISREG(value[2]) and parts[9] in ("regular file", "regular empty file"))
+             or (_stat.S_ISDIR(value[2]) and parts[9] == "directory")
+             or (_stat.S_ISFIFO(value[2]) and parts[9] == "fifo"), "FRAME")
+        need(parts[9] != "regular empty file" or value[6] == 0, "FRAME")
+        return value
+    except (UnicodeError, ValueError, OverflowError):
+        raise tc.Stop("FRAME") from None
+
+
+class _PipeReader:
+    def __init__(self, proc, control, kill_at, input_bytes=None):
+        self.input_view = memoryview(input_bytes) if input_bytes is not None else None
+        self.proc, self.control, self.kill_at = proc, control, kill_at
+        self.selector = selectors.DefaultSelector()
+        self.buffer = bytearray()
+        self.streams = {"stdout", "stderr"}
+        self.stderr_bytes = self.stdout_bytes = 0
+        try:
+            for label, stream in (("stdout",proc.stdout),("stderr",proc.stderr)):
+                os.set_blocking(stream.fileno(),False)
+                self.selector.register(stream,selectors.EVENT_READ,label)
+            if input_bytes is not None:
+                os.set_blocking(proc.stdin.fileno(),False)
+                self.selector.register(proc.stdin,selectors.EVENT_WRITE,"stdin")
+        except BaseException:
+            self.selector.close()
+            raise
+
+    def pump(self):
+        self.control.check()
+        need(time.monotonic_ns() < self.kill_at, "DEADLINE")
+        for key,_ in self.selector.select(.05):
+            if key.data == "stdin":
+                try:
+                    n=os.write(key.fileobj.fileno(),self.input_view[:CHUNK])
+                except BrokenPipeError:
+                    raise tc.Stop("RETENTION") from None
+                need(n>0,"WRITE_BYTES")
+                self.input_view=self.input_view[n:]
+                if not self.input_view:
+                    self.selector.unregister(key.fileobj)
+                    key.fileobj.close()
+                continue
+            raw = self.control.read(key.fileobj.fileno(), CHUNK)
+            if not raw:
+                self.selector.unregister(key.fileobj)
+                self.streams.remove(key.data)
+                continue
+            if key.data == "stderr":
+                self.stderr_bytes += len(raw)
+                need(self.stderr_bytes <= MAX_STDERR, "STDERR")
+            else:
+                self.stdout_bytes += len(raw)
+                need(self.stdout_bytes <= 3*2**30 + 2*128*2**20 + 2**20 + 2*MAX_METADATA, "READ_BYTES")
+                self.buffer.extend(raw)
+
+    def read(self, n):
+        need(0 <= n <= CHUNK, "READ_BYTES")
+        while len(self.buffer) < n and "stdout" in self.streams:
+            self.pump()
+        raw = bytes(self.buffer[:n])
+        del self.buffer[:len(raw)]
+        return raw
+
+    def line(self, limit=512):
+        while True:
+            pos = self.buffer.find(b"\n")
+            if pos >= 0:
+                need(pos+1 <= limit, "FRAME")
+                raw = bytes(self.buffer[:pos+1])
+                del self.buffer[:pos+1]
+                return raw
+            need(len(self.buffer) <= limit and "stdout" in self.streams, "TRUNCATED")
+            self.pump()
+
+    def finish(self):
+        while self.streams or self.proc.poll() is None:
+            self.pump()
+            need(not self.buffer, "FRAME")
+        need(not self.buffer and not self.input_view and self.proc.wait(timeout=0) == 0, "CHILD_EXIT")
+
+
+def fetch_batch(rows, target_root, control, *, expected_uid, expected_gid=None,
+                metadata_paths=(), testing_argv=None, nonce=None, publication=None, input_bytes=None, terminal_log_labels=()):
+    """One same-domain before/content/after sequence, preserving failed prefixes."""
+    paths, extras, ancestors = batch_paths(rows, metadata_paths)
+    need((publication is None) == (input_bytes is None), "RETENTION")
+    if input_bytes is not None:
+        need(type(input_bytes) is bytes and len(input_bytes) <= 65536 and len(input_bytes) == publication["bytes"], "RETENTION")
+        control.claim(len(input_bytes))
+    need(type(terminal_log_labels) in (list,tuple) and len(set(terminal_log_labels)) == len(terminal_log_labels) and set(terminal_log_labels) <= {r["label"] for r in rows}, "FRAME")
+    nonce = _secrets.token_hex(16) if nonce is None else nonce
+    need(type(nonce) is str and __import__("re").fullmatch("[0-9a-f]{32}", nonce), "DOMAIN")
+    if testing_argv is not None:
+        need(os.environ.get("SAFE_STAGE12_INVENTED_TRANSPORT") == "1", "SCOPE")
+    target_root = tc.absolute(str(target_root))
+    tc.private(target_root.lstat(), "DIR", os.geteuid())
+    local_chain = tc.ancestors(target_root)
+    local_identity = tc.ident(target_root.lstat())[:5]
+    end = min(control.end, time.monotonic_ns()+max(0,control.epoch_end-time.time_ns()))
+    kill_at = end - 2*10**9
+    control.check()
+    need(time.monotonic_ns() < kill_at, "DEADLINE")
+    proc = reader = None
+    fd = None
+    first = None
+    phase = "START"
+    before = after = []
+    domain_before = domain_after = None
+    file_reports = []
+    cleanup_uncertain = False
+    remote_complete = False
+    try:
+        proc = subprocess.Popen(testing_argv if testing_argv is not None else batch_remote_argv(rows, nonce, expected_uid=expected_uid, expected_gid=expected_gid, metadata_paths=metadata_paths, publication=publication, terminal_log_labels=terminal_log_labels),
+                                stdin=subprocess.PIPE if input_bytes is not None else subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True)
+        reader = _PipeReader(proc,control,kill_at,input_bytes)
+        need(reader.line() == f"S12B2|{nonce}|{len(paths)}|{len(extras)}|{len(ancestors)}\n".encode(), "FRAME")
+        def domain():
+            try:
+                parts = reader.line().decode("ascii").rstrip("\n").split("|")
+            except UnicodeError:
+                raise tc.Stop("DOMAIN") from None
+            need(len(parts) == 6 and parts[0] == "DOMAIN" and parts[4] == nonce, "DOMAIN")
+            value = dict(host=parts[1],boot_id=parts[2],mount_namespace=parts[3],session_nonce=parts[4],session_pid=int(parts[5]) if parts[5].isascii() and parts[5].isdecimal() else 0)
+            pair.validate_transport_domain(value)
+            return value
+        phase = "BEFORE"
+        domain_before = domain()
+        need(reader.line() == b"BEFORE\n", "FRAME")
+        before = []
+        for _ in paths+extras+ancestors:
+            before.append(_stat_line(reader.line()))
+        need(sum(before[i][6] for i,r in enumerate(rows) if r["label"] in terminal_log_labels) <= 16*2**20, "WRITE_BYTES")
+        for info in before[len(paths)+len(extras):]:
+            need(_stat.S_ISDIR(info[2]), "ANCESTOR")
+        for path in paths:
+            parent = ancestors.index(path.parent)+len(paths)+len(extras)
+            info=before[parent]
+            need(_stat.S_ISDIR(info[2]) and _stat.S_IMODE(info[2]) == 0o700 and info[3] == expected_uid and (expected_gid is None or info[4] == expected_gid), "PRIVATE")
+        for i,(row,path) in enumerate(zip(rows,paths,strict=True)):
+            phase = "CONTENT"
+            info = before[i]
+            need(_stat.S_ISREG(info[2]) and _stat.S_IMODE(info[2]) == 0o600 and info[3] == expected_uid
+                 and (expected_gid is None or info[4] == expected_gid) and info[5] == 1, "PRIVATE")
+            maximum = row.get("bytes",row.get("maximum"))
+            need(info[6] <= maximum and ("bytes" not in row or info[6] == row["bytes"]), "READ_BYTES")
+            need(reader.line() == f"DATA|{i}|{info[6]}\n".encode(), "FRAME")
+            name = row.get("local_name", row["label"]+".original")
+            need(type(name) is str and "/" not in name and name not in ("",".",".."), "PATH")
+            target = target_root / name
+            control.claim(0,True)
+            fd = os.open(target,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600)
+            sha=hashlib.sha256()
+            left=info[6]
+            while left:
+                raw=reader.read(min(CHUNK,left))
+                need(raw,"TRUNCATED")
+                sha.update(raw)
+                left-=len(raw)
+                view=memoryview(raw)
+                while view:
+                    control.check()
+                    wrote=os.write(fd,view)
+                    need(wrote>0,"WRITE_BYTES")
+                    view=view[wrote:]
+            need(reader.line() == b"\n" and reader.line() == f"END_DATA|{i}\n".encode(), "FRAME")
+            if "sha256" in row:
+                need(sha.hexdigest()==row["sha256"],"PAYLOAD_HASH")
+            os.fsync(fd)
+            local=os.fstat(fd)
+            tc.private(local,"FILE",os.geteuid())
+            need(tc.ident(local)==tc.ident(target.lstat()) and local.st_size==info[6],"SOURCE_CHANGED")
+            tc.close_owned(control,(fd,))
+            fd=None
+            file_reports.append(dict(label=row["label"],path=str(path),before=info,after=None,bytes=info[6],sha256=sha.hexdigest()))
+        phase="AFTER"
+        need(reader.line()==b"AFTER\n","FRAME")
+        after=[]
+        for _ in paths+extras+ancestors:
+            after.append(_stat_line(reader.line()))
+        domain_after=domain()
+        need(domain_after==domain_before,"DOMAIN")
+        for i,row in enumerate(file_reports):
+            row["after"]=after[i]
+        need(before[:len(paths)+len(extras)]==after[:len(paths)+len(extras)],"SOURCE_CHANGED")
+        need([v[:6] for v in before[len(paths)+len(extras):]]==[v[:6] for v in after[len(paths)+len(extras):]],"ANCESTOR_CHANGED")
+        need(reader.line()==f"END|{nonce}\n".encode(),"FRAME")
+        phase="JOIN"
+        reader.finish()
+        remote_complete = True
+        tc.check_ancestors(local_chain)
+        need(tc.ident(target_root.lstat())[:5]==local_identity,"SOURCE_CHANGED")
+        dfd=os.open(target_root,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW)
+        try:
+            os.fsync(dfd)
+        finally:
+            tc.close_owned(control,(dfd,))
+        evidence=dict(version=BATCH_VERSION,domain_before=domain_before,domain_after=domain_after,
+                      ancestors=[dict(path=str(path),before=before[len(paths)+len(extras)+i],after=after[len(paths)+len(extras)+i]) for i,path in enumerate(ancestors)],
+                      files=file_reports,exit_code=0,observed_joined=True)
+        pair.validate_transport_evidence(evidence)
+        control.check()
+    except BaseException as error:
+        first=error
+        # No exception text, arbitrary path or stderr is retained.
+        diagnostic=dict(version=BATCH_VERSION,status="INCOMPLETE",first_phase=phase,
+                        first_mono_ns=time.monotonic_ns(),first_epoch_ns=time.time_ns(),
+                        code=pair.safe_code(error),domain_before=domain_before,domain_after=domain_after,
+                        metadata_before=before,metadata_after=after,cleanup_uncertain=False)
+    finally:
+        if fd is not None:
+            try:
+                tc.close_owned(control,(fd,))
+            except BaseException:
+                cleanup_uncertain=True
+        if proc is not None and proc.poll() is None:
+            try:
+                os.killpg(proc.pid,signal.SIGTERM)
+                proc.wait(timeout=max(0,min(.5,(end-time.monotonic_ns())/1e9)))
+            except subprocess.TimeoutExpired:
+                try:
+                    os.killpg(proc.pid,signal.SIGKILL)
+                    proc.wait(timeout=max(0,min(.5,(end-time.monotonic_ns())/1e9)))
+                except BaseException:
+                    cleanup_uncertain=True
+            except BaseException:
+                cleanup_uncertain=True
+        if proc is not None:
+            cleanup_uncertain |= proc.poll() is None
+            for stream in (proc.stdin,proc.stdout,proc.stderr):
+                if stream is not None:
+                    try:
+                        stream.close()
+                    except BaseException:
+                        cleanup_uncertain=True
+        if reader is not None:
+            try:
+                reader.selector.close()
+            except BaseException:
+                cleanup_uncertain=True
+        cleanup_uncertain |= control.cleanup_uncertain or not remote_complete
+        control.cleanup_uncertain |= cleanup_uncertain
+    if first is not None:
+        diagnostic["cleanup_uncertain"]=cleanup_uncertain
+        diagnostic["remote_cleanup_status"]="JOINED_NATIVE_EXIT_ZERO" if remote_complete else "UNKNOWN"
+        diagnostic["cleanup_completed_mono_ns"]=time.monotonic_ns()
+        first.transport_diagnostic=diagnostic
+        raise first
+    need(not cleanup_uncertain,"CLOSE_UNCERTAIN")
+    return evidence, {str(path):before[len(paths)+i] for i,path in enumerate(extras)}
 
 
 def main(argv=None):
@@ -296,11 +714,13 @@ def main(argv=None):
     parser.add_argument("--ready-sha256", required=True)
     parser.add_argument("--local-root", type=Path, required=True)
     parser.add_argument("--control-root", type=Path, required=True)
+    parser.add_argument("--same-domain-successor", action="store_true")
     args = parser.parse_args(argv)
     os.umask(0o077)
-    bootstrap = pair.Control(entered, pair.WINDOW_END_NS, 900)
+    bootstrap = pair.Control(entered, pair.family_end({"version":pair.SUCCESSOR_VERSION}) if args.same_domain_successor else pair.WINDOW_END_NS, 900)
     try:
         ready = pair.load_control(args.ready, args.ready_sha256, bootstrap)
+        need(args.same_domain_successor == (ready.get("version") == pair.SUCCESSOR_READY_VERSION), "SCOPE")
         _, result = fetch_ready(
             ready,
             args.ready_sha256,
@@ -318,6 +738,7 @@ def main(argv=None):
                     status="INCOMPLETE",
                     code=pair.safe_code(error),
                     cleanup_uncertain=bootstrap.cleanup_uncertain,
+                    first_safe_error=getattr(error, "transport_diagnostic", None),
                     native_or_scientific_acceptance=False,
                 )
             ).decode()
