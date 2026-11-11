@@ -1436,7 +1436,8 @@ def execute(args, *, started_ns, cpu_started_ns):
     bodies, control_raw, adapter = None, None, None
     attempts, phases, failure = 0, [], None
     boundaries, first_failure, cleanup_failure = [], None, None
-    capture_failures = Failures(clock, closure=True)
+    observer_stage_enabled = getattr(args, "observer_stages", False) is True
+    capture_failures = Failures(clock, closure=True, observer=observer_stage_enabled)
 
     def closure_mark(stage, *, completed=False, deadline=None, deadline_ns=None, guard=None):
         try:
@@ -1601,6 +1602,7 @@ def execute(args, *, started_ns, cpu_started_ns):
                     native_roots=(output,),
                     scope_start_ns=phase_start_ns,
                     startup_trace=runtime_trace,
+                    **({"observer_stages": capture_failures} if observer_stage_enabled else {}),
                 )
                 runtime_trace.bind_monitor(active_resource.monitor)
                 if phase_id == 1:
@@ -1912,6 +1914,7 @@ def execute(args, *, started_ns, cpu_started_ns):
                     clock_ns=clock.now_ns,
                     native_roots=(output,),
                     startup_trace=runtime_trace,
+                    **({"observer_stages": capture_failures} if observer_stage_enabled else {}),
                 )
                 runtime_trace.bind_monitor(final_resource.monitor)
             closure_mark("T3_CLOSE", deadline_ns=deadline, guard="GLOBAL_TASK")
@@ -2188,6 +2191,8 @@ def main():
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--evidence-bundle", type=Path, required=True)
     parser.add_argument("--evidence-review-sha256", required=True)
+    parser.add_argument("--observer-stages", action="store_true",
+                        help="Retain bounded supplementary resource observer-stage diagnostics")
     args = parser.parse_args()
     signal.signal(signal.SIGALRM, lambda *_: os._exit(124))
     signal.alarm(7200)

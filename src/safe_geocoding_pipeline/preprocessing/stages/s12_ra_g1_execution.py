@@ -264,6 +264,7 @@ class PhaseSession:
         bootstrap_prefix: Any = None,
         bootstrap_adoption_reader: Any = None,
         start_to_start: bool = False,
+        observer_stages: Any = None,
     ) -> None:
         if startup_trace is not None:
             m.emit_startup_trace(startup_trace, "SESSION_SETUP_ENTER")
@@ -359,6 +360,8 @@ class PhaseSession:
                     read_charge=read_charge,
                     check=self.check,
                     clock_ns=clock_ns,
+                    **({"observer_stages": observer_stages, "observer_phase_id": phase_id}
+                       if observer_stages is not None else {}),
                 )
             else:
                 c.require(self.test_only, "RA_G1_SYNTHETIC_DENIED")
@@ -1293,6 +1296,7 @@ def start_session(
     bootstrap_adoption_reader: Any = None,
     startup_trace: Any = None,
     start_to_start: bool = False,
+    observer_stages: Any = None,
 ) -> PhaseSession:
     """Actual CLI entry: exact original context, genuine Linux roles, real monitor."""
     request = validate_execution_request(config.get("resource_execution"))
@@ -1378,6 +1382,7 @@ def start_session(
         bootstrap_adoption_reader=bootstrap_adoption_reader if bootstrap_adoption_reader is not None else
             (lambda identity: authority._resource_evidence(identity, "adoptions")),
         start_to_start=start_to_start,
+        **({"observer_stages": observer_stages} if observer_stages is not None else {}),
     )
     value.supervisor_context = context
     value.supervisor_context_sha256 = request["supervisor_context_sha256"]

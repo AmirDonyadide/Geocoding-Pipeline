@@ -7,6 +7,7 @@ campaign after an uncertain writer; it cannot repair closure or exact counts.
 from __future__ import annotations
 
 import threading
+import time
 from . import s12_retrieval_contract as c
 from . import s12_public_recovery as recovery
 
@@ -167,10 +168,194 @@ def _resource_monitor_state(monitor):
     return result
 
 
+
+OBSERVER_STAGES = (
+    "KERNEL_LEASE_WAIT", "ADMITTED_PROCESS", "KERNEL_READ_PARSE", "NATIVE_PATHS",
+    "STATVFS", "COUNTERS", "ORIGINAL_VALIDATE", "RETAIN_DIGEST",
+)
+OBSERVER_ROWS = OBSERVER_STAGES + ("OUTER_UNATTRIBUTED",)
+OBSERVER_SLOW_NS = 1_000_000_000
+
+
+def _observer_rows():
+    return {stage: dict(count=0, wall_ns=0, thread_cpu_ns=0, maximum_wall_ns=0,
+                        maximum_thread_cpu_ns=0, failures=0) for stage in OBSERVER_ROWS}
+
+
+def _observer_sample(owner):
+    # These supplementary clocks never consume an enforcement clock callback.
+    wall = cpu = None
+    try:
+        wall = _resource_uint(time.monotonic_ns())
+        cpu_clock = getattr(time, "thread_time_ns", None)
+        cpu = _resource_uint(cpu_clock()) if callable(cpu_clock) else None
+    except BaseException:
+        owner.observer_fault()
+    if wall is None or cpu is None:
+        owner.observer_fault()
+        with owner.lock:
+            owner.observer_wall_complete &= wall is not None
+            owner.observer_cpu_complete &= cpu is not None
+    return wall, cpu
+
+
+def _observer_delta(start, end):
+    return end - start if type(start) is int and type(end) is int and end >= start else None
+
+
+
+def _observer_add(owner, row, key, amount):
+    # Caller holds the existing owner lock; overflow is explicit uncertainty.
+    value = row[key] + amount
+    if value > 2**64 - 1:
+        owner.observer_faults = min(2**64 - 1, owner.observer_faults + 1)
+    row[key] = min(2**64 - 1, value)
+
+
+class _ObserverStage:
+    """One of eight fixed LinuxObserver boundaries; never holds a work lock."""
+
+    def __init__(self, call, stage):
+        self.call, self.stage, self.done = call, stage, False
+        self.start = (None, None)
+
+    def __enter__(self):
+        if self.call.owner is not None:
+            self.start = _observer_sample(self.call.owner)
+            self.call.boundary(self.stage, self.start, completed=False)
+        return self
+
+    def complete(self, error=None):
+        if self.done or self.call.owner is None:
+            return
+        self.done = True
+        try:
+            ended = _observer_sample(self.call.owner)
+            self.call.stage_complete(self.stage, self.start, ended, error)
+        except BaseException:
+            self.call.owner.observer_fault()
+
+    def __exit__(self, error_type, error, traceback):
+        self.complete(error)
+        return False
+
+
+class _ObserverCall:
+    """Fixed supplementary state for one real observer invocation, not a profiler."""
+
+    def __init__(self, owner, kind, phase_id):
+        self.owner = owner if type(owner) is Failures and owner.observer_enabled else None
+        self.record = None
+        if self.owner is None:
+            return
+        try:
+            started = _observer_sample(self.owner)
+            with self.owner.lock:
+                if self.owner.observer_calls == 2**64 - 1:
+                    self.owner.observer_faults = min(2**64 - 1, self.owner.observer_faults + 1)
+                else:
+                    self.owner.observer_calls += 1
+                self.record = dict(
+                    phase_id=_resource_uint(phase_id), kind=_resource_tag(kind, ("START", "PERIODIC", "FINAL")),
+                    observer_call_ordinal=self.owner.observer_calls,
+                    start_wall_ns=started[0], start_thread_cpu_ns=started[1],
+                    end_wall_ns=None, end_thread_cpu_ns=None, wall_ns=None, thread_cpu_ns=None,
+                    returned=False, failure=None, active_stage=None,
+                    last_entered=None, last_completed=None, stages=_observer_rows())
+                self.owner.observer_last = self.record
+        except BaseException:
+            self.owner.observer_fault()
+            self.owner = None
+
+    def __enter__(self):
+        return self
+
+    def stage(self, stage):
+        if type(stage) is not str or stage not in OBSERVER_STAGES:
+            if self.owner is not None:
+                self.owner.observer_fault()
+            return _ObserverStage(_ObserverCall(None, None, None), None)
+        return _ObserverStage(self, stage)
+
+    def boundary(self, stage, sample, *, completed):
+        try:
+            row = dict(stage=stage, wall_ns=sample[0], thread_cpu_ns=sample[1])
+            with self.owner.lock:
+                self.record["last_completed" if completed else "last_entered"] = row
+                self.record["active_stage"] = None if completed else stage
+        except BaseException:
+            self.owner.observer_fault()
+
+    def stage_complete(self, stage, started, ended, error):
+        wall, cpu = (_observer_delta(started[0], ended[0]),
+                     _observer_delta(started[1], ended[1]))
+        with self.owner.lock:
+            for rows in (self.record["stages"], self.owner.observer_totals):
+                row = rows[stage]
+                _observer_add(self.owner, row, "count", 1)
+                _observer_add(self.owner, row, "failures", int(error is not None))
+                if wall is not None:
+                    _observer_add(self.owner, row, "wall_ns", wall)
+                    row["maximum_wall_ns"] = max(row["maximum_wall_ns"], wall)
+                if cpu is not None:
+                    _observer_add(self.owner, row, "thread_cpu_ns", cpu)
+                    row["maximum_thread_cpu_ns"] = max(row["maximum_thread_cpu_ns"], cpu)
+        if stage != "OUTER_UNATTRIBUTED":
+            self.boundary(stage, ended, completed=True)
+        if error is not None:
+            self.failed(error, stage, ended, "FIRST_STAGE_FAILURE_BEFORE_CLEANUP")
+
+    def failed(self, error, stage, sample, point):
+        try:
+            fault = dict(**_resource_fault(error), stage=stage,
+                         wall_ns=sample[0], thread_cpu_ns=sample[1])
+            with self.owner.lock:
+                if self.record["failure"] is None:
+                    self.record["failure"] = fault
+                if self.owner.observer_first_failed is None:
+                    retained = _resource_copy(self.record)
+                    retained["snapshot_point"] = point
+                    retained["observed_end_wall_ns"] = sample[0]
+                    retained["observed_end_thread_cpu_ns"] = sample[1]
+                    self.owner.observer_first_failed = retained
+        except BaseException:
+            self.owner.observer_fault()
+
+    def __exit__(self, error_type, error, traceback):
+        if self.owner is None:
+            return False
+        try:
+            ended = _observer_sample(self.owner)
+            wall = _observer_delta(self.record["start_wall_ns"], ended[0])
+            cpu = _observer_delta(self.record["start_thread_cpu_ns"], ended[1])
+            with self.owner.lock:
+                self.record.update(end_wall_ns=ended[0], end_thread_cpu_ns=ended[1],
+                                   wall_ns=wall, thread_cpu_ns=cpu, returned=error is None)
+                # Coarse stages do not overlap. Setup, release, result construction
+                # and instrumentation gaps remain explicitly unattributed.
+                stage_wall = sum(self.record["stages"][name]["wall_ns"] for name in OBSERVER_STAGES)
+                stage_cpu = sum(self.record["stages"][name]["thread_cpu_ns"] for name in OBSERVER_STAGES)
+            residual = (_observer_delta(stage_wall, wall), _observer_delta(stage_cpu, cpu))
+            self.stage_complete("OUTER_UNATTRIBUTED", (0, 0), residual, None)
+            if error is not None:
+                self.failed(error, self.record["active_stage"] or "OUTER_UNATTRIBUTED", ended, "CALL_EXIT_AFTER_CLEANUP")
+            with self.owner.lock:
+                if wall is not None and wall > OBSERVER_SLOW_NS and self.owner.observer_first_slow is None:
+                    self.owner.observer_first_slow = _resource_copy(self.record)
+                    self.owner.observer_first_slow["snapshot_point"] = "CALL_EXIT_AFTER_CLEANUP"
+        except BaseException:
+            self.owner.observer_fault()
+        return False
+
+
+def observer_acquisition(owner, *, kind, phase_id):
+    return _ObserverCall(owner, kind, phase_id)
+
+
 class Failures:
     """Two fixed records plus counters; first initiating failure never replaced."""
 
-    def __init__(self, clock, *, closure=False):
+    def __init__(self, clock, *, closure=False, observer=False):
         self.clock = clock
         self.lock = threading.Lock()
         self.first = None
@@ -190,6 +375,18 @@ class Failures:
         self.resource_entered = self.resource_completed = None
         self.resource_first = self.resource_cleanup = None
         self.resource_cleanup_count = 0
+        self.observer_enabled = observer is True
+        self.observer_wall_complete = self.observer_cpu_complete = True
+        self.observer_calls = self.observer_faults = 0
+        self.observer_totals = _observer_rows() if self.observer_enabled else None
+        self.observer_last = self.observer_first_failed = self.observer_first_slow = None
+
+    def observer_fault(self):
+        try:
+            with self.lock:
+                self.observer_faults = min(2**64 - 1, self.observer_faults + 1)
+        except BaseException:
+            pass
 
     def closure_fault(self):
         # A supplementary failure can never replace an original exception.
@@ -359,5 +556,23 @@ class Failures:
                     cleanup_observations=self.resource_cleanup_count,
                     last_entered=self.resource_entered.copy() if self.resource_entered else None,
                     last_completed=self.resource_completed.copy() if self.resource_completed else None,
+                    persistence="NOT_ESTABLISHED_BY_IN_MEMORY_SNAPSHOT")
+            if self.observer_enabled:
+                result["observer_stages"] = dict(
+                    version="stage12_resource_observer_stages_v1",
+                    scope="SUPPLEMENTARY_COARSE_TIMING_NOT_COVERAGE_OR_CAUSE_PROOF",
+                    clocks="INDEPENDENT_MONOTONIC_NS_AND_CURRENT_THREAD_CPU_NS",
+                    interval="CALL_OWNER_EXCLUDES_FINAL_RECORDING_OVERHEAD",
+                    stage_completion="STAGE_ATTEMPT_ENDED_NOT_SUCCESS",
+                    slow_observation_threshold_ns=OBSERVER_SLOW_NS,
+                    aggregate_rows=9, owner_retained_stage_rows_maximum=36,
+                    calls=self.observer_calls, observation_faults=self.observer_faults,
+                    retention_uncertain=self.observer_faults != 0,
+                    wall_clock_complete=self.observer_wall_complete,
+                    thread_cpu_clock_complete=self.observer_cpu_complete,
+                    totals=_resource_copy(self.observer_totals),
+                    last_acquisition=_resource_copy(self.observer_last),
+                    first_failed_acquisition=_resource_copy(self.observer_first_failed),
+                    first_slow_acquisition=_resource_copy(self.observer_first_slow),
                     persistence="NOT_ESTABLISHED_BY_IN_MEMORY_SNAPSHOT")
             return result

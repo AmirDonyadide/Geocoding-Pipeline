@@ -1797,7 +1797,10 @@ class LinuxObserver:
         read_charge: Any = None,
         check: Any = lambda: None,
         clock_ns: Any = time.monotonic_ns,
+        observer_stages: Any = None,
+        observer_phase_id: Any = None,
     ) -> None:
+        self.observer_stages, self.observer_phase_id = observer_stages, observer_phase_id
         c.require(
             type(pids) is tuple
             and 1 <= len(pids) <= 4
@@ -1869,256 +1872,268 @@ class LinuxObserver:
             )
 
     def __call__(self: Any, kind: Any) -> Any:
-        c.require(kind in _KINDS, "RA_G1_FIELDS")
-        originals: dict[str, Any] = {
-            "schema_version": ORIGINAL_OBSERVATION,
-            "origin": "LIVE_KERNEL_OBSERVATION",
-            "kernel_records": [],
-            "self_pid": os.getpid(),
-        }
-        readings: dict[str, Any] = {}
-        rss, threads = 0, 0
-        starts: dict[int, int] = {}
-        calls, read_bytes = 0, 0
-        call_start = self.read_calls
-
-        def read(path: Any, source: Any, pid: Any = 0) -> Any:
-            nonlocal calls, read_bytes
-            self.check()
-            calls += 1
-            c.require(calls <= 12, "RA_G1_READ_LIMIT")
-            fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
-            try:
-                before = os.fstat(fd)
-                block = bytearray(8192)
-                used = 0
-                while used < 8192:
-                    self.check()
-                    self.read_calls += 1
-                    self.read_charge(1, 0)
-                    size = os.readv(fd, [memoryview(block)[used:]])
-                    self.read_charge(0, size)
-                    if not size:
-                        break
-                    used += size
-                self.read_bytes += used
-                read_bytes += used
-                c.require(
-                    used < 8192
-                    and a.kernel_identity(before)
-                    == a.kernel_identity(os.fstat(fd))
-                    == a.kernel_identity(Path(path).stat(follow_symlinks=False)),
-                    "RA_G1_ORIGINAL_CHANGED",
-                )
-                text = memoryview(block)[:used].tobytes().decode("ascii")
-                originals["kernel_records"].append(
-                    {
-                        "source": source,
-                        "pid": pid,
-                        "text": text,
-                        "acquired_mono_ns": self.clock(),
-                        "identity": list(a.kernel_identity(before)),
-                    }
-                )
-                return text
-            finally:
-                os.close(fd)
-
-        with scratch.lease("KERNEL"):
-            if self.admitted_process_provider is not None:
-                admitted = self.admitted_process_provider()
-                c.require(
-                    type(admitted) is tuple and set(admitted).issubset(set(self.pids)),
-                    "RA_G1_PROCESS_SCOPE",
-                )
-            if len(self.pids) <= 3:
-                try:
-                    members = read(self.domain / "cgroup.procs", "CGROUP_PROCS").split()
-                    originals["cgroup_visible_members"] = "ORIGINAL_RETAINED"
-                    c.require(
-                        all(value.isdecimal() for value in members)
-                        and set(self.pids).issubset(set(map(int, members))),
-                        "RA_G1_PROCESS_SCOPE",
-                    )
-                except (FileNotFoundError, PermissionError):
-                    originals["cgroup_visible_members"] = "UNAVAILABLE"
-            else:
-                originals["cgroup_visible_members"] = (
-                    "UNSELECTED_FOR_FOUR_PROCESS_ROSTER"
-                )
-            for pid in self.pids:
-                membership = read(
-                    Path(f"/proc/{pid}/cgroup"), "PID_CGROUP", pid
-                ).strip()
-                expected_membership = "0::" + (
-                    "/" + str(self.domain.relative_to("/sys/fs/cgroup"))
-                    if self.domain != Path("/sys/fs/cgroup")
-                    else "/"
-                )
-                c.require(membership == expected_membership, "RA_G1_PROCESS_SCOPE")
-                status = read(Path(f"/proc/{pid}/status"), "PID_STATUS", pid)
-                fields = {}
-                for line in status.splitlines():
-                    name, separator, value = line.partition(":")
-                    if separator and name in (
-                        "VmRSS",
-                        "VmHWM",
-                        "Threads",
-                        "Pid",
-                        "Uid",
-                    ):
-                        c.require(name not in fields, "RA_G1_REQUIRED_READING")
-                        fields[name] = value.strip()
-                c.require(
-                    set(fields) == {"VmRSS", "VmHWM", "Threads", "Pid", "Uid"}
-                    and fields["Pid"] == str(pid)
-                    and fields["Uid"].split() == [str(os.geteuid())] * 4,
-                    "RA_G1_REQUIRED_READING",
-                )
-
-                def kib(key: Any) -> Any:
-                    values = fields[key].split()
-                    c.require(
-                        len(values) == 2
-                        and values[0].isdecimal()
-                        and values[1] == "kB",
-                        "RA_G1_REQUIRED_READING",
-                    )
-                    return old.checked(int(values[0]) * 1024)
-
-                rss = old.checked(rss + kib("VmRSS"))
-                c.require(fields["Threads"].isdecimal(), "RA_G1_REQUIRED_READING")
-                threads = old.checked(threads + int(fields["Threads"]))
-                if pid == os.getpid():
-                    readings["self_rss_peak_bytes"] = a.known(
-                        kib("VmHWM"), "PROCESS", "SELF", self.clock()
-                    )
-                process_stat = read(Path(f"/proc/{pid}/stat"), "PID_STAT", pid)
-                suffix = process_stat.rpartition(") ")[2].split()
-                c.require(
-                    len(suffix) >= 20 and suffix[19].isdecimal(),
-                    "RA_G1_REQUIRED_READING",
-                )
-                starts[pid] = int(suffix[19])
-            if self.identities:
-                c.require(starts == self.identities, "RA_G1_PROCESS_SCOPE")
-            else:
-                self.identities = dict(starts)
-            readings["registered_visible_rss_bytes"] = a.known(
-                rss, "PROCESS", "REGISTERED_VISIBLE", self.clock()
-            )
-            readings["visible_native_threads"] = a.known(
-                threads, "PROCESS", "REGISTERED_VISIBLE", self.clock()
-            )
-            readings["visible_processes"] = a.known(
-                len(self.pids), "PROCESS", "REGISTERED_VISIBLE", self.clock()
-            )
-            allocated, linked = 0, 0
-            native_originals: list[dict[str, Any]] = []
-            for native_root, identity in self.native_root_identities.items():
-                info = native_root.stat(follow_symlinks=False)
-                self.stat_calls += 1
-                c.require(
-                    tuple(identity[0][1:])
-                    == (info.st_dev, info.st_ino, info.st_mode, info.st_uid),
-                    "RA_G1_ORIGINAL_CHANGED",
-                )
-            for path in self.paths:
-                self.check()
-                self.stat_calls += 1
-                try:
-                    info = path.lstat()
-                except FileNotFoundError:
-                    native_originals.append(
-                        {"role_id": len(native_originals) + 1, "status": "ABSENT"}
-                    )
-                    continue
-                c.require(
-                    stat.S_ISREG(info.st_mode)
-                    and info.st_uid == os.geteuid()
-                    and info.st_nlink == 1
-                    and stat.S_IMODE(info.st_mode) == 0o600
-                    and info.st_blocks >= 0,
-                    "RA_G1_NATIVE_DISCOVERY",
-                )
-                allocated = old.checked(allocated + info.st_blocks * 512)
-                linked += 1
-                native_originals.append(
-                    {
-                        "role_id": len(native_originals) + 1,
-                        "status": "VISIBLE_LINKED",
-                        "device": info.st_dev,
-                        "inode": info.st_ino,
-                        "blocks_512_bytes": info.st_blocks,
-                        "logical_bytes": info.st_size,
-                    }
-                )
-            native_reading = a.known(
-                allocated, "FILESYSTEM", "REGISTERED_VISIBLE", self.clock()
-            )
-            readings["visible_native_file_bytes"] = native_reading
-            self.check()
-            filesystem = os.statvfs(self.root)
-            root_info = self.root.stat(follow_symlinks=False)
-            self.stat_calls += 1
-            at = self.clock()
-            c.require(
-                filesystem.f_frsize > 0
-                and 0 <= filesystem.f_bavail <= filesystem.f_blocks
-                and 0 <= filesystem.f_favail <= filesystem.f_files
-                and tuple(self.root_identity[0][1:])
-                == (
-                    root_info.st_dev,
-                    root_info.st_ino,
-                    root_info.st_mode,
-                    root_info.st_uid,
-                ),
-                "RA_G1_REQUIRED_READING",
-            )
-            readings["shared_bavail_bytes"] = a.known(
-                old.checked(filesystem.f_bavail * filesystem.f_frsize),
-                "FILESYSTEM",
-                "FILESYSTEM_SHARED",
-                at,
-            )
-            readings["shared_favail"] = a.known(
-                filesystem.f_favail, "FILESYSTEM", "FILESYSTEM_SHARED", at
-            )
-            originals["filesystem"] = {
-                key: getattr(filesystem, key)
-                for key in ("f_frsize", "f_bavail", "f_favail", "f_blocks", "f_files")
+        with diagnostics.observer_acquisition(
+            self.observer_stages, kind=kind, phase_id=self.observer_phase_id
+        ) as observed:
+            c.require(kind in _KINDS, "RA_G1_FIELDS")
+            originals: dict[str, Any] = {
+                "schema_version": ORIGINAL_OBSERVATION,
+                "origin": "LIVE_KERNEL_OBSERVATION",
+                "kernel_records": [],
+                "self_pid": os.getpid(),
             }
-            originals["native"] = native_originals
-            originals["registered_process_start_ticks"] = [
-                [pid, starts[pid]] for pid in self.pids
-            ]
-            (
-                originals["proc_records"],
-                originals["read_calls"],
-                originals["read_bytes"],
-            ) = calls, self.read_calls - call_start, read_bytes
-            counters = dict(self.counter_provider())
-            a.shape(counters, {key: "U" for key in COUNTERS})
-            originals["counters"] = counters
-            validate_original_observation(originals)
-            retained = self.retain(originals)
-            a.shape(retained, "D")
-            c.require(retained == old.digest(originals), "RA_G1_ORIGINAL_CHANGED")
-        return dict(
-            readings=readings,
-            counters=counters,
-            native_visibility=dict(
-                registered_paths_checked=len(self.paths),
-                visible_linked_files=linked,
-                discovered_names=len(self.paths),
-                maximum_discovered_names=64,
-                discovery_status="COMPLETE_KNOWN_NAMESPACE",
-                visible_allocated_bytes=native_reading,
-                unknown_native_file_count="NOT_PROVEN",
-                deleted_open_bytes="NOT_MEASURED",
-            ),
-            visible_identity_inventory_sha256=retained,
-        )
+            readings: dict[str, Any] = {}
+            rss, threads = 0, 0
+            starts: dict[int, int] = {}
+            calls, read_bytes = 0, 0
+            call_start = self.read_calls
+
+            def read(path: Any, source: Any, pid: Any = 0) -> Any:
+                nonlocal calls, read_bytes
+                self.check()
+                calls += 1
+                c.require(calls <= 12, "RA_G1_READ_LIMIT")
+                fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+                try:
+                    before = os.fstat(fd)
+                    block = bytearray(8192)
+                    used = 0
+                    while used < 8192:
+                        self.check()
+                        self.read_calls += 1
+                        self.read_charge(1, 0)
+                        size = os.readv(fd, [memoryview(block)[used:]])
+                        self.read_charge(0, size)
+                        if not size:
+                            break
+                        used += size
+                    self.read_bytes += used
+                    read_bytes += used
+                    c.require(
+                        used < 8192
+                        and a.kernel_identity(before)
+                        == a.kernel_identity(os.fstat(fd))
+                        == a.kernel_identity(Path(path).stat(follow_symlinks=False)),
+                        "RA_G1_ORIGINAL_CHANGED",
+                    )
+                    text = memoryview(block)[:used].tobytes().decode("ascii")
+                    originals["kernel_records"].append(
+                        {
+                            "source": source,
+                            "pid": pid,
+                            "text": text,
+                            "acquired_mono_ns": self.clock(),
+                            "identity": list(a.kernel_identity(before)),
+                        }
+                    )
+                    return text
+                finally:
+                    os.close(fd)
+
+            with observed.stage("KERNEL_LEASE_WAIT") as lease_wait:
+                with scratch.lease("KERNEL"):
+                    lease_wait.complete()
+                    with observed.stage("ADMITTED_PROCESS"):
+                        if self.admitted_process_provider is not None:
+                            admitted = self.admitted_process_provider()
+                            c.require(
+                                type(admitted) is tuple and set(admitted).issubset(set(self.pids)),
+                                "RA_G1_PROCESS_SCOPE",
+                            )
+                    with observed.stage("KERNEL_READ_PARSE"):
+                        if len(self.pids) <= 3:
+                            try:
+                                members = read(self.domain / "cgroup.procs", "CGROUP_PROCS").split()
+                                originals["cgroup_visible_members"] = "ORIGINAL_RETAINED"
+                                c.require(
+                                    all(value.isdecimal() for value in members)
+                                    and set(self.pids).issubset(set(map(int, members))),
+                                    "RA_G1_PROCESS_SCOPE",
+                                )
+                            except (FileNotFoundError, PermissionError):
+                                originals["cgroup_visible_members"] = "UNAVAILABLE"
+                        else:
+                            originals["cgroup_visible_members"] = (
+                                "UNSELECTED_FOR_FOUR_PROCESS_ROSTER"
+                            )
+                        for pid in self.pids:
+                            membership = read(
+                                Path(f"/proc/{pid}/cgroup"), "PID_CGROUP", pid
+                            ).strip()
+                            expected_membership = "0::" + (
+                                "/" + str(self.domain.relative_to("/sys/fs/cgroup"))
+                                if self.domain != Path("/sys/fs/cgroup")
+                                else "/"
+                            )
+                            c.require(membership == expected_membership, "RA_G1_PROCESS_SCOPE")
+                            status = read(Path(f"/proc/{pid}/status"), "PID_STATUS", pid)
+                            fields = {}
+                            for line in status.splitlines():
+                                name, separator, value = line.partition(":")
+                                if separator and name in (
+                                    "VmRSS",
+                                    "VmHWM",
+                                    "Threads",
+                                    "Pid",
+                                    "Uid",
+                                ):
+                                    c.require(name not in fields, "RA_G1_REQUIRED_READING")
+                                    fields[name] = value.strip()
+                            c.require(
+                                set(fields) == {"VmRSS", "VmHWM", "Threads", "Pid", "Uid"}
+                                and fields["Pid"] == str(pid)
+                                and fields["Uid"].split() == [str(os.geteuid())] * 4,
+                                "RA_G1_REQUIRED_READING",
+                            )
+
+                            def kib(key: Any) -> Any:
+                                values = fields[key].split()
+                                c.require(
+                                    len(values) == 2
+                                    and values[0].isdecimal()
+                                    and values[1] == "kB",
+                                    "RA_G1_REQUIRED_READING",
+                                )
+                                return old.checked(int(values[0]) * 1024)
+
+                            rss = old.checked(rss + kib("VmRSS"))
+                            c.require(fields["Threads"].isdecimal(), "RA_G1_REQUIRED_READING")
+                            threads = old.checked(threads + int(fields["Threads"]))
+                            if pid == os.getpid():
+                                readings["self_rss_peak_bytes"] = a.known(
+                                    kib("VmHWM"), "PROCESS", "SELF", self.clock()
+                                )
+                            process_stat = read(Path(f"/proc/{pid}/stat"), "PID_STAT", pid)
+                            suffix = process_stat.rpartition(") ")[2].split()
+                            c.require(
+                                len(suffix) >= 20 and suffix[19].isdecimal(),
+                                "RA_G1_REQUIRED_READING",
+                            )
+                            starts[pid] = int(suffix[19])
+                        if self.identities:
+                            c.require(starts == self.identities, "RA_G1_PROCESS_SCOPE")
+                        else:
+                            self.identities = dict(starts)
+                        readings["registered_visible_rss_bytes"] = a.known(
+                            rss, "PROCESS", "REGISTERED_VISIBLE", self.clock()
+                        )
+                        readings["visible_native_threads"] = a.known(
+                            threads, "PROCESS", "REGISTERED_VISIBLE", self.clock()
+                        )
+                        readings["visible_processes"] = a.known(
+                            len(self.pids), "PROCESS", "REGISTERED_VISIBLE", self.clock()
+                        )
+                    with observed.stage("NATIVE_PATHS"):
+                        allocated, linked = 0, 0
+                        native_originals: list[dict[str, Any]] = []
+                        for native_root, identity in self.native_root_identities.items():
+                            info = native_root.stat(follow_symlinks=False)
+                            self.stat_calls += 1
+                            c.require(
+                                tuple(identity[0][1:])
+                                == (info.st_dev, info.st_ino, info.st_mode, info.st_uid),
+                                "RA_G1_ORIGINAL_CHANGED",
+                            )
+                        for path in self.paths:
+                            self.check()
+                            self.stat_calls += 1
+                            try:
+                                info = path.lstat()
+                            except FileNotFoundError:
+                                native_originals.append(
+                                    {"role_id": len(native_originals) + 1, "status": "ABSENT"}
+                                )
+                                continue
+                            c.require(
+                                stat.S_ISREG(info.st_mode)
+                                and info.st_uid == os.geteuid()
+                                and info.st_nlink == 1
+                                and stat.S_IMODE(info.st_mode) == 0o600
+                                and info.st_blocks >= 0,
+                                "RA_G1_NATIVE_DISCOVERY",
+                            )
+                            allocated = old.checked(allocated + info.st_blocks * 512)
+                            linked += 1
+                            native_originals.append(
+                                {
+                                    "role_id": len(native_originals) + 1,
+                                    "status": "VISIBLE_LINKED",
+                                    "device": info.st_dev,
+                                    "inode": info.st_ino,
+                                    "blocks_512_bytes": info.st_blocks,
+                                    "logical_bytes": info.st_size,
+                                }
+                            )
+                        native_reading = a.known(
+                            allocated, "FILESYSTEM", "REGISTERED_VISIBLE", self.clock()
+                        )
+                        readings["visible_native_file_bytes"] = native_reading
+                    with observed.stage("STATVFS"):
+                        self.check()
+                        filesystem = os.statvfs(self.root)
+                        root_info = self.root.stat(follow_symlinks=False)
+                        self.stat_calls += 1
+                        at = self.clock()
+                        c.require(
+                            filesystem.f_frsize > 0
+                            and 0 <= filesystem.f_bavail <= filesystem.f_blocks
+                            and 0 <= filesystem.f_favail <= filesystem.f_files
+                            and tuple(self.root_identity[0][1:])
+                            == (
+                                root_info.st_dev,
+                                root_info.st_ino,
+                                root_info.st_mode,
+                                root_info.st_uid,
+                            ),
+                            "RA_G1_REQUIRED_READING",
+                        )
+                        readings["shared_bavail_bytes"] = a.known(
+                            old.checked(filesystem.f_bavail * filesystem.f_frsize),
+                            "FILESYSTEM",
+                            "FILESYSTEM_SHARED",
+                            at,
+                        )
+                        readings["shared_favail"] = a.known(
+                            filesystem.f_favail, "FILESYSTEM", "FILESYSTEM_SHARED", at
+                        )
+                        originals["filesystem"] = {
+                            key: getattr(filesystem, key)
+                            for key in ("f_frsize", "f_bavail", "f_favail", "f_blocks", "f_files")
+                        }
+                        originals["native"] = native_originals
+                        originals["registered_process_start_ticks"] = [
+                            [pid, starts[pid]] for pid in self.pids
+                        ]
+                        (
+                            originals["proc_records"],
+                            originals["read_calls"],
+                            originals["read_bytes"],
+                        ) = calls, self.read_calls - call_start, read_bytes
+                    with observed.stage("COUNTERS"):
+                        counters = dict(self.counter_provider())
+                        a.shape(counters, {key: "U" for key in COUNTERS})
+                        originals["counters"] = counters
+                    with observed.stage("ORIGINAL_VALIDATE"):
+                        validate_original_observation(originals)
+                    with observed.stage("RETAIN_DIGEST"):
+                        retained = self.retain(originals)
+                        a.shape(retained, "D")
+                        c.require(retained == old.digest(originals), "RA_G1_ORIGINAL_CHANGED")
+            return dict(
+                readings=readings,
+                counters=counters,
+                native_visibility=dict(
+                    registered_paths_checked=len(self.paths),
+                    visible_linked_files=linked,
+                    discovered_names=len(self.paths),
+                    maximum_discovered_names=64,
+                    discovery_status="COMPLETE_KNOWN_NAMESPACE",
+                    visible_allocated_bytes=native_reading,
+                    unknown_native_file_count="NOT_PROVEN",
+                    deleted_open_bytes="NOT_MEASURED",
+                ),
+                visible_identity_inventory_sha256=retained,
+            )
 
 
 def read_record(
