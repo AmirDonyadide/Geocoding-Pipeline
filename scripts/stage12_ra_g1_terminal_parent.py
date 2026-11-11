@@ -725,6 +725,11 @@ def child_argv(helper, selection_path, selected, output, offline, test_root, rol
     return result
 
 
+def require_stderr_bytes(size):
+    tc.uint(size)
+    need(size <= 2 * 2**20, "STDERR")
+
+
 def require_full_collection_window(binding, now_epoch_ns):
     tc.uint(now_epoch_ns)
     need(
@@ -1043,7 +1048,7 @@ def run_pair(
                     key.fileobj.close()
                     continue
                 data["size"] += len(raw)
-                need(data["size"] <= 4 * 2**20, "STDERR")
+                require_stderr_bytes(data["size"])
                 control.claim(len(raw))
                 view = memoryview(raw)
                 while view:
@@ -1419,12 +1424,26 @@ def validate_receipt(receipt, ready, ready_sha):
 
 
 def verify_retention(
-    ready, ready_sha, local_root, receipt_path, entered_mono, entered_epoch
+    ready,
+    ready_sha,
+    local_root,
+    receipt_path,
+    entered_mono,
+    entered_epoch,
+    *,
+    control=None,
 ):
     validate_ready(ready)
     need(digest(tc.canonical(ready)) == ready_sha, "RETENTION")
     ctx = ready["context"]
-    control = Control(entered_mono, ctx["parent_deadline_epoch_ns"], 900)
+    if control is None:
+        control = Control(entered_mono, ctx["parent_deadline_epoch_ns"], 900)
+    else:
+        # A connected transport retains its original time/counter owner. The
+        # authenticated remote deadline can tighten it, never restart it.
+        need(type(control) is Control, "RETENTION")
+        control.epoch_end = min(control.epoch_end, ctx["parent_deadline_epoch_ns"])
+    control.check()
     local_root = tc.absolute(str(local_root))
     tc.ancestors(local_root)
     tc.private(local_root.lstat(), "DIR", os.geteuid())

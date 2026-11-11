@@ -268,7 +268,7 @@ def fetch_ready(
         )
     receipt_path = local_root / "RETENTION_RECEIPT.record"
     receipt = pair.verify_retention(
-        ready, ready_sha, local_root, receipt_path, entered, epoch
+        ready, ready_sha, local_root, receipt_path, entered, epoch, control=control
     )
     control.check()
     result = dict(

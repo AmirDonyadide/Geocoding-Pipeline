@@ -837,3 +837,56 @@ def test_control_publication_never_overwrites_dangling_symlink(tmp_path):
         dict(status="INVENTED")
     )
     assert path.with_name("ready.record.reservation").is_file()
+
+
+def test_parent_stderr_operating_boundary_within_control_graph():
+    pair.require_stderr_bytes(2 * 2**20 - 1)
+    pair.require_stderr_bytes(2 * 2**20)
+    for amount in [2 * 2**20 + 1, True, -1]:
+        with pytest.raises(tc.Stop):
+            pair.require_stderr_bytes(amount)
+
+
+def test_retention_carries_transport_owner_and_rejects_its_expiry(tmp_path):
+    ready, _, local, _ = retained_component_case(tmp_path / "case")
+    ready_sha = pair.digest(tc.canonical(ready))
+    fresh = tmp_path / "fresh-local"
+    fresh.mkdir(mode=0o700)
+    for row in ready["artifacts"]:
+        copy_stream(
+            local / (row["label"] + ".original"), fresh / (row["label"] + ".original")
+        )
+    owner = pair.Control(time.monotonic_ns(), time.time_ns() + 60 * 10**9, 30)
+    owner.read_bytes = 17
+    owner.read_calls = 1
+    original_end = owner.end
+    receipt = pair.verify_retention(
+        ready,
+        ready_sha,
+        fresh,
+        fresh / "receipt.record",
+        time.monotonic_ns(),
+        time.time_ns(),
+        control=owner,
+    )
+    assert owner.end == original_end
+    assert owner.epoch_end == ready["context"]["parent_deadline_epoch_ns"]
+    assert receipt["actual_read_bytes"] >= 17 + sum(
+        row["bytes"] for row in ready["artifacts"]
+    )
+    assert receipt["actual_read_calls"] > 1
+    expired = pair.Control(
+        time.monotonic_ns() - 2 * 10**9, time.time_ns() + 60 * 10**9, 1
+    )
+    with pytest.raises(tc.Stop) as raised:
+        pair.verify_retention(
+            ready,
+            ready_sha,
+            local,
+            local / "late.record",
+            time.monotonic_ns(),
+            time.time_ns(),
+            control=expired,
+        )
+    assert raised.value.args == ("DEADLINE",)
+    assert not (local / "late.record").exists()
