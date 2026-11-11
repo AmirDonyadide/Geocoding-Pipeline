@@ -458,7 +458,6 @@ class Fresh(old.Fresh):
         target_bucket = None if target is None else self._bucket(target)
         selected_digest = bytes(32)
         captured = []
-        taking = False
         additions_seen = 0
         for name, info, directory in self._members():
             if name in self.outputs and name not in self.additions:
@@ -504,10 +503,14 @@ class Fresh(old.Fresh):
                     ).digest()
             else:
                 selected_digest = hashlib.sha256(selected_digest + framed).digest()
-            if name == target:
-                taking = True
-            if taking and len(captured) < self.limits["page_entries"] and not directory:
-                captured.append((name, identity, digest))
+            if target is not None and not directory:
+                # Keep already verified preceding rows when the whole prefix fits.
+                # A later target discards that bounded prefix before retaining its
+                # own successor page; no second page or validation token is kept.
+                if name == target and len(captured) == self.limits["page_entries"]:
+                    captured.clear()
+                if len(captured) < self.limits["page_entries"]:
+                    captured.append((name, identity, digest))
         c.require(additions_seen == len(self.additions), "S12_PUBLIC_SOURCE_CHANGED")
         metadata_digest = membership.digest()
         if table is not None:

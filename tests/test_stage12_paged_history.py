@@ -1,6 +1,8 @@
 """Invented private sources; no protected rows, provider or credentials."""
 
+import ast
 import hashlib
+import inspect
 import os
 
 import pytest
@@ -513,3 +515,273 @@ def test_affinity_work_stays_generic_across_event_work_attempt_transitions(tmp_p
     assert any(value.startswith("work/") for value in generic)
     assert len(numeric) == 2 and all(value.startswith("events/") for value in numeric)
     assert old._backing == 0 and not io.has_read_view()
+
+
+# Exact pre-correction _snapshot AST from reviewed retention commit4579510.
+_CAPTURE_WINDOW_ORACLE_SOURCE = 'def _snapshot(self, target=None):\n    if (\n        target is not None\n        and self._numeric_name(target)\n        and self.numeric_epoch is not None\n    ):\n        return self._numeric_page(target)\n    membership = hashlib.sha256()\n    table = bytearray(BUCKETS * 32) if target is None else None\n    numeric_table = bytearray(BUCKETS * 32) if target is None else None\n    target_bucket = None if target is None else self._bucket(target)\n    selected_digest = bytes(32)\n    captured = []\n    taking = False\n    additions_seen = 0\n    for name, info, directory in self._members():\n        if name in self.outputs and name not in self.additions:\n            c.require(\n                self.baseline is not None and not directory,\n                "S12_PUBLIC_SOURCE_CHANGED",\n            )\n            self.pending_outputs.add(name)\n            continue\n        if name in self.additions:\n            additions_seen += 1\n            c.require(not directory, "S12_PUBLIC_SOURCE_CHANGED")\n            self._registered(self.root / name, name)\n            continue\n        identity = (\n            (info.st_dev, info.st_ino, info.st_mode, info.st_uid)\n            if directory\n            else _identity(info)\n        )\n        metadata = c.canonical([name, bool(directory), identity])\n        membership.update(metadata)\n        bucket = self._bucket(name)\n        if target is not None and bucket != target_bucket:\n            continue\n        digest = (\n            None\n            if directory\n            else old.hash_file(\n                self.root / name,\n                reader=self.reader,\n                maximum_bytes=self.limits["maximum_file_bytes"],\n            )\n        )\n        framed = c.canonical([name, bool(directory), identity, digest])\n        if table is not None:\n            offset = bucket * 32\n            table[offset : offset + 32] = hashlib.sha256(\n                table[offset : offset + 32] + framed\n            ).digest()\n            if not directory and self._numeric_name(name):\n                numeric_table[offset : offset + 32] = hashlib.sha256(\n                    numeric_table[offset : offset + 32] + framed\n                ).digest()\n        else:\n            selected_digest = hashlib.sha256(selected_digest + framed).digest()\n        if name == target:\n            taking = True\n        if taking and len(captured) < self.limits["page_entries"] and not directory:\n            captured.append((name, identity, digest))\n    c.require(additions_seen == len(self.additions), "S12_PUBLIC_SOURCE_CHANGED")\n    metadata_digest = membership.digest()\n    if table is not None:\n        aggregate = hashlib.sha256(metadata_digest + table).digest()\n        if self.baseline is None:\n            self.bucket_digests[:] = table\n            self.membership_digest = metadata_digest\n            self.numeric_digests[:] = numeric_table\n            self.numeric_epoch = self._numeric_epoch()\n        return aggregate, captured\n    offset = target_bucket * 32\n    c.require(\n        metadata_digest == self.membership_digest\n        and selected_digest == self.bucket_digests[offset : offset + 32],\n        "S12_PUBLIC_SOURCE_CHANGED",\n    )\n    return self.baseline, captured\n'
+_CAPTURE_WINDOW_ORACLE_AST_SHA256 = '0457eecbb96c8c34e83db9f8215a750b568897b2d0ea15007be9492c7312a447'
+
+_capture_namespace = dict(vars(h))
+assert hashlib.sha256(ast.dump(ast.parse(_CAPTURE_WINDOW_ORACLE_SOURCE), include_attributes=False).encode()).hexdigest() == _CAPTURE_WINDOW_ORACLE_AST_SHA256
+exec(compile(_CAPTURE_WINDOW_ORACLE_SOURCE, "reviewed_capture_window_oracle", "exec"), _capture_namespace)
+
+
+class _OldCaptureWindowFresh(h.Fresh):
+    _snapshot = _capture_namespace["_snapshot"]
+
+
+def _capture_window_source(root, count=8):
+    from safe_geocoding_pipeline.preprocessing.stages import s12_public_audit as audit
+
+    io.reserve(root)
+    io.reserve(root / "attempts")
+    attempt = root / "attempts" / audit.name_for(1, 1)
+    io.reserve(attempt)
+    for index in range(1, count + 1):
+        io.write(attempt / f"leaf_{index:02d}.json", c.canonical({"index": index}))
+    return root, attempt
+
+
+@pytest.mark.parametrize("position", [1, 4, 5, 8])
+def test_capture_window_first_prefix_and_target_beyond_prefix_are_bounded(tmp_path, position):
+    root, attempt = _capture_window_source(tmp_path / "source")
+    selected = limits(maximum_entries=150000, page_entries=4)
+    with h.Fresh(root, limits=selected, descriptor_relative=True) as stage:
+        assert not stage.page  # Full initial snapshot still retains no active page.
+        target = attempt / f"leaf_{position:02d}.json"
+        assert io.metadata(io.read(target)) == {"index": position}
+        start = 1 if position <= 4 else position
+        expected = [f"attempts/{attempt.name}/leaf_{n:02d}.json" for n in range(start, min(start + 4, 9))]
+        assert [row[0] for row in stage.page] == expected
+        assert len(stage.page) <= selected["page_entries"]
+        assert stage._reserved == h.reservation(selected)
+    assert stage.state == "VERIFIED" and old._backing == 0
+
+
+@pytest.mark.parametrize("kind", ["absent", "directory"])
+def test_capture_window_absent_or_directory_target_never_returns_bytes(tmp_path, kind):
+    outcomes = []
+    for index, reader_type in enumerate((_OldCaptureWindowFresh, h.Fresh)):
+        root, attempt = _capture_window_source(tmp_path / str(index))
+        target = attempt / "absent.json" if kind == "absent" else attempt
+        with pytest.raises((c.Stage12Error, OSError)):
+            with reader_type(root, limits=limits(page_entries=4), descriptor_relative=True):
+                io.read(target)
+        outcomes.append(True)
+        assert old._backing == 0 and not io.has_read_view()
+    assert outcomes == [True, True]
+
+
+@pytest.mark.parametrize("mutation", ["content", "missing", "mode", "source_inode", "root", "ancestor", "extra", "truncated"])
+def test_capture_window_backward_requested_row_and_final_membership_reject(tmp_path, mutation):
+    for index, reader_type in enumerate((_OldCaptureWindowFresh, h.Fresh)):
+        parent = tmp_path / str(index)
+        io.reserve(parent)
+        root, attempt = _capture_window_source(parent / "source", 4)
+        earlier, later = attempt / "leaf_01.json", attempt / "leaf_04.json"
+        with pytest.raises((c.Stage12Error, OSError)):
+            with reader_type(root, limits=limits(page_entries=128), descriptor_relative=True):
+                original = io.read(earlier)
+                io.read(later)
+                if mutation == "content":
+                    earlier.write_bytes(b"changed")
+                elif mutation == "missing":
+                    earlier.unlink()
+                elif mutation == "mode":
+                    earlier.chmod(0o644)
+                elif mutation == "source_inode":
+                    replacement = parent / "replacement"
+                    io.write(replacement, original)
+                    os.replace(replacement, earlier)
+                elif mutation == "root":
+                    root.rename(parent / "old_source")
+                    _capture_window_source(root, 4)
+                elif mutation == "ancestor":
+                    parent.rename(tmp_path / f"old_parent_{index}")
+                    io.reserve(parent)
+                    _capture_window_source(root, 4)
+                elif mutation == "extra":
+                    io.write(attempt / "extra.json", b"new")
+                else:
+                    earlier.write_bytes(b"")
+                if mutation != "extra":
+                    io.read(earlier)  # Requested bytes must never escape changed identity/hash/EOF.
+                # An unrelated extra is detected by mandatory genuine finish.
+        assert old._backing == 0 and not io.has_read_view()
+
+
+def test_capture_window_retained_earlier_row_still_checks_deadline_and_reopens(tmp_path):
+    for index, reader_type in enumerate((_OldCaptureWindowFresh, h.Fresh)):
+        root, attempt = _capture_window_source(tmp_path / str(index), 4)
+        expired = [False]
+
+        def check():
+            if expired[0]:
+                raise TimeoutError("SYNTHETIC_DEADLINE")
+
+        with pytest.raises(TimeoutError):
+            with reader_type(root, limits=limits(page_entries=128), check=check):
+                io.read(attempt / "leaf_04.json")
+                expired[0] = True
+                io.read(attempt / "leaf_01.json")
+        with reader_type(root, limits=limits(page_entries=128)):
+            assert io.metadata(io.read(attempt / "leaf_01.json")) == {"index": 1}
+        assert old._backing == 0 and not io.has_read_view()
+
+
+def _actual_original_closure_callback(root, works, plan, start, verify_receipt, writer, clock):
+    """The actual CLI callback AST, with real invented Journal/Writer/readers.
+
+    This is a bounded unit context, not a reconstructed live Coordinator or a
+    replay of the historical failed run. Every substantive validator is real.
+    """
+    from safe_geocoding_pipeline.preprocessing import stage12_probe_cli as cli
+    from safe_geocoding_pipeline.preprocessing.stages import s12_public_diagnostics as diagnostic
+    from safe_geocoding_pipeline.preprocessing.stages import s12_public_journal as journal
+    from safe_geocoding_pipeline.preprocessing.stages import s12_public_operations as operations
+    from safe_geocoding_pipeline.preprocessing.stages import s12_public_recovery as recovery
+
+    actual = ast.parse(inspect.getsource(cli))
+    callback = next(node for node in ast.walk(actual) if isinstance(node, ast.FunctionDef) and node.name == "original_closure_evidence")
+    owner = diagnostic.Failures(clock, closure=True)
+    deadline = recovery.Deadline(clock, plan["budgets"]["active_duration_ms"] * 1000000)
+
+    def closure_mark(stage, *, completed=False):
+        owner.closure_boundary(stage, completed=completed, writer=writer, deadline=deadline, guard="CAPTURE_CUMULATIVE")
+
+    namespace = dict(output=root, works=works, plan=plan, start=start, block_id=1, verify_receipt=verify_receipt,
+                     closure_mark=closure_mark, po=operations, io=io, pj=journal, recovery=recovery)
+    exec(compile(ast.Module(body=[callback], type_ignores=[]), cli.__file__, "exec"), namespace)
+    return namespace["original_closure_evidence"]
+
+
+@pytest.mark.parametrize("corrupt", [False, True])
+def test_capture_window_actual_original_replay_receipts_and_report_match(tmp_path, monkeypatch, corrupt, record_property):
+    from safe_geocoding_pipeline.preprocessing import stage12_probe_cli as cli
+    from safe_geocoding_pipeline.preprocessing.stages import s12_public_audit as audit
+    from safe_geocoding_pipeline.preprocessing.stages import s12_public_journal as journal
+    from safe_geocoding_pipeline.preprocessing.stages import s12_public_operations as operations
+    from safe_geocoding_pipeline.preprocessing.stages import s12_public_operational_audit as operational_audit
+    from safe_geocoding_pipeline.preprocessing.stages import s12_public_recovery as recovery
+    from safe_geocoding_pipeline.preprocessing.stages import s12_public_reporting as reporting
+    from safe_geocoding_pipeline.preprocessing.stages import s12_public_work_index as work_index
+    from test_stage12_public_scheduler import run_offline
+    import time
+
+    # Existing FakeClock/Authority and invented transport ONLY prepare fresh
+    # two-work originals. Real source callback, receipt/report/replay and fresh
+    # readers below do not stub validators or invent Coordinator/prefix state.
+    campaign, original, (profile, plan, start, rows, _) = run_offline(tmp_path, count=2)
+    results, closures, counts = [], [], []
+    for index, reader_type in enumerate((_OldCaptureWindowFresh, h.Fresh)):
+        writer, log = _live_report_replay(tmp_path / f"capture_replay_{index}", original, start, campaign["blocks"][0]["input_last_event_seq"])
+        root = writer.root
+        if corrupt:
+            name = audit.name_for(1, 1)
+            (root / "attempts" / name / (name + "_receipt.json")).write_bytes(b"{}\n")
+
+        def works():
+            for row in rows:
+                yield io.metadata(io.read(root / "work" / f"{row['work_id']:020d}.json"))
+
+        actual_index = work_index.WorkIndex(works, lambda key: io.metadata(io.read(root / "work" / f"{key:020d}.json")), plan)
+
+        def verify_receipt(row, body):
+            name = audit.name_for(row["work_id"], body["attempt"])
+            attempt = root / "attempts" / name
+            assert io.metadata(io.read(attempt / "work.json")) == row
+            terminal = audit.reopen(attempt, name, validator=cli.public_shapes, context=operational_audit.DataContext(None))
+            operations.require(c.sha(io.read(attempt / (name + "_receipt.json"))).hex() == body["receipt_inventory_sha256"])
+            return terminal
+
+        def repeat_evidence():
+            comparison = list(journal.read_array(root / "repeat_comparison.json"))
+            return operations.digest(comparison), all(row["equal"] for row in comparison)
+
+        observed = dict(generic_page_fills=0, member_rows=0, hash_calls=0, reads=0, read_bytes=0, opens=0)
+        original_snapshot, original_members = reader_type._snapshot, reader_type._members
+        original_hash, original_read, original_pread, original_open = old.hash_file, os.read, os.pread, os.open
+
+        def snapshot(self, target=None):
+            if target is not None and not self._numeric_name(target):
+                observed["generic_page_fills"] += 1
+            return original_snapshot(self, target)
+
+        def members(self):
+            for member in original_members(self):
+                observed["member_rows"] += 1
+                yield member
+
+        def hashed(*args, **kwargs):
+            observed["hash_calls"] += 1
+            return original_hash(*args, **kwargs)
+
+        def read(fd, amount):
+            raw = original_read(fd, amount)
+            observed["reads"] += 1
+            observed["read_bytes"] += len(raw)
+            return raw
+
+        def pread(fd, amount, offset):
+            raw = original_pread(fd, amount, offset)
+            observed["reads"] += 1
+            observed["read_bytes"] += len(raw)
+            return raw
+
+        def opening(*args, **kwargs):
+            observed["opens"] += 1
+            return original_open(*args, **kwargs)
+
+        selected = limits(maximum_entries=150000, page_entries=128, maximum_name_bytes=256, maximum_total_name_bytes=38400000, maximum_file_bytes=67108864)
+        started = time.monotonic_ns()
+        try:
+            with monkeypatch.context() as patch:
+                patch.setattr(reader_type, "_snapshot", snapshot)
+                patch.setattr(reader_type, "_members", members)
+                patch.setattr(old, "hash_file", hashed)
+                patch.setattr(os, "read", read)
+                patch.setattr(os, "pread", pread)
+                patch.setattr(os, "open", opening)
+                with h.selected(selected), reader_type(root, limits=selected, outputs={"measurement_event_prefix.json", "block_report.json"},
+                        events={f"events/{log.seq+n:020d}.json" for n in (1, 2)}, descriptor_relative=True) as stage:
+                    prefix = journal.MeasurementPrefix(log)
+                    assert prefix.journal is log and prefix.build()
+                    assert "measurement_event_prefix.json" in stage.additions
+                    report = reporting.block_report(plan, profile, 1, events=prefix.events, works=works, verified_receipt=verify_receipt,
+                        repeat_evidence=repeat_evidence, monitoring_closed=lambda: profile["monitoring"]["mode"] == "PUBLIC_GAPS_ONLY", work_index=actual_index)
+                    prefix.verify_original()
+                    report_hash = writer.call(lambda: log.write("block_report.json", report))
+                    io.record_read_output(root / "block_report.json", report_hash)
+                    log.event("BLOCK_CLOSED", {"block_id": 1, "report_sha256": report_hash, "result": report["status"]}, closure=True)
+                    before = recovery.replay(journal.read_events(root, operations.digest(start)))
+                    log.event("SEGMENT_CLOSE", {"disposition": "STOPPED" if corrupt else "COMPLETED",
+                        "closure_evidence_sha256": repeat_evidence()[0], "last_ticket": before["last_ticket"]}, closure=True)
+                    actual_callback = _actual_original_closure_callback(root, works, plan, start, verify_receipt, writer, log.clock)
+                    if corrupt:
+                        with pytest.raises((c.Stage12Error, OSError)) as rejection:
+                            actual_callback()
+                        closures.append((type(rejection.value).__name__, rejection.value.args))
+                    else:
+                        state, head = actual_callback()
+                        assert state["closed"] and head == report_hash
+                        # Preserve exact typed controller maps, including integer keys.
+                        closures.append((state, head))
+                    assert len(stage.page) <= 128 and stage._reserved == h.reservation(selected)
+                assert stage.state == "VERIFIED"
+            results.append(report)
+            observed["elapsed_ns"] = time.monotonic_ns() - started
+            counts.append(observed)
+        finally:
+            writer.abort()
+        assert not writer.thread.is_alive() and old._backing == 0 and not io.has_read_view()
+    assert c.canonical(results[0]) == c.canonical(results[1])
+    assert closures[0] == closures[1]
+    assert results[0]["status"] == ("INCOMPLETE" if corrupt else "EXPLORATORY_ONLY")
+    assert counts[1]["generic_page_fills"] < counts[0]["generic_page_fills"]
+    assert counts[1]["member_rows"] < counts[0]["member_rows"]
+    assert counts[1]["hash_calls"] < counts[0]["hash_calls"]
+    assert counts[1]["read_bytes"] < counts[0]["read_bytes"]
+    record_property("capture_window_case", "corrupt" if corrupt else "valid")
+    record_property("capture_window_baseline_counts", counts[0])
+    record_property("capture_window_candidate_counts", counts[1])
+    record_property("capture_window_scope", "TWO_WORK_SOURCE_CALLBACK_REAL_PREFIX_REPORT_RECEIPTS_NOT_FULL512_OR_GOETHE")
