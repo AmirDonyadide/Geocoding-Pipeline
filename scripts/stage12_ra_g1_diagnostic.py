@@ -1808,9 +1808,11 @@ def execute(args, *, started_ns, cpu_started_ns):
                         return opened
 
                     closure_mark("NEGATIVE_OPEN" if negative else "NORMAL_OPEN", deadline=boundary)
+                    capture_failures.resource_boundary("CALLER_CHECK", deadline_ns=phase_deadline)
                     _, resource_records = boundary.operation(
                         "NEGATIVE_OPEN" if negative else "NORMAL_OPEN",
                         active_resource.freeze_and_open,
+                        diagnostics=capture_failures,
                         frozen_data_inventory_sha256=ap.digest(report),
                         actual_opener=open_phase_originals,
                         **(
@@ -1858,6 +1860,11 @@ def execute(args, *, started_ns, cpu_started_ns):
                     )
         require(106 <= attempts <= 107)
     except BaseException as error:
+        if active_resource is not None:
+            try:
+                capture_failures.resource_failure(error, session=active_resource)
+            except BaseException:
+                capture_failures.closure_fault()
         try:
             capture_failures.record("RUNTIME", error)
         except BaseException:

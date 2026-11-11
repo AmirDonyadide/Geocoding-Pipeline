@@ -643,6 +643,28 @@ class PhaseSession:
             next_write_bytes=next_write_bytes, next_creations=next_creations
         )
 
+    def _resource_boundary(self, diagnostics, stage, *, completed=False):
+        if diagnostics is None:
+            return
+        try:
+            diagnostics.resource_boundary(stage, completed=completed, deadline_ns=self.deadline)
+        except BaseException:
+            try:
+                diagnostics.closure_fault()
+            except BaseException:
+                pass
+
+    def _resource_failure(self, diagnostics, error, *, cleanup=False):
+        if diagnostics is None:
+            return
+        try:
+            diagnostics.resource_failure(error, session=self, cleanup=cleanup)
+        except BaseException:
+            try:
+                diagnostics.closure_fault()
+            except BaseException:
+                pass
+
     def freeze_and_open(
         self,
         *,
@@ -650,6 +672,7 @@ class PhaseSession:
         actual_opener: Any,
         expected_negative_sha256: Any = None,
         is_expected_negative: Any = None,
+        diagnostics: Any = None,
     ) -> Any:
         try:
             return self._freeze_and_open(
@@ -657,9 +680,17 @@ class PhaseSession:
                 actual_opener=actual_opener,
                 expected_negative_sha256=expected_negative_sha256,
                 is_expected_negative=is_expected_negative,
+                diagnostics=diagnostics,
             )
-        except BaseException:
-            self.abort()
+        except BaseException as error:
+            if diagnostics is None:
+                self.abort()  # Historical callers retain their exact behavior.
+                raise
+            self._resource_failure(diagnostics, error)
+            try:
+                self.abort()
+            except BaseException as cleanup:
+                self._resource_failure(diagnostics, cleanup, cleanup=True)
             raise
 
     def _freeze_and_open(
@@ -669,19 +700,33 @@ class PhaseSession:
         actual_opener: Any,
         expected_negative_sha256: Any = None,
         is_expected_negative: Any = None,
+        diagnostics: Any = None,
     ) -> Any:
         """Run the existing real opener exactly once, under the same deadline."""
+        self._resource_boundary(diagnostics, "CHECK")
         self.check()
+        self._resource_boundary(diagnostics, "CHECK", completed=True)
+        self._resource_boundary(diagnostics, "STATE")
         c.require(
             not self.completed
             and self.protocol.state == "RUNNING"
             and callable(actual_opener),
             "RA_G1_PROTOCOL",
         )
+        self._resource_boundary(diagnostics, "STATE", completed=True)
+        self._resource_boundary(diagnostics, "START_ACK")
         self.require_start_acknowledged()
+        self._resource_boundary(diagnostics, "START_ACK", completed=True)
+        self._resource_boundary(diagnostics, "BARRIER")
         self.monitor.barrier()
+        self._resource_boundary(diagnostics, "BARRIER", completed=True)
+        self._resource_boundary(diagnostics, "FREEZE")
         self.protocol.freeze(frozen_data_inventory_sha256)
+        self._resource_boundary(diagnostics, "FREEZE", completed=True)
+        self._resource_boundary(diagnostics, "PREFIX")
         prefix = self.monitor.prefix()
+        self._resource_boundary(diagnostics, "PREFIX", completed=True)
+        self._resource_boundary(diagnostics, "PREOPEN_RECORD")
         closure = dict(
             schema_version=m.CLOSURE,
             binding_sha256=o.digest(self.binding),
@@ -702,11 +747,17 @@ class PhaseSession:
             actual_opener_record_sha256=None,
         )
         closure = m.bootstrap_protocol_record(closure, self.protocol.bootstrap_evidence_sha256)
+        self._resource_boundary(diagnostics, "PREOPEN_RECORD", completed=True)
+        self._resource_boundary(diagnostics, "PREOPEN_PERSIST")
         self._persist("preopening", closure)
+        self._resource_boundary(diagnostics, "PREOPEN_PERSIST", completed=True)
+        self._resource_boundary(diagnostics, "PREOPEN_BIND")
         self.protocol.preopen(closure)
+        self._resource_boundary(diagnostics, "PREOPEN_BIND", completed=True)
         times: dict[str, int] = {}
 
         def opening_stage() -> Any:
+            self._resource_boundary(diagnostics, "PREFIX_REREAD")
             self.require_start_acknowledged()
             self._rep_admin_adoption()
             self.cursor = GrowingPrefix(
@@ -729,6 +780,8 @@ class PhaseSession:
             )
             times["prefix_validated_ns"] = self.clock()
             self.check()
+            self._resource_boundary(diagnostics, "PREFIX_REREAD", completed=True)
+            self._resource_boundary(diagnostics, "DATA_OPENER")
             times["actual_data_opener_enter_ns"] = self.clock()
             return actual_opener()
 
@@ -738,8 +791,14 @@ class PhaseSession:
                 expected_negative_sha256=expected_negative_sha256,
                 is_expected_negative=is_expected_negative,
             )
+            self._resource_boundary(diagnostics, "DATA_OPENER", completed=True)
+            self._resource_boundary(diagnostics, "OPENER_RECORD")
             self._persist("opener_return", opener)
+            self._resource_boundary(diagnostics, "OPENER_RECORD", completed=True)
+            self._resource_boundary(diagnostics, "MONITOR_FINISH")
             self.monitor.finish(opener_return_ns=opener["actual_opener_return_ns"])
+            self._resource_boundary(diagnostics, "MONITOR_FINISH", completed=True)
+            self._resource_boundary(diagnostics, "TERMINAL_RECORD")
             terminal = m.monitor_terminal_record(
                 self.monitor,
                 opener_return=opener,
@@ -748,7 +807,11 @@ class PhaseSession:
             terminal = m.bootstrap_protocol_record(terminal, self.protocol.bootstrap_evidence_sha256)
             self.protocol.monitor_closed(terminal)
             self._persist("monitor_terminal", terminal)
+            self._resource_boundary(diagnostics, "TERMINAL_RECORD", completed=True)
+            self._resource_boundary(diagnostics, "WORKER_REREAD")
             source_identity = self.cursor.finish(terminal)
+            self._resource_boundary(diagnostics, "WORKER_REREAD", completed=True)
+            self._resource_boundary(diagnostics, "WORKER_RECORD")
             worker = dict(
                 schema_version=WORKER_VALIDATION,
                 binding_sha256=o.digest(self.binding),
@@ -775,14 +838,24 @@ class PhaseSession:
             self._persist(
                 "worker_validation", worker, validator=validate_worker_validation
             )
+            self._resource_boundary(diagnostics, "WORKER_RECORD", completed=True)
+            self._resource_boundary(diagnostics, "COMPLETE_CHECK")
             self.completed = True
             self.check()
+            self._resource_boundary(diagnostics, "COMPLETE_CHECK", completed=True)
             return result, dict(self.records)
-        except BaseException:
+        except BaseException as error:
+            self._resource_failure(diagnostics, error)
             self.failed = True
             self.protocol.state = "UNCERTAIN" if self.writer.poisoned else "INCOMPLETE"
             if self.cursor is not None:
-                self.cursor.close()
+                if diagnostics is None:
+                    self.cursor.close()
+                else:
+                    try:
+                        self.cursor.close()
+                    except BaseException as cleanup:
+                        self._resource_failure(diagnostics, cleanup, cleanup=True)
             raise
 
 

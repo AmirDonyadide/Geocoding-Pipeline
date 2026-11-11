@@ -87,6 +87,86 @@ def classify(error):
     return family, code, number
 
 
+RESOURCE_STAGES = frozenset((
+    "CALLER_CHECK", "CHECK", "STATE", "START_ACK", "BARRIER", "FREEZE", "PREFIX",
+    "PREOPEN_RECORD", "PREOPEN_PERSIST", "PREOPEN_BIND", "PREFIX_REREAD",
+    "DATA_OPENER", "OPENER_RECORD", "MONITOR_FINISH", "TERMINAL_RECORD",
+    "WORKER_REREAD", "WORKER_RECORD", "COMPLETE_CHECK",
+))
+RESOURCE_CODES = CODES | frozenset((
+    "UNKNOWN", "ACCESS_DENIED", "RA_G1_MONITOR_GAP", "RA_G1_MONITOR_THRESHOLD",
+    "RA_G1_REQUIRED_READING", "RA_G1_DEADLINE", "RA_G1_WRITE_UNCERTAIN",
+    "RA_G1_ORIGINAL_CHANGED", "RA_G1_NATIVE_DISCOVERY", "RA_G1_PROTOCOL",
+    "RA_G1_PROCESS_SCOPE", "RA_G1_READ_LIMIT", "RA_G1_COUNTER_LIMIT",
+    "RA_G1_MONITOR_INCOMPLETE", "RA_G1_BOOTSTRAP_REQUIRED", "RA_G1_BOOTSTRAP_EVIDENCE",
+    "RA_G1_BOOTSTRAP_LIMIT", "RA_G1_PRECHARGE", "RA_G1_SHARED_MARGIN",
+    "RA_G1_PATH", "RA_G1_RECORD_LIMIT", "RA_G1_SELECTION_BINDING",
+    "WF_AP2_SCRATCH_LIMIT", "WF_AP2_SCRATCH_REENTRANT",
+))
+RESOURCE_PROGRESS = frozenset((
+    "IDLE", "CHECK", "OBSERVER", "COVERAGE", "PACK", "APPEND", "WAIT_ACK",
+    "POST_ACK_CHECK", "PUBLISH", "ORIGINAL_WRITE", "ORIGINAL_FSYNC",
+    "ORIGINAL_READBACK", "CODEC_WRITE", "CODEC_FSYNC", "CODEC_READBACK",
+    "ACK", "CLOSED", "BARRIER",
+))
+
+
+def _resource_uint(value):
+    return value if type(value) is int and 0 <= value < 2**64 else None
+
+
+def _resource_tag(value, allowed):
+    return value if type(value) is str and value in allowed else None
+
+
+def _resource_fault(error):
+    family, code, number = classify(error)
+    if type(error) is c.Stage12Error and len(error.args) == 1:
+        code = _resource_tag(error.args[0], RESOURCE_CODES)
+    return dict(family=family, code=code, errno=number)
+
+
+def _resource_copy(row):
+    # Only internally constructed fixed-schema dictionaries reach this copier.
+    return {key: _resource_copy(value) if type(value) is dict else value
+            for key, value in row.items()} if row is not None else None
+
+
+def _resource_monitor_state(monitor):
+    # Copy only the existing owner's fixed, public scalar schema. No arbitrary
+    # object/message/path/trace is retained, including in failure fallbacks.
+    data = monitor.diagnostic_snapshot()
+    def fault(row):
+        if type(row) is not dict:
+            return None
+        return dict(family=_resource_tag(row.get("family"), ("STAGE12_ERROR", "OS_ERROR", "UNKNOWN")),
+                    code=_resource_tag(row.get("code"), RESOURCE_CODES),
+                    errno=(row.get("errno") if type(row.get("errno")) is int and 0 <= row.get("errno") <= 4095 else None), mono_ns=_resource_uint(row.get("mono_ns")),
+                    source=_resource_tag(row.get("source"), ("WRITER", "MONITOR")),
+                    stage=_resource_tag(row.get("stage"), RESOURCE_PROGRESS))
+    result = dict(phase_id=_resource_uint(data.get("phase_id")),
+                  monitor_failure=_resource_tag(data.get("monitor_failure"), RESOURCE_CODES),
+                  first_primary=fault(data.get("first_primary")))
+    for section, numbers, tags, flags in (
+        ("acquisition", ("enter_mono_ns", "exit_mono_ns"),
+         {"kind": ("START", "PERIODIC", "FINAL"), "stage": RESOURCE_PROGRESS}, ()),
+        ("published", ("seq", "enter_mono_ns", "exit_mono_ns", "ack_mono_ns"), {}, ()),
+        ("writer", ("rows", "acked", "ack_ns", "current_seq"), {"stage": RESOURCE_PROGRESS},
+         ("poisoned", "closing", "released", "thread_alive")),
+    ):
+        row = data.get(section)
+        if type(row) is not dict:
+            result[section] = None
+            continue
+        selected = {key: _resource_uint(row.get(key)) for key in numbers}
+        selected.update((key, _resource_tag(row.get(key), allowed)) for key, allowed in tags.items())
+        selected.update((key, row.get(key) if type(row.get(key)) is bool else None) for key in flags)
+        if section == "writer":
+            selected["first_failure"] = fault(row.get("first_failure"))
+        result[section] = selected
+    return result
+
+
 class Failures:
     """Two fixed records plus counters; first initiating failure never replaced."""
 
@@ -107,6 +187,9 @@ class Failures:
         self.closure_deadline_ordinal = 0
         self._closure_deadline = None
         self._closure_deadline_ns = None
+        self.resource_entered = self.resource_completed = None
+        self.resource_first = self.resource_cleanup = None
+        self.resource_cleanup_count = 0
 
     def closure_fault(self):
         # A supplementary failure can never replace an original exception.
@@ -192,6 +275,49 @@ class Failures:
                     "last_completed": self.closure_completed.copy() if self.closure_completed else None,
                 }
 
+    def resource_boundary(self, stage, *, completed=False, deadline_ns=None):
+        if not self.closure_enabled:
+            return
+        try:
+            if type(stage) is not str or stage not in RESOURCE_STAGES:
+                self.closure_fault()
+                return
+            row = dict(stage=stage, mono_ns=_resource_uint(self.clock.now_ns()),
+                       deadline_ns=_resource_uint(deadline_ns), guard="ORIGINAL_RESOURCE_PHASE")
+            with self.lock:
+                if completed:
+                    self.resource_completed = row
+                else:
+                    self.resource_entered = row
+        except BaseException:
+            self.closure_fault()
+
+    def resource_failure(self, error, *, session, cleanup=False):
+        if not self.closure_enabled:
+            return
+        try:
+            now = self.clock.now_ns()
+            row = dict(**_resource_fault(error), mono_ns=_resource_uint(now),
+                       deadline_ns=_resource_uint(session.deadline),
+                       session_failed=session.failed if type(session.failed) is bool else None,
+                       session_completed=session.completed if type(session.completed) is bool else None,
+                       protocol_state=_resource_tag(session.protocol.state,
+                           ("RUNNING", "DATA_FROZEN", "PREOPEN_READY", "OPENING", "OPEN_RETURNED", "MONITOR_CLOSED", "CHILD_EXITED", "TAIL_VERIFIED", "TERMINAL_SUCCESS", "UNCERTAIN", "INCOMPLETE")),
+                       monitor=_resource_monitor_state(session.monitor))
+            row["snapshot_completed_mono_ns"] = _resource_uint(self.clock.now_ns())
+            with self.lock:
+                captured = dict(failure=row,
+                    last_entered=self.resource_entered.copy() if self.resource_entered else None,
+                    last_completed=self.resource_completed.copy() if self.resource_completed else None)
+                if cleanup:
+                    self.resource_cleanup_count = min(2**64-1, self.resource_cleanup_count + 1)
+                    if self.resource_cleanup is None:
+                        self.resource_cleanup = captured
+                elif self.resource_first is None:
+                    self.resource_first = captured
+        except BaseException:
+            self.closure_fault()
+
     def rejected(self, reason):
         with self.lock:
             if self.response_rejection is None:
@@ -225,4 +351,13 @@ class Failures:
                     "retention_uncertain": self.closure_faults != 0,
                     "persistence": "NOT_ESTABLISHED_BY_IN_MEMORY_SNAPSHOT",
                 }
+                result["resource_preopening"] = dict(
+                    version="stage12_resource_preopening_diagnostics_v1",
+                    scope="SUPPLEMENTARY_PREABORT_NOT_ACCEPTANCE_OR_CAUSE_PROOF",
+                    first_failure=_resource_copy(self.resource_first),
+                    first_cleanup_failure=_resource_copy(self.resource_cleanup),
+                    cleanup_observations=self.resource_cleanup_count,
+                    last_entered=self.resource_entered.copy() if self.resource_entered else None,
+                    last_completed=self.resource_completed.copy() if self.resource_completed else None,
+                    persistence="NOT_ESTABLISHED_BY_IN_MEMORY_SNAPSHOT")
             return result
