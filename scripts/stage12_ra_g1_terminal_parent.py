@@ -38,6 +38,9 @@ SUCCESSOR_RECEIPT_VERSION = "stage12_terminal_same_domain_local_retention_v2"
 QUALIFICATION_VERSION = "stage12_terminal_collection_qualification_v1"
 ONESHOT_ADMISSION_VERSION = "stage12_collection_oneshot_admission_v1"
 SELECTED_PAIR_ADMISSION_VERSION = "stage12_collection_selected_pair_admission_v2"
+NONWAITING_ADMISSION_VERSION = "stage12_collection_nonwaiting_admission_v3"
+NONWAITING_PAIR_CONTROL_VERSION = "stage12_task_oneshot_nonwaiting_selected_pair_v3"
+NONWAITING_TERMINAL_VERSION = "stage12_nonwaiting_submission_terminal_v1"
 SELECTED_PAIR_CONTROL_VERSION = "stage12_task_oneshot_selected_pair_v2"
 SELECTED_PAIR_DIRECTORY_RULE = "SELECTED_FINAL_DIRECTORY_ENOENT_V1"
 ONESHOT_CONTROL_LIMITS = (
@@ -56,6 +59,23 @@ SELECTED_PAIR_CONTROL_LIMITS = tuple(
            "callback_inclusive_write_bytes": 5832704, "callback_inclusive_creations": 104}.get(key, expected))
     for key, expected in ONESHOT_CONTROL_LIMITS
 ) + (("directory_readiness", SELECTED_PAIR_DIRECTORY_RULE),)
+NONWAITING_PAIR_CONTROL_LIMITS = tuple(
+    (key, {"version": NONWAITING_PAIR_CONTROL_VERSION,
+           "maximum_process_units": 384,
+           "callback_inclusive_creations": 113,
+           "callback_inclusive_write_bytes": 6045696}.get(key, expected))
+    for key, expected in SELECTED_PAIR_CONTROL_LIMITS
+) + (("readiness_reader_version", SELECTED_PAIR_CONTROL_VERSION),)
+NONWAITING_TERMINAL_LIMITS = (
+    ("version", NONWAITING_TERMINAL_VERSION),
+    ("maximum_queries", 16), ("normal_query_slots", 13),
+    ("cancellation_query_slots", 3), ("query_seconds", 15),
+    ("minimum_start_spacing_seconds", 120), ("spacing_anchor", "PREVIOUS_QUERY_START"),
+    ("query_process_units", 4), ("query_read_attempts", 96),
+    ("query_stdout_bytes", 4096), ("query_stderr_bytes", 4096),
+    ("query_record_bytes", 16384), ("query_record_creation_attempts", 2),
+    ("submit_semantics", "PARSABLE_NONWAITING_COMMAND_SCOPED_SBATCH_WAIT_UNSET"),
+)
 ONESHOT_SOURCE_FIELDS = (
     ("stage12_ra_g1_one_shot_controls.py", "one_shot_controls_sha256"),
     ("stage12_ra_g1_collection_driver.py", "collection_driver_sha256"),
@@ -538,10 +558,10 @@ def validate_binding(binding, offline, test_root):
                  and binding["valid_until_epoch_ns"] == windows.epoch_ns(windows.WINDOW_END), "BINDING")
 
 
-def validate_oneshot_control_policy(policy, *, selected_remote_pair=None):
+def validate_oneshot_control_policy(policy, *, selected_remote_pair=None, nonwaiting=False):
     """Closed historical or explicitly selected final-directory successor."""
     selected = selected_remote_pair is not None
-    limits = SELECTED_PAIR_CONTROL_LIMITS if selected else ONESHOT_CONTROL_LIMITS
+    limits = NONWAITING_PAIR_CONTROL_LIMITS if nonwaiting else SELECTED_PAIR_CONTROL_LIMITS if selected else ONESHOT_CONTROL_LIMITS
     fields(policy, " ".join(key for key,_ in limits)
            + " " + " ".join(key for _,key in ONESHOT_SOURCE_FIELDS)
            + (" selected_remote_pair" if selected else ""), "AUTHORITY")
@@ -559,11 +579,22 @@ def validate_oneshot_control_policy(policy, *, selected_remote_pair=None):
     return policy
 
 
+def validate_nonwaiting_terminal_policy(policy):
+    fields(policy, " ".join(key for key,_ in NONWAITING_TERMINAL_LIMITS)
+           + " module_sha256", "AUTHORITY")
+    for key, expected in NONWAITING_TERMINAL_LIMITS:
+        need(type(policy[key]) is type(expected) and policy[key] == expected, "AUTHORITY")
+    hash_string(policy["module_sha256"])
+    need(policy["module_sha256"] != "0"*64, "AUTHORITY")
+    return policy
+
+
 def validate_collection_admission(value, binding, authority, offline):
-    selected_pair = type(value) is dict and value.get("version") == SELECTED_PAIR_ADMISSION_VERSION
-    oneshot = type(value) is dict and value.get("version") in (ONESHOT_ADMISSION_VERSION, SELECTED_PAIR_ADMISSION_VERSION)
-    fields(value, "version scope state source_git_sha original_job_id original_source_git_sha original_selection_sha256 original_source_root allocation_producer_sha256 historical_collection_sha256 window grant_nonce collection_purpose helper_sha256 parent_sha256 verifier_sha256 collection_plan_sha256 collection_review_sha256 software_review_sha256 process_graph_sha256 maximum_preparation_and_native_processes max_collection_jobs max_collection_seconds collection_pool_bytes collection_pool_creations control_pool_bytes B_authorized public_authorized protected_authorized scientific_acceptance" + (" one_shot_control_policy" if oneshot else ""), "AUTHORITY")
-    need(value["version"] in ("stage12_collection_only_admission_v1", ONESHOT_ADMISSION_VERSION, SELECTED_PAIR_ADMISSION_VERSION) and value["scope"] == "TERMINAL_COLLECTION_NO_SERVICE"
+    nonwaiting = type(value) is dict and value.get("version") == NONWAITING_ADMISSION_VERSION
+    selected_pair = type(value) is dict and value.get("version") in (SELECTED_PAIR_ADMISSION_VERSION, NONWAITING_ADMISSION_VERSION)
+    oneshot = type(value) is dict and value.get("version") in (ONESHOT_ADMISSION_VERSION, SELECTED_PAIR_ADMISSION_VERSION, NONWAITING_ADMISSION_VERSION)
+    fields(value, "version scope state source_git_sha original_job_id original_source_git_sha original_selection_sha256 original_source_root allocation_producer_sha256 historical_collection_sha256 window grant_nonce collection_purpose helper_sha256 parent_sha256 verifier_sha256 collection_plan_sha256 collection_review_sha256 software_review_sha256 process_graph_sha256 maximum_preparation_and_native_processes max_collection_jobs max_collection_seconds collection_pool_bytes collection_pool_creations control_pool_bytes B_authorized public_authorized protected_authorized scientific_acceptance" + (" one_shot_control_policy" if oneshot else "") + (" submission_terminal_policy" if nonwaiting else ""), "AUTHORITY")
+    need(value["version"] in ("stage12_collection_only_admission_v1", ONESHOT_ADMISSION_VERSION, SELECTED_PAIR_ADMISSION_VERSION, NONWAITING_ADMISSION_VERSION) and value["scope"] == "TERMINAL_COLLECTION_NO_SERVICE"
          and value["state"] == ("TEST_ONLY" if offline else "ISSUED"), "AUTHORITY")
     for key in ("source_git_sha","original_job_id","original_source_git_sha","original_selection_sha256","original_source_root",
                 "allocation_producer_sha256","window","grant_nonce","helper_sha256","parent_sha256","verifier_sha256","collection_purpose"):
@@ -576,10 +607,12 @@ def validate_collection_admission(value, binding, authority, offline):
         tc.uint(value[key])
         need(value[key] == authority[key], "AUTHORITY")
     need(type(value["maximum_preparation_and_native_processes"]) is int
-         and value["maximum_preparation_and_native_processes"] == (228 if selected_pair else 208 if oneshot else 69), "AUTHORITY")
+         and value["maximum_preparation_and_native_processes"] == (384 if nonwaiting else 228 if selected_pair else 208 if oneshot else 69), "AUTHORITY")
     if oneshot:
         policy = value["one_shot_control_policy"]
-        validate_oneshot_control_policy(policy, selected_remote_pair=binding["output_path"] if selected_pair else None)
+        validate_oneshot_control_policy(policy, selected_remote_pair=binding["output_path"] if selected_pair else None, nonwaiting=nonwaiting)
+    if nonwaiting:
+        validate_nonwaiting_terminal_policy(value["submission_terminal_policy"])
     need(all(value[key] is False for key in ("B_authorized","public_authorized","protected_authorized","scientific_acceptance")), "SCOPE")
     if not offline:
         validate_collection_window(value["window"],now_epoch_ns=time.time_ns(),
@@ -1005,9 +1038,12 @@ def run_pair(
     if binding["version"] == SUCCESSOR_VERSION:
         admission = load_control(Path(binding["collection_admission_path"]), authority["collection_admission_sha256"], control)
         validate_collection_admission(admission, binding, authority, offline)
-        if admission["version"] in (ONESHOT_ADMISSION_VERSION, SELECTED_PAIR_ADMISSION_VERSION):
+        if admission["version"] in (ONESHOT_ADMISSION_VERSION, SELECTED_PAIR_ADMISSION_VERSION, NONWAITING_ADMISSION_VERSION):
             for filename, key in ONESHOT_SOURCE_FIELDS:
                 source_hash(parent.with_name(filename), admission["one_shot_control_policy"][key], control)
+        if admission["version"] == NONWAITING_ADMISSION_VERSION:
+            source_hash(parent.with_name("stage12_ra_g1_nonwaiting_submit.py"),
+                        admission["submission_terminal_policy"]["module_sha256"], control)
     original_selection, original_producer = load_control_large(
         Path(binding["original_selection_path"]),
         binding["original_selection_sha256"],
