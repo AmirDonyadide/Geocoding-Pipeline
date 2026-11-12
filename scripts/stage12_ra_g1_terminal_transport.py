@@ -529,7 +529,8 @@ def _named_stat_block(reader, stage, snapshot, values, states):
 
 
 class _PipeReader:
-    def __init__(self, proc, control, kill_at, input_bytes=None):
+    def __init__(self, proc, control, kill_at, input_bytes=None, retain_stderr=False):
+        self.stderr_capture = bytearray() if retain_stderr else None
         self.input_view = memoryview(input_bytes) if input_bytes is not None else None
         self.proc, self.control, self.kill_at = proc, control, kill_at
         self.selector = selectors.DefaultSelector()
@@ -547,10 +548,11 @@ class _PipeReader:
             self.selector.close()
             raise
 
-    def pump(self):
+    def pump(self, wait_timeout=0.05):
+        need(type(wait_timeout) in (int,float) and 0 <= wait_timeout <= .05, "LIMITS")
         self.control.check()
         need(time.monotonic_ns() < self.kill_at, "DEADLINE")
-        for key,_ in self.selector.select(.05):
+        for key,_ in self.selector.select(wait_timeout):
             if key.data == "stdin":
                 try:
                     n=os.write(key.fileobj.fileno(),self.input_view[:CHUNK])
@@ -570,6 +572,8 @@ class _PipeReader:
             if key.data == "stderr":
                 self.stderr_bytes += len(raw)
                 need(self.stderr_bytes <= MAX_STDERR, "STDERR")
+                if self.stderr_capture is not None:
+                    self.stderr_capture.extend(raw)
             else:
                 self.stdout_bytes += len(raw)
                 need(self.stdout_bytes <= 3*2**30 + 2*128*2**20 + 2**20 + 2*MAX_METADATA, "READ_BYTES")
@@ -602,9 +606,19 @@ class _PipeReader:
 
 
 def fetch_batch(rows, target_root, control, *, expected_uid, expected_gid=None,
-                metadata_paths=(), testing_argv=None, nonce=None, publication=None, input_bytes=None, terminal_log_labels=()):
+                metadata_paths=(), testing_argv=None, nonce=None, publication=None, input_bytes=None, terminal_log_labels=(), pending_labels=(), keep_stdin_open=False):
     """One same-domain before/content/after sequence, preserving failed prefixes."""
     paths, extras, ancestors = batch_paths(rows, metadata_paths)
+    need(type(keep_stdin_open) is bool and type(pending_labels) is tuple, "SCOPE")
+    if pending_labels:
+        expected_names = {"ready":"TRANSPORT_READY.record", "incomplete":"PAIR_INCOMPLETE.record", "provisional":"PAIR_PROVISIONAL_COMPLETE.record"}
+        need(len(rows)==3 and len(pending_labels)==3 and set(pending_labels)==set(expected_names)
+             and {r["label"] for r in rows}==set(expected_names) and not metadata_paths
+             and publication is None and not terminal_log_labels, "SCOPE")
+        need(all(r.get("bytes",r.get("maximum")) <= 65536 for r in rows), "LIMITS")
+        need(len({p.parent for p in paths})==1 and all(p.name==expected_names[r["label"]]
+             and len(str(p))<=1024 and __import__("re").fullmatch(r"[A-Za-z0-9_./-]+",str(p))
+             for r,p in zip(rows,paths,strict=True)), "PATH")
     need((publication is None) == (input_bytes is None), "RETENTION")
     if input_bytes is not None:
         need(type(input_bytes) is bytes and len(input_bytes) <= 65536 and len(input_bytes) == publication["bytes"], "RETENTION")
@@ -636,8 +650,8 @@ def fetch_batch(rows, target_root, control, *, expected_uid, expected_gid=None,
     remote_complete = False
     try:
         proc = subprocess.Popen(testing_argv if testing_argv is not None else batch_remote_argv(rows, nonce, expected_uid=expected_uid, expected_gid=expected_gid, metadata_paths=metadata_paths, publication=publication, terminal_log_labels=terminal_log_labels),
-                                stdin=subprocess.PIPE if input_bytes is not None else subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True)
-        reader = _PipeReader(proc,control,kill_at,input_bytes)
+                                stdin=subprocess.PIPE if input_bytes is not None or keep_stdin_open else subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True)
+        reader = _PipeReader(proc,control,kill_at,input_bytes,bool(pending_labels))
         header = reader.line()
         suffix = f"|{nonce}|{len(paths)}|{len(extras)}|{len(ancestors)}\n".encode()
         need(header in (b"S12B2" + suffix, PRESENCE_WIRE + suffix), "FRAME")
@@ -774,6 +788,23 @@ def fetch_batch(rows, target_root, control, *, expected_uid, expected_gid=None,
                 tc.close_owned(control,(fd,))
             except BaseException:
                 cleanup_uncertain=True
+        # A failed task probe still drains both pipes and observes the owned
+        # child's real exit. This never repairs incomplete protocol evidence.
+        if pending_labels and first is not None and proc is not None and reader is not None:
+            join_end = min(kill_at, time.monotonic_ns()+250_000_000)
+            while time.monotonic_ns() < join_end and (reader.streams or proc.poll() is None):
+                try:
+                    if reader.streams:
+                        reader.pump(min(.05,max(0,(join_end-time.monotonic_ns())/1e9)))
+                    else:
+                        proc.wait(timeout=max(0,(join_end-time.monotonic_ns())/1e9))
+                except subprocess.TimeoutExpired:
+                    break
+                except BaseException:
+                    cleanup_uncertain = True
+                    break
+            if proc.poll() is not None:
+                proc.wait(timeout=0)
         if proc is not None and proc.poll() is None:
             try:
                 os.killpg(proc.pid,signal.SIGTERM)
@@ -805,6 +836,30 @@ def fetch_batch(rows, target_root, control, *, expected_uid, expected_gid=None,
         diagnostic["cleanup_uncertain"]=cleanup_uncertain
         diagnostic["remote_cleanup_status"]="JOINED_NATIVE_EXIT_ZERO" if remote_complete else "UNKNOWN"
         diagnostic["cleanup_completed_mono_ns"]=time.monotonic_ns()
+        if pending_labels:
+            captured = bytes(reader.stderr_capture) if reader is not None and reader.stderr_capture is not None else b""
+            missing = [r["label"] for i,r in enumerate(rows)
+                       if i < len(before) and i < len(after) and before[i] is None and after[i] is None]
+            missing_paths = [str(paths[i]) for i,r in enumerate(rows) if r["label"] in missing]
+            expected_errors = b"".join(("stat: cannot statx '"+p+"': No such file or directory\n").encode("ascii") for p in missing_paths) * 2
+            verified = None
+            if (type(first) is tc.Stop and first.args == ("RETENTION",) and phase == "BEFORE"
+                and remote_complete and not cleanup_uncertain and missing
+                and before_stat_status == after_stat_status == 1 and domain_before == domain_after
+                and presence_before == presence_after and captured == expected_errors):
+                verified = missing
+            diagnostic["pending_check"] = dict(
+                version="stage12_task_named_control_absence_v1",
+                verified_missing_errno_labels=verified,
+                child_pid=proc.pid if proc is not None else None,
+                child_exit=proc.poll() if proc is not None else None,
+                observed_joined=proc is not None and proc.poll() is not None,
+                stdout_eof=reader is not None and "stdout" not in reader.streams,
+                stderr_eof=reader is not None and "stderr" not in reader.streams,
+                stderr_bytes=len(captured), stderr_sha256=hashlib.sha256(captured).hexdigest(),
+                stdout_bytes=reader.stdout_bytes if reader is not None else 0,
+                keep_stdin_open=keep_stdin_open,
+                native_errno_interface="EXACT_GNU_STAT_C_LOCALE_ENOENT_ONLY_OTHER_MESSAGES_UNVERIFIED")
         first.transport_diagnostic=diagnostic
         raise first
     need(not cleanup_uncertain,"CLOSE_UNCERTAIN")

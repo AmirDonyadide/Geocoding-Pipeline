@@ -36,6 +36,24 @@ SUCCESSOR_READY_VERSION = "stage12_terminal_same_domain_transport_ready_v2"
 SUCCESSOR_FINAL_VERSION = "stage12_terminal_same_domain_final_log_verification_v2"
 SUCCESSOR_RECEIPT_VERSION = "stage12_terminal_same_domain_local_retention_v2"
 QUALIFICATION_VERSION = "stage12_terminal_collection_qualification_v1"
+ONESHOT_ADMISSION_VERSION = "stage12_collection_oneshot_admission_v1"
+ONESHOT_CONTROL_LIMITS = (
+    ("version", "stage12_task_oneshot_controls_v1"),
+    ("maximum_probes", 16), ("probe_seconds", 15),
+    ("minimum_start_spacing_seconds", 120),
+    ("spacing_anchor", "PREVIOUS_DURABLE_RECORD_ACK_PLUS_120_SECONDS"),
+    ("maximum_process_units", 208),
+    ("combined_read_call_bound", 173646), ("global_read_call_cap", 262144),
+    ("additional_read_calls", 65570), ("additional_read_bytes", 17891328),
+    ("callback_inclusive_write_bytes", 5308416), ("callback_inclusive_creations", 86),
+    ("controller_seconds", 1800),
+)
+ONESHOT_SOURCE_FIELDS = (
+    ("stage12_ra_g1_one_shot_controls.py", "one_shot_controls_sha256"),
+    ("stage12_ra_g1_collection_driver.py", "collection_driver_sha256"),
+    ("stage12_ra_g1_terminal_transport.py", "transport_sha256"),
+)
+
 SUCCESSOR_CONTEXT_FIELDS = "window collection_purpose original_source_root original_producer_path original_producer_sha256"
 
 
@@ -512,9 +530,22 @@ def validate_binding(binding, offline, test_root):
                  and binding["valid_until_epoch_ns"] == windows.epoch_ns(windows.WINDOW_END), "BINDING")
 
 
+def validate_oneshot_control_policy(policy):
+    """Closed task-only successor; logical prices establish no authority by themselves."""
+    fields(policy, " ".join(key for key,_ in ONESHOT_CONTROL_LIMITS)
+           + " " + " ".join(key for _,key in ONESHOT_SOURCE_FIELDS), "AUTHORITY")
+    for key, expected in ONESHOT_CONTROL_LIMITS:
+        need(type(policy[key]) is type(expected) and policy[key] == expected, "AUTHORITY")
+    for _,key in ONESHOT_SOURCE_FIELDS:
+        hash_string(policy[key])
+        need(policy[key] != "0"*64, "AUTHORITY")
+    return policy
+
+
 def validate_collection_admission(value, binding, authority, offline):
-    fields(value, "version scope state source_git_sha original_job_id original_source_git_sha original_selection_sha256 original_source_root allocation_producer_sha256 historical_collection_sha256 window grant_nonce collection_purpose helper_sha256 parent_sha256 verifier_sha256 collection_plan_sha256 collection_review_sha256 software_review_sha256 process_graph_sha256 maximum_preparation_and_native_processes max_collection_jobs max_collection_seconds collection_pool_bytes collection_pool_creations control_pool_bytes B_authorized public_authorized protected_authorized scientific_acceptance", "AUTHORITY")
-    need(value["version"] == "stage12_collection_only_admission_v1" and value["scope"] == "TERMINAL_COLLECTION_NO_SERVICE"
+    oneshot = type(value) is dict and value.get("version") == ONESHOT_ADMISSION_VERSION
+    fields(value, "version scope state source_git_sha original_job_id original_source_git_sha original_selection_sha256 original_source_root allocation_producer_sha256 historical_collection_sha256 window grant_nonce collection_purpose helper_sha256 parent_sha256 verifier_sha256 collection_plan_sha256 collection_review_sha256 software_review_sha256 process_graph_sha256 maximum_preparation_and_native_processes max_collection_jobs max_collection_seconds collection_pool_bytes collection_pool_creations control_pool_bytes B_authorized public_authorized protected_authorized scientific_acceptance" + (" one_shot_control_policy" if oneshot else ""), "AUTHORITY")
+    need(value["version"] in ("stage12_collection_only_admission_v1", ONESHOT_ADMISSION_VERSION) and value["scope"] == "TERMINAL_COLLECTION_NO_SERVICE"
          and value["state"] == ("TEST_ONLY" if offline else "ISSUED"), "AUTHORITY")
     for key in ("source_git_sha","original_job_id","original_source_git_sha","original_selection_sha256","original_source_root",
                 "allocation_producer_sha256","window","grant_nonce","helper_sha256","parent_sha256","verifier_sha256","collection_purpose"):
@@ -527,7 +558,10 @@ def validate_collection_admission(value, binding, authority, offline):
         tc.uint(value[key])
         need(value[key] == authority[key], "AUTHORITY")
     need(type(value["maximum_preparation_and_native_processes"]) is int
-         and value["maximum_preparation_and_native_processes"] == 69, "AUTHORITY")
+         and value["maximum_preparation_and_native_processes"] == (208 if oneshot else 69), "AUTHORITY")
+    if oneshot:
+        policy = value["one_shot_control_policy"]
+        validate_oneshot_control_policy(policy)
     need(all(value[key] is False for key in ("B_authorized","public_authorized","protected_authorized","scientific_acceptance")), "SCOPE")
     if not offline:
         validate_collection_window(value["window"],now_epoch_ns=time.time_ns(),
@@ -953,6 +987,9 @@ def run_pair(
     if binding["version"] == SUCCESSOR_VERSION:
         admission = load_control(Path(binding["collection_admission_path"]), authority["collection_admission_sha256"], control)
         validate_collection_admission(admission, binding, authority, offline)
+        if admission["version"] == ONESHOT_ADMISSION_VERSION:
+            for filename, key in ONESHOT_SOURCE_FIELDS:
+                source_hash(parent.with_name(filename), admission["one_shot_control_policy"][key], control)
     original_selection, original_producer = load_control_large(
         Path(binding["original_selection_path"]),
         binding["original_selection_sha256"],
