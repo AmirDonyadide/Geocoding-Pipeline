@@ -229,6 +229,9 @@ def safe_failure(error):
     )
 
     family, code, number = classify(error)
+    if (type(error) is RuntimeError and len(error.args) == 1
+            and type(error.args[0]) is str and error.args[0] == "RA_G1_DIAGNOSTIC_PATH_SCOPE"):
+        code = "RA_G1_DIAGNOSTIC_PATH_SCOPE"
     return {"family": family, "code": code, "errno": number}
 
 

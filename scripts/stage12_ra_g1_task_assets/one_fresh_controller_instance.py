@@ -1,10 +1,20 @@
 import contextlib,io,os,sys,time
 from pathlib import Path
 VERSION="stage12_task_one_fresh_controller_instance_r9"
+LAYOUT_VERSION="stage12_task_layout_collection_controller_r1"
+
+def _selected_instance_scope(key):
+ if type(key)is not str:return None
+ if key in ("fresh_controller","new_B_collection_controller"):
+  return ("catalog_controller_task_slots",key,VERSION)
+ if key=="layout_collection_controller":
+  return ("layout_slots","collection_controller",LAYOUT_VERSION)
+ return None
+
 OPS=frozenset(("LOCAL_SETUP","LOAD_SELECTED_EXECUTOR","EXECUTE_SELECTED_DRIVER","CAPTURE_CLOSE"))
 def capture_eligible(row, *, instance_grant_key):
- if type(row)is not dict or row.get("version")!=VERSION or row.get("instance_grant_key")!=instance_grant_key:return False
- if instance_grant_key not in ("fresh_controller","new_B_collection_controller"):return False
+ scope=_selected_instance_scope(instance_grant_key)
+ if scope is None or type(row)is not dict or row.get("version")!=scope[2] or row.get("instance_grant_key")!=instance_grant_key:return False
  if "first_state" not in row or row["first_state"]is not None:return False
  if row.get("all_owned_capture_fds_closed")is not True:return False
  poisoned=row.get("captures_poisoned")
@@ -20,6 +30,8 @@ def capture_eligible(row, *, instance_grant_key):
 
 def run(*,root,ledger,charge,saveledger,selected_executor,expected_executor_sha,load_actual,preflight,tc,rec,fsha,executor_kwargs,failure_owner=None,instance_grant_key="fresh_controller"):
  root=Path(root);q=root/"followon"
+ selected_scope=_selected_instance_scope(instance_grant_key)
+ selected_version=VERSION if selected_scope is None else selected_scope[2]
  sys.path.insert(0,str(Path(executor_kwargs["reviewed_source"])/"src"))
  from safe_geocoding_pipeline.preprocessing.stages import s12_public_diagnostics as diagnostics
  class Clock:
@@ -70,8 +82,8 @@ def run(*,root,ledger,charge,saveledger,selected_executor,expected_executor_sha,
 
  try:
   actual_setup=preflight.prepare(q,tc,state);rec(q/"ACTUAL_PRIVATE_PRECONDITIONS_AT_INSTANCE_ENTRY.record",actual_setup)
-  if instance_grant_key not in ("fresh_controller","new_B_collection_controller"):raise RuntimeError()
-  grant=ledger["catalog_controller_task_slots"][instance_grant_key]
+  if selected_scope is None:raise RuntimeError()
+  grant=ledger[selected_scope[0]][selected_scope[1]]
   if grant["maximum"]!=1 or grant["consumed"]!=0:raise RuntimeError()
   grant.update(consumed=1,instance_nonce=executor_kwargs["instance_nonce"],prelude_entry_mono_ns=time.monotonic_ns(),prelude_entry_epoch_ns=time.time_ns(),actual_controller_origin="UNCHANGED_PRODUCTION_DRIVER_ENTRY_MUST_BE_OBSERVED")
   saveledger()
@@ -94,7 +106,7 @@ def run(*,root,ledger,charge,saveledger,selected_executor,expected_executor_sha,
   elif type(error)is FileNotFoundError:code="LOCAL_SETUP_MISSING"
   elif type(error)is PermissionError:code="LOCAL_SETUP_ACCESS_DENIED"
   elif type(error)is CapturePoisoned:code="LOCAL_CAPTURE_POISONED"
-  rec(q/"FRESH_CONTROLLER_FIRST_FAILURE.record",dict(version=VERSION,state=primary,safe_guard=code,failures=owner.snapshot(),no_arbitrary_exception_text=True,no_native_success=True))
+  rec(q/"FRESH_CONTROLLER_FIRST_FAILURE.record",dict(version=selected_version,state=primary,safe_guard=code,failures=owner.snapshot(),no_arbitrary_exception_text=True,no_native_success=True))
   raise
  finally:
   for capture in reversed(handles):
@@ -102,7 +114,7 @@ def run(*,root,ledger,charge,saveledger,selected_executor,expected_executor_sha,
    except BaseException as cleanup:
     owner.record("CLEANUP",cleanup)
   try:
-   rec(q/"FRESH_CONTROLLER_CAPTURE_LIFECYCLE.record",dict(version=VERSION,instance_grant_key=instance_grant_key,first_state=primary,failures=owner.snapshot(),stdout_bytes=sum(c.n for c in handles[:1]),stderr_bytes=sum(c.n for c in handles[1:]),all_owned_capture_fds_closed=all(c.fd is None for c in handles),captures_poisoned=[c.failed for c in handles],rejected_writes=sum(c.rejected_writes for c in handles),rejected_flushes=sum(c.rejected_flushes for c in handles),native_or_scientific_acceptance=False))
+   rec(q/"FRESH_CONTROLLER_CAPTURE_LIFECYCLE.record",dict(version=selected_version,instance_grant_key=instance_grant_key,first_state=primary,failures=owner.snapshot(),stdout_bytes=sum(c.n for c in handles[:1]),stderr_bytes=sum(c.n for c in handles[1:]),all_owned_capture_fds_closed=all(c.fd is None for c in handles),captures_poisoned=[c.failed for c in handles],rejected_writes=sum(c.rejected_writes for c in handles),rejected_flushes=sum(c.rejected_flushes for c in handles),native_or_scientific_acceptance=False))
   except BaseException as error:
    owner.record("CLEANUP",error)
    raise
