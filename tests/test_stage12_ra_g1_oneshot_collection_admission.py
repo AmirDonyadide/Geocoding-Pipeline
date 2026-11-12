@@ -145,3 +145,46 @@ def test_actual_source_hash_rejects_changed_original(tmp_path):
     p.write_bytes(b"changed!\n")
     with pytest.raises(pair.tc.Stop) as e:pair.source_hash(p,expected,c)
     assert e.value.args==("SOURCE_CHANGED",)
+
+
+def test_phase_and_overall_share_exact_attempt_limit(tmp_path):
+    p=tmp_path/"shared.bin";p.write_bytes(b"ab");fd=os.open(p,os.O_RDONLY)
+    try:
+        c=make_control();phase=driver.phase_control(pair,c,20,c.epoch_end)
+        assert phase.read(fd,1)==b"a" and c.read(fd,1)==b"b"
+        assert phase.read_calls==c.read_calls==1 and c.selected_read_attempts==2
+        c.selected_read_attempts=driver.SELECTED_OVERALL_READ_ATTEMPTS-1
+        assert phase.read(fd,1)==b""
+        assert c.selected_read_attempts==driver.SELECTED_OVERALL_READ_ATTEMPTS
+        for owner in (phase,c):
+            before=owner.read_calls
+            with pytest.raises(pair.tc.Stop) as e:owner.read(fd,1)
+            assert e.value.args==("READ_CALLS",) and owner.read_calls==before
+        assert os.lseek(fd,0,os.SEEK_CUR)==2
+    finally:os.close(fd)
+
+
+def test_phase_precharge_before_reentrant_overall_check_and_primary_failure(tmp_path):
+    p=tmp_path/"phase_nested.bin";p.write_bytes(b"ab");fd=os.open(p,os.O_RDONLY)
+    try:
+        c=make_control();once=False
+        def service(self):
+            nonlocal once
+            if not once:once=True;assert self.read(fd,1)==b"a"
+            pair.Control.check(self)
+        c.check=types.MethodType(service,c)
+        phase=driver.phase_control(pair,c,20,c.epoch_end)
+        assert phase.read(fd,1)==b"b"
+        assert c.selected_read_attempts==2 and phase.read_calls==c.read_calls==1
+        c.selected_read_attempts=driver.SELECTED_OVERALL_READ_ATTEMPTS-1;once=False
+        before=(phase.read_calls,c.read_calls,os.lseek(fd,0,os.SEEK_CUR))
+        with pytest.raises(pair.tc.Stop) as e:phase.read(fd,1)
+        assert e.value.args==("READ_CALLS",) and c.selected_read_attempts==driver.SELECTED_OVERALL_READ_ATTEMPTS
+        assert (phase.read_calls,c.read_calls,os.lseek(fd,0,os.SEEK_CUR))==before
+        # Fresh invented owner: original exception and failed attempt are retained.
+        c=make_control();primary=pair.tc.Stop("SOURCE_CHANGED")
+        def fail(self):raise primary
+        c.check=types.MethodType(fail,c);phase=driver.phase_control(pair,c,20,c.epoch_end)
+        with pytest.raises(pair.tc.Stop) as e:phase.read(fd,1)
+        assert e.value is primary and c.selected_read_attempts==1 and phase.read_calls==0
+    finally:os.close(fd)

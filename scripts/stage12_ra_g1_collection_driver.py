@@ -58,9 +58,19 @@ def phase_control(pair,overall,seconds,epoch):
  def check(self):
   overall.check();original()
  phase.check=types.MethodType(check,phase)
+ original_read=phase.read
+ def read(self,fd,amount):
+  selected_read_precharge(overall,pair)
+  return original_read(fd,amount)
+ phase.read=types.MethodType(read,phase)
  return phase
 
 SELECTED_OVERALL_READ_ATTEMPTS = 173646
+
+
+def selected_read_precharge(overall,pair):
+ pair.need(overall.selected_read_attempts<SELECTED_OVERALL_READ_ATTEMPTS,"READ_CALLS")
+ overall.selected_read_attempts+=1  # One shared attempted-read owner; no refunds.
 
 
 def install_selected_read_limit(overall, pair):
@@ -69,8 +79,7 @@ def install_selected_read_limit(overall, pair):
  original_read=overall.read
  overall.selected_read_attempts=0
  def selected_read(self,fd,amount):
-  pair.need(self.selected_read_attempts<SELECTED_OVERALL_READ_ATTEMPTS,"READ_CALLS")
-  self.selected_read_attempts+=1  # Never refunded, including failed/uncertain reads.
+  selected_read_precharge(self,pair)
   return original_read(fd,amount)
  overall.read=types.MethodType(selected_read,overall)
 
