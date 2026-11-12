@@ -100,7 +100,8 @@ def load_verified_admission(plan, command, overall, pair, transport, observer):
  pair.need(binding["authority_sha256"]==command["authority_sha256"]
            and authority["collection_admission_sha256"]==command["admission_sha256"], "AUTHORITY")
  pair.validate_collection_admission(admission,binding,authority,False)
- pair.need(admission["version"]==pair.ONESHOT_ADMISSION_VERSION, "AUTHORITY")
+ pair.need(admission["version"]==pair.SELECTED_PAIR_ADMISSION_VERSION, "AUTHORITY")
+ pair.need(plan["remote_pair"]==binding["output_path"], "BINDING")
  for key in ("source_git_sha","original_source_git_sha","original_source_root",
              "original_producer_path","allocation_producer_sha256"):
   pair.need(binding[key]==plan[key], "BINDING")
@@ -116,11 +117,32 @@ def load_verified_admission(plan, command, overall, pair, transport, observer):
  return admission
 
 
-def execute(plan,command,rows,ancestors,base,modules,observer,wait_module,handoff,charge,mark_slot,record,handles):
+def run_irreversible_failure_hook(callback, *, overall, streams, proc, plan, command, first_failure, pair, tc):
+ """One task-owned hook; it cannot rewrite the retained initiating failure."""
+ entered=time.monotonic_ns()
+ disposition=dict(status="FAILED_OR_UNCERTAIN",invoked=False,entry_mono_ns=entered,
+                  original_deadline_mono_ns=overall.end,original_window_end_epoch_ns=overall.epoch_end)
+ try:
+  pair.need(callable(callback),"BINDING")
+  raw=tc.canonical(first_failure)
+  pair.need(len(raw)<=65536,"LIMITS")
+  primary_copy=tc.parse(raw)
+  disposition["invoked"]=True
+  callback(overall=overall,streams=streams,proc=proc,plan=plan,command=command,
+           first_failure_copy=primary_copy)
+  disposition["status"]="RETURNED_PENDING_INDEPENDENT_VERIFICATION"
+ except BaseException as error:
+  disposition["safe_error"]=pair.safe_code(error)
+ finally:
+  disposition["complete_mono_ns"]=time.monotonic_ns()
+ return disposition
+
+
+def execute(plan,command,rows,ancestors,base,modules,observer,wait_module,handoff,charge,mark_slot,record,handles, *, on_irreversible_failure=None):
  tc,pair,transport,_=modules;started=time.monotonic_ns();epoch=time.time_ns();overall=pair.Control(started,plan["window_end_epoch_ns"],1800)
  install_selected_read_limit(overall,pair)
  handles["control"]=overall
- original_check=overall.check;streams=None;stage="SUBMIT";phase_owners=[];proc=None;fds={};readers={};failure=None;result=None
+ original_check=overall.check;streams=None;stage="SUBMIT";phase_owners=[];proc=None;fds={};readers={};failure=None;result=None;failure_hook=None
  def check(self):
   original_check()
   if streams is not None:streams.pump()
@@ -129,9 +151,12 @@ def execute(plan,command,rows,ancestors,base,modules,observer,wait_module,handof
  def action_control(name,seconds,end):
   c=phase_control(pair,overall,seconds,end);phase_owners.append((name,c));return c
  try:
-  assert command["task_control_selection"] == dict(version="stage12_task_oneshot_controls_v1",maximum_probes=16,probe_seconds=15,minimum_start_spacing_seconds=120,spacing_anchor="PREVIOUS_DURABLE_RECORD_ACK_PLUS_120_SECONDS",maximum_process_units=208)
-  assert observer.VERSION=="stage12_task_oneshot_controls_v1" and "observer_argv" not in command
+  assert "observer_argv" not in command
   actual_admission=load_verified_admission(plan,command,overall,pair,transport,observer)
+  policy=actual_admission["one_shot_control_policy"]
+  expected_task_selection={key:policy[key] for key in ("version","maximum_probes","probe_seconds","minimum_start_spacing_seconds","spacing_anchor","maximum_process_units","directory_readiness","selected_remote_pair")}
+  assert command["task_control_selection"] == expected_task_selection
+  assert observer.VERSION==policy["version"] and policy["selected_remote_pair"]==plan["remote_pair"]
   for label in ("stdout","stderr"):
    path=base/("submission."+label+".raw");fd=os.open(path,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600);fds[label]=(fd,path);readfd=os.open(path,os.O_RDONLY|os.O_NOFOLLOW);assert os.fstat(readfd).st_ino==os.fstat(fd).st_ino and os.fstat(readfd).st_dev==os.fstat(fd).st_dev;readers[label]=(readfd,path)
   record("EXECUTION_ENTRY.record",dict(entry_mono_ns=started,entry_epoch_ns=epoch,role_deadline_mono_ns=overall.end,window_end_epoch_ns=overall.epoch_end,source=plan["source_git_sha"],nonce=command["nonce"],actual_admission_sha256=command["admission_sha256"],actual_admission_version=actual_admission["version"],actual_admission_process_cap=actual_admission["maximum_preparation_and_native_processes"]))
@@ -179,6 +204,9 @@ def execute(plan,command,rows,ancestors,base,modules,observer,wait_module,handof
   failure=dict(stage=stage,code=pair.safe_code(error),kind=("TC_STOP" if type(error) is tc.Stop else "ASSERTION" if type(error) is AssertionError else "OS_ERROR" if isinstance(error,OSError) else "UNCLASSIFIED"),observed_mono_ns=time.monotonic_ns(),observed_epoch_ns=time.time_ns(),transport=getattr(error,"transport_diagnostic",None),historical_cause_not_inferred=True)
   try:record("FIRST_FAILURE.record",failure)
   except BaseException:failure["diagnostic_retention"]="INCOMPLETE"
+  if on_irreversible_failure is not None:
+   failure_hook=run_irreversible_failure_hook(on_irreversible_failure,overall=overall,
+       streams=streams,proc=proc,plan=plan,command=command,first_failure=failure,pair=pair,tc=tc)
  finally:
   if proc is not None and proc.poll() is None:
    while time.monotonic_ns()<overall.end and time.time_ns()<overall.epoch_end and proc.poll() is None:
@@ -206,6 +234,7 @@ def execute(plan,command,rows,ancestors,base,modules,observer,wait_module,handof
    if failure is None:failure=dict(stage="LOCAL_FINALIZATION",code="DEADLINE",observed_mono_ns=final_check_mono,observed_epoch_ns=final_check_epoch)
   status="COMPLETE_PENDING_INDEPENDENT_REVIEW" if result is not None and failure is None and actual_exit==0 else "INCOMPLETE"
   output=dict(status=status,first_failure=failure,stage=stage,actual_client_exit=actual_exit,client_joined=actual_exit is not None,entry_mono_ns=started,entry_epoch_ns=epoch,role_deadline_mono_ns=overall.end,window_end_epoch_ns=overall.epoch_end,complete_mono_ns=time.monotonic_ns(),selected_read_attempts=overall.selected_read_attempts,selected_read_attempt_limit=SELECTED_OVERALL_READ_ATTEMPTS,phase_counters=[dict(role=n,entered=c.entered,end=c.end,read_calls=c.read_calls,read_bytes=c.read_bytes,write_bytes=c.write_bytes,creations=c.creations,cleanup_uncertain=c.cleanup_uncertain) for n,c in phase_owners],old_observer_termination="UNKNOWN",public_authorized=False,protected_authorized=False,scientific_acceptance=False)
+  if failure_hook is not None:output["irreversible_failure_hook"]=failure_hook
   output["persisted_timestamp_scope"]="BEFORE_OUTCOME_RECORD_FSYNC_NOT_FINAL_RETURN"
   try:record("COORDINATOR_OUTCOME.record",output)
   except BaseException:output["status"]="INCOMPLETE";output["diagnostic_retention"]="INCOMPLETE"

@@ -7,7 +7,7 @@ from pathlib import Path
 import re
 import time
 
-VERSION = "stage12_task_oneshot_controls_v1"
+VERSION = "stage12_task_oneshot_selected_pair_v2"
 MAX_PROBES = 16
 PROBE_NS = 15_000_000_000
 SPACING_NS = 120_000_000_000
@@ -73,7 +73,7 @@ def _phase(pair, overall, start):
             if creation:self.creations+=1
     return ProbeControl()
 
-def _missing_result(error, rows, ancestors, pair, tc):
+def _missing_result(error, rows, ancestors, pair, tc, selected_final_directory):
     """Accept ENOENT only after the actual complete named reader validates it."""
     need(type(error) is tc.Stop and error.args == ("RETENTION",), "PROBE_FAILED")
     d=getattr(error,"transport_diagnostic",None)
@@ -82,7 +82,8 @@ def _missing_result(error, rows, ancestors, pair, tc):
          and d.get("cleanup_uncertain") is False
          and d.get("remote_cleanup_status")=="JOINED_NATIVE_EXIT_ZERO", "PROBE_FAILED")
     p=d.get("pending_check")
-    need(type(p) is dict and p.get("version")=="stage12_task_named_control_absence_v1"
+    need(type(p) is dict and p.get("version")=="stage12_task_selected_pair_absence_v2"
+         and p.get("selected_final_directory")==selected_final_directory
          and p.get("child_exit")==0 and type(p.get("child_exit")) is int
          and p.get("observed_joined") is True
          and p.get("stdout_eof") is True and p.get("stderr_eof") is True
@@ -115,7 +116,20 @@ def _missing_result(error, rows, ancestors, pair, tc):
                  and e.get("before")==e.get("after")=="PRESENT", "PROBE_METADATA")
             states.append(dict(label=row["label"],before="PRESENT",after="PRESENT"))
     need(missing and p.get("verified_missing_errno_labels")==missing, "PROBE_ABSENCE_UNVERIFIED")
+    selected_path=tc.absolute(selected_final_directory)
+    need(selected_path in ancestors and all(Path(r["path"]).parent==selected_path for r in rows), "PROBE_METADATA")
+    selected_index=len(rows)+ancestors.index(selected_path)
+    selected_absent=before[selected_index] is None
+    if selected_absent:
+        need(after[selected_index] is None and len(missing)==len(rows)
+             and p.get("verified_missing_final_directory")==selected_final_directory, "PROBE_ABSENCE_UNVERIFIED")
+    else:
+        need(p.get("verified_missing_final_directory") is None, "PROBE_METADATA")
     for i,path in enumerate(ancestors,start=len(rows)):
+        if selected_absent and i==selected_index:
+            need(entries[i].get("kind")=="ANCESTOR"
+                 and entries[i].get("before")==entries[i].get("after")=="UNAVAILABLE", "PROBE_METADATA")
+            continue
         need(type(before[i]) is list and len(before[i])==9
              and type(after[i]) is list and len(after[i])==9
              and before[i][:6]==after[i][:6]
@@ -181,7 +195,8 @@ def probe(plan, output_root, overall, transport, pair, tc, record, charge,
         try:
             ev,_=transport.fetch_batch(rows,target,c,expected_uid=plan["source_uid"],
                 expected_gid=plan["source_gid"],pending_labels=LABELS,
-                keep_stdin_open=True,testing_argv=testing_argv,nonce=nonce)
+                keep_stdin_open=True,testing_argv=testing_argv,nonce=nonce,
+                pending_final_directory=plan["remote_pair"])
         except BaseException as error:
             # Any incomplete parse, nonzero child, uncertainty or non-ENOENT error
             # propagates unchanged; only this completed absence proof is pending.
@@ -190,7 +205,7 @@ def probe(plan, output_root, overall, transport, pair, tc, record, charge,
                 result["transport_diagnostic"]=original_diagnostic
                 result["actual_process"]=original_diagnostic.get("pending_check")
             try:
-                states,by_label,ev,d=_missing_result(error,rows,ancestors,pair,tc)
+                states,by_label,ev,d=_missing_result(error,rows,ancestors,pair,tc,plan["remote_pair"])
             except BaseException as classification_error:
                 error.one_shot_predicate=getattr(classification_error,"one_shot_code","PROBE_CLASSIFICATION_FAILED")
                 raise error

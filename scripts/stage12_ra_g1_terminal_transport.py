@@ -336,9 +336,28 @@ def batch_paths(rows, metadata_paths=()):
     return paths, extra, ancestors
 
 
-def batch_remote_argv(rows, nonce, *, expected_uid, expected_gid=None, host=HOST, metadata_paths=(), publication=None, terminal_log_labels=()):
+def _selected_pending_directory(rows, paths, extras, ancestors, selected):
+    """One exact task-selected final directory; never an arbitrary missing ancestor."""
+    need(type(selected) is str and len(selected)<=1024
+         and __import__("re").fullmatch(r"[A-Za-z0-9_./-]+",selected), "PATH")
+    directory=tc.absolute(selected)
+    expected={"ready":"TRANSPORT_READY.record","incomplete":"PAIR_INCOMPLETE.record","provisional":"PAIR_PROVISIONAL_COMPLETE.record"}
+    need(str(directory)==selected and directory!=directory.parent and not extras
+         and len(rows)==3 and {r["label"] for r in rows}==set(expected)
+         and all(p.parent==directory and p.name==expected[r["label"]]
+                 and r.get("bytes",r.get("maximum"))<=65536
+                 for r,p in zip(rows,paths,strict=True))
+         and directory in ancestors and directory.parent in ancestors, "SCOPE")
+    return directory
+
+
+def batch_remote_argv(rows, nonce, *, expected_uid, expected_gid=None, host=HOST, metadata_paths=(), publication=None, terminal_log_labels=(), pending_final_directory=None):
     need(host == HOST and type(nonce) is str and __import__("re").fullmatch("[0-9a-f]{32}", nonce), "DOMAIN")
     paths, extra, ancestors = batch_paths(rows, metadata_paths)
+    directory=None
+    if pending_final_directory is not None:
+        need(publication is None and not terminal_log_labels,"SCOPE")
+        directory=_selected_pending_directory(rows,paths,extra,ancestors,pending_final_directory)
     tc.uint(expected_uid)
     if expected_gid is not None:
         tc.uint(expected_gid)
@@ -383,14 +402,29 @@ def batch_remote_argv(rows, nonce, *, expected_uid, expected_gid=None, host=HOST
     # use Bash builtins over this session's own captured lstat snapshot.
     lines.append("[[ ${#meta[@]} -eq " + str(len(snapshot)) + " ]]")
     for i in range(len(paths)+len(extra),len(snapshot)):
+        if directory is not None and snapshot[i]==directory:
+            lines.append("if [[ -n \"${meta["+str(i)+"]}\" ]]; then")
         lines += [
             "IFS='|' read -r dev ino mode owner group links size mt ct kind <<<\"${meta[" + str(i) + "]}\"",
             "[[ \"$mode\" =~ ^[0-9a-f]+$ ]]",
             "(( (16#$mode & 0170000) == 0040000 ))",
         ]
+        if directory is not None and snapshot[i]==directory:
+            lines.append("fi")
+    if directory is not None:
+        higher=snapshot.index(directory.parent)
+        lines += ["IFS='|' read -r dev ino mode owner group links size mt ct kind <<<\"${meta["+str(higher)+"]}\"",
+                  "[[ \"$owner\" == "+str(expected_uid)+" ]]",
+                  "(( (16#$mode & 0177777) == 0040700 ))"]
+        if expected_gid is not None:lines.append("[[ \"$group\" == "+str(expected_gid)+" ]]")
+        final=snapshot.index(directory)
+        lines.append("if [[ -z \"${meta["+str(final)+"]}\" ]]; then")
+        lines += ["[[ -z \"${meta["+str(i)+"]}\" ]]" for i in range(len(paths))]
+        lines.append("fi")
     for i,row in enumerate(rows):
         maximum=row.get("bytes",row.get("maximum"))
         parent=ancestors.index(paths[i].parent)+len(paths)+len(extra)
+        if directory is not None:lines.append("if [[ -n \"${meta["+str(parent)+"]}\" ]]; then")
         lines += [
             "IFS='|' read -r dev ino mode owner group links size mt ct kind <<<\"${meta[" + str(parent) + "]}\"",
             "[[ \"$owner\" == " + str(expected_uid) + " ]]",
@@ -398,6 +432,7 @@ def batch_remote_argv(rows, nonce, *, expected_uid, expected_gid=None, host=HOST
         ]
         if expected_gid is not None:
             lines.append("[[ \"$group\" == " + str(expected_gid) + " ]]")
+        if directory is not None:lines.append("fi")
         lines.append("if [[ -n \"${meta[" + str(i) + "]}\" ]]; then")
         lines += [
             "IFS='|' read -r dev ino mode owner group links size mt ct kind <<<\"${meta[" + str(i) + "]}\"",
@@ -606,7 +641,7 @@ class _PipeReader:
 
 
 def fetch_batch(rows, target_root, control, *, expected_uid, expected_gid=None,
-                metadata_paths=(), testing_argv=None, nonce=None, publication=None, input_bytes=None, terminal_log_labels=(), pending_labels=(), keep_stdin_open=False):
+                metadata_paths=(), testing_argv=None, nonce=None, publication=None, input_bytes=None, terminal_log_labels=(), pending_labels=(), keep_stdin_open=False, pending_final_directory=None):
     """One same-domain before/content/after sequence, preserving failed prefixes."""
     paths, extras, ancestors = batch_paths(rows, metadata_paths)
     need(type(keep_stdin_open) is bool and type(pending_labels) is tuple, "SCOPE")
@@ -619,6 +654,10 @@ def fetch_batch(rows, target_root, control, *, expected_uid, expected_gid=None,
         need(len({p.parent for p in paths})==1 and all(p.name==expected_names[r["label"]]
              and len(str(p))<=1024 and __import__("re").fullmatch(r"[A-Za-z0-9_./-]+",str(p))
              for r,p in zip(rows,paths,strict=True)), "PATH")
+    directory=None
+    if pending_final_directory is not None:
+        need(bool(pending_labels) and publication is None and not terminal_log_labels,"SCOPE")
+        directory=_selected_pending_directory(rows,paths,extras,ancestors,pending_final_directory)
     need((publication is None) == (input_bytes is None), "RETENTION")
     if input_bytes is not None:
         need(type(input_bytes) is bytes and len(input_bytes) <= 65536 and len(input_bytes) == publication["bytes"], "RETENTION")
@@ -649,7 +688,7 @@ def fetch_batch(rows, target_root, control, *, expected_uid, expected_gid=None,
     cleanup_uncertain = False
     remote_complete = False
     try:
-        proc = subprocess.Popen(testing_argv if testing_argv is not None else batch_remote_argv(rows, nonce, expected_uid=expected_uid, expected_gid=expected_gid, metadata_paths=metadata_paths, publication=publication, terminal_log_labels=terminal_log_labels),
+        proc = subprocess.Popen(testing_argv if testing_argv is not None else batch_remote_argv(rows, nonce, expected_uid=expected_uid, expected_gid=expected_gid, metadata_paths=metadata_paths, publication=publication, terminal_log_labels=terminal_log_labels, pending_final_directory=pending_final_directory),
                                 stdin=subprocess.PIPE if input_bytes is not None or keep_stdin_open else subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True)
         reader = _PipeReader(proc,control,kill_at,input_bytes,bool(pending_labels))
         header = reader.line()
@@ -678,12 +717,21 @@ def fetch_batch(rows, target_root, control, *, expected_uid, expected_gid=None,
             for _ in snapshot:
                 before.append(_stat_line(reader.line()))
         need(sum(before[i][6] for i,r in enumerate(rows) if r["label"] in terminal_log_labels and before[i] is not None) <= 16*2**20, "WRITE_BYTES")
-        for info in before[len(paths)+len(extras):]:
+        selected_index=(len(paths)+len(extras)+ancestors.index(directory)) if directory is not None else None
+        selected_absent=selected_index is not None and before[selected_index] is None
+        for i,info in enumerate(before[len(paths)+len(extras):],len(paths)+len(extras)):
+            if selected_absent and i==selected_index:continue
             need(info is not None and _stat.S_ISDIR(info[2]), "ANCESTOR")
-        for path in paths:
-            parent = ancestors.index(path.parent)+len(paths)+len(extras)
-            info=before[parent]
-            need(info is not None and _stat.S_ISDIR(info[2]) and _stat.S_IMODE(info[2]) == 0o700 and info[3] == expected_uid and (expected_gid is None or info[4] == expected_gid), "PRIVATE")
+        if directory is not None:
+            higher=before[len(paths)+len(extras)+ancestors.index(directory.parent)]
+            need(higher is not None and _stat.S_ISDIR(higher[2]) and _stat.S_IMODE(higher[2])==0o700
+                 and higher[3]==expected_uid and (expected_gid is None or higher[4]==expected_gid),"PRIVATE")
+        if selected_absent:need(named_wire and all(v is None for v in before[:len(paths)]),"SOURCE_CHANGED")
+        else:
+            for path in paths:
+                parent = ancestors.index(path.parent)+len(paths)+len(extras)
+                info=before[parent]
+                need(info is not None and _stat.S_ISDIR(info[2]) and _stat.S_IMODE(info[2]) == 0o700 and info[3] == expected_uid and (expected_gid is None or info[4] == expected_gid), "PRIVATE")
         for i,(row,path) in enumerate(zip(rows,paths,strict=True)):
             phase = "CONTENT"
             info = before[i]
@@ -747,8 +795,13 @@ def fetch_batch(rows, target_root, control, *, expected_uid, expected_gid=None,
         remote_complete = True
         if named_wire:
             need(before[:len(paths)+len(extras)]==after[:len(paths)+len(extras)],"SOURCE_CHANGED")
-            need(all(value is not None for value in after[len(paths)+len(extras):])
-                 and [v[:6] for v in before[len(paths)+len(extras):]]==[v[:6] for v in after[len(paths)+len(extras):]],"ANCESTOR_CHANGED")
+            if directory is None:
+                need(all(value is not None for value in after[len(paths)+len(extras):])
+                     and [v[:6] for v in before[len(paths)+len(extras):]]==[v[:6] for v in after[len(paths)+len(extras):]],"ANCESTOR_CHANGED")
+            else:
+                for i in range(len(paths)+len(extras),len(before)):
+                    if selected_absent and i==selected_index:need(after[i] is None,"SOURCE_CHANGED")
+                    else:need(before[i] is not None and after[i] is not None and before[i][:6]==after[i][:6],"ANCESTOR_CHANGED")
         tc.check_ancestors(local_chain)
         need(tc.ident(target_root.lstat())[:5]==local_identity,"SOURCE_CHANGED")
         dfd=os.open(target_root,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW)
@@ -841,6 +894,12 @@ def fetch_batch(rows, target_root, control, *, expected_uid, expected_gid=None,
             missing = [r["label"] for i,r in enumerate(rows)
                        if i < len(before) and i < len(after) and before[i] is None and after[i] is None]
             missing_paths = [str(paths[i]) for i,r in enumerate(rows) if r["label"] in missing]
+            missing_directory=None
+            if directory is not None:
+                di=len(paths)+len(extras)+ancestors.index(directory)
+                if di<len(before) and di<len(after) and before[di] is None and after[di] is None:
+                    missing_directory=str(directory)
+                    missing_paths.append(missing_directory)
             expected_errors = b"".join(("stat: cannot statx '"+p+"': No such file or directory\n").encode("ascii") for p in missing_paths) * 2
             verified = None
             if (type(first) is tc.Stop and first.args == ("RETENTION",) and phase == "BEFORE"
@@ -849,7 +908,7 @@ def fetch_batch(rows, target_root, control, *, expected_uid, expected_gid=None,
                 and presence_before == presence_after and captured == expected_errors):
                 verified = missing
             diagnostic["pending_check"] = dict(
-                version="stage12_task_named_control_absence_v1",
+                version="stage12_task_named_control_absence_v1" if directory is None else "stage12_task_selected_pair_absence_v2",
                 verified_missing_errno_labels=verified,
                 child_pid=proc.pid if proc is not None else None,
                 child_exit=proc.poll() if proc is not None else None,
@@ -860,6 +919,9 @@ def fetch_batch(rows, target_root, control, *, expected_uid, expected_gid=None,
                 stdout_bytes=reader.stdout_bytes if reader is not None else 0,
                 keep_stdin_open=keep_stdin_open,
                 native_errno_interface="EXACT_GNU_STAT_C_LOCALE_ENOENT_ONLY_OTHER_MESSAGES_UNVERIFIED")
+            if directory is not None:
+                diagnostic["pending_check"].update(selected_final_directory=str(directory),
+                    verified_missing_final_directory=missing_directory if verified is not None else None)
         first.transport_diagnostic=diagnostic
         raise first
     need(not cleanup_uncertain,"CLOSE_UNCERTAIN")
