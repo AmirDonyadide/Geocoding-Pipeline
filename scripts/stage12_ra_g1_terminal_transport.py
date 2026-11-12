@@ -28,6 +28,15 @@ HOST = "goethe"
 # Explicit opt-in for the reviewed task-local directory identity contract.
 # Legacy callers retain directory-link-count snapshots.
 TASK_LOCAL_DIRECTORY_SCOPE = "stage12_task_local_directory_identity_v1"
+REMOTE_DIRECTORY_SCOPE = pair.REMOTE_DIRECTORY_SCOPE
+REMOTE_TRANSPORT_VERSION = pair.REMOTE_TRANSPORT_VERSION
+
+
+def _remote_scope(value):
+    need(value is None or type(value) is str and value == REMOTE_DIRECTORY_SCOPE, "SCOPE")
+    return value == REMOTE_DIRECTORY_SCOPE
+
+
 LOCAL_ANCESTRY_DIAGNOSTIC_VERSION = "stage12_task_local_ancestry_failure_v1"
 
 
@@ -270,12 +279,15 @@ def fetch_ready(
     testing_batch_command_factory=None,
     control=None,
     local_directory_scope=None,
+    remote_directory_scope=None,
 ):
     entered = time.monotonic_ns()
     epoch = time.time_ns()
     selected_local = _local_scope(local_directory_scope)
+    selected_remote = _remote_scope(remote_directory_scope)
     pair.validate_ready(ready)
-    need(not selected_local or ready["version"] == pair.SUCCESSOR_READY_VERSION, "SCOPE")
+    need((ready["version"] == pair.REMOTE_IDENTITY_READY_VERSION) == selected_remote, "SCOPE")
+    need(not selected_local or ready["version"] in (pair.SUCCESSOR_READY_VERSION, pair.REMOTE_IDENTITY_READY_VERSION), "SCOPE")
     need(pair.digest(tc.canonical(ready)) == ready_sha)
     if testing_command_factory is not None or testing_batch_command_factory is not None:
         need(ready["scope"] == pair.TEST, "SCOPE")
@@ -309,12 +321,12 @@ def fetch_ready(
         "WRITE_BYTES",
     )
     evidence = None
-    if ready["version"] == pair.SUCCESSOR_READY_VERSION:
+    if ready["version"] in (pair.SUCCESSOR_READY_VERSION, pair.REMOTE_IDENTITY_READY_VERSION):
         need(testing_command_factory is None, "SCOPE")
         test_argv = testing_batch_command_factory(ready["artifacts"]) if testing_batch_command_factory is not None else None
         evidence, _ = fetch_batch(ready["artifacts"], local_root, control,
                                   expected_uid=ready["context"]["collection_uid"], testing_argv=test_argv, nonce="1"*32 if test_argv is not None else None,
-                                  local_directory_scope=local_directory_scope)
+                                  local_directory_scope=local_directory_scope, remote_directory_scope=remote_directory_scope)
         reports = evidence["files"]
     else:
         reports = []
@@ -353,7 +365,7 @@ def fetch_ready(
         native_or_scientific_acceptance=False,
     )
     if evidence is not None:
-        result["version"] = "stage12_terminal_same_domain_bounded_transport_v2"
+        result["version"] = "stage12_terminal_remote_directory_bounded_transport_v3" if selected_remote else "stage12_terminal_same_domain_bounded_transport_v2"
         result["transport_evidence"] = evidence
     control.record(control_root / "LOCAL_TRANSPORT_RESULT.record", result)
     return receipt, result
@@ -799,9 +811,11 @@ def _publication_failure_diagnostic(reader, proc, nonce, signals, joined):
 
 
 def fetch_batch(rows, target_root, control, *, expected_uid, expected_gid=None,
-                metadata_paths=(), testing_argv=None, nonce=None, publication=None, input_bytes=None, terminal_log_labels=(), pending_labels=(), keep_stdin_open=False, pending_final_directory=None, local_directory_scope=None):
+                metadata_paths=(), testing_argv=None, nonce=None, publication=None, input_bytes=None, terminal_log_labels=(), pending_labels=(), keep_stdin_open=False, pending_final_directory=None, local_directory_scope=None, remote_directory_scope=None):
     """One same-domain before/content/after sequence, preserving failed prefixes."""
     selected_local = _local_scope(local_directory_scope)
+    selected_remote = _remote_scope(remote_directory_scope)
+    directory_fields = 5 if selected_remote else 6
     paths, extras, ancestors = batch_paths(rows, metadata_paths)
     need(type(keep_stdin_open) is bool and type(pending_labels) is tuple, "SCOPE")
     if pending_labels:
@@ -952,7 +966,7 @@ def fetch_batch(rows, target_root, control, *, expected_uid, expected_gid=None,
             row["after"]=after[i]
         if not named_wire:
             need(before[:len(paths)+len(extras)]==after[:len(paths)+len(extras)],"SOURCE_CHANGED")
-            need([v[:6] for v in before[len(paths)+len(extras):]]==[v[:6] for v in after[len(paths)+len(extras):]],"ANCESTOR_CHANGED")
+            need([v[:directory_fields] for v in before[len(paths)+len(extras):]]==[v[:directory_fields] for v in after[len(paths)+len(extras):]],"ANCESTOR_CHANGED")
         need(reader.line()==f"END|{nonce}\n".encode(),"FRAME")
         phase="JOIN"
         reader.finish()
@@ -962,11 +976,11 @@ def fetch_batch(rows, target_root, control, *, expected_uid, expected_gid=None,
             need(before[:len(paths)+len(extras)]==after[:len(paths)+len(extras)],"SOURCE_CHANGED")
             if directory is None:
                 need(all(value is not None for value in after[len(paths)+len(extras):])
-                     and [v[:6] for v in before[len(paths)+len(extras):]]==[v[:6] for v in after[len(paths)+len(extras):]],"ANCESTOR_CHANGED")
+                     and [v[:directory_fields] for v in before[len(paths)+len(extras):]]==[v[:directory_fields] for v in after[len(paths)+len(extras):]],"ANCESTOR_CHANGED")
             else:
                 for i in range(len(paths)+len(extras),len(before)):
                     if selected_absent and i==selected_index:need(after[i] is None,"SOURCE_CHANGED")
-                    else:need(before[i] is not None and after[i] is not None and before[i][:6]==after[i][:6],"ANCESTOR_CHANGED")
+                    else:need(before[i] is not None and after[i] is not None and before[i][:directory_fields]==after[i][:directory_fields],"ANCESTOR_CHANGED")
         if selected_local:
             _check_task_local_directories(local_chain, target_root, local_identity)
         else:
@@ -980,18 +994,22 @@ def fetch_batch(rows, target_root, control, *, expected_uid, expected_gid=None,
         if named_wire and (before_stat_status or after_stat_status):
             phase = "BEFORE"
             raise tc.Stop("RETENTION")
-        evidence=dict(version=BATCH_VERSION,domain_before=domain_before,domain_after=domain_after,
+        evidence=dict(version=REMOTE_TRANSPORT_VERSION if selected_remote else BATCH_VERSION,domain_before=domain_before,domain_after=domain_after,
                       ancestors=[dict(path=str(path),before=before[len(paths)+len(extras)+i],after=after[len(paths)+len(extras)+i]) for i,path in enumerate(ancestors)],
                       files=file_reports,exit_code=0,observed_joined=True)
-        pair.validate_transport_evidence(evidence)
+        if selected_remote:
+            evidence["remote_directory_scope"] = REMOTE_DIRECTORY_SCOPE
+        pair.validate_transport_evidence(evidence, remote_directory_scope=remote_directory_scope)
         control.check()
     except BaseException as error:
         first=error
         # No exception text, arbitrary path or stderr is retained.
-        diagnostic=dict(version=BATCH_VERSION,status="INCOMPLETE",first_phase=phase,
+        diagnostic=dict(version=REMOTE_TRANSPORT_VERSION if selected_remote else BATCH_VERSION,status="INCOMPLETE",first_phase=phase,
                         first_mono_ns=time.monotonic_ns(),first_epoch_ns=time.time_ns(),
                         code=pair.safe_code(error),domain_before=domain_before,domain_after=domain_after,
                         metadata_before=before,metadata_after=after,cleanup_uncertain=False)
+        if selected_remote:
+            diagnostic["remote_directory_scope"] = REMOTE_DIRECTORY_SCOPE
         local_diagnostic = getattr(error, "local_ancestry_diagnostic", None)
         if type(local_diagnostic) is dict:
             diagnostic["local_ancestry"] = local_diagnostic

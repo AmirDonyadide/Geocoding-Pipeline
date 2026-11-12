@@ -789,10 +789,20 @@ def _q_domain(value):
     need(_q_uint(value["session_pid"]) > 0)
 
 
-def _q_transfer(evidence, expected):
+REMOTE_DIRECTORY_SCOPE = "stage12_task_remote_directory_identity_v1"
+REMOTE_TRANSPORT_VERSION = "stage12_same_session_transfer_v3_remote_directory_identity"
+REMOTE_QUALIFICATION_VERSION = "stage12_terminal_collection_qualification_remote_directory_v2"
+REMOTE_READY_VERSION = "stage12_terminal_remote_directory_transport_ready_v3"
+
+
+def _q_transfer(evidence, expected, *, remote_directory_scope=None):
     import stat
-    _q_fields(evidence, "version domain_before domain_after ancestors files exit_code observed_joined")
-    need(evidence["version"] == "stage12_same_session_transfer_v2"
+    need(remote_directory_scope is None or remote_directory_scope == REMOTE_DIRECTORY_SCOPE)
+    selected = remote_directory_scope is not None
+    _q_fields(evidence, "version domain_before domain_after ancestors files exit_code observed_joined" + (" remote_directory_scope" if selected else ""))
+    if selected:
+        need(evidence["remote_directory_scope"] == REMOTE_DIRECTORY_SCOPE)
+    need(evidence["version"] == (REMOTE_TRANSPORT_VERSION if selected else "stage12_same_session_transfer_v2")
          and type(evidence["exit_code"]) is int and evidence["exit_code"] == 0 and evidence["observed_joined"] is True)
     _q_domain(evidence["domain_before"])
     _q_domain(evidence["domain_after"])
@@ -809,7 +819,7 @@ def _q_transfer(evidence, expected):
             for n in identity:
                 _q_uint(n)
             need(stat.S_ISDIR(identity[2]))
-        need(row["before"][:6] == row["after"][:6])
+        need(row["before"][:5 if selected else 6] == row["after"][:5 if selected else 6])
     need(type(evidence["files"]) is list and len(evidence["files"]) == len(expected))
     for row, target in zip(evidence["files"],expected,strict=True):
         _q_fields(row,"label path before after bytes sha256")
@@ -845,11 +855,16 @@ def _q_open(value, ready):
 
 def validate_qualification(bundle, *, expected_window, expected_original_source_git_sha,
                            expected_original_job_id, expected_original_selection_sha256,
-                           expected_collector_source_git_sha, expected_qualification_review_sha256):
+                           expected_collector_source_git_sha, expected_qualification_review_sha256,
+                           expected_remote_directory_scope=None):
     """Validate freshly read complete originals; never qualify the failed source B."""
     from safe_geocoding_pipeline.preprocessing.stages import s12_ra_g1_windows as windows
-    _q_fields(bundle,"version window review final provisional ready receipt ack terminal index transport opener")
-    need(len(_q_canonical(bundle)) <= 65536 and bundle["version"] == QUALIFICATION_VERSION)
+    need(expected_remote_directory_scope is None or expected_remote_directory_scope == REMOTE_DIRECTORY_SCOPE)
+    selected_remote = expected_remote_directory_scope is not None
+    _q_fields(bundle,"version window review final provisional ready receipt ack terminal index transport opener" + (" remote_directory_scope" if selected_remote else ""))
+    need(len(_q_canonical(bundle)) <= 65536 and bundle["version"] == (REMOTE_QUALIFICATION_VERSION if selected_remote else QUALIFICATION_VERSION))
+    if selected_remote:
+        need(bundle["remote_directory_scope"] == expected_remote_directory_scope)
     window=bundle["window"]
     need(window["scope"] == "TERMINAL_COLLECTION_NO_SERVICE")
     need({k:v for k,v in window.items() if k != "scope"} == {k:v for k,v in expected_window.items() if k != "scope"})
@@ -865,10 +880,15 @@ def validate_qualification(bundle, *, expected_window, expected_original_source_
     ready, receipt, ack = (bundle[k] for k in ("ready","receipt","ack"))
     final, provisional, terminal, index, transport, review = (bundle[k] for k in ("final","provisional","terminal","index","transport","review"))
     ctx=ready["context"]
-    need(ready["version"] == "stage12_terminal_same_domain_transport_ready_v2"
+    need(ready["version"] == (REMOTE_READY_VERSION if selected_remote else "stage12_terminal_same_domain_transport_ready_v2")
          and ready["scope"] == ctx["scope"] == "NATIVE_SYNTHETIC_TERMINAL"
          and ctx["version"] == provisional["version"] == ack["version"] == "stage12_terminal_same_domain_pair_v2"
          and ctx["collection_purpose"] == "QUALIFICATION" and ctx["window"] == window)
+    if selected_remote:
+        need(ctx.get("remote_directory_scope") == REMOTE_DIRECTORY_SCOPE
+             and ctx.get("transport_evidence_version") == REMOTE_TRANSPORT_VERSION)
+    else:
+        need("remote_directory_scope" not in ctx and "transport_evidence_version" not in ctx)
     need(ctx["original_job_id"] == expected_original_job_id
          and ctx["original_source_git_sha"] == expected_original_source_git_sha
          and ctx["original_workload_selection_sha256"] == expected_original_selection_sha256
@@ -908,16 +928,16 @@ def validate_qualification(bundle, *, expected_window, expected_original_source_
         need(value["collection_job_id"] == ctx["collection_job_id"])
     for value in (receipt,ack,final,transport):
         need(value["original_job_id"] == expected_original_job_id and value["native_or_scientific_acceptance"] is False)
-    need(transport["version"] == "stage12_terminal_same_domain_bounded_transport_v2"
+    need(transport["version"] == ("stage12_terminal_remote_directory_bounded_transport_v3" if selected_remote else "stage12_terminal_same_domain_bounded_transport_v2")
          and transport["status"] == "LOCAL_STREAMS_HASHED_AWAITING_NATIVE_ACK"
          and transport["ready_sha256"] == _q_digest(ready) and transport["receipt_sha256"] == _q_digest(receipt)
          and transport["transport_evidence"] == receipt["transport_evidence"])
-    _q_transfer(receipt["transport_evidence"],[{k:r[k] for k in ("label","path","bytes","sha256")} for r in ready["artifacts"]])
+    _q_transfer(receipt["transport_evidence"],[{k:r[k] for k in ("label","path","bytes","sha256")} for r in ready["artifacts"]], remote_directory_scope=expected_remote_directory_scope)
     need(index["version"] == "stage12_terminal_same_domain_log_copies_v2"
          and index["context_sha256"] == _q_digest(ctx)
          and terminal["end_epoch_ns"] <= index["transport_start_epoch_ns"] <= index["transport_complete_epoch_ns"] <= final["observed_complete_epoch_ns"])
     need([{k:r[k] for k in ("label","remote_path")} for r in index["logs"]] == [dict(label=r["label"],remote_path=r["path"]) for r in ctx["external_logs"]])
-    _q_transfer(index["transport_evidence"],[dict(label=r["label"],path=r["remote_path"],bytes=r["bytes"],sha256=r["sha256"]) for r in index["logs"]])
+    _q_transfer(index["transport_evidence"],[dict(label=r["label"],path=r["remote_path"],bytes=r["bytes"],sha256=r["sha256"]) for r in index["logs"]], remote_directory_scope=expected_remote_directory_scope)
     for row, evidence in zip(index["logs"],index["transport_evidence"]["files"],strict=True):
         need(row["source_identity_before"] == evidence["before"] == row["source_identity_after"] == evidence["after"])
     _q_open(receipt["whole_collection_opener"],ready)

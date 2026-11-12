@@ -327,6 +327,15 @@ COLLECTION_VERSION = "stage12_collection_first_environment_launch_gate_v1"
 COLLECTION_BINDING = "stage12_collection_first_environment_binding_v1"
 COLLECTION_POLICY = "RA_G1_COLLECTION_FIRST_ENVIRONMENT_GATE_r1"
 COLLECTION_DOCUMENT = "docs/stages/STAGE12_COLLECTION_FIRST_SUCCESSOR.md"
+# Explicit selected remote-directory identity successor; historical families above remain strict.
+REMOTE_DIRECTORY_SCOPE = "stage12_task_remote_directory_identity_v1"
+REMOTE_TRANSPORT_VERSION = "stage12_same_session_transfer_v3_remote_directory_identity"
+REMOTE_COLLECTION_VERSION = "stage12_remote_directory_collection_environment_gate_v2"
+REMOTE_COLLECTION_BINDING = "stage12_remote_directory_collection_environment_binding_v2"
+REMOTE_COLLECTION_POLICY = "RA_G1_REMOTE_DIRECTORY_COLLECTION_GATE_r2"
+REMOTE_COLLECTION_FIELDS = ("remote_directory_scope", "transport_evidence_version", "remote_directory_adoption_sha256")
+REMOTE_DIRECTORY_PROPOSAL_SHA256 = "434c18a2103be6beecd5be1e9667ca1f20b094e4e67e1d226ab6ac8e91c96ddb"
+REMOTE_DIRECTORY_INVENTORY_SHA256 = "06698e12af3e847b7d2d93b793878acc765c2b8bb93abe06cb2fa6273ff2253e"
 QUALIFICATION_MAX_BYTES = 65536
 COLLECTION_BINDING_HASHES = (*BINDING_HASHES, "window_policy_sha256", "owner_authority_sha256", "qualification_bundle_sha256", "qualification_review_sha256")
 COLLECTION_HISTORY = dict(HISTORY, historical_representative_job="1812987",
@@ -354,13 +363,32 @@ def collection_descriptor():
     return value
 
 
+def remote_collection_descriptor():
+    value = collection_descriptor()
+    value.update(version=REMOTE_COLLECTION_VERSION, policy=REMOTE_COLLECTION_POLICY,
+        remote_directory_scope=REMOTE_DIRECTORY_SCOPE, transport_evidence_version=REMOTE_TRANSPORT_VERSION,
+        remote_directory_proposal_sha256=REMOTE_DIRECTORY_PROPOSAL_SHA256,
+        remote_directory_inventory_sha256=REMOTE_DIRECTORY_INVENTORY_SHA256)
+    return value
+
+
+def collection_binding(binding):
+    return type(binding) is dict and binding.get("version") in (COLLECTION_BINDING, REMOTE_COLLECTION_BINDING)
+
+
 def validate_binding(binding, selected):
-    if type(binding) is not dict or binding.get("version") != COLLECTION_BINDING:
+    if not collection_binding(binding):
         return _validate_legacy_binding(binding, selected)
+    remote = binding["version"] == REMOTE_COLLECTION_BINDING
     windows = window_module()
-    need(set(binding) == {"version", "source_tree", *COLLECTION_BINDING_HASHES}, "RA_G1_FIELDS")
+    extra = REMOTE_COLLECTION_FIELDS if remote else ()
+    need(set(binding) == {"version", "source_tree", *COLLECTION_BINDING_HASHES, *extra}, "RA_G1_FIELDS")
+    if remote:
+        need(binding["remote_directory_scope"] == REMOTE_DIRECTORY_SCOPE
+            and binding["transport_evidence_version"] == REMOTE_TRANSPORT_VERSION
+            and is_hash(binding["remote_directory_adoption_sha256"]), "RA_G1_SELECTION_BINDING")
     need(is_hash(binding["source_tree"], 40) and all(is_hash(binding[key]) for key in COLLECTION_BINDING_HASHES))
-    need(binding["policy_sha256"] == digest(collection_descriptor()) and binding["window_policy_sha256"] == windows.digest(windows.descriptor()))
+    need(binding["policy_sha256"] == digest(remote_collection_descriptor() if remote else collection_descriptor()) and binding["window_policy_sha256"] == windows.digest(windows.descriptor()))
     need(selected.get("version") == ALLOCATION and selected.get("scope") == SCOPE, "RA_G1_AUTHORITY_REQUIRED")
     rows = selected.get("source_files")
     need(type(rows) is list and len(rows) <= 2048, "RA_G1_SOURCE_INVENTORY")
@@ -381,29 +409,31 @@ def validate_binding(binding, selected):
 
 
 def qualification_path(selected, binding):
-    need(binding.get("version") == COLLECTION_BINDING, "RA_G1_AUTHORITY_REQUIRED")
+    need(collection_binding(binding), "RA_G1_AUTHORITY_REQUIRED")
     return gate_path(selected, binding["qualification_bundle_sha256"]).parent / (binding["qualification_bundle_sha256"] + ".collection-qualification.record")
 
 
 def allowed_original_paths(selected, binding, identity):
     paths = [gate_path(selected, identity)]
-    if binding["version"] == COLLECTION_BINDING:
+    if collection_binding(binding):
         paths.append(qualification_path(selected, binding))
     return tuple(paths)
 
 
 def validate_gate(gate, selected, binding, *, now_epoch_ns, qualification=None, qualification_validator=None):
-    if type(binding) is not dict or binding.get("version") != COLLECTION_BINDING:
+    if not collection_binding(binding):
         need(qualification is None and qualification_validator is None, "RA_G1_AUTHORITY_REQUIRED")
         return _validate_legacy_gate(gate, selected, binding, now_epoch_ns=now_epoch_ns)
     validate_binding(binding, selected)
+    remote = binding["version"] == REMOTE_COLLECTION_BINDING
+    extra = REMOTE_COLLECTION_FIELDS if remote else ()
     windows = window_module()
-    keys = {"version", "scope", "state", "source_git_sha", "source_tree", "valid_from", "valid_until", "outer_window_end", "grant_kind", "maximum_submissions", "task_profiling", "budget", "history", "window", *GATE_HASHES, *COLLECTION_BINDING_HASHES}
+    keys = {"version", "scope", "state", "source_git_sha", "source_tree", "valid_from", "valid_until", "outer_window_end", "grant_kind", "maximum_submissions", "task_profiling", "budget", "history", "window", *GATE_HASHES, *COLLECTION_BINDING_HASHES, *extra}
     need(type(gate) is dict and set(gate) == keys, "RA_G1_FIELDS")
-    need(gate["version"] == COLLECTION_VERSION and gate["scope"] == SCOPE
+    need(gate["version"] == (REMOTE_COLLECTION_VERSION if remote else COLLECTION_VERSION) and gate["scope"] == SCOPE
         and gate["state"] == "ISSUED_FOR_COLLECTION_QUALIFIED_ONE_FRESH_REP", "RA_G1_AUTHORITY_REQUIRED")
     need(all(is_hash(gate[key]) for key in (*GATE_HASHES, *COLLECTION_BINDING_HASHES)))
-    need(all(gate[key] == binding[key] for key in (*COLLECTION_BINDING_HASHES, "source_tree")))
+    need(all(gate[key] == binding[key] for key in (*COLLECTION_BINDING_HASHES, "source_tree", *extra)))
     actual_selection = selection_digest(selected)
     need(gate["source_git_sha"] == selected["source_sha"] and is_hash(gate["source_git_sha"], 40)
         and gate["selection_sha256"] == actual_selection
@@ -422,10 +452,11 @@ def validate_gate(gate, selected, binding, *, now_epoch_ns, qualification=None, 
         and window["grant_nonce"] == binding["grant_nonce"] and window["owner_authority_sha256"] == binding["owner_authority_sha256"])
     need(type(qualification) is dict and digest(qualification) == binding["qualification_bundle_sha256"], "RA_G1_COLLECTION_QUALIFICATION_REQUIRED")
     need(callable(qualification_validator), "RA_G1_COLLECTION_QUALIFICATION_REQUIRED")
+    qualification_options = {"expected_remote_directory_scope": REMOTE_DIRECTORY_SCOPE} if remote else {}
     qualification_validator(qualification, expected_window=dict(window, scope="TERMINAL_COLLECTION_NO_SERVICE"),
         expected_original_source_git_sha=windows.ORIGINAL_SOURCE, expected_original_job_id=int(windows.ORIGINAL_JOB),
         expected_original_selection_sha256=windows.ORIGINAL_SELECTION,
-        expected_collector_source_git_sha=selected["source_sha"], expected_qualification_review_sha256=binding["qualification_review_sha256"])
+        expected_collector_source_git_sha=selected["source_sha"], expected_qualification_review_sha256=binding["qualification_review_sha256"], **qualification_options)
     return dict(status="COLLECTION_QUALIFIED_ENVIRONMENT_DIAGNOSTIC_ELIGIBLE_NOT_NATIVE_QUALIFIED",
         gate_sha256=digest(gate), selection_sha256=actual_selection,
         resource_selection_sha256=selected["resource_selection_sha256"], policy_sha256=binding["policy_sha256"],
@@ -490,7 +521,7 @@ def validate_original_gate(run):
     need(hashlib.sha256(raw).hexdigest() == identity, "RA_G1_ORIGINAL_CHANGED")
     # Use the actual production canonical parser rather than a parallel permissive one.
     gate = run.environment_gate_parser(raw)
-    if binding["version"] == COLLECTION_BINDING:
+    if collection_binding(binding):
         qualification_raw = run.original(qualification_path(run.s, binding), limit=QUALIFICATION_MAX_BYTES)
         need(hashlib.sha256(qualification_raw).hexdigest() == binding["qualification_bundle_sha256"], "RA_G1_ORIGINAL_CHANGED")
         qualification = run.environment_gate_parser(qualification_raw)

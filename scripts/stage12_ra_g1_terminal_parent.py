@@ -40,6 +40,12 @@ ONESHOT_ADMISSION_VERSION = "stage12_collection_oneshot_admission_v1"
 SELECTED_PAIR_ADMISSION_VERSION = "stage12_collection_selected_pair_admission_v2"
 NONWAITING_ADMISSION_VERSION = "stage12_collection_nonwaiting_admission_v3"
 NONWAITING_PAIR_CONTROL_VERSION = "stage12_task_oneshot_nonwaiting_selected_pair_v3"
+REMOTE_DIRECTORY_SCOPE = "stage12_task_remote_directory_identity_v1"
+REMOTE_TRANSPORT_VERSION = "stage12_same_session_transfer_v3_remote_directory_identity"
+REMOTE_IDENTITY_ADMISSION_VERSION = "stage12_collection_nonwaiting_remote_directory_admission_v4"
+REMOTE_IDENTITY_PAIR_CONTROL_VERSION = "stage12_task_oneshot_nonwaiting_remote_directory_v4"
+REMOTE_IDENTITY_READY_VERSION = "stage12_terminal_remote_directory_transport_ready_v3"
+REMOTE_IDENTITY_OBSERVER_VERSION = "stage12_task_oneshot_remote_directory_v3"
 NONWAITING_TERMINAL_VERSION = "stage12_nonwaiting_submission_terminal_v1"
 SELECTED_PAIR_CONTROL_VERSION = "stage12_task_oneshot_selected_pair_v2"
 SELECTED_PAIR_DIRECTORY_RULE = "SELECTED_FINAL_DIRECTORY_ENOENT_V1"
@@ -66,6 +72,13 @@ NONWAITING_PAIR_CONTROL_LIMITS = tuple(
            "callback_inclusive_write_bytes": 6045696}.get(key, expected))
     for key, expected in SELECTED_PAIR_CONTROL_LIMITS
 ) + (("readiness_reader_version", SELECTED_PAIR_CONTROL_VERSION),)
+REMOTE_IDENTITY_PAIR_CONTROL_LIMITS = tuple(
+    (key, {"version": REMOTE_IDENTITY_PAIR_CONTROL_VERSION,
+           "readiness_reader_version": REMOTE_IDENTITY_OBSERVER_VERSION}.get(key, expected))
+    for key, expected in NONWAITING_PAIR_CONTROL_LIMITS
+) + (("remote_directory_scope", REMOTE_DIRECTORY_SCOPE),
+     ("transport_evidence_version", REMOTE_TRANSPORT_VERSION))
+
 NONWAITING_TERMINAL_LIMITS = (
     ("version", NONWAITING_TERMINAL_VERSION),
     ("maximum_queries", 16), ("normal_query_slots", 13),
@@ -86,7 +99,7 @@ SUCCESSOR_CONTEXT_FIELDS = "window collection_purpose original_source_root origi
 
 
 def family_end(value):
-    if value.get("version") in (SUCCESSOR_VERSION, SUCCESSOR_READY_VERSION):
+    if value.get("version") in (SUCCESSOR_VERSION, SUCCESSOR_READY_VERSION, REMOTE_IDENTITY_READY_VERSION):
         from safe_geocoding_pipeline.preprocessing.stages import s12_ra_g1_windows as windows
         return windows.epoch_ns(windows.WINDOW_END)
     return WINDOW_END_NS
@@ -558,10 +571,11 @@ def validate_binding(binding, offline, test_root):
                  and binding["valid_until_epoch_ns"] == windows.epoch_ns(windows.WINDOW_END), "BINDING")
 
 
-def validate_oneshot_control_policy(policy, *, selected_remote_pair=None, nonwaiting=False):
+def validate_oneshot_control_policy(policy, *, selected_remote_pair=None, nonwaiting=False, remote_directory_scope=None):
     """Closed historical or explicitly selected final-directory successor."""
     selected = selected_remote_pair is not None
-    limits = NONWAITING_PAIR_CONTROL_LIMITS if nonwaiting else SELECTED_PAIR_CONTROL_LIMITS if selected else ONESHOT_CONTROL_LIMITS
+    need(remote_directory_scope is None or remote_directory_scope == REMOTE_DIRECTORY_SCOPE and nonwaiting and selected, "AUTHORITY")
+    limits = REMOTE_IDENTITY_PAIR_CONTROL_LIMITS if remote_directory_scope is not None else NONWAITING_PAIR_CONTROL_LIMITS if nonwaiting else SELECTED_PAIR_CONTROL_LIMITS if selected else ONESHOT_CONTROL_LIMITS
     fields(policy, " ".join(key for key,_ in limits)
            + " " + " ".join(key for _,key in ONESHOT_SOURCE_FIELDS)
            + (" selected_remote_pair" if selected else ""), "AUTHORITY")
@@ -590,11 +604,12 @@ def validate_nonwaiting_terminal_policy(policy):
 
 
 def validate_collection_admission(value, binding, authority, offline):
-    nonwaiting = type(value) is dict and value.get("version") == NONWAITING_ADMISSION_VERSION
-    selected_pair = type(value) is dict and value.get("version") in (SELECTED_PAIR_ADMISSION_VERSION, NONWAITING_ADMISSION_VERSION)
-    oneshot = type(value) is dict and value.get("version") in (ONESHOT_ADMISSION_VERSION, SELECTED_PAIR_ADMISSION_VERSION, NONWAITING_ADMISSION_VERSION)
+    remote_identity = type(value) is dict and value.get("version") == REMOTE_IDENTITY_ADMISSION_VERSION
+    nonwaiting = type(value) is dict and value.get("version") in (NONWAITING_ADMISSION_VERSION, REMOTE_IDENTITY_ADMISSION_VERSION)
+    selected_pair = type(value) is dict and value.get("version") in (SELECTED_PAIR_ADMISSION_VERSION, NONWAITING_ADMISSION_VERSION, REMOTE_IDENTITY_ADMISSION_VERSION)
+    oneshot = type(value) is dict and value.get("version") in (ONESHOT_ADMISSION_VERSION, SELECTED_PAIR_ADMISSION_VERSION, NONWAITING_ADMISSION_VERSION, REMOTE_IDENTITY_ADMISSION_VERSION)
     fields(value, "version scope state source_git_sha original_job_id original_source_git_sha original_selection_sha256 original_source_root allocation_producer_sha256 historical_collection_sha256 window grant_nonce collection_purpose helper_sha256 parent_sha256 verifier_sha256 collection_plan_sha256 collection_review_sha256 software_review_sha256 process_graph_sha256 maximum_preparation_and_native_processes max_collection_jobs max_collection_seconds collection_pool_bytes collection_pool_creations control_pool_bytes B_authorized public_authorized protected_authorized scientific_acceptance" + (" one_shot_control_policy" if oneshot else "") + (" submission_terminal_policy" if nonwaiting else ""), "AUTHORITY")
-    need(value["version"] in ("stage12_collection_only_admission_v1", ONESHOT_ADMISSION_VERSION, SELECTED_PAIR_ADMISSION_VERSION, NONWAITING_ADMISSION_VERSION) and value["scope"] == "TERMINAL_COLLECTION_NO_SERVICE"
+    need(value["version"] in ("stage12_collection_only_admission_v1", ONESHOT_ADMISSION_VERSION, SELECTED_PAIR_ADMISSION_VERSION, NONWAITING_ADMISSION_VERSION, REMOTE_IDENTITY_ADMISSION_VERSION) and value["scope"] == "TERMINAL_COLLECTION_NO_SERVICE"
          and value["state"] == ("TEST_ONLY" if offline else "ISSUED"), "AUTHORITY")
     for key in ("source_git_sha","original_job_id","original_source_git_sha","original_selection_sha256","original_source_root",
                 "allocation_producer_sha256","window","grant_nonce","helper_sha256","parent_sha256","verifier_sha256","collection_purpose"):
@@ -610,7 +625,7 @@ def validate_collection_admission(value, binding, authority, offline):
          and value["maximum_preparation_and_native_processes"] == (384 if nonwaiting else 228 if selected_pair else 208 if oneshot else 69), "AUTHORITY")
     if oneshot:
         policy = value["one_shot_control_policy"]
-        validate_oneshot_control_policy(policy, selected_remote_pair=binding["output_path"] if selected_pair else None, nonwaiting=nonwaiting)
+        validate_oneshot_control_policy(policy, selected_remote_pair=binding["output_path"] if selected_pair else None, nonwaiting=nonwaiting, remote_directory_scope=REMOTE_DIRECTORY_SCOPE if remote_identity else None)
     if nonwaiting:
         validate_nonwaiting_terminal_policy(value["submission_terminal_policy"])
     need(all(value[key] is False for key in ("B_authorized","public_authorized","protected_authorized","scientific_acceptance")), "SCOPE")
@@ -1038,10 +1053,10 @@ def run_pair(
     if binding["version"] == SUCCESSOR_VERSION:
         admission = load_control(Path(binding["collection_admission_path"]), authority["collection_admission_sha256"], control)
         validate_collection_admission(admission, binding, authority, offline)
-        if admission["version"] in (ONESHOT_ADMISSION_VERSION, SELECTED_PAIR_ADMISSION_VERSION, NONWAITING_ADMISSION_VERSION):
+        if admission["version"] in (ONESHOT_ADMISSION_VERSION, SELECTED_PAIR_ADMISSION_VERSION, NONWAITING_ADMISSION_VERSION, REMOTE_IDENTITY_ADMISSION_VERSION):
             for filename, key in ONESHOT_SOURCE_FIELDS:
                 source_hash(parent.with_name(filename), admission["one_shot_control_policy"][key], control)
-        if admission["version"] == NONWAITING_ADMISSION_VERSION:
+        if admission["version"] in (NONWAITING_ADMISSION_VERSION, REMOTE_IDENTITY_ADMISSION_VERSION):
             source_hash(parent.with_name("stage12_ra_g1_nonwaiting_submit.py"),
                         admission["submission_terminal_policy"]["module_sha256"], control)
     original_selection, original_producer = load_control_large(
@@ -1100,6 +1115,8 @@ def run_pair(
         external_logs=binding["collection_external_logs"],
         native_or_scientific_acceptance=False,
     )
+    if binding["version"] == SUCCESSOR_VERSION and admission["version"] == REMOTE_IDENTITY_ADMISSION_VERSION:
+        sourceinfo.update(remote_directory_scope=REMOTE_DIRECTORY_SCOPE, transport_evidence_version=REMOTE_TRANSPORT_VERSION)
     if binding["version"] == SUCCESSOR_VERSION:
         sourceinfo.update(version=SUCCESSOR_VERSION, window=binding["window"], collection_purpose=binding["collection_purpose"], original_source_root=binding["original_source_root"], original_producer_path=binding["original_producer_path"], original_producer_sha256=binding["allocation_producer_sha256"])
     control.record(output / "PAIR_CONTEXT.record", sourceinfo)
@@ -1333,7 +1350,7 @@ def run_pair(
             dict(label="verification", path=str(verification_path), **proof_hash)
         )
         ready = dict(
-            version=SUCCESSOR_READY_VERSION if binding["version"] == SUCCESSOR_VERSION else READY_VERSION,
+            version=REMOTE_IDENTITY_READY_VERSION if sourceinfo.get("remote_directory_scope") == REMOTE_DIRECTORY_SCOPE else SUCCESSOR_READY_VERSION if binding["version"] == SUCCESSOR_VERSION else READY_VERSION,
             scope=binding["scope"],
             context=sourceinfo,
             artifacts=artifacts,
@@ -1471,9 +1488,20 @@ def validate_transport_domain(value):
     tc.uint(value["session_pid"], True)
 
 
-def validate_transport_evidence(evidence, ready=None):
-    fields(evidence, "version domain_before domain_after ancestors files exit_code observed_joined", "DOMAIN")
-    need(evidence["version"] == "stage12_same_session_transfer_v2" and evidence["exit_code"] == 0
+def validate_transport_evidence(evidence, ready=None, *, remote_directory_scope=None):
+    if ready is not None and ready.get("version") == REMOTE_IDENTITY_READY_VERSION:
+        need(remote_directory_scope in (None, REMOTE_DIRECTORY_SCOPE), "DOMAIN")
+        remote_directory_scope = ready["context"].get("remote_directory_scope")
+        need(remote_directory_scope == REMOTE_DIRECTORY_SCOPE
+             and ready["context"].get("transport_evidence_version") == REMOTE_TRANSPORT_VERSION, "DOMAIN")
+    need(remote_directory_scope is None or remote_directory_scope == REMOTE_DIRECTORY_SCOPE, "DOMAIN")
+    selected = remote_directory_scope is not None
+    if ready is not None:
+        need((ready.get("version") == REMOTE_IDENTITY_READY_VERSION) == selected, "DOMAIN")
+    fields(evidence, "version domain_before domain_after ancestors files exit_code observed_joined" + (" remote_directory_scope" if selected else ""), "DOMAIN")
+    if selected:
+        need(evidence["remote_directory_scope"] == REMOTE_DIRECTORY_SCOPE, "DOMAIN")
+    need(evidence["version"] == (REMOTE_TRANSPORT_VERSION if selected else "stage12_same_session_transfer_v2") and evidence["exit_code"] == 0
          and type(evidence["exit_code"]) is int and evidence["observed_joined"] is True, "CHILD_EXIT")
     validate_transport_domain(evidence["domain_before"])
     validate_transport_domain(evidence["domain_after"])
@@ -1491,7 +1519,7 @@ def validate_transport_evidence(evidence, ready=None):
             for n in value:
                 tc.uint(n)
             need(stat.S_ISDIR(value[2]), "ANCESTOR")
-        need(row["before"][:6] == row["after"][:6], "ANCESTOR_CHANGED")
+        need(row["before"][:5 if selected else 6] == row["after"][:5 if selected else 6], "ANCESTOR_CHANGED")
     need(type(evidence["files"]) is list and 1 <= len(evidence["files"]) <= 16, "FRAME")
     labels, paths = set(), set()
     for row in evidence["files"]:
@@ -1712,13 +1740,13 @@ def open_retained_archive(ready, local_root, control):
 
 
 def validate_ready(ready):
-    successor = ready.get("version") == SUCCESSOR_READY_VERSION
+    successor = ready.get("version") in (SUCCESSOR_READY_VERSION, REMOTE_IDENTITY_READY_VERSION)
     fields(
         ready,
         "version scope context artifacts parent_controls_byte_limit local_retention_byte_limit local_receipt_path native_or_scientific_acceptance" + (" collection_selection" if successor else ""),
     )
     need(
-        ready["version"] in (READY_VERSION, SUCCESSOR_READY_VERSION)
+        ready["version"] in (READY_VERSION, SUCCESSOR_READY_VERSION, REMOTE_IDENTITY_READY_VERSION)
         and ready["scope"] in (TEST, NATIVE)
         and ready["native_or_scientific_acceptance"] is False,
         "RETENTION",
@@ -1759,10 +1787,10 @@ def validate_ready(ready):
         "RETENTION",
     )
     context = ready["context"]
-    successor = ready["version"] == SUCCESSOR_READY_VERSION
+    successor = ready["version"] in (SUCCESSOR_READY_VERSION, REMOTE_IDENTITY_READY_VERSION)
     fields(
         context,
-        "version status scope original_job_id collection_job_id original_source_git_sha collection_source_git_sha original_workload_selection_sha256 collection_uid original_scheduler_state original_exit_code original_signal original_scheduler_sha256 selection_sha256 binding_sha256 authority_sha256 entry_mono_ns entry_epoch_ns overall_deadline_epoch_ns parent_deadline_epoch_ns external_logs native_or_scientific_acceptance" + (" " + SUCCESSOR_CONTEXT_FIELDS if successor else ""),
+        "version status scope original_job_id collection_job_id original_source_git_sha collection_source_git_sha original_workload_selection_sha256 collection_uid original_scheduler_state original_exit_code original_signal original_scheduler_sha256 selection_sha256 binding_sha256 authority_sha256 entry_mono_ns entry_epoch_ns overall_deadline_epoch_ns parent_deadline_epoch_ns external_logs native_or_scientific_acceptance" + (" " + SUCCESSOR_CONTEXT_FIELDS if successor else "") + (" remote_directory_scope transport_evidence_version" if ready["version"] == REMOTE_IDENTITY_READY_VERSION else ""),
         "RETENTION",
     )
     need(
@@ -1771,6 +1799,9 @@ def validate_ready(ready):
         and context["native_or_scientific_acceptance"] is False,
         "RETENTION",
     )
+    if ready["version"] == REMOTE_IDENTITY_READY_VERSION:
+        need(context["remote_directory_scope"] == REMOTE_DIRECTORY_SCOPE
+             and context["transport_evidence_version"] == REMOTE_TRANSPORT_VERSION, "DOMAIN")
     for key in [
         "original_job_id",
         "collection_job_id",
@@ -1800,7 +1831,7 @@ def validate_ready(ready):
 
 
 def validate_receipt(receipt, ready, ready_sha):
-    successor = ready["version"] == SUCCESSOR_READY_VERSION
+    successor = ready["version"] in (SUCCESSOR_READY_VERSION, REMOTE_IDENTITY_READY_VERSION)
     fields(
         receipt,
         "version scope ready_sha256 original_job_id collection_job_id selection_sha256 artifacts local_root local_root_identity local_start_epoch_ns local_complete_epoch_ns actual_read_bytes actual_read_calls native_or_scientific_acceptance" + (" transport_evidence whole_collection_opener" if successor else ""),
@@ -1893,7 +1924,7 @@ def verify_retention(
     validate_ready(ready)
     need(digest(tc.canonical(ready)) == ready_sha, "RETENTION")
     ctx = ready["context"]
-    if ready["version"] == SUCCESSOR_READY_VERSION:
+    if ready["version"] in (SUCCESSOR_READY_VERSION, REMOTE_IDENTITY_READY_VERSION):
         need(ready["collection_selection"] is not None, "BINDING")
     if control is None:
         control = Control(entered_mono, ctx["parent_deadline_epoch_ns"], 900)
@@ -1918,7 +1949,7 @@ def verify_retention(
     opener = None
     for row in ready["artifacts"]:
         path = local_root / (row["label"] + ".original")
-        if ready["version"] == SUCCESSOR_READY_VERSION and row["label"] == "archive":
+        if ready["version"] in (SUCCESSOR_READY_VERSION, REMOTE_IDENTITY_READY_VERSION) and row["label"] == "archive":
             got, opener = open_retained_archive(ready, local_root, control)
         else:
             got = hash_original(path, control, row["bytes"])
@@ -1932,7 +1963,7 @@ def verify_retention(
             )
         )
     receipt = dict(
-        version=SUCCESSOR_RECEIPT_VERSION if ready["version"] == SUCCESSOR_READY_VERSION else RECEIPT_VERSION,
+        version=SUCCESSOR_RECEIPT_VERSION if ready["version"] in (SUCCESSOR_READY_VERSION, REMOTE_IDENTITY_READY_VERSION) else RECEIPT_VERSION,
         scope=ready["scope"],
         ready_sha256=ready_sha,
         original_job_id=ctx["original_job_id"],
@@ -1947,7 +1978,7 @@ def verify_retention(
         actual_read_calls=control.read_calls,
         native_or_scientific_acceptance=False,
     )
-    if ready["version"] == SUCCESSOR_READY_VERSION:
+    if ready["version"] in (SUCCESSOR_READY_VERSION, REMOTE_IDENTITY_READY_VERSION):
         receipt["transport_evidence"] = transport_evidence
         receipt["whole_collection_opener"] = opener
     validate_receipt(receipt, ready, ready_sha)
@@ -1970,7 +2001,7 @@ def verify_local_retained(ready, receipt, retained_root, control):
     )
     opener = None
     for expected, stored in zip(ready["artifacts"], receipt["artifacts"], strict=True):
-        if ready["version"] == SUCCESSOR_READY_VERSION and expected["label"] == "archive":
+        if ready["version"] in (SUCCESSOR_READY_VERSION, REMOTE_IDENTITY_READY_VERSION) and expected["label"] == "archive":
             current, opener = open_retained_archive(ready, root, control)
         else:
             current = hash_original(root / (expected["label"] + ".original"), control, expected["bytes"])
@@ -2183,7 +2214,7 @@ def verify_final_logs(
         observed_complete_epoch_ns=time.time_ns(),
     )
     if ctx["version"] == SUCCESSOR_VERSION:
-        validate_transport_evidence(index["transport_evidence"])
+        validate_transport_evidence(index["transport_evidence"], remote_directory_scope=ctx.get("remote_directory_scope"))
         need([{k:r[k] for k in ("label","path","bytes","sha256")} for r in index["transport_evidence"]["files"]] == [dict(label=r["label"],path=r["remote_path"],bytes=r["bytes"],sha256=r["sha256"]) for r in index["logs"]], "FINAL_LOGS")
         result["whole_collection_opener"] = opener
         result["collection_source_git_sha"] = ctx["collection_source_git_sha"]
@@ -2259,7 +2290,7 @@ def main(argv=None):
             )
         elif args.action == "verify-retention":
             ready = load_control(args.ready, args.ready_sha256, bootstrap)
-            need(args.same_domain_successor == (ready.get("version") == SUCCESSOR_READY_VERSION), "SCOPE")
+            need(args.same_domain_successor == (ready.get("version") in (SUCCESSOR_READY_VERSION, REMOTE_IDENTITY_READY_VERSION)), "SCOPE")
             result = verify_retention(
                 ready,
                 args.ready_sha256,

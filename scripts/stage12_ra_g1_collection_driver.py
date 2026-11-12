@@ -2,9 +2,10 @@
 import hashlib,os,stat,subprocess,time,types,sys
 if sys.flags.optimize!=0:raise RuntimeError("CONTROLLER_OPTIMIZATION_UNSUPPORTED")
 
-def validate_prelude(raw,rows,ancestors,transport,uid,gid):
+def validate_prelude(raw,rows,ancestors,transport,uid,gid,*,remote_directory_scope=None):
  lines=raw.splitlines(keepends=True); n=len(rows)+len(ancestors)
- assert len(raw)<=32768 and len(lines)==n+len(rows)+2 and lines[0]==b"BEFORE\n"
+ selected_remote=transport._remote_scope(remote_directory_scope)
+ assert len(raw)<=32768 and len(lines)==(2*n+len(rows)+4 if selected_remote else n+len(rows)+2) and lines[0]==b"BEFORE\n"
  ids=[transport._stat_line(v) for v in lines[1:1+n]]
  for info,row in zip(ids[:len(rows)],rows,strict=True):
   assert stat.S_ISREG(info[2]) and stat.S_IMODE(info[2])==0o600 and info[3:6]==[uid,gid,1] and info[6]==row["bytes"]
@@ -14,6 +15,13 @@ def validate_prelude(raw,rows,ancestors,transport,uid,gid):
   assert stat.S_IMODE(info[2])==0o700 and info[3:5]==[uid,gid]
  assert lines[1+n:1+n+len(rows)]==[(r["path"]+": OK\n").encode() for r in rows]
  assert lines[-1]==b"S12_CANONICAL_BINDINGS_AND_SOURCE_VERIFIED\n"
+ if selected_remote:
+  after_at=1+n+len(rows)
+  assert lines[after_at]==b"AFTER\n"
+  after=[transport._stat_line(v) for v in lines[after_at+1:after_at+1+n]]
+  assert lines[-2]==("REMOTE_DIRECTORY_POLICY|"+remote_directory_scope+"\n").encode()
+  assert after[:len(rows)]==ids[:len(rows)]
+  assert [v[:5] for v in after[len(rows):]]==[v[:5] for v in ids[len(rows):]]
  return ids
 
 class SubmissionStreams:
@@ -55,8 +63,9 @@ class SubmissionStreams:
 
 
 class OrdinarySubmissionStreams:
- def __init__(self,proc,files,owner,module,nonce,epoch,seconds,rows,ancestors,transport,uid,gid,record):
+ def __init__(self,proc,files,owner,module,nonce,epoch,seconds,rows,ancestors,transport,uid,gid,record,*,remote_directory_scope=None):
   self.proc=proc;self.files=files;self.owner=owner;self.module=module;self.nonce=nonce;self.epoch=epoch;self.seconds=seconds;self.rows=rows;self.ancestors=ancestors;self.transport=transport;self.uid=uid;self.gid=gid;self.record=record
+  self.remote_directory_scope=remote_directory_scope
   self.offset={k:0 for k in files};self.raw=bytearray();self.parser=None;self.prelude_ids=None;self.recorded=False;self.busy=False;self.next_pump=0;self.finished=False;self.facts=None
  def pump(self,force=False):
   if self.busy or self.finished:return
@@ -75,7 +84,7 @@ class OrdinarySubmissionStreams:
        p=self.raw.find(self.module.SUBMIT_MARKER)
        if p>=0:
         assert p==0 or self.raw[p-1]==10
-        prefix=bytes(self.raw[:p]);self.prelude_ids=validate_prelude(prefix,self.rows,self.ancestors,self.transport,self.uid,self.gid)
+        prefix=bytes(self.raw[:p]);self.prelude_ids=validate_prelude(prefix,self.rows,self.ancestors,self.transport,self.uid,self.gid,remote_directory_scope=self.remote_directory_scope)
         self.parser=self.module.SubmitParser(self.nonce,self.epoch,self.seconds,expected_prelude=prefix);self.parser.feed(bytes(self.raw))
        else:assert len(self.raw)<=32768
       else:self.parser.feed(raw)
@@ -141,13 +150,24 @@ def load_verified_admission(plan, command, overall, pair, transport, observer, *
  pair.need(binding["authority_sha256"]==command["authority_sha256"]
            and authority["collection_admission_sha256"]==command["admission_sha256"], "AUTHORITY")
  pair.validate_collection_admission(admission,binding,authority,False)
- pair.need(admission["version"]==(pair.NONWAITING_ADMISSION_VERSION if nonwaiting_module is not None else pair.SELECTED_PAIR_ADMISSION_VERSION), "AUTHORITY")
+ selected_remote = plan.get("remote_directory_scope") is not None
+ pair.need(not selected_remote or nonwaiting_module is not None
+           and plan["remote_directory_scope"] == transport.REMOTE_DIRECTORY_SCOPE
+           and plan.get("transport_evidence_version") == transport.REMOTE_TRANSPORT_VERSION, "BINDING")
+ pair.need(selected_remote or "transport_evidence_version" not in plan, "BINDING")
+ pair.need((command.get("version") == "stage12_selected_pair_remote_directory_exact_commands_v3") == selected_remote, "BINDING")
+ pair.need(command.get("remote_directory_scope") == plan.get("remote_directory_scope")
+           and command.get("transport_evidence_version") == plan.get("transport_evidence_version"), "BINDING")
+ pair.need(admission["version"]==(pair.REMOTE_IDENTITY_ADMISSION_VERSION if selected_remote else pair.NONWAITING_ADMISSION_VERSION if nonwaiting_module is not None else pair.SELECTED_PAIR_ADMISSION_VERSION), "AUTHORITY")
  pair.need(plan["remote_pair"]==binding["output_path"], "BINDING")
  for key in ("source_git_sha","original_source_git_sha","original_source_root",
              "original_producer_path","allocation_producer_sha256"):
   pair.need(binding[key]==plan[key], "BINDING")
  pair.need(binding["original_selection_sha256"]==command["original_selection_sha256"], "BINDING")
  policy=admission["one_shot_control_policy"]
+ if selected_remote:
+  pair.need(policy["remote_directory_scope"] == plan["remote_directory_scope"]
+            and policy["transport_evidence_version"] == plan["transport_evidence_version"], "BINDING")
  modules=((Path(observer.__file__).absolute(),"stage12_ra_g1_one_shot_controls.py","one_shot_controls_sha256"),
           (Path(__file__).absolute(),"stage12_ra_g1_collection_driver.py","collection_driver_sha256"),
           (Path(transport.__file__).absolute(),"stage12_ra_g1_terminal_transport.py","transport_sha256"))
@@ -210,7 +230,7 @@ def _execute(plan,command,rows,ancestors,base,modules,observer,wait_module,hando
   policy=actual_admission["one_shot_control_policy"]
   expected_task_selection={key:policy[key] for key in ("version","maximum_probes","probe_seconds","minimum_start_spacing_seconds","spacing_anchor","maximum_process_units","directory_readiness","selected_remote_pair")}
   assert command["task_control_selection"] == expected_task_selection
-  assert observer.VERSION==(policy["readiness_reader_version"] if nonwaiting else policy["version"]) and policy["selected_remote_pair"]==plan["remote_pair"]
+  assert (observer.REMOTE_VERSION if plan.get("remote_directory_scope") is not None else observer.VERSION)==(policy["readiness_reader_version"] if nonwaiting else policy["version"]) and policy["selected_remote_pair"]==plan["remote_pair"]
   for label in ("stdout","stderr"):
    path=base/("submission."+label+".raw");fd=os.open(path,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600);fds[label]=(fd,path);readfd=os.open(path,os.O_RDONLY|os.O_NOFOLLOW);assert os.fstat(readfd).st_ino==os.fstat(fd).st_ino and os.fstat(readfd).st_dev==os.fstat(fd).st_dev;readers[label]=(readfd,path)
   record("EXECUTION_ENTRY.record",dict(entry_mono_ns=started,entry_epoch_ns=epoch,role_deadline_mono_ns=overall.end,window_end_epoch_ns=overall.epoch_end,source=plan["source_git_sha"],nonce=command["nonce"],actual_admission_sha256=command["admission_sha256"],actual_admission_version=actual_admission["version"],actual_admission_process_cap=actual_admission["maximum_preparation_and_native_processes"]))
@@ -220,7 +240,7 @@ def _execute(plan,command,rows,ancestors,base,modules,observer,wait_module,hando
   proc=subprocess.Popen(command["submit_argv"],stdin=subprocess.DEVNULL,stdout=fds["stdout"][0],stderr=fds["stderr"][0],start_new_session=True)
   record("SUBMISSION_CLIENT_IDENTITY.record",dict(pid=proc.pid,pgid=os.getpgid(proc.pid),entry_mono_ns=time.monotonic_ns(),one_submission_only=True))
   handles["submission"]=proc;handles["source_entry_mono_ns"]=started;handles["source_end_mono_ns"]=overall.end
-  streams=(OrdinarySubmissionStreams if nonwaiting else SubmissionStreams)(proc,readers,overall,wait_module,command["nonce"],command["selected_original_submission_epoch_ceiling"],1800,rows,ancestors,transport,plan["source_uid"],plan["source_gid"],record)
+  streams=(OrdinarySubmissionStreams if nonwaiting else SubmissionStreams)(proc,readers,overall,wait_module,command["nonce"],command["selected_original_submission_epoch_ceiling"],1800,rows,ancestors,transport,plan["source_uid"],plan["source_gid"],record,**({"remote_directory_scope":plan.get("remote_directory_scope")} if nonwaiting else {}))
   if nonwaiting:
    while proc.poll() is None:overall.check();time.sleep(.05)
    overall.check();submission_facts=streams.submission_complete()
@@ -228,13 +248,17 @@ def _execute(plan,command,rows,ancestors,base,modules,observer,wait_module,hando
   stage="OBSERVE"
   controls_root=base/"one-shot-probes"
   overall.claim(0,True);controls_root.mkdir(mode=0o700)
-  proof=observer.poll(plan,controls_root,overall,transport,pair,tc,charge,record,local_directory_scope=plan["local_directory_scope"])
+  proof=observer.poll(plan,controls_root,overall,transport,pair,tc,charge,record,local_directory_scope=plan["local_directory_scope"],remote_directory_scope=plan.get("remote_directory_scope"))
   record("ONE_SHOT_DISPOSITION.record",proof)
   assert proof["status"]=="READY_ORIGINAL_AWAITING_CONTEXT_VALIDATION"
   overall.check();stage="READY";charge("QUALIFICATION_FRESH_READY_ORIGINAL_SAME_DOMAIN",7)
-  c=action_control(stage,120,overall.epoch_end);ev,_=transport.fetch_batch([dict(label="ready",path=plan["remote_pair"]+"/TRANSPORT_READY.record",maximum=65536,local_name="transport-ready.original")],__import__("pathlib").Path(plan["local_final_logs"]),c,expected_uid=plan["source_uid"],expected_gid=plan["source_gid"],local_directory_scope=plan["local_directory_scope"])
+  c=action_control(stage,120,overall.epoch_end);ev,_=transport.fetch_batch([dict(label="ready",path=plan["remote_pair"]+"/TRANSPORT_READY.record",maximum=65536,local_name="transport-ready.original")],__import__("pathlib").Path(plan["local_final_logs"]),c,expected_uid=plan["source_uid"],expected_gid=plan["source_gid"],local_directory_scope=plan["local_directory_scope"],remote_directory_scope=plan.get("remote_directory_scope"))
   c.record(__import__("pathlib").Path(plan["local_final_logs"])/"READY_TRANSPORT_EVIDENCE.record",ev)
   ready_raw=pair.read_original(__import__("pathlib").Path(plan["local_final_logs"])/"transport-ready.original",c,65536);ready=tc.parse(ready_raw);pair.validate_ready(ready)
+  pair.need((ready["version"] == pair.REMOTE_IDENTITY_READY_VERSION) == (plan.get("remote_directory_scope") is not None), "BINDING")
+  if plan.get("remote_directory_scope") is not None:
+   pair.need(ready["context"].get("remote_directory_scope") == plan["remote_directory_scope"]
+             and ready["context"].get("transport_evidence_version") == plan["transport_evidence_version"], "BINDING")
   assert ready["context"]["collection_source_git_sha"]==plan["source_git_sha"] and ready["context"]["original_source_git_sha"]==plan["original_source_git_sha"] and ready["context"]["original_job_id"]==actual_admission["original_job_id"] and ready["context"]["binding_sha256"]==command["binding_sha256"] and ready["context"]["authority_sha256"]==command["authority_sha256"]
   assert hashlib.sha256(ready_raw).hexdigest()==proof["ready_sha256"]
   ctx=ready["context"]
@@ -248,7 +272,7 @@ def _execute(plan,command,rows,ancestors,base,modules,observer,wait_module,hando
   else:record("EARLY_WAIT_ID_PENDING.record",dict(native_context_job_id=ready["context"]["collection_job_id"],reason="WAIT_CLIENT_ID_NOT_YET_OBSERVED",not_terminal_acceptance=True))
   overall.epoch_end=min(overall.epoch_end,ready["context"]["overall_deadline_epoch_ns"])
   stage="FETCH";charge("QUALIFICATION_FOUR_COMPLETE_READY_ARTIFACTS",10);c=action_control(stage,900,ready["context"]["parent_deadline_epoch_ns"])
-  receipt,transport_result=transport.fetch_ready(ready,hashlib.sha256(ready_raw).hexdigest(),__import__("pathlib").Path(plan["local_retained"]),__import__("pathlib").Path(plan["local_transport"]),control=c,local_directory_scope=plan["local_directory_scope"])
+  receipt,transport_result=transport.fetch_ready(ready,hashlib.sha256(ready_raw).hexdigest(),__import__("pathlib").Path(plan["local_retained"]),__import__("pathlib").Path(plan["local_transport"]),control=c,local_directory_scope=plan["local_directory_scope"],remote_directory_scope=plan.get("remote_directory_scope"))
   record("FETCH_DISPOSITION.record",dict(status=transport_result["status"],completed_mono_ns=time.monotonic_ns(),read_bytes=c.read_bytes,read_calls=c.read_calls))
   stage="RECEIPT";charge("QUALIFICATION_EXCLUSIVE_RECEIPT_PUBLICATION_AND_ORIGINAL_ECHO",15);c=action_control(stage,120,ready["context"]["parent_deadline_epoch_ns"]);publication=handoff.publish_receipt(plan,ready,receipt,c);record("RECEIPT_DISPOSITION.record",publication)
   stage="WAIT_TERMINAL"
