@@ -8,6 +8,7 @@ receipt enclose this transfer. This adds no native or scientific acceptance.
 
 from __future__ import annotations
 import argparse
+import base64
 import hashlib
 import os
 from pathlib import Path
@@ -479,19 +480,37 @@ def batch_remote_argv(rows, nonce, *, expected_uid, expected_gid=None, host=HOST
         parent=shlex.quote(str(target.parent))
         prefix=[
             "set -euo pipefail", "umask 077", "export LC_ALL=C TZ=UTC",
+            "publication_stage=SETUP",
+            "publication_mark(){ publication_stage=$1; printf 'S12PUB1|"+nonce+"|ENTER|%s\\n' \"$publication_stage\" >&2; }",
+            "publication_exit(){ publication_status=$?; trap - EXIT; if (( publication_status != 0 )); then printf 'S12PUB1|"+nonce+"|FAILED|%s|%s\\n' \"$publication_stage\" \"$publication_status\" >&2; fi; exit \"$publication_status\"; }",
+            "trap publication_exit EXIT",
             "target="+quoted_target,
+            "publication_mark TARGET_ABSENT",
             "[[ ! -e \"$target\" && ! -L \"$target\" ]]",
+            "publication_mark PARENT_PRIVATE",
             "[[ \"$(stat -c '%a:%u' -- "+parent+")\" == \"700:$UID\" ]]",
+            "publication_mark DEADLINE_BEFORE",
             "[[ $(date +%s%N) -lt "+str(publication["deadline_epoch_ns"])+" ]]",
+            "publication_mark JOB_RUNNING",
             "[[ \"$(squeue -h -j "+str(publication["job_id"])+" -o '%T')\" == RUNNING ]]",
+            "publication_mark RESERVE",
             "set -C; : > \"$target.upload-reservation\"; set +C",
-            "dd of=\"$target.upload-pending\" oflag=excl bs=65536 status=none",
+            "publication_mark WRITE",
+            "dd of=\"$target.upload-pending\" conv=excl bs=65536 status=none",
+            "publication_mark FILE_SYNC",
             "sync -f -- \"$target.upload-pending\"",
+            "publication_mark TARGET_STILL_ABSENT",
             "[[ ! -e \"$target\" && ! -L \"$target\" ]]",
+            "publication_mark RENAME",
             "mv -T -n -- \"$target.upload-pending\" \"$target\"",
+            "publication_mark PENDING_REMOVED",
             "[[ ! -e \"$target.upload-pending\" ]]",
+            "publication_mark DIRECTORY_SYNC",
             "sync -f -- "+parent,
+            "publication_mark DEADLINE_AFTER",
             "[[ $(date +%s%N) -lt "+str(publication["deadline_epoch_ns"])+" ]]",
+            "printf 'S12PUB1|"+nonce+"|DONE|COMPLETE\\n' >&2",
+            "trap - EXIT",
         ]
         lines=prefix+lines
     # Bash 3.2 does not apply errexit to every arithmetic command. Explicit
@@ -566,6 +585,8 @@ def _named_stat_block(reader, stage, snapshot, values, states):
 class _PipeReader:
     def __init__(self, proc, control, kill_at, input_bytes=None, retain_stderr=False):
         self.stderr_capture = bytearray() if retain_stderr else None
+        self.input_written_bytes = 0
+        self.input_eof_sent_mono_ns = None
         self.input_view = memoryview(input_bytes) if input_bytes is not None else None
         self.proc, self.control, self.kill_at = proc, control, kill_at
         self.selector = selectors.DefaultSelector()
@@ -594,10 +615,12 @@ class _PipeReader:
                 except BrokenPipeError:
                     raise tc.Stop("RETENTION") from None
                 need(n>0,"WRITE_BYTES")
+                self.input_written_bytes += n
                 self.input_view=self.input_view[n:]
                 if not self.input_view:
                     self.selector.unregister(key.fileobj)
                     key.fileobj.close()
+                    self.input_eof_sent_mono_ns = time.monotonic_ns()
                 continue
             raw = self.control.read(key.fileobj.fileno(), CHUNK)
             if not raw:
@@ -638,6 +661,84 @@ class _PipeReader:
             self.pump()
             need(not self.buffer, "FRAME")
         need(not self.buffer and not self.input_view and self.proc.wait(timeout=0) == 0, "CHILD_EXIT")
+
+
+PUBLICATION_STDERR_PREVIEW = 4096
+PUBLICATION_STAGES = frozenset((
+    "SETUP", "TARGET_ABSENT", "PARENT_PRIVATE", "DEADLINE_BEFORE",
+    "JOB_RUNNING", "RESERVE", "WRITE", "FILE_SYNC", "TARGET_STILL_ABSENT",
+    "RENAME", "PENDING_REMOVED", "DIRECTORY_SYNC", "DEADLINE_AFTER", "COMPLETE",
+))
+
+
+def _publication_failure_diagnostic(reader, proc, nonce, signals, joined):
+    """Private bounded stderr, static prefix state and genuine local lifecycle.
+
+    These markers are diagnostic observations, never publication acceptance.
+    Parsing does not retain a line list or payload/stdout content.
+    """
+    captured = (bytes(reader.stderr_capture)
+                if reader is not None and reader.stderr_capture is not None else b"")
+    need(len(captured) <= MAX_STDERR, "STDERR")
+    prefix = ("S12PUB1|" + nonce + "|").encode("ascii")
+    last = failed = None
+    complete = False
+    markers = invalid = 0
+    offset = 0
+    while offset < len(captured):
+        end = captured.find(b"\n", offset)
+        if end < 0:
+            break
+        if end-offset <= 128:
+            line = captured[offset:end]
+            if line.startswith(prefix):
+                parts = line[len(prefix):].split(b"|")
+                try:
+                    stage = parts[1].decode("ascii") if len(parts) >= 2 else None
+                except UnicodeError:
+                    stage = None
+                if len(parts) == 2 and parts[0] == b"ENTER" and stage in PUBLICATION_STAGES:
+                    last = stage
+                    markers += 1
+                elif (len(parts) == 3 and parts[0] == b"FAILED"
+                      and stage in PUBLICATION_STAGES and parts[2].isdigit()
+                      and 0 < int(parts[2]) <= 255):
+                    if failed is None:
+                        failed = dict(stage=stage, exit_status=int(parts[2]))
+                    markers += 1
+                elif parts == [b"DONE", b"COMPLETE"]:
+                    last = "COMPLETE"
+                    complete = True
+                    markers += 1
+                else:
+                    invalid += 1
+        offset = end + 1
+    preview = captured[:PUBLICATION_STDERR_PREVIEW]
+    return dict(
+        version="stage12_receipt_publication_diagnostic_v1",
+        last_preheader_stage=last, first_prefix_failure=failed,
+        prefix_completed_marker=complete, valid_marker_count=markers,
+        invalid_marker_count=invalid,
+        stage_timestamps="NOT_RECORDED_NO_BACKDATING",
+        captured_stderr_bytes=len(captured),
+        observed_stderr_bytes=reader.stderr_bytes if reader is not None else 0,
+        uncaptured_stderr_bytes=(reader.stderr_bytes-len(captured)) if reader is not None else 0,
+        captured_stderr_sha256=hashlib.sha256(captured).hexdigest(),
+        private_stderr_preview_b64=base64.b64encode(preview).decode("ascii"),
+        private_stderr_preview_bytes=len(preview),
+        private_stderr_truncated_bytes=len(captured)-len(preview),
+        stdout_bytes=reader.stdout_bytes if reader is not None else 0,
+        stdout_payload_retained=False,
+        input_written_bytes=reader.input_written_bytes if reader is not None else 0,
+        input_eof_sent_mono_ns=reader.input_eof_sent_mono_ns if reader is not None else None,
+        child_pid=proc.pid if proc is not None else None,
+        child_exit=proc.poll() if proc is not None else None,
+        observed_joined=joined,
+        stdout_eof=reader is not None and "stdout" not in reader.streams,
+        stderr_eof=reader is not None and "stderr" not in reader.streams,
+        cleanup_signals=list(signals),
+        native_job_guard_acceptance="NOT_ESTABLISHED_BY_DIAGNOSTIC_ALONE",
+    )
 
 
 def fetch_batch(rows, target_root, control, *, expected_uid, expected_gid=None,
@@ -687,10 +788,12 @@ def fetch_batch(rows, target_root, control, *, expected_uid, expected_gid=None,
     file_report_indices = []
     cleanup_uncertain = False
     remote_complete = False
+    cleanup_signals = []
+    observed_joined = False
     try:
         proc = subprocess.Popen(testing_argv if testing_argv is not None else batch_remote_argv(rows, nonce, expected_uid=expected_uid, expected_gid=expected_gid, metadata_paths=metadata_paths, publication=publication, terminal_log_labels=terminal_log_labels, pending_final_directory=pending_final_directory),
                                 stdin=subprocess.PIPE if input_bytes is not None or keep_stdin_open else subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True)
-        reader = _PipeReader(proc,control,kill_at,input_bytes,bool(pending_labels))
+        reader = _PipeReader(proc,control,kill_at,input_bytes,bool(pending_labels) or publication is not None)
         header = reader.line()
         suffix = f"|{nonce}|{len(paths)}|{len(extras)}|{len(ancestors)}\n".encode()
         need(header in (b"S12B2" + suffix, PRESENCE_WIRE + suffix), "FRAME")
@@ -792,6 +895,7 @@ def fetch_batch(rows, target_root, control, *, expected_uid, expected_gid=None,
         need(reader.line()==f"END|{nonce}\n".encode(),"FRAME")
         phase="JOIN"
         reader.finish()
+        observed_joined = True
         remote_complete = True
         if named_wire:
             need(before[:len(paths)+len(extras)]==after[:len(paths)+len(extras)],"SOURCE_CHANGED")
@@ -843,7 +947,7 @@ def fetch_batch(rows, target_root, control, *, expected_uid, expected_gid=None,
                 cleanup_uncertain=True
         # A failed task probe still drains both pipes and observes the owned
         # child's real exit. This never repairs incomplete protocol evidence.
-        if pending_labels and first is not None and proc is not None and reader is not None:
+        if (pending_labels or publication is not None) and first is not None and proc is not None and reader is not None:
             join_end = min(kill_at, time.monotonic_ns()+250_000_000)
             while time.monotonic_ns() < join_end and (reader.streams or proc.poll() is None):
                 try:
@@ -856,21 +960,33 @@ def fetch_batch(rows, target_root, control, *, expected_uid, expected_gid=None,
                 except BaseException:
                     cleanup_uncertain = True
                     break
-            if proc.poll() is not None:
-                proc.wait(timeout=0)
+            try:
+                if proc.poll() is not None:
+                    proc.wait(timeout=0)
+                    observed_joined = True
+            except BaseException:
+                cleanup_uncertain = True
         if proc is not None and proc.poll() is None:
             try:
                 os.killpg(proc.pid,signal.SIGTERM)
+                cleanup_signals.append("TERM")
                 proc.wait(timeout=max(0,min(.5,(end-time.monotonic_ns())/1e9)))
             except subprocess.TimeoutExpired:
                 try:
                     os.killpg(proc.pid,signal.SIGKILL)
+                    cleanup_signals.append("KILL")
                     proc.wait(timeout=max(0,min(.5,(end-time.monotonic_ns())/1e9)))
                 except BaseException:
                     cleanup_uncertain=True
             except BaseException:
                 cleanup_uncertain=True
         if proc is not None:
+            try:
+                if proc.poll() is not None:
+                    proc.wait(timeout=0)
+                    observed_joined = True
+            except BaseException:
+                cleanup_uncertain = True
             cleanup_uncertain |= proc.poll() is None
             for stream in (proc.stdin,proc.stdout,proc.stderr):
                 if stream is not None:
@@ -922,6 +1038,11 @@ def fetch_batch(rows, target_root, control, *, expected_uid, expected_gid=None,
             if directory is not None:
                 diagnostic["pending_check"].update(selected_final_directory=str(directory),
                     verified_missing_final_directory=missing_directory if verified is not None else None)
+        if publication is not None:
+            try:
+                diagnostic["publication_check"] = _publication_failure_diagnostic(reader, proc, nonce, cleanup_signals, observed_joined)
+            except BaseException:
+                diagnostic["publication_check"] = dict(version="stage12_receipt_publication_diagnostic_v1", retention="UNCERTAIN", code="UNKNOWN")
         first.transport_diagnostic=diagnostic
         raise first
     need(not cleanup_uncertain,"CLOSE_UNCERTAIN")
