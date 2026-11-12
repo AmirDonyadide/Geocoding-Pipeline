@@ -153,6 +153,7 @@ def execute(plan,command,rows,ancestors,base,modules,observer,wait_module,handof
  try:
   assert "observer_argv" not in command
   actual_admission=load_verified_admission(plan,command,overall,pair,transport,observer)
+  pair.need(plan.get("local_directory_scope") == transport.TASK_LOCAL_DIRECTORY_SCOPE, "BINDING")
   policy=actual_admission["one_shot_control_policy"]
   expected_task_selection={key:policy[key] for key in ("version","maximum_probes","probe_seconds","minimum_start_spacing_seconds","spacing_anchor","maximum_process_units","directory_readiness","selected_remote_pair")}
   assert command["task_control_selection"] == expected_task_selection
@@ -169,11 +170,11 @@ def execute(plan,command,rows,ancestors,base,modules,observer,wait_module,handof
   stage="OBSERVE"
   controls_root=base/"one-shot-probes"
   overall.claim(0,True);controls_root.mkdir(mode=0o700)
-  proof=observer.poll(plan,controls_root,overall,transport,pair,tc,charge,record)
+  proof=observer.poll(plan,controls_root,overall,transport,pair,tc,charge,record,local_directory_scope=plan["local_directory_scope"])
   record("ONE_SHOT_DISPOSITION.record",proof)
   assert proof["status"]=="READY_ORIGINAL_AWAITING_CONTEXT_VALIDATION"
   overall.check();stage="READY";charge("QUALIFICATION_FRESH_READY_ORIGINAL_SAME_DOMAIN",7)
-  c=action_control(stage,120,overall.epoch_end);ev,_=transport.fetch_batch([dict(label="ready",path=plan["remote_pair"]+"/TRANSPORT_READY.record",maximum=65536,local_name="transport-ready.original")],__import__("pathlib").Path(plan["local_final_logs"]),c,expected_uid=plan["source_uid"],expected_gid=plan["source_gid"])
+  c=action_control(stage,120,overall.epoch_end);ev,_=transport.fetch_batch([dict(label="ready",path=plan["remote_pair"]+"/TRANSPORT_READY.record",maximum=65536,local_name="transport-ready.original")],__import__("pathlib").Path(plan["local_final_logs"]),c,expected_uid=plan["source_uid"],expected_gid=plan["source_gid"],local_directory_scope=plan["local_directory_scope"])
   c.record(__import__("pathlib").Path(plan["local_final_logs"])/"READY_TRANSPORT_EVIDENCE.record",ev)
   ready_raw=pair.read_original(__import__("pathlib").Path(plan["local_final_logs"])/"transport-ready.original",c,65536);ready=tc.parse(ready_raw);pair.validate_ready(ready)
   assert ready["context"]["collection_source_git_sha"]==plan["source_git_sha"] and ready["context"]["original_source_git_sha"]==plan["original_source_git_sha"] and ready["context"]["original_job_id"]==actual_admission["original_job_id"] and ready["context"]["binding_sha256"]==command["binding_sha256"] and ready["context"]["authority_sha256"]==command["authority_sha256"]
@@ -188,7 +189,7 @@ def execute(plan,command,rows,ancestors,base,modules,observer,wait_module,handof
   else:record("EARLY_WAIT_ID_PENDING.record",dict(native_context_job_id=ready["context"]["collection_job_id"],reason="WAIT_CLIENT_ID_NOT_YET_OBSERVED",not_terminal_acceptance=True))
   overall.epoch_end=min(overall.epoch_end,ready["context"]["overall_deadline_epoch_ns"])
   stage="FETCH";charge("QUALIFICATION_FOUR_COMPLETE_READY_ARTIFACTS",10);c=action_control(stage,900,ready["context"]["parent_deadline_epoch_ns"])
-  receipt,transport_result=transport.fetch_ready(ready,hashlib.sha256(ready_raw).hexdigest(),__import__("pathlib").Path(plan["local_retained"]),__import__("pathlib").Path(plan["local_transport"]),control=c)
+  receipt,transport_result=transport.fetch_ready(ready,hashlib.sha256(ready_raw).hexdigest(),__import__("pathlib").Path(plan["local_retained"]),__import__("pathlib").Path(plan["local_transport"]),control=c,local_directory_scope=plan["local_directory_scope"])
   record("FETCH_DISPOSITION.record",dict(status=transport_result["status"],completed_mono_ns=time.monotonic_ns(),read_bytes=c.read_bytes,read_calls=c.read_calls))
   stage="RECEIPT";charge("QUALIFICATION_EXCLUSIVE_RECEIPT_PUBLICATION_AND_ORIGINAL_ECHO",15);c=action_control(stage,120,ready["context"]["parent_deadline_epoch_ns"]);publication=handoff.publish_receipt(plan,ready,receipt,c);record("RECEIPT_DISPOSITION.record",publication)
   stage="WAIT_TERMINAL"

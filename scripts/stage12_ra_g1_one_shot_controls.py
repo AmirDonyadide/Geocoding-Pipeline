@@ -160,9 +160,12 @@ def _classify(states, by_label):
     return "PENDING"
 
 def probe(plan, output_root, overall, transport, pair, tc, record, charge,
-          *, index=1, previous_ack=None, testing_argv=None, nonce=None):
+          *, index=1, previous_ack=None, testing_argv=None, nonce=None,
+          local_directory_scope=None):
     """One complete/closed probe. READY is still subject to the caller's full gate."""
     start=time.monotonic_ns(); epoch=time.time_ns()
+    transport._local_scope(local_directory_scope)
+    need(plan.get("local_directory_scope") == local_directory_scope, "POLL_CONFIG")
     need(type(index) is int and 1<=index<=MAX_PROBES, "POLL_CONFIG")
     c=_phase(pair,overall,start); c.check()
     need(getattr(overall,"cleanup_uncertain",True) is False,"PROBE_CLEANUP_UNCERTAIN")
@@ -196,7 +199,7 @@ def probe(plan, output_root, overall, transport, pair, tc, record, charge,
             ev,_=transport.fetch_batch(rows,target,c,expected_uid=plan["source_uid"],
                 expected_gid=plan["source_gid"],pending_labels=LABELS,
                 keep_stdin_open=True,testing_argv=testing_argv,nonce=nonce,
-                pending_final_directory=plan["remote_pair"])
+                pending_final_directory=plan["remote_pair"],local_directory_scope=local_directory_scope)
         except BaseException as error:
             # Any incomplete parse, nonzero child, uncertainty or non-ENOENT error
             # propagates unchanged; only this completed absence proof is pending.
@@ -260,7 +263,7 @@ def probe(plan, output_root, overall, transport, pair, tc, record, charge,
     need(result["durable_record_ack_mono_ns"]<c.end, "PROBE_DEADLINE")
     return result
 
-def poll(plan, output_root, overall, transport, pair, tc, charge, record):
+def poll(plan, output_root, overall, transport, pair, tc, charge, record, *, local_directory_scope=None):
     """Native policy: never overlap, retry a failure, or reset the owner deadline."""
     results=[];last_start=last_ack=None
     for index in range(1,MAX_PROBES+1):
@@ -271,7 +274,7 @@ def poll(plan, output_root, overall, transport, pair, tc, charge, record):
                 time.sleep(min(.05,max(0,(target-time.monotonic_ns())/1e9)))
         overall.check()
         result=probe(plan,output_root,overall,transport,pair,tc,record,charge,
-                     index=index,previous_ack=last_ack)
+                     index=index,previous_ack=last_ack,local_directory_scope=local_directory_scope)
         if last_start is not None:
             need(result["entry_mono_ns"]-last_start>=SPACING_NS, "POLL_SPACING")
         last_start=result["entry_mono_ns"];last_ack=result["durable_record_ack_mono_ns"]
