@@ -110,6 +110,7 @@ def load_verified_admission(plan, command, overall, pair, transport, observer):
 def execute(plan,command,rows,ancestors,base,modules,observer,wait_module,handoff,charge,mark_slot,record,handles):
  tc,pair,transport,_=modules;started=time.monotonic_ns();epoch=time.time_ns();overall=pair.Control(started,plan["window_end_epoch_ns"],1800)
  install_selected_read_limit(overall,pair)
+ handles["control"]=overall
  original_check=overall.check;streams=None;stage="SUBMIT";phase_owners=[];proc=None;fds={};readers={};failure=None;result=None
  def check(self):
   original_check()
@@ -181,6 +182,8 @@ def execute(plan,command,rows,ancestors,base,modules,observer,wait_module,handof
    if streams is not None:
     try:record("FINAL_WAIT_AND_QUERY_FACTS.record",streams.terminal())
     except BaseException:pass
+  # Final mandatory draining above is complete; no checks may service closed FDs.
+  streams=None
   for readfd,path in readers.values():
    try:os.close(readfd)
    except BaseException:
