@@ -48,7 +48,8 @@ def _selection(raw, expected_sha256, source_sha, job_id):
     controller = _script("stage12_ra_g1_allocation")
     need(type(raw) is bytes and len(raw) <= 4 * 2**20 and sha(raw) == expected_sha256)
     selected = controller.validate_selection(controller.parse(raw))
-    need(selected["version"] == controller.REP_ADMIN_VERSION, "RA_G1_HANDOFF_POLICY")
+    need(selected["version"] in (controller.REP_ADMIN_VERSION, controller.REP512_VERSION),
+         "RA_G1_HANDOFF_POLICY")
     need(selected["source_sha"] == source_sha)
     need(type(job_id) is str and re.fullmatch(r"[1-9][0-9]{0,19}", job_id), "RA_G1_HANDOFF_JOB")
     for path in selected["paths"].values():
@@ -140,7 +141,11 @@ def publication_plan(
 
     data, review, factual = (values[key] for key in ("input", "review_binding", "factual_review"))
     resource = assurance.validate_selection(values["resource_selection"])
-    need(resource["schema_version"] == assurance.REP_ADMIN_SELECTION, "RA_G1_HANDOFF_POLICY")
+    expected_resource_family = {
+        controller.REP_ADMIN_VERSION: assurance.REP_ADMIN_SELECTION,
+        controller.REP512_VERSION: assurance.REP512_SELECTION,
+    }[selected["version"]]
+    need(resource["schema_version"] == expected_resource_family, "RA_G1_HANDOFF_POLICY")
     context = execution.validate_supervisor_context(values["context"])
     phase = values["phase8_binding"]
     assurance.shape(phase, execution.ADMIN_BINDING_SCHEMA)

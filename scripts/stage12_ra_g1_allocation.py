@@ -328,7 +328,7 @@ def validate_selection(value):
     assurance.validate_bootstrap_adoption(value["bootstrap_prefix_adoption"], selected)
     if value["version"] in REP_ADMIN_VERSIONS:
         from safe_geocoding_pipeline.preprocessing.stages import s12_ra_g1_windows as windows
-        if value["rep_admin_budget_adoption"].get("schema_version") == windows.WINDOW_ADOPTION:
+        if windows.is_window_adoption(value["rep_admin_budget_adoption"]):
             need(value["version"] == REP512_VERSION, "RA_G1_AUTHORITY_REQUIRED")
         assurance.validate_rep_admin_adoption(value["rep_admin_budget_adoption"], {
             "rep_admin_budget_adoption_sha256": value["rep_admin_budget_adoption_sha256"],
@@ -1183,7 +1183,7 @@ class Run:
 def ready(run):
     run.check()
     from safe_geocoding_pipeline.preprocessing.stages import s12_ra_g1_windows as windows
-    if run.s.get("rep_admin_budget_adoption", {}).get("schema_version") == windows.WINDOW_ADOPTION:
+    if windows.is_window_adoption(run.s.get("rep_admin_budget_adoption", {})):
         need(getattr(run, "environment_gate_sha256", None) is not None,
              "RA_G1_COLLECTION_QUALIFICATION_REQUIRED")
     run.sources()

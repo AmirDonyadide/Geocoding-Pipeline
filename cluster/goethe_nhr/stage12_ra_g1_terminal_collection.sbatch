@@ -21,6 +21,15 @@ case "${STAGE12_TC_SAME_DOMAIN_SUCCESSOR-}" in
   1) successor_args=(--same-domain-successor) ;;
   *) exit 2 ;;
 esac
+# Fresh r2 is opt-in and must agree with the canonical control family.
+case "${STAGE12_TC_HANDOFF_WINDOW_SUCCESSOR-}" in
+  "") ;;
+  1)
+    [[ "${STAGE12_TC_SAME_DOMAIN_SUCCESSOR-}" == 1 ]] || exit 2
+    successor_args+=(--handoff-window-successor)
+    ;;
+  *) exit 2 ;;
+esac
 export SAFE_EXECUTION_SITE=goethe-nhr PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1
 unset SAFE_PELIAS_API_KEY SAFE_PELIAS_API_KEY_FILE PYTHONPATH
 cd -- "$STAGE12_TC_SOURCE"

@@ -372,14 +372,43 @@ def remote_collection_descriptor():
     return value
 
 
+HANDOFF_COLLECTION_VERSION = "stage12_handoff_collection_environment_gate_v3"
+HANDOFF_COLLECTION_BINDING = "stage12_handoff_collection_environment_binding_v3"
+HANDOFF_COLLECTION_POLICY = "RA_G1_HANDOFF_COLLECTION_COMPATIBILITY_r3"
+# These stream/hash/membership consumers remain the exact Q2-reviewed bytes.
+# terminal_parent's explicitly reviewed delta concerns only fresh window admission.
+Q2_UNCHANGED_CONSUMERS = (
+    ("scripts/stage12_ra_g1_terminal_collect.py", "9bc3e3f2ed15d1378e3a50d3342ae9f8d11c09fdfa7343a614eca4f3f53f8bf7"),
+    ("scripts/stage12_ra_g1_terminal_verify.py", "55d1b4ceca2a08f804eccf61f78dda7998f480322c796f87f367d9010e6f064f"),
+    ("scripts/stage12_ra_g1_terminal_transport.py", "063dc00b279ede67a4d150f77e6e6e7a94f8a0bac26b67a2f8bb6921cf37575e"),
+    ("scripts/stage12_ra_g1_one_shot_controls.py", "31eb2a16546c4fc5d0a41c481e25b01139cfa376b9fbfc7e6cd6a58521c6ed3f"),
+    ("scripts/stage12_ra_g1_collection_driver.py", "f908258bc18ef6e673ff24d14600f4a83629d1183a76ad45213959a0b9aa1c9d"),
+)
+
+def handoff_collection_descriptor():
+    windows = window_module()
+    value = remote_collection_descriptor()
+    value.update(version=HANDOFF_COLLECTION_VERSION, policy=HANDOFF_COLLECTION_POLICY,
+        outer_window_end=windows.HANDOFF_WINDOW_END,
+        window_policy_sha256=windows.digest(windows.handoff_descriptor()),
+        qualification_source_git_sha=windows.Q2_SOURCE,
+        qualification_bundle_sha256=windows.Q2_BUNDLE, qualification_review_sha256=windows.Q2_REVIEW,
+        qualification_window_version=windows.WINDOW_VERSION,
+        qualification_reuse="HISTORICAL_Q2_WITH_REVIEWED_CURRENT_WINDOW_ADMISSION",
+        unchanged_consumers=[dict(path=path, sha256=sha) for path, sha in Q2_UNCHANGED_CONSUMERS],
+        new_source_qualification_claimed=False, new_qualification_allocations=0)
+    return value
+
 def collection_binding(binding):
-    return type(binding) is dict and binding.get("version") in (COLLECTION_BINDING, REMOTE_COLLECTION_BINDING)
+    return type(binding) is dict and binding.get("version") in (
+        COLLECTION_BINDING, REMOTE_COLLECTION_BINDING, HANDOFF_COLLECTION_BINDING)
 
 
 def validate_binding(binding, selected):
     if not collection_binding(binding):
         return _validate_legacy_binding(binding, selected)
-    remote = binding["version"] == REMOTE_COLLECTION_BINDING
+    reuse = binding["version"] == HANDOFF_COLLECTION_BINDING
+    remote = binding["version"] in (REMOTE_COLLECTION_BINDING, HANDOFF_COLLECTION_BINDING)
     windows = window_module()
     extra = REMOTE_COLLECTION_FIELDS if remote else ()
     need(set(binding) == {"version", "source_tree", *COLLECTION_BINDING_HASHES, *extra}, "RA_G1_FIELDS")
@@ -388,7 +417,10 @@ def validate_binding(binding, selected):
             and binding["transport_evidence_version"] == REMOTE_TRANSPORT_VERSION
             and is_hash(binding["remote_directory_adoption_sha256"]), "RA_G1_SELECTION_BINDING")
     need(is_hash(binding["source_tree"], 40) and all(is_hash(binding[key]) for key in COLLECTION_BINDING_HASHES))
-    need(binding["policy_sha256"] == digest(remote_collection_descriptor() if remote else collection_descriptor()) and binding["window_policy_sha256"] == windows.digest(windows.descriptor()))
+    descriptor_value = handoff_collection_descriptor() if reuse else remote_collection_descriptor() if remote else collection_descriptor()
+    window_policy = windows.handoff_descriptor() if reuse else windows.descriptor()
+    need(binding["policy_sha256"] == digest(descriptor_value)
+         and binding["window_policy_sha256"] == windows.digest(window_policy))
     need(selected.get("version") == ALLOCATION and selected.get("scope") == SCOPE, "RA_G1_AUTHORITY_REQUIRED")
     rows = selected.get("source_files")
     need(type(rows) is list and len(rows) <= 2048, "RA_G1_SOURCE_INVENTORY")
@@ -400,7 +432,15 @@ def validate_binding(binding, selected):
         if name == COLLECTION_DOCUMENT:
             need(found[0]["sha256"] == binding["amendment_sha256"], "RA_G1_SOURCE_CHANGED")
     adoption = selected.get("rep_admin_budget_adoption")
-    need(type(adoption) is dict and adoption.get("schema_version") == windows.WINDOW_ADOPTION, "RA_G1_AUTHORITY_REQUIRED")
+    need(type(adoption) is dict and adoption.get("schema_version") ==
+         (windows.HANDOFF_WINDOW_ADOPTION if reuse else windows.WINDOW_ADOPTION), "RA_G1_AUTHORITY_REQUIRED")
+    if reuse:
+        need(binding["qualification_bundle_sha256"] == windows.Q2_BUNDLE
+             and binding["qualification_review_sha256"] == windows.Q2_REVIEW,
+             "RA_G1_COLLECTION_QUALIFICATION_REQUIRED")
+        for path, sha in Q2_UNCHANGED_CONSUMERS:
+            found = [row for row in rows if type(row) is dict and row.get("path") == path]
+            need(len(found) == 1 and found[0].get("sha256") == sha, "RA_G1_SOURCE_CHANGED")
     need(adoption["qualification_bundle_sha256"] == binding["qualification_bundle_sha256"]
         and adoption["qualification_review_sha256"] == binding["qualification_review_sha256"]
         and adoption["window"]["grant_nonce"] == binding["grant_nonce"]
@@ -425,12 +465,13 @@ def validate_gate(gate, selected, binding, *, now_epoch_ns, qualification=None, 
         need(qualification is None and qualification_validator is None, "RA_G1_AUTHORITY_REQUIRED")
         return _validate_legacy_gate(gate, selected, binding, now_epoch_ns=now_epoch_ns)
     validate_binding(binding, selected)
-    remote = binding["version"] == REMOTE_COLLECTION_BINDING
+    reuse = binding["version"] == HANDOFF_COLLECTION_BINDING
+    remote = binding["version"] in (REMOTE_COLLECTION_BINDING, HANDOFF_COLLECTION_BINDING)
     extra = REMOTE_COLLECTION_FIELDS if remote else ()
     windows = window_module()
     keys = {"version", "scope", "state", "source_git_sha", "source_tree", "valid_from", "valid_until", "outer_window_end", "grant_kind", "maximum_submissions", "task_profiling", "budget", "history", "window", *GATE_HASHES, *COLLECTION_BINDING_HASHES, *extra}
     need(type(gate) is dict and set(gate) == keys, "RA_G1_FIELDS")
-    need(gate["version"] == (REMOTE_COLLECTION_VERSION if remote else COLLECTION_VERSION) and gate["scope"] == SCOPE
+    need(gate["version"] == (HANDOFF_COLLECTION_VERSION if reuse else REMOTE_COLLECTION_VERSION if remote else COLLECTION_VERSION) and gate["scope"] == SCOPE
         and gate["state"] == "ISSUED_FOR_COLLECTION_QUALIFIED_ONE_FRESH_REP", "RA_G1_AUTHORITY_REQUIRED")
     need(all(is_hash(gate[key]) for key in (*GATE_HASHES, *COLLECTION_BINDING_HASHES)))
     need(all(gate[key] == binding[key] for key in (*COLLECTION_BINDING_HASHES, "source_tree", *extra)))
@@ -444,8 +485,9 @@ def validate_gate(gate, selected, binding, *, now_epoch_ns, qualification=None, 
     need(gate["grant_kind"] == windows.REP_GRANT and type(gate["maximum_submissions"]) is int
         and gate["maximum_submissions"] == 1 and gate["task_profiling"] == "DISABLED", "RA_G1_AUTHORITY_REQUIRED")
     need(canonical(gate["budget"]) == canonical(BUDGET) and canonical(gate["history"]) == canonical(COLLECTION_HISTORY), "RA_G1_LIMITS")
-    need(gate["valid_from"] == selected["valid_from"] == windows.WINDOW_START
-        and gate["valid_until"] == selected["valid_until"] == gate["outer_window_end"] == windows.WINDOW_END, "RA_G1_WINDOW")
+    window_policy = windows.handoff_descriptor() if reuse else windows.descriptor()
+    need(gate["valid_from"] == selected["valid_from"] == window_policy["valid_from"]
+        and gate["valid_until"] == selected["valid_until"] == gate["outer_window_end"] == window_policy["valid_until"], "RA_G1_WINDOW")
     window = gate["window"]
     windows.validate_window(window, scope=SCOPE, now_epoch_ns=now_epoch_ns, required_remaining_seconds=REQUIRED_REMAINING_SECONDS)
     need(window == selected["rep_admin_budget_adoption"]["window"]
@@ -453,15 +495,21 @@ def validate_gate(gate, selected, binding, *, now_epoch_ns, qualification=None, 
     need(type(qualification) is dict and digest(qualification) == binding["qualification_bundle_sha256"], "RA_G1_COLLECTION_QUALIFICATION_REQUIRED")
     need(callable(qualification_validator), "RA_G1_COLLECTION_QUALIFICATION_REQUIRED")
     qualification_options = {"expected_remote_directory_scope": REMOTE_DIRECTORY_SCOPE} if remote else {}
-    qualification_validator(qualification, expected_window=dict(window, scope="TERMINAL_COLLECTION_NO_SERVICE"),
+    # The current authority/window never overwrites historical Q2 execution facts.
+    qualification_window = qualification["window"] if reuse else dict(window, scope="TERMINAL_COLLECTION_NO_SERVICE")
+    if reuse:
+        need(qualification_window.get("version") == windows.WINDOW_VERSION
+             and digest(qualification) == windows.Q2_BUNDLE, "RA_G1_COLLECTION_QUALIFICATION_REQUIRED")
+    qualification_validator(qualification, expected_window=qualification_window,
         expected_original_source_git_sha=windows.ORIGINAL_SOURCE, expected_original_job_id=int(windows.ORIGINAL_JOB),
         expected_original_selection_sha256=windows.ORIGINAL_SELECTION,
-        expected_collector_source_git_sha=selected["source_sha"], expected_qualification_review_sha256=binding["qualification_review_sha256"], **qualification_options)
+        expected_collector_source_git_sha=windows.Q2_SOURCE if reuse else selected["source_sha"],
+        expected_qualification_review_sha256=binding["qualification_review_sha256"], **qualification_options)
     return dict(status="COLLECTION_QUALIFIED_ENVIRONMENT_DIAGNOSTIC_ELIGIBLE_NOT_NATIVE_QUALIFIED",
         gate_sha256=digest(gate), selection_sha256=actual_selection,
         resource_selection_sha256=selected["resource_selection_sha256"], policy_sha256=binding["policy_sha256"],
         grant_nonce=binding["grant_nonce"], qualification_bundle_sha256=binding["qualification_bundle_sha256"],
-        checked_epoch_ns=now_epoch_ns, remaining_ns=epoch_ns(windows.WINDOW_END)-now_epoch_ns,
+        checked_epoch_ns=now_epoch_ns, remaining_ns=epoch_ns(window_policy["valid_until"])-now_epoch_ns,
         required_remaining_ns=REQUIRED_REMAINING_SECONDS*10**9, native_timing_PASS=False, service_or_protected_authority=False)
 
 

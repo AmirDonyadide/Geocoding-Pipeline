@@ -451,11 +451,13 @@ def _strict_resource_selection(
 
 def resource_selection(allocation, **kwargs):
     from safe_geocoding_pipeline.preprocessing.stages import s12_ra_g1_windows as windows
-    if allocation.get("rep_admin_budget_adoption", {}).get("schema_version") == windows.WINDOW_ADOPTION:
+    if windows.is_window_adoption(allocation.get("rep_admin_budget_adoption", {})):
+        window = allocation["rep_admin_budget_adoption"]["window"]
+        policy = windows.selected_descriptor(window)
         c.require(allocation.get("version") == REP512_ALLOCATION_VERSION
             and allocation.get("scope") == SCOPE
-            and allocation.get("valid_from") == windows.WINDOW_START
-            and allocation.get("valid_until") == windows.WINDOW_END, "RA_G1_SELECTION_BINDING")
+            and allocation.get("valid_from") == policy["valid_from"]
+            and allocation.get("valid_until") == policy["valid_until"], "RA_G1_SELECTION_BINDING")
     record = _strict_resource_selection(allocation, **kwargs)
     if allocation.get("version") in REP_ADMIN_ALLOCATION_VERSIONS:
         m.validate_bootstrap_adoption(allocation["bootstrap_prefix_adoption"], record)
