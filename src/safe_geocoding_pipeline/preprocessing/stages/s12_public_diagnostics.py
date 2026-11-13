@@ -6,6 +6,8 @@ campaign after an uncertain writer; it cannot repair closure or exact counts.
 
 from __future__ import annotations
 
+import hashlib
+import types
 import threading
 import time
 from . import s12_retrieval_contract as c
@@ -352,16 +354,278 @@ def observer_acquisition(owner, *, kind, phase_id):
     return _ObserverCall(owner, kind, phase_id)
 
 
+
+# Explicit opt-in metadata only; none of these records can release a runtime gate.
+FOREGROUND_VERSION = "stage12_foreground_first_failure_discriminator_v1"
+FOREGROUND_MAX_FRAMES = 4
+FOREGROUND_MAX_TRACEBACK_VISITS = 32
+FOREGROUND_MAX_CODES = 4096
+FOREGROUND_MAX_NODES = 32768
+FOREGROUND_MAX_POSITIONS = 32768
+FOREGROUND_MAX_LINE_ENTRIES = 262144
+FOREGROUND_MAX_SOURCE_BYTES = 1048576
+FOREGROUND_MODULES = (
+    ("DIAGNOSTIC", "scripts/stage12_ra_g1_diagnostic.py"),
+    ("PUBLIC_RESPONSE", "src/safe_geocoding_pipeline/preprocessing/stages/s12_public_response.py"),
+    ("PUBLIC_RUNTIME", "src/safe_geocoding_pipeline/preprocessing/stages/s12_public_runtime.py"),
+    ("PUBLIC_AUTHORITY", "src/safe_geocoding_pipeline/preprocessing/stages/s12_ra_g1_public.py"),
+    ("PUBLIC_SAMPLING", "src/safe_geocoding_pipeline/preprocessing/stages/s12_public_sampling.py"),
+    ("PUBLIC_SCHEDULER", "src/safe_geocoding_pipeline/preprocessing/stages/s12_public_scheduler.py"),
+    ("PUBLIC_OPERATIONS", "src/safe_geocoding_pipeline/preprocessing/stages/s12_public_operations.py"),
+    ("PUBLIC_RECOVERY", "src/safe_geocoding_pipeline/preprocessing/stages/s12_public_recovery.py"),
+    ("RETRIEVAL_GUARD", "src/safe_geocoding_pipeline/preprocessing/stages/s12_retrieval_contract.py"),
+    ("RESPONSE_GUARD", "src/safe_geocoding_pipeline/preprocessing/stages/s12_response.py"),
+    ("RA_ASSURANCE", "src/safe_geocoding_pipeline/preprocessing/stages/s12_ra_g1_assurance.py"),
+    ("RA_CONTRACT", "src/safe_geocoding_pipeline/preprocessing/stages/s12_ra_g1_contract.py"),
+    ("PROBE_CLI", "src/safe_geocoding_pipeline/preprocessing/stage12_probe_cli.py"),
+    ("RA_EXECUTION", "src/safe_geocoding_pipeline/preprocessing/stages/s12_ra_g1_execution.py"),
+)
+_FOREGROUND_CLASSES = (
+    (RuntimeError, "RUNTIME_ERROR"), (ValueError, "VALUE_ERROR"),
+    (TypeError, "TYPE_ERROR"), (KeyError, "KEY_ERROR"),
+    (IndexError, "INDEX_ERROR"), (AttributeError, "ATTRIBUTE_ERROR"),
+    (AssertionError, "ASSERTION_ERROR"), (OSError, "OS_ERROR"),
+    (PermissionError, "PERMISSION_ERROR"), (FileNotFoundError, "FILE_NOT_FOUND"),
+    (TimeoutError, "TIMEOUT"), (MemoryError, "MEMORY_ERROR"),
+    (OverflowError, "OVERFLOW_ERROR"), (KeyboardInterrupt, "INTERRUPTED"),
+    (c.Stage12Error, "STAGE12_ERROR"),
+    (recovery.FinalizationExpired, "FINALIZATION_EXPIRED"),
+)
+
+
+class FirstFailureDescriptor:
+    """Bounded code identity catalogue; retains no frame, error or file contents."""
+
+    def __init__(self):
+        self._codes = types.MappingProxyType({})
+        self._classes = _FOREGROUND_CLASSES
+        self.source_map_sha256 = None
+        self.preparation_uncertain = True
+
+    def capture(self, error):
+        tb = frame = code = row = None
+        try:
+            kind = next((label for cls, label in self._classes
+                         if type(error) is cls), "UNKNOWN")
+            frames = []
+            visits = mapped = unmapped = 0
+            trimmed = False
+            tb = BaseException.__dict__["__traceback__"].__get__(error, BaseException)
+            unavailable = tb is None
+            while tb is not None and visits < FOREGROUND_MAX_TRACEBACK_VISITS:
+                visits += 1
+                frame = tb.tb_frame
+                code = frame.f_code
+                row = self._codes.get(id(code))
+                line = tb.tb_lineno
+                # A filename supplied by an exception/code object is never an ID.
+                if row is not None and row[0] is code and line in row[4]:
+                    mapped += 1
+                    if len(frames) == FOREGROUND_MAX_FRAMES:
+                        del frames[0]
+                        trimmed = True
+                    frames.append(dict(module=row[1], function=row[2],
+                                       source_sha256=row[3], line=line))
+                else:
+                    unmapped += 1
+                tb = tb.tb_next
+            return dict(exception_class=kind, frames=frames, visited=visits,
+                        mapped=mapped, unmapped=unmapped,
+                        traceback_unavailable=unavailable,
+                        traversal_truncated=tb is not None,
+                        leaf_frames_truncated=trimmed,
+                        retention_uncertain=self.preparation_uncertain)
+        except BaseException:
+            return dict(exception_class="UNKNOWN", frames=[], visited=0,
+                        mapped=0, unmapped=0, traceback_unavailable=True,
+                        traversal_truncated=False, leaf_frames_truncated=False,
+                        retention_uncertain=True)
+        finally:
+            tb = frame = code = row = error = None
+
+
+def prepare_first_failure_descriptor(specs, source_rows, *, source_root, verify_source):
+    """Pin already-loaded modules using the caller's actual original reader.
+
+    verify_source(path, selected_row) must return exact True after the caller's
+    bounded streaming hash, complete EOF and fd/path/ancestor checks. No source
+    bytes, imports, acceptance cache or filesystem bypass are retained. This may
+    run under the existing selected-source read policy. Missing/changed pins make
+    supplementary retention uncertain; the scientific source guards still run.
+    """
+    try:
+        if not (type(specs) in (tuple, list) and 1 <= len(specs) <= len(FOREGROUND_MODULES)
+                and type(source_rows) is list and 1 <= len(source_rows) <= 2048):
+            raise ValueError
+        inventory = {row["path"]: row for row in source_rows}
+        if len(inventory) != len(source_rows):
+            raise ValueError
+        allowed = dict(FOREGROUND_MODULES)
+        codes, pins, seen = {}, [], set()
+        classes = list(_FOREGROUND_CLASSES)
+        nodes = positions_seen = line_entries = source_bytes = 0
+        for module_id, module in specs:
+            if type(module_id) is not str or module_id not in allowed or module_id in seen:
+                raise ValueError
+            seen.add(module_id)
+            if type(module) is not types.ModuleType:
+                raise ValueError
+            relative = allowed[module_id]
+            selected = inventory[relative]
+            path = source_root / relative
+            if not (type(selected) is dict and type(selected.get("bytes")) is int
+                    and 0 <= selected["bytes"] <= FOREGROUND_MAX_SOURCE_BYTES
+                    and type(selected.get("sha256")) is str and len(selected["sha256"]) == 64
+                    and set(selected["sha256"]) <= set("0123456789abcdef")):
+                raise ValueError
+            if str(module.__file__) != str(path):
+                raise ValueError
+            source_bytes += selected["bytes"]
+            if (source_bytes > FOREGROUND_MAX_SOURCE_BYTES
+                    or verify_source(path, selected) is not True):
+                raise ValueError
+            namespace = vars(module)
+            if module_id == "PUBLIC_SAMPLING":
+                failure_class = namespace.get("SamplingFailure")
+                if (type(failure_class) is type and issubclass(failure_class, RuntimeError)
+                        and failure_class.__name__ == "SamplingFailure"
+                        and failure_class.__module__ == module.__name__):
+                    classes.append((failure_class, "SAMPLING_FAILURE"))
+            pending = []
+            for value in namespace.values():
+                nodes += 1
+                if nodes > FOREGROUND_MAX_NODES:
+                    raise ValueError
+                members = (value,) if type(value) is types.FunctionType else ()
+                if type(value) is type and value.__module__ == module.__name__:
+                    if len(vars(value)) > FOREGROUND_MAX_NODES:
+                        raise ValueError
+                    members = tuple(vars(value).values())
+                for member in members:
+                    nodes += 1
+                    if nodes > FOREGROUND_MAX_NODES:
+                        raise ValueError
+                    if type(member) in (staticmethod, classmethod):
+                        member = member.__func__
+                    functions = ((member,) if type(member) is types.FunctionType else
+                                 tuple(f for f in (member.fget, member.fset, member.fdel)
+                                       if type(f) is types.FunctionType)
+                                 if type(member) is property else ())
+                    for function in functions:
+                        if function.__globals__ is namespace:
+                            if len(pending) >= FOREGROUND_MAX_CODES:
+                                raise ValueError
+                            pending.append(function.__code__)
+            while pending:
+                code = pending.pop()
+                nodes += 1
+                if nodes > FOREGROUND_MAX_NODES:
+                    raise ValueError
+                if id(code) in codes or code.co_filename != str(path):
+                    continue
+                name = code.co_qualname
+                if (len(codes) >= FOREGROUND_MAX_CODES or not 1 <= len(name) <= 128
+                        or not name.isascii()
+                        or any(ch not in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_.<>" for ch in name)):
+                    raise ValueError
+                selected_lines = set()
+                line_iterator = iter(code.co_lines())
+                while True:
+                    # Count iterator/EOF attempts before the call, not afterward.
+                    if line_entries >= FOREGROUND_MAX_LINE_ENTRIES:
+                        raise ValueError
+                    line_entries += 1
+                    try:
+                        _, _, line = next(line_iterator)
+                    except StopIteration:
+                        break
+                    if type(line) is int and 1 <= line < 2**32 and line not in selected_lines:
+                        if positions_seen + len(selected_lines) >= FOREGROUND_MAX_POSITIONS:
+                            raise ValueError
+                        selected_lines.add(line)
+                lines = frozenset(selected_lines)
+                positions_seen += len(lines)
+                if not lines or positions_seen > FOREGROUND_MAX_POSITIONS:
+                    raise ValueError
+                codes[id(code)] = (code, module_id, name, selected["sha256"], lines)
+                if len(code.co_consts) > FOREGROUND_MAX_NODES - nodes:
+                    raise ValueError
+                for value in code.co_consts:
+                    nodes += 1
+                    if type(value) is types.CodeType:
+                        if len(pending) >= FOREGROUND_MAX_CODES:
+                            raise ValueError
+                        pending.append(value)
+            pins.append((module_id, selected["sha256"]))
+        if not codes:
+            raise ValueError
+        digest = hashlib.sha256(repr(sorted(pins)).encode("ascii")).hexdigest()
+        prepared = FirstFailureDescriptor()
+        prepared._codes = types.MappingProxyType(codes)
+        prepared._classes = tuple(classes)
+        prepared.source_map_sha256 = digest
+        prepared.preparation_uncertain = False
+        return prepared
+    except BaseException:
+        return FirstFailureDescriptor()
+
+
+SAMPLING_FAULT_VERSION = "stage12_sampling_first_fault_discriminator_v1"
+_SAMPLING_CODES = frozenset("ACQUISITION_GAP OBSERVATION_COUNT_LIMIT OBSERVATION_BYTE_LIMIT OBSERVATION_EVENT_LIMIT OBSERVATION_STORAGE_LIMIT ACK_AGE_LIMIT ACQUISITION_FAILED CLOCK_INVALID OWNER_FAILED SOURCE_CHANGED WRITE_UNCERTAIN READBACK_FAILED ACK_UNCERTAIN DRAIN_EXPIRED MISSING_TERMINAL SCHEMA_INCOMPATIBLE ORDER_INVALID".split())
+_SAMPLING_TAGS = {
+    "code": _SAMPLING_CODES,
+    "stage": frozenset(("ACQUIRE", "RESERVE", "APPEND", "ACK", "WITNESS", "DRAIN", "UNAVAILABLE")),
+    "predicate_origin": frozenset(("ACQUISITION_INTERVAL", "HEALTH_FRESHNESS", "HEALTH_CLOCK_ORDER", "UNAVAILABLE")),
+    "caller_context": frozenset(("ACQUIRE", "OWNER", "SERVICE", "CLOSE", "COORDINATOR_SNAPSHOT", "UNSPECIFIED")),
+    "operands_status": frozenset(("AVAILABLE", "PARTIAL", "UNAVAILABLE")),
+}
+_SAMPLING_NUMBERS = ("previous_observed_mono_ns", "candidate_observed_mono_ns",
+                     "health_time_mono_ns", "check_mono_ns", "reserved_seq")
+
+
+def _sampling_fault_copy(row):
+    keys = {"version", "bound_ns", *_SAMPLING_TAGS, *_SAMPLING_NUMBERS}
+    valid = (type(row) is dict and len(row) == len(keys)
+             and all(type(key) is str and len(key) <= 64 for key in row)
+             and set(row) == keys)
+    data = row if valid else {}
+    result = {"version": SAMPLING_FAULT_VERSION}
+    version = data.get("version")
+    uncertain = not valid or type(version) is not str or version != SAMPLING_FAULT_VERSION
+    for key, allowed in _SAMPLING_TAGS.items():
+        value = data.get(key)
+        result[key] = value if type(value) is str and len(value) <= 64 and value in allowed else None
+        uncertain |= result[key] is None
+    for key in _SAMPLING_NUMBERS:
+        value = data.get(key)
+        result[key] = _resource_uint(value)
+        uncertain |= value is not None and result[key] is None
+    if result["reserved_seq"] == 0:
+        result["reserved_seq"] = None
+    bound = data.get("bound_ns")
+    result["bound_ns"] = bound if type(bound) is int and bound == 100000000 else None
+    uncertain |= result["bound_ns"] is None
+    return result, uncertain
+
+
 class Failures:
     """Two fixed records plus counters; first initiating failure never replaced."""
 
-    def __init__(self, clock, *, closure=False, observer=False):
+    def __init__(self, clock, *, closure=False, observer=False, first_failure_descriptor=None, sampling=False):
         self.clock = clock
         self.lock = threading.Lock()
         self.first = None
         self.secondary = None
         self.secondary_count = 0
         self.response_rejection = None
+        self.foreground_enabled = first_failure_descriptor is not None
+        self.foreground_descriptor = (first_failure_descriptor
+            if type(first_failure_descriptor) is FirstFailureDescriptor else None)
+        self.foreground_first = None
+        self.foreground_faults = int(self.foreground_enabled and self.foreground_descriptor is None)
+        self.sampling_enabled = sampling is True
+        self.sampling_first = None
+        self.sampling_faults = 0
         # Opt-in supplementary successor: no historical/default snapshot change.
         self.closure_enabled = closure is True
         self.closure_entered = None
@@ -460,6 +724,14 @@ class Failures:
         with self.lock:
             if self.first is None:
                 self.first = row
+                if self.foreground_enabled:
+                    try:
+                        if self.foreground_descriptor is None:
+                            raise ValueError
+                        self.foreground_first = self.foreground_descriptor.capture(error)
+                    except BaseException:
+                        # Cached scalar assignment cannot replace the initiating error.
+                        self.foreground_faults = 1
             else:
                 self.secondary_count += 1
                 if self.secondary is None:
@@ -515,6 +787,23 @@ class Failures:
         except BaseException:
             self.closure_fault()
 
+    def record_sampling_fault(self, row):
+        """Copy only the Sampler's first fixed descriptor; never call it back."""
+        if not self.sampling_enabled:
+            return
+        try:
+            selected, uncertain = _sampling_fault_copy(row)
+            with self.lock:
+                if self.sampling_first is None:
+                    self.sampling_first = selected
+                    self.sampling_faults += int(uncertain)
+        except BaseException:
+            try:
+                with self.lock:
+                    self.sampling_faults = 1
+            except BaseException:
+                pass
+
     def rejected(self, reason):
         with self.lock:
             if self.response_rejection is None:
@@ -536,6 +825,22 @@ class Failures:
                 "secondary_observations": self.secondary_count,
                 "earlier_response_rejection": self.response_rejection,
             }
+            if self.foreground_enabled:
+                first = self.foreground_first
+                copied = None if first is None else dict(first, frames=[dict(row) for row in first["frames"]])
+                descriptor = self.foreground_descriptor
+                result["foreground_first_failure"] = dict(
+                    version=FOREGROUND_VERSION,
+                    source_map_sha256=descriptor.source_map_sha256 if descriptor is not None else None,
+                    first_failure=copied, observation_faults=self.foreground_faults,
+                    retention_uncertain=(self.foreground_faults != 0 or descriptor is None
+                        or descriptor.preparation_uncertain or first is not None and first["retention_uncertain"]))
+            if self.sampling_enabled:
+                result["sampling_first_fault"] = dict(
+                    version=SAMPLING_FAULT_VERSION,
+                    first_fault=self.sampling_first.copy() if self.sampling_first is not None else None,
+                    observation_faults=self.sampling_faults,
+                    retention_uncertain=self.sampling_faults != 0)
             if self.closure_enabled:
                 result["closure_boundary"] = {
                     "version": "stage12_public_closure_boundary_diagnostics_v1",

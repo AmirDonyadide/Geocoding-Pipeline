@@ -38,6 +38,8 @@ class Sampler:
         ) = 0
         self.occupied = 0
         self.failure = None
+        self.first_fault = None
+        self.diagnostic_faults = 0
         self.failure_stage = "ACQUIRE"
         self.fault_written = False
         self.anchor = None
@@ -81,11 +83,59 @@ class Sampler:
             "maximum_observations"
         ]
 
+    def _retain_first_fault(self, code, stage="ACQUIRE", *,
+                            predicate_origin="UNAVAILABLE", caller_context="UNSPECIFIED",
+                            previous=None, candidate=None, health_time=None):
+        # Supplementary diagnostics must never change the original guard path.
+        try:
+            self._capture_first_fault(code, stage,
+                predicate_origin=predicate_origin, caller_context=caller_context,
+                previous=previous, candidate=candidate, health_time=health_time)
+        except BaseException:
+            self.diagnostic_faults = min(2**64 - 1, self.diagnostic_faults + 1)
+
+    def _capture_first_fault(self, code, stage="ACQUIRE", *,
+                            predicate_origin="UNAVAILABLE", caller_context="UNSPECIFIED",
+                            previous=None, candidate=None, health_time=None):
+        # Called under the existing sampler RLock, before fault state/operands
+        # change. Never retain an exception, frame, or arbitrary source value.
+        if self.first_fault is not None or self.failure is not None:
+            return
+        def scalar(value):
+            return value if type(value) is int and 0 <= value < 2**64 else None
+        try:
+            checked = scalar(self.clock.now_ns())
+        except BaseException:
+            checked = None
+        if type(predicate_origin) is not str or predicate_origin not in ("ACQUISITION_INTERVAL", "HEALTH_FRESHNESS", "HEALTH_CLOCK_ORDER", "UNAVAILABLE"):
+            predicate_origin = "UNAVAILABLE"
+        if type(caller_context) is not str or caller_context not in ("ACQUIRE", "OWNER", "SERVICE", "CLOSE", "COORDINATOR_SNAPSHOT", "UNSPECIFIED"):
+            caller_context = "UNSPECIFIED"
+        previous, candidate, health_time = map(scalar, (previous, candidate, health_time))
+        required = (previous, candidate, checked) if predicate_origin == "ACQUISITION_INTERVAL" else (previous, health_time, checked) if predicate_origin in ("HEALTH_FRESHNESS", "HEALTH_CLOCK_ORDER") else ()
+        row = dict(version="stage12_sampling_first_fault_discriminator_v1",
+                   code=code, stage=stage, predicate_origin=predicate_origin,
+                   caller_context=caller_context,
+                   previous_observed_mono_ns=previous,
+                   candidate_observed_mono_ns=candidate,
+                   health_time_mono_ns=health_time, check_mono_ns=checked,
+                   bound_ns=100_000_000, reserved_seq=scalar(self.reserved) or None,
+                   operands_status="AVAILABLE" if required and all(v is not None for v in required) else "PARTIAL" if required and any(v is not None for v in required) else "UNAVAILABLE")
+        self.first_fault = row
+        owner = getattr(self.co, "failures", None)
+        publish = getattr(owner, "record_sampling_fault", None)
+        if publish is not None:
+            try:
+                publish(row)
+            except BaseException:
+                self.diagnostic_faults = min(2**64 - 1, self.diagnostic_faults + 1)
+
     def fail(self, code, stage="ACQUIRE"):
         a = self.contract
         a.validate_type(code, "SamplingFailure")
         with self.lock:
             if self.failure is None:
+                self._retain_first_fault(code, stage)
                 self.failure, self.failure_stage = code, stage
             self.condition.notify_all()
         # Never wait for disk to close the real admission boundary.
@@ -150,12 +200,13 @@ class Sampler:
         self.opened = True
         self.writer.wake.set()
 
-    def health(self):
+    def health(self, *, caller_context="UNSPECIFIED"):
         now = self.clock.now_ns()
         with self.lock:
             if self.anchor is None:
                 return
             if now < self.last_observed:
+                self._retain_first_fault("CLOCK_INVALID", predicate_origin="HEALTH_CLOCK_ORDER", caller_context=caller_context, previous=self.last_observed, health_time=now)
                 self.fail("CLOCK_INVALID")
             if self.co.ap_cut_fault:
                 self.fail("ORDER_INVALID", "DRAIN")
@@ -166,6 +217,7 @@ class Sampler:
                 and self.producer_closed is None
                 and now - self.last_observed > 100_000_000
             ):
+                self._retain_first_fault("ACQUISITION_GAP", predicate_origin="HEALTH_FRESHNESS", caller_context=caller_context, previous=self.last_observed, health_time=now)
                 self.fail("ACQUISITION_GAP")
             for i, state in enumerate(self.states):
                 if (
@@ -395,7 +447,10 @@ class Sampler:
                     ("enqueued_ns", self.clock.now_ns()),
                 ]:
                     self.trace_mark(i, key, val)
-                gap = observed - self.last_observed
+                previous_observed = self.last_observed
+                gap = observed - previous_observed
+                if gap < 0 or gap > 100_000_000:
+                    self._retain_first_fault("ACQUISITION_GAP", predicate_origin="ACQUISITION_INTERVAL", caller_context="ACQUIRE", previous=previous_observed, candidate=observed)
                 self.maximum_gap = max(self.maximum_gap, gap)
                 self.last_observed = observed
                 if gap < 0 or gap > 100_000_000:
@@ -424,7 +479,7 @@ class Sampler:
         self.owner_ident = threading.get_ident()
         try:
             while not self.stop.is_set():
-                self.health()
+                self.health(caller_context="OWNER")
                 if self.failure:
                     if self.writer.ap_active_started is None:
                         return
@@ -488,7 +543,7 @@ class Sampler:
             self.action_started = self.clock.now_ns()
             self.trace_mark(i, "writer_entry_ns", self.action_started)
         try:
-            self.health()
+            self.health(caller_context="SERVICE")
             h = self.log.event(
                 "RESOURCE_SAMPLE",
                 {"observation": value, "observation_sha256": a.digest(value)},
@@ -609,7 +664,7 @@ class Sampler:
         self.writer.wake.set()
         end = self.close_end
         while True:
-            self.health()
+            self.health(caller_context="CLOSE")
             if self.writer.failed.is_set():
                 raise SamplingFailure("WRITE_UNCERTAIN")
             with self.lock:

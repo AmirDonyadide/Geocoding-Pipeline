@@ -285,6 +285,70 @@ class Authority:
         )
         self._source_verified = True
 
+    def verify_diagnostic_source(self, path, entry):
+        """Fresh selected-member pin; same guards/charges as the full fence.
+
+        This grants no access. The caller's finite diagnostic map can name only
+        already-authorized source originals; the ordinary full fence still runs.
+        """
+        o.require(type(entry) is dict and set(entry) == {"path", "bytes", "sha256"}
+                  and type(entry["path"]) is str and type(entry["bytes"]) is int
+                  and 0 <= entry["bytes"] <= 2**20
+                  and entry in self.review["source_files"], "RA_G1_SOURCE_INVENTORY")
+        o.require(Path(path) == self.repository / entry["path"], "RA_G1_SOURCE_INVENTORY")
+        self._deadline_check()
+        o.require(a.private_root_identity(self.repository) == self._source_root_identity, "RA_G1_SOURCE_CHANGED")
+        relative = Path(entry["path"])
+        o.require(
+            not relative.is_absolute()
+            and ".." not in relative.parts
+            and len(entry["path"].encode("utf8")) <= 512,
+            "RA_G1_SOURCE_INVENTORY",
+        )
+        path = self.repository / relative
+        parents = self._source_parent_identities(relative)
+        info = path.lstat()
+        o.require(
+            path.is_file()
+            and not path.is_symlink()
+            and info.st_size == entry["bytes"],
+            "RA_G1_SOURCE_CHANGED",
+        )
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+        try:
+            opened = os.fstat(fd)
+            h = hashlib.sha256()
+            remaining = entry["bytes"]
+            while remaining:
+                self._deadline_check()
+                self.charge_original(1, 0)
+                raw = os.read(fd, min(4096, remaining))
+                self.charge_original(0, len(raw))
+                o.require(bool(raw), "RA_G1_SOURCE_CHANGED")
+                h.update(raw)
+                remaining -= len(raw)
+            self._deadline_check()
+            self.charge_original(1, 0)
+            extra = os.read(fd, 1)
+            self.charge_original(0, len(extra))
+            o.require(
+                not extra
+                and self._stat_identity(info)
+                == self._stat_identity(opened)
+                == self._stat_identity(os.fstat(fd))
+                == self._stat_identity(path.lstat())
+                and h.hexdigest() == entry["sha256"],
+                "RA_G1_SOURCE_CHANGED",
+            )
+            o.require(
+                parents == self._source_parent_identities(relative),
+                "RA_G1_SOURCE_CHANGED",
+            )
+        finally:
+            os.close(fd)
+        o.require(a.private_root_identity(self.repository) == self._source_root_identity, "RA_G1_SOURCE_CHANGED")
+        return True
+
     def _source_parent_identities(self, relative):
         """Finite pinned-source parents, before and after each original read."""
         result = []

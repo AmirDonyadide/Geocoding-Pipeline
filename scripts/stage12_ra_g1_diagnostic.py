@@ -1319,7 +1319,9 @@ def execute(args, *, started_ns, cpu_started_ns):
     from safe_geocoding_pipeline.preprocessing.stages import s12_storage as storage
     from safe_geocoding_pipeline.preprocessing.stages import s12_transport as transport
     from safe_geocoding_pipeline.preprocessing import stage12_probe_cli as cli
-    from safe_geocoding_pipeline.preprocessing.stages.s12_public_diagnostics import Failures
+    from safe_geocoding_pipeline.preprocessing.stages.s12_public_diagnostics import (
+        Failures, FOREGROUND_MODULES, prepare_first_failure_descriptor,
+    )
 
     transport.Secret.runtime = transport.Secret.private_file = denied
     config, clock = data["configuration"], runtime.Clock()
@@ -1440,7 +1442,23 @@ def execute(args, *, started_ns, cpu_started_ns):
     attempts, phases, failure = 0, [], None
     boundaries, first_failure, cleanup_failure = [], None, None
     observer_stage_enabled = getattr(args, "observer_stages", False) is True
-    capture_failures = Failures(clock, closure=True, observer=observer_stage_enabled)
+    # Only already-loaded, exactly selected modules are eligible. Pinning uses
+    # the same bounded original source guards; denial remains active throughout.
+    foreground_specs = []
+    for module_id, relative in FOREGROUND_MODULES:
+        name = (__name__ if module_id == "DIAGNOSTIC" else
+                relative.removeprefix("src/").removesuffix(".py").replace("/", "."))
+        module = sys.modules.get(name)
+        if type(module) is type(sys):
+            foreground_specs.append((module_id, module))
+    foreground_descriptor = prepare_first_failure_descriptor(
+        foreground_specs, original.review["source_files"], source_root=source,
+        verify_source=original.verify_diagnostic_source,
+    )
+    capture_failures = Failures(
+        clock, closure=True, observer=observer_stage_enabled,
+        first_failure_descriptor=foreground_descriptor, sampling=True,
+    )
 
     def closure_mark(stage, *, completed=False, deadline=None, deadline_ns=None, guard=None):
         try:

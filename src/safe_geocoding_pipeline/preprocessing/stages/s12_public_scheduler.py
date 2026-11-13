@@ -589,7 +589,7 @@ class Coordinator:
 
     def sample_if_due(self) -> bool:
         if self.ap_enabled:
-            self.ap_sampler.health()
+            self.ap_sampler.health(caller_context="COORDINATOR_SNAPSHOT")
             return False
         timing = None
         collector_enter = (
