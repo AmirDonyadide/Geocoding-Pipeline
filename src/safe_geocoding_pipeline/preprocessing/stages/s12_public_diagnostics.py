@@ -380,6 +380,16 @@ FOREGROUND_MODULES = (
     ("PROBE_CLI", "src/safe_geocoding_pipeline/preprocessing/stage12_probe_cli.py"),
     ("RA_EXECUTION", "src/safe_geocoding_pipeline/preprocessing/stages/s12_ra_g1_execution.py"),
 )
+COLLECTION_FAILURE_VERSION = "stage12_collection_first_failure_discriminator_v1"
+COLLECTION_MODULES = (
+    ("COLLECTION_DRIVER", "scripts/stage12_ra_g1_collection_driver.py"),
+    ("COLLECTION_CORE", "scripts/stage12_ra_g1_terminal_collect.py"),
+    ("COLLECTION_PARENT", "scripts/stage12_ra_g1_terminal_parent.py"),
+    ("COLLECTION_TRANSPORT", "scripts/stage12_ra_g1_terminal_transport.py"),
+    ("COLLECTION_VERIFY", "scripts/stage12_ra_g1_terminal_verify.py"),
+    ("COLLECTION_OBSERVER", "scripts/stage12_ra_g1_one_shot_controls.py"),
+    ("COLLECTION_TERMINAL", "scripts/stage12_ra_g1_nonwaiting_submit.py"),
+)
 _FOREGROUND_CLASSES = (
     (RuntimeError, "RUNTIME_ERROR"), (ValueError, "VALUE_ERROR"),
     (TypeError, "TYPE_ERROR"), (KeyError, "KEY_ERROR"),
@@ -453,14 +463,35 @@ def prepare_first_failure_descriptor(specs, source_rows, *, source_root, verify_
     run under the existing selected-source read policy. Missing/changed pins make
     supplementary retention uncertain; the scientific source guards still run.
     """
+    return _prepare_first_failure_descriptor(
+        specs, source_rows, source_root=source_root, verify_source=verify_source,
+        allowed_modules=FOREGROUND_MODULES,
+    )
+
+
+def prepare_collection_failure_descriptor(specs, source_rows, *, source_root, verify_source):
+    """Same bounded capture, with a closed collection-only source inventory.
+
+    A task loader need not register the driver in sys.modules. Its actual
+    _execute function supplies the real defining namespace without a synthetic
+    module, extra import, replacement function or altered code object.
+    """
+    return _prepare_first_failure_descriptor(
+        specs, source_rows, source_root=source_root, verify_source=verify_source,
+        allowed_modules=COLLECTION_MODULES,
+    )
+
+
+def _prepare_first_failure_descriptor(specs, source_rows, *, source_root,
+                                      verify_source, allowed_modules):
     try:
-        if not (type(specs) in (tuple, list) and 1 <= len(specs) <= len(FOREGROUND_MODULES)
+        if not (type(specs) in (tuple, list) and 1 <= len(specs) <= len(allowed_modules)
                 and type(source_rows) is list and 1 <= len(source_rows) <= 2048):
             raise ValueError
         inventory = {row["path"]: row for row in source_rows}
         if len(inventory) != len(source_rows):
             raise ValueError
-        allowed = dict(FOREGROUND_MODULES)
+        allowed = dict(allowed_modules)
         codes, pins, seen = {}, [], set()
         classes = list(_FOREGROUND_CLASSES)
         nodes = positions_seen = line_entries = source_bytes = 0
@@ -468,7 +499,11 @@ def prepare_first_failure_descriptor(specs, source_rows, *, source_root, verify_
             if type(module_id) is not str or module_id not in allowed or module_id in seen:
                 raise ValueError
             seen.add(module_id)
-            if type(module) is not types.ModuleType:
+            driver_function = (allowed_modules is COLLECTION_MODULES
+                               and module_id == "COLLECTION_DRIVER"
+                               and type(module) is types.FunctionType
+                               and module.__name__ == "_execute")
+            if type(module) is not types.ModuleType and not driver_function:
                 raise ValueError
             relative = allowed[module_id]
             selected = inventory[relative]
@@ -478,26 +513,34 @@ def prepare_first_failure_descriptor(specs, source_rows, *, source_root, verify_
                     and type(selected.get("sha256")) is str and len(selected["sha256"]) == 64
                     and set(selected["sha256"]) <= set("0123456789abcdef")):
                 raise ValueError
-            if str(module.__file__) != str(path):
+            filename = module.__code__.co_filename if driver_function else module.__file__
+            if str(filename) != str(path):
                 raise ValueError
             source_bytes += selected["bytes"]
             if (source_bytes > FOREGROUND_MAX_SOURCE_BYTES
                     or verify_source(path, selected) is not True):
                 raise ValueError
-            namespace = vars(module)
+            namespace = module.__globals__ if driver_function else vars(module)
+            module_name = namespace.get("__name__")
             if module_id == "PUBLIC_SAMPLING":
                 failure_class = namespace.get("SamplingFailure")
                 if (type(failure_class) is type and issubclass(failure_class, RuntimeError)
                         and failure_class.__name__ == "SamplingFailure"
-                        and failure_class.__module__ == module.__name__):
+                        and failure_class.__module__ == module_name):
                     classes.append((failure_class, "SAMPLING_FAILURE"))
+            if module_id in ("COLLECTION_CORE", "COLLECTION_OBSERVER", "COLLECTION_TERMINAL"):
+                failure_class = namespace.get("Stop")
+                if (type(failure_class) is type and issubclass(failure_class, RuntimeError)
+                        and failure_class.__name__ == "Stop"
+                        and failure_class.__module__ == module_name):
+                    classes.append((failure_class, module_id + "_STOP"))
             pending = []
             for value in namespace.values():
                 nodes += 1
                 if nodes > FOREGROUND_MAX_NODES:
                     raise ValueError
                 members = (value,) if type(value) is types.FunctionType else ()
-                if type(value) is type and value.__module__ == module.__name__:
+                if type(value) is type and value.__module__ == module_name:
                     if len(vars(value)) > FOREGROUND_MAX_NODES:
                         raise ValueError
                     members = tuple(vars(value).values())

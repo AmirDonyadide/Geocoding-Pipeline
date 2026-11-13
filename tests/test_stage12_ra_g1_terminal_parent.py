@@ -215,6 +215,8 @@ def test_actual_pair_fifo_transport_receipt_and_final_log_boundary(
     monkeypatch.setattr(pair, "_ENTRY_MONO_NS", entered)
     monkeypatch.setattr(pair, "_ENTRY_EPOCH_NS", epoch)
     binding, authority, template, terminal = case(tmp_path / "case")
+    connected_driver = same_domain == "driver_connected"
+    selected_remote = same_domain in ("remote_directory", "driver_connected")
     if same_domain:
         monkeypatch.setenv("SAFE_STAGE12_INVENTED_TRANSPORT","1")
         binding.update(version=pair.SUCCESSOR_VERSION,window={"scope":"TEST_ONLY"},
@@ -232,6 +234,28 @@ def test_actual_pair_fifo_transport_receipt_and_final_log_boundary(
                        maximum_preparation_and_native_processes=69,
                        **{k:authority[k] for k in ("max_collection_jobs","max_collection_seconds","collection_pool_bytes","collection_pool_creations","control_pool_bytes")},
                        B_authorized=False,public_authorized=False,protected_authorized=False,scientific_acceptance=False)
+        if selected_remote:
+            from safe_geocoding_pipeline.preprocessing.stages import s12_ra_g1_windows as windows
+            import stage12_ra_g1_nonwaiting_submit as terminal_module
+            window = dict(version=windows.SIMPLE_WINDOW_VERSION,
+                scope="TERMINAL_COLLECTION_NO_SERVICE",valid_from=windows.SIMPLE_WINDOW_START,
+                valid_until=windows.SIMPLE_WINDOW_END,
+                policy_sha256=windows.digest(windows.simple_descriptor()),
+                owner_authority_sha256="1"*64,grant_nonce="2"*64)
+            binding["window"] = authority["window"] = admission["window"] = window
+            admission["version"] = pair.OPERATING_ADMISSION_VERSION
+            admission.pop("maximum_preparation_and_native_processes")
+            policy = dict(pair.OPERATING_PAIR_CONTROL_LIMITS)
+            policy["selected_remote_pair"] = binding["output_path"]
+            for filename, key in pair.ONESHOT_SOURCE_FIELDS:
+                policy[key] = pair.digest((ROOT/"scripts"/filename).read_bytes())
+            admission["one_shot_control_policy"] = policy
+            admission["submission_terminal_policy"] = dict(pair.NONWAITING_TERMINAL_LIMITS)
+            admission["submission_terminal_policy"]["module_sha256"] = pair.digest(Path(terminal_module.__file__).read_bytes())
+            if connected_driver:
+                from test_stage12_collection_entry_smoke import driver_fixture_plan
+                driver_plan = driver_fixture_plan(binding)
+                admission["collection_plan_sha256"] = pair.digest(tc.canonical(driver_plan))
         authority["collection_admission_sha256"]=put(Path(binding["collection_admission_path"]),admission)
         binding["authority_sha256"]=pair.digest(tc.canonical(authority))
         (tmp_path/"case/authority.record").write_bytes(tc.canonical(authority))
@@ -264,9 +288,12 @@ def test_actual_pair_fifo_transport_receipt_and_final_log_boundary(
             ready = tc.parse(path.read_bytes())
             ready_sha = pair.digest(tc.canonical(ready))
             import stage12_ra_g1_terminal_transport as adapter
+            if connected_driver:
+                from test_stage12_collection_entry_smoke import run_connected_driver
+                run_connected_driver(root, binding, admission, driver_plan, monkeypatch)
 
             # Actual adapter and finite real producer children; no SSH/native facts.
-            owner = pair.Control(entered, pair.WINDOW_END_NS, 60)
+            owner = pair.Control(entered, ready["context"]["overall_deadline_epoch_ns"], 60)
             original_monotonic_deadline = owner.end
             from test_stage12_ra_g1_terminal_transport import framed_fixture
             receipt, transport_report = adapter.fetch_ready(
@@ -277,11 +304,13 @@ def test_actual_pair_fifo_transport_receipt_and_final_log_boundary(
                 testing_command_factory=None if same_domain else lambda row: ["/bin/cat", row["path"]],
                 testing_batch_command_factory=(lambda rows: framed_fixture(root,rows)) if same_domain else None,
                 control=owner,
+                **(dict(local_directory_scope=adapter.TASK_LOCAL_DIRECTORY_SCOPE,
+                        remote_directory_scope=adapter.REMOTE_DIRECTORY_SCOPE) if selected_remote else {}),
             )
             assert transport_report["artifacts"] and not owner.cleanup_uncertain
             assert owner.end == original_monotonic_deadline == entered + 60 * 10**9
             assert owner.epoch_end == min(
-                pair.WINDOW_END_NS, ready["context"]["parent_deadline_epoch_ns"]
+                ready["context"]["overall_deadline_epoch_ns"], ready["context"]["parent_deadline_epoch_ns"]
             )
             pub = pair.Control(
                 time.monotonic_ns(), ready["context"]["parent_deadline_epoch_ns"], 20
@@ -290,6 +319,10 @@ def test_actual_pair_fifo_transport_receipt_and_final_log_boundary(
             worker_results.append(ready)
         except BaseException as error:
             errors.append(error)
+            if connected_driver:
+                from safe_geocoding_pipeline.preprocessing.stages import s12_public_diagnostics as diagnostics
+                put(root / "TEST_ONLY_LOCAL_TRANSPORT_FAILURE.record",
+                    diagnostics.FirstFailureDescriptor().capture(error))
 
     thread = threading.Thread(target=transport, name="invented-local-retention")
     thread.start()
@@ -309,6 +342,7 @@ def test_actual_pair_fifo_transport_receipt_and_final_log_boundary(
                 "--test-root",
                 str(root),
             ] + (["--same-domain-successor"] if same_domain else [])
+              + (["--discriminator-window-successor"] if selected_remote else [])
         )
     finally:
         stop_transport.set()
@@ -318,7 +352,7 @@ def test_actual_pair_fifo_transport_receipt_and_final_log_boundary(
     assert not thread.is_alive() and not errors
     assert (
         len(worker_results) == 1
-        and worker_results[0].get("version") == (pair.SUCCESSOR_READY_VERSION if same_domain else pair.READY_VERSION)
+        and worker_results[0].get("version") == (pair.REMOTE_IDENTITY_READY_VERSION if selected_remote else pair.SUCCESSOR_READY_VERSION if same_domain else pair.READY_VERSION)
     )
     fs = tc.parse((output / "FILESYSTEM_OBSERVATION.record").read_bytes())
     assert fs["scope"] == "FILESYSTEM_REPORTED_NOT_RESERVED"
@@ -414,7 +448,9 @@ def test_actual_pair_fifo_transport_receipt_and_final_log_boundary(
         log_copy.mkdir(mode=0o700)
         log_rows=[dict(label=r["label"],path=r["remote_path"],bytes=r["bytes"],sha256=r["sha256"]) for r in logs]
         evidence,_=adapter.fetch_batch(log_rows,log_copy,pair.Control(time.monotonic_ns(),time.time_ns()+10**10,10),
-                         expected_uid=os.geteuid(),testing_argv=framed_fixture(wire_root,log_rows),nonce="1"*32)
+                         expected_uid=os.geteuid(),testing_argv=framed_fixture(wire_root,log_rows),nonce="1"*32,
+                         **(dict(local_directory_scope=adapter.TASK_LOCAL_DIRECTORY_SCOPE,
+                                 remote_directory_scope=adapter.REMOTE_DIRECTORY_SCOPE) if selected_remote else {}))
         index["transport_evidence"]=evidence
     final = pair.verify_final_logs(
         result,
@@ -434,6 +470,12 @@ def test_actual_pair_fifo_transport_receipt_and_final_log_boundary(
     if same_domain:
         assert final["whole_collection_opener"]["status"] == "COMPLETE"
         assert result["context"]["version"] == pair.SUCCESSOR_VERSION
+
+
+def test_actual_selected_remote_pair_entrypoint_receipt_ack_and_reopen(tmp_path, monkeypatch):
+    """Current r4/v5, real pair workers/transport/opener; all scheduler facts TEST_ONLY."""
+    test_actual_pair_fifo_transport_receipt_and_final_log_boundary(
+        tmp_path, monkeypatch, "remote_directory")
 
 
 @pytest.mark.parametrize(

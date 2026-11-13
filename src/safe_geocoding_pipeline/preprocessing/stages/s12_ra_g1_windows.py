@@ -91,6 +91,7 @@ def validate_adoption(value, selected, *, original_validator, budget_policy_sha2
         need(selected["valid_until"] == WINDOW_END)
     return value
 
+
 # Explicit successor selected by the 2026-11-12 delegated handoff continuation.
 # Historical constants, descriptors and qualification facts above stay unchanged.
 HANDOFF_WINDOW_VERSION = "SYNTHETIC_AND_COLLECTION_HANDOFF_WINDOW_r2"
@@ -243,4 +244,81 @@ def validate_adoption(value, selected, *, original_validator, budget_policy_sha2
          and selected["rep_admin_budget_policy_sha256"] == budget_policy_sha256)
     if "valid_from" in selected: need(selected["valid_from"] == DISCRIMINATOR_WINDOW_START)
     if "valid_until" in selected: need(selected["valid_until"] == DISCRIMINATOR_WINDOW_END)
+    return value
+
+# Prospective operating-only simplification. Historical r1/r2/r3 stay exact.
+SIMPLE_WINDOW_VERSION = "SYNTHETIC_AND_COLLECTION_OPERATING_WINDOW_r4"
+SIMPLE_WINDOW_START = "2026-11-13T22:24:59.791727Z"
+SIMPLE_WINDOW_END = DISCRIMINATOR_WINDOW_END
+SIMPLE_WINDOW_ADOPTION = "stage12_operating_rep_admin_window_adoption_v4"
+SIMPLE_REP_REMAINING = 10320
+WINDOW_ADOPTIONS = (*WINDOW_ADOPTIONS, SIMPLE_WINDOW_ADOPTION)
+
+
+def simple_descriptor():
+    value = discriminator_descriptor()
+    value.pop("collection_preparation_seconds")
+    value.update(version=SIMPLE_WINDOW_VERSION, valid_from=SIMPLE_WINDOW_START,
+        valid_until=SIMPLE_WINDOW_END, representative_remaining_seconds=SIMPLE_REP_REMAINING,
+        initial_remaining_seconds=SIMPLE_REP_REMAINING,
+        complete_admission_reserve_seconds=SIMPLE_REP_REMAINING,
+        task_administration_policy="stage12_task_administration_simplification_r1",
+        model_preparation_clocks=False, cumulative_administrative_caps=False,
+        maximum_collection_allocations=1)
+    return value
+
+
+_prior_r3_selected_descriptor = selected_descriptor
+_prior_r3_validate_window = validate_window
+_prior_r3_validate_adoption = validate_adoption
+
+
+def selected_descriptor(window):
+    if type(window) is dict and window.get("version") == SIMPLE_WINDOW_VERSION:
+        return simple_descriptor()
+    return _prior_r3_selected_descriptor(window)
+
+
+def validate_window(value, *, scope, now_epoch_ns, required_remaining_seconds):
+    if type(value) is not dict or value.get("version") != SIMPLE_WINDOW_VERSION:
+        return _prior_r3_validate_window(value, scope=scope, now_epoch_ns=now_epoch_ns,
+                                        required_remaining_seconds=required_remaining_seconds)
+    need(set(value) == {"version", "scope", "valid_from", "valid_until", "policy_sha256", "owner_authority_sha256", "grant_nonce"})
+    need(scope in SCOPES and value["scope"] == scope)
+    need(value["valid_from"] == SIMPLE_WINDOW_START and value["valid_until"] == SIMPLE_WINDOW_END)
+    need(value["policy_sha256"] == digest(simple_descriptor())
+         and all(is_hash(value[key]) for key in ("owner_authority_sha256", "grant_nonce")))
+    remaining = SIMPLE_REP_REMAINING if scope == SCOPES[0] else FINAL_REMAINING
+    need(type(now_epoch_ns) is int and type(required_remaining_seconds) is int
+         and required_remaining_seconds == remaining)
+    start, end = epoch_ns(SIMPLE_WINDOW_START), epoch_ns(SIMPLE_WINDOW_END)
+    need(start <= now_epoch_ns < end and now_epoch_ns + remaining*10**9 <= end, "RA_G1_DEADLINE")
+    return value
+
+
+def validate_adoption(value, selected, *, original_validator, budget_policy_sha256):
+    if type(value) is not dict or value.get("schema_version") != SIMPLE_WINDOW_ADOPTION:
+        return _prior_r3_validate_adoption(value, selected, original_validator=original_validator,
+                                          budget_policy_sha256=budget_policy_sha256)
+    keys = {"schema_version", "scope", "window", "original_adoption", "original_adoption_sha256",
+            "grant_kind", "maximum_submissions", "qualification_bundle_sha256",
+            "qualification_review_sha256", "historical_grant_consumed", "original_budget_terms_unchanged"}
+    need(set(value) == keys and value["scope"] == SCOPES[0])
+    original = value["original_adoption"]
+    need(type(original) is dict and not is_window_adoption(original))
+    need(is_hash(value["original_adoption_sha256"]) and digest(original) == value["original_adoption_sha256"])
+    original_validator(original, {"rep_admin_budget_adoption_sha256":value["original_adoption_sha256"],
+        "rep_admin_budget_policy_sha256":budget_policy_sha256, "valid_until":PUBLIC_WINDOW_END})
+    window = value["window"]
+    need(type(window) is dict and window.get("version") == SIMPLE_WINDOW_VERSION)
+    validate_window(window, scope=SCOPES[0], now_epoch_ns=epoch_ns(SIMPLE_WINDOW_START),
+                    required_remaining_seconds=SIMPLE_REP_REMAINING)
+    need(value["grant_kind"] == REP_GRANT and type(value["maximum_submissions"]) is int and value["maximum_submissions"] == 1)
+    need(value["historical_grant_consumed"] is True and value["original_budget_terms_unchanged"] is True)
+    need(value["qualification_bundle_sha256"] == Q2_BUNDLE and value["qualification_review_sha256"] == Q2_REVIEW)
+    need(selected.get("scope", SCOPES[0]) == SCOPES[0])
+    need(digest(value) == selected["rep_admin_budget_adoption_sha256"]
+         and selected["rep_admin_budget_policy_sha256"] == budget_policy_sha256)
+    if "valid_from" in selected: need(selected["valid_from"] == SIMPLE_WINDOW_START)
+    if "valid_until" in selected: need(selected["valid_until"] == SIMPLE_WINDOW_END)
     return value

@@ -19,7 +19,7 @@ def setup(config_path):
     h.need(set(cfg)==KEYS and cfg["schema_version"]==SCHEMA
         and cfg["evidence_use"] in ("HISTORICAL_REHEARSAL","FRESH_SAME_ALLOCATION_FINDINGS_ONLY"),"PREARMED_EXACT_CONFIG")
     bound=h.Bound(h.ref(cfg["orchestration_config"],4*2**20))
-    h.need(bound.cfg["schema_version"]==h.CATALOG_SCHEMA and bound.local_catalog is not None
+    h.need(bound.cfg["schema_version"] in (h.CATALOG_SCHEMA,h.SIMPLE_CATALOG_SCHEMA) and bound.local_catalog is not None
         and cfg["local_record_catalog"]==bound.cfg["local_record_catalog"],"PREARMED_LOCAL_CATALOG_BINDING")
     return cfg,raw,bound
 

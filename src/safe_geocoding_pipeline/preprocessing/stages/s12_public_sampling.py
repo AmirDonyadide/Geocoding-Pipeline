@@ -27,7 +27,17 @@ class Sampler:
         self.clock = coordinator.clock
         self.lock = threading.RLock()
         self.condition = threading.Condition(self.lock)
-        self.arena = bytearray(65536)
+        self.successor_scratch = bool(
+            getattr(self.contract, "M2_ENABLED", False)
+            or getattr(self.contract, "RA_ENABLED", False)
+        )
+        # Successors store the capped canonical bytes, rather than allocating
+        # the complete4096-byte protocol credit for every slot. The released
+        # fixed backing funds the sole writer's independent prepared body/hash.
+        # Native decoder/object occupancy remains scoped RA/M2 assurance, not
+        # a per-object/native guarantee inferred from the4096-byte credit.
+        self.encoded_slot_bytes = 2048 if self.successor_scratch else 4096
+        self.arena = bytearray(16 * self.encoded_slot_bytes)
         self.states = array("Q", [0] * 16)
         self.lengths = array("Q", [0] * 16)
         self.ordinals = array("Q", [0] * 16)
@@ -201,8 +211,10 @@ class Sampler:
         self.writer.wake.set()
 
     def health(self, *, caller_context="UNSPECIFIED"):
-        now = self.clock.now_ns()
         with self.lock:
+            # Acquire commits last_observed under this same lock. A clock read
+            # taken before waiting could otherwise precede a newer commit.
+            now = self.clock.now_ns()
             if self.anchor is None:
                 return
             if now < self.last_observed:
@@ -410,58 +422,63 @@ class Sampler:
                 ),
                 self.lock,
             ):
-                cut = self.cut if final else None
-                value = dict(
-                    schema_version=a.OBSERVATION,
-                    campaign_start_sha256=self.log.start_hash,
-                    segment_id=self.log.segment,
-                    epoch_id=self.log.epoch,
-                    acquisition_seq=self.ordinals[i],
-                    previous_observation_sha256=self.head,
-                    role="FINAL" if final else "REGULAR",
-                    acquire_enter_ns=self.entered[i],
-                    occupied_count_after_reserve=n,
-                    occupied_bytes_after_reserve=n * 4096,
-                    free_query_start_ns=begin,
-                    free_query_end_ns=end,
-                    observed_mono_ns=observed,
-                    acquire_exit_ns=exit_ns,
-                    resource_revision=revision,
-                    state=state,
-                    free_allocated_disk_bytes=free,
-                    cut=cut,
-                )
-                a.validate(value, a.OBSERVATION)
-                raw = c.canonical(value)
-                self.arena[i * 4096 : i * 4096 + len(raw)] = raw
-                self.lengths[i] = len(raw)
-                self.head = a.digest(value)
-                self.observed[i] = observed
-                self.acquired += 1
-                self.states[i] = 2
-                for key, val in [
-                    ("observation_sha256", self.head),
-                    ("resource_revision", revision),
-                    ("observed_ns", observed),
-                    ("acquire_exit_ns", exit_ns),
-                    ("enqueued_ns", self.clock.now_ns()),
-                ]:
-                    self.trace_mark(i, key, val)
-                previous_observed = self.last_observed
-                gap = observed - previous_observed
-                if gap < 0 or gap > 100_000_000:
-                    self._retain_first_fault("ACQUISITION_GAP", predicate_origin="ACQUISITION_INTERVAL", caller_context="ACQUIRE", previous=previous_observed, candidate=observed)
-                self.maximum_gap = max(self.maximum_gap, gap)
-                self.last_observed = observed
-                if gap < 0 or gap > 100_000_000:
-                    self.gaps += 1
-                    self.fail("ACQUISITION_GAP")
-                if final:
-                    self.final_seq = self.ordinals[i]
-                    self.final_observed = observed
-                    self.producer_closed = self.clock.now_ns()
-                self.writer.wake.set()
-                return True
+                try:
+                    cut = self.cut if final else None
+                    value = dict(
+                        schema_version=a.OBSERVATION,
+                        campaign_start_sha256=self.log.start_hash,
+                        segment_id=self.log.segment,
+                        epoch_id=self.log.epoch,
+                        acquisition_seq=self.ordinals[i],
+                        previous_observation_sha256=self.head,
+                        role="FINAL" if final else "REGULAR",
+                        acquire_enter_ns=self.entered[i],
+                        occupied_count_after_reserve=n,
+                        occupied_bytes_after_reserve=n * 4096,
+                        free_query_start_ns=begin,
+                        free_query_end_ns=end,
+                        observed_mono_ns=observed,
+                        acquire_exit_ns=exit_ns,
+                        resource_revision=revision,
+                        state=state,
+                        free_allocated_disk_bytes=free,
+                        cut=cut,
+                    )
+                    a.validate(value, a.OBSERVATION)
+                    raw = c.canonical(value)
+                    a.require(len(raw) <= self.encoded_slot_bytes)
+                    offset = i * self.encoded_slot_bytes
+                    self.arena[offset : offset + len(raw)] = raw
+                    self.lengths[i] = len(raw)
+                    self.head = a.digest(value)
+                    self.observed[i] = observed
+                    self.acquired += 1
+                    self.states[i] = 2
+                    for key, val in [
+                        ("observation_sha256", self.head),
+                        ("resource_revision", revision),
+                        ("observed_ns", observed),
+                        ("acquire_exit_ns", exit_ns),
+                        ("enqueued_ns", self.clock.now_ns()),
+                    ]:
+                        self.trace_mark(i, key, val)
+                    previous_observed = self.last_observed
+                    gap = observed - previous_observed
+                    if gap < 0 or gap > 100_000_000:
+                        self._retain_first_fault("ACQUISITION_GAP", predicate_origin="ACQUISITION_INTERVAL", caller_context="ACQUIRE", previous=previous_observed, candidate=observed)
+                    self.maximum_gap = max(self.maximum_gap, gap)
+                    self.last_observed = observed
+                    if gap < 0 or gap > 100_000_000:
+                        self.gaps += 1
+                        self.fail("ACQUISITION_GAP")
+                    if final:
+                        self.final_seq = self.ordinals[i]
+                        self.final_observed = observed
+                        self.producer_closed = self.clock.now_ns()
+                    self.writer.wake.set()
+                    return True
+                finally:
+                    raw = value = state = None
         except BaseException:
             self.fail("ACQUISITION_FAILED")
             from .s12_public_timing import safe_call
@@ -517,36 +534,64 @@ class Sampler:
             self.log.ap_pending_bytes -= 8192
 
     def service(self):
-        if getattr(self.contract, "M2_ENABLED", False) or getattr(self.contract, "RA_ENABLED", False):
+        if self.successor_scratch:
             from .s12_wf_ap2_scratch import lease
 
-            # The writer takes this before any sampler/safety lock. The sole
-            # producer and writer share one serialization partition.
+            # Only preparation borrows producer serialization scratch. State3
+            # transfers one bounded body/digest to the sole writer, whose slot
+            # remains occupied through sample persistence, ACK and witness.
+            prepared = None
             with lease("OBSERVATION"):
-                return self._service()
+                prepared = self._prepare_service()
+            if prepared is None:
+                return False
+            try:
+                return self._service(prepared)
+            finally:
+                prepared = None
         return self._service()
 
-    def _service(self):
+    def _prepare_service(self):
         a = self.contract
-        """Writer-only one atomic pair, including its witness; no recursive call."""
         self.writer.assert_owner()
         if not self.opened or self.writer.failed.is_set():
-            return False
+            return None
         with self.lock:
             queued = [i for i, s in enumerate(self.states) if s == 2]
             if not queued:
-                return False
+                return None
             i = min(queued, key=lambda k: self.ordinals[k])
             self.states[i] = 3
-            raw = bytes(self.arena[i * 4096 : i * 4096 + self.lengths[i]])
-            value = a.parse(raw, a.OBSERVATION)
+            offset = i * self.encoded_slot_bytes
+            view = memoryview(self.arena)[offset : offset + self.lengths[i]]
+            raw = None
+            try:
+                raw = bytes(view)
+                value = a.parse(raw, a.OBSERVATION)
+                # parse checked canonical equivalence; retain its exact hash
+                # instead of re-encoding the observation during persistence.
+                observation_sha256 = c.sha(raw).hex()
+            finally:
+                raw = None
+                view.release()
             self.action_started = self.clock.now_ns()
             self.trace_mark(i, "writer_entry_ns", self.action_started)
+            return i, value, observation_sha256
+
+    def _service(self, prepared=None):
+        a = self.contract
+        """Writer-only one atomic pair, including its witness; no recursive call."""
+        if prepared is None:
+            prepared = self._prepare_service()
+        if prepared is None:
+            return False
+        i, value, observation_sha256 = prepared
         try:
+            self.writer.assert_owner()
             self.health(caller_context="SERVICE")
             h = self.log.event(
                 "RESOURCE_SAMPLE",
-                {"observation": value, "observation_sha256": a.digest(value)},
+                {"observation": value, "observation_sha256": observation_sha256},
                 closure=bool(self.failure or self.close_requested),
                 writer_inline=True,
             )
@@ -567,7 +612,7 @@ class Sampler:
                 "SAMPLE_ACK",
                 dict(
                     acquisition_seq=value["acquisition_seq"],
-                    observation_sha256=a.digest(value),
+                    observation_sha256=observation_sha256,
                     sample_event_seq=sample_seq,
                     sample_event_sha256=h,
                     event_ack_mono_ns=acknowledged,
@@ -578,12 +623,19 @@ class Sampler:
             self.writer.check_deadline()
             self.writer.storage_guard()
             reopened = self.clock.now_ns()
-            with self.lock:
+            from .s12_wf_ap2_scratch import lease
+
+            # Event persistence returned its lease. Association encoding uses
+            # that existing writer partition, never producer OBSERVATION.
+            with (
+                lease("EVENT") if self.successor_scratch else nullcontext(),
+                self.lock,
+            ):
                 self.association = a.digest(
                     dict(
                         previous_sha256=self.association,
                         acquisition_seq=value["acquisition_seq"],
-                        observation_sha256=a.digest(value),
+                        observation_sha256=observation_sha256,
                         sample_event_seq=sample_seq,
                         sample_event_sha256=h,
                         ack_event_seq=self.log.seq,
@@ -610,6 +662,7 @@ class Sampler:
                 self.writer.failed.set()
                 self.fail("WRITE_UNCERTAIN", "APPEND")
             self.action_started = None
+            prepared = value = observation_sha256 = None
 
     def probe_cut(self):
         a = self.contract

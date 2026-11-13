@@ -2,7 +2,7 @@
 import hashlib
 import importlib.util
 from pathlib import Path
-OPS_SHA256 = "6a960a99dd7dd49ac092584e4cdf3649179aebf16d109bbdc481d5bf64fa1b25"
+OPS_SHA256 = "2e9ba6e05127c59a8157ce034343805b7ea76a92cf8e474a0b5475513b2526bb"
 path=Path(__file__).with_name("prearmed_handoff.py")
 if hashlib.sha256(path.read_bytes()).hexdigest()!=OPS_SHA256:
     raise RuntimeError("FROZEN_REVIEW_ACTION_SOURCE_CHANGED")

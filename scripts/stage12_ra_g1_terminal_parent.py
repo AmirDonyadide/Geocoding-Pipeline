@@ -43,6 +43,7 @@ NONWAITING_PAIR_CONTROL_VERSION = "stage12_task_oneshot_nonwaiting_selected_pair
 REMOTE_DIRECTORY_SCOPE = "stage12_task_remote_directory_identity_v1"
 REMOTE_TRANSPORT_VERSION = "stage12_same_session_transfer_v3_remote_directory_identity"
 REMOTE_IDENTITY_ADMISSION_VERSION = "stage12_collection_nonwaiting_remote_directory_admission_v4"
+OPERATING_ADMISSION_VERSION = "stage12_collection_operating_remote_directory_admission_v5"
 REMOTE_IDENTITY_PAIR_CONTROL_VERSION = "stage12_task_oneshot_nonwaiting_remote_directory_v4"
 REMOTE_IDENTITY_READY_VERSION = "stage12_terminal_remote_directory_transport_ready_v3"
 REMOTE_IDENTITY_OBSERVER_VERSION = "stage12_task_oneshot_remote_directory_v3"
@@ -78,6 +79,12 @@ REMOTE_IDENTITY_PAIR_CONTROL_LIMITS = tuple(
     for key, expected in NONWAITING_PAIR_CONTROL_LIMITS
 ) + (("remote_directory_scope", REMOTE_DIRECTORY_SCOPE),
      ("transport_evidence_version", REMOTE_TRANSPORT_VERSION))
+OPERATING_PAIR_CONTROL_VERSION = "stage12_task_oneshot_operating_remote_directory_v5"
+OPERATING_PAIR_CONTROL_LIMITS = tuple(
+    (key, OPERATING_PAIR_CONTROL_VERSION if key=="version" else expected)
+    for key,expected in REMOTE_IDENTITY_PAIR_CONTROL_LIMITS
+    if key!="maximum_process_units"
+)
 
 NONWAITING_TERMINAL_LIMITS = (
     ("version", NONWAITING_TERMINAL_VERSION),
@@ -122,7 +129,8 @@ def validate_cli_window(value, *, handoff_window_successor, discriminator_window
     window = value.get("window", value.get("context", {}).get("window", {}))
     need(not (handoff_window_successor and discriminator_window_successor), "SCOPE")
     need(handoff_window_successor == (window.get("version") == windows.HANDOFF_WINDOW_VERSION), "SCOPE")
-    need(discriminator_window_successor == (window.get("version") == windows.DISCRIMINATOR_WINDOW_VERSION), "SCOPE")
+    need(discriminator_window_successor == (window.get("version") in
+         (windows.DISCRIMINATOR_WINDOW_VERSION, windows.SIMPLE_WINDOW_VERSION)), "SCOPE")
 
 def validate_collection_window(value, *, now_epoch_ns, required_remaining_seconds):
     from safe_geocoding_pipeline.preprocessing.stages import s12_ra_g1_windows as windows
@@ -592,11 +600,12 @@ def validate_binding(binding, offline, test_root):
                  and binding["valid_until_epoch_ns"] == windows.epoch_ns(window_policy["valid_until"]), "BINDING")
 
 
-def validate_oneshot_control_policy(policy, *, selected_remote_pair=None, nonwaiting=False, remote_directory_scope=None):
+def validate_oneshot_control_policy(policy, *, selected_remote_pair=None, nonwaiting=False, remote_directory_scope=None, operating=False):
     """Closed historical or explicitly selected final-directory successor."""
     selected = selected_remote_pair is not None
     need(remote_directory_scope is None or remote_directory_scope == REMOTE_DIRECTORY_SCOPE and nonwaiting and selected, "AUTHORITY")
-    limits = REMOTE_IDENTITY_PAIR_CONTROL_LIMITS if remote_directory_scope is not None else NONWAITING_PAIR_CONTROL_LIMITS if nonwaiting else SELECTED_PAIR_CONTROL_LIMITS if selected else ONESHOT_CONTROL_LIMITS
+    need(type(operating) is bool and (not operating or remote_directory_scope==REMOTE_DIRECTORY_SCOPE), "AUTHORITY")
+    limits = OPERATING_PAIR_CONTROL_LIMITS if operating else REMOTE_IDENTITY_PAIR_CONTROL_LIMITS if remote_directory_scope is not None else NONWAITING_PAIR_CONTROL_LIMITS if nonwaiting else SELECTED_PAIR_CONTROL_LIMITS if selected else ONESHOT_CONTROL_LIMITS
     fields(policy, " ".join(key for key,_ in limits)
            + " " + " ".join(key for _,key in ONESHOT_SOURCE_FIELDS)
            + (" selected_remote_pair" if selected else ""), "AUTHORITY")
@@ -625,12 +634,14 @@ def validate_nonwaiting_terminal_policy(policy):
 
 
 def validate_collection_admission(value, binding, authority, offline):
-    remote_identity = type(value) is dict and value.get("version") == REMOTE_IDENTITY_ADMISSION_VERSION
-    nonwaiting = type(value) is dict and value.get("version") in (NONWAITING_ADMISSION_VERSION, REMOTE_IDENTITY_ADMISSION_VERSION)
-    selected_pair = type(value) is dict and value.get("version") in (SELECTED_PAIR_ADMISSION_VERSION, NONWAITING_ADMISSION_VERSION, REMOTE_IDENTITY_ADMISSION_VERSION)
-    oneshot = type(value) is dict and value.get("version") in (ONESHOT_ADMISSION_VERSION, SELECTED_PAIR_ADMISSION_VERSION, NONWAITING_ADMISSION_VERSION, REMOTE_IDENTITY_ADMISSION_VERSION)
-    fields(value, "version scope state source_git_sha original_job_id original_source_git_sha original_selection_sha256 original_source_root allocation_producer_sha256 historical_collection_sha256 window grant_nonce collection_purpose helper_sha256 parent_sha256 verifier_sha256 collection_plan_sha256 collection_review_sha256 software_review_sha256 process_graph_sha256 maximum_preparation_and_native_processes max_collection_jobs max_collection_seconds collection_pool_bytes collection_pool_creations control_pool_bytes B_authorized public_authorized protected_authorized scientific_acceptance" + (" one_shot_control_policy" if oneshot else "") + (" submission_terminal_policy" if nonwaiting else ""), "AUTHORITY")
-    need(value["version"] in ("stage12_collection_only_admission_v1", ONESHOT_ADMISSION_VERSION, SELECTED_PAIR_ADMISSION_VERSION, NONWAITING_ADMISSION_VERSION, REMOTE_IDENTITY_ADMISSION_VERSION) and value["scope"] == "TERMINAL_COLLECTION_NO_SERVICE"
+    from safe_geocoding_pipeline.preprocessing.stages import s12_ra_g1_windows as windows
+    operating = type(value) is dict and value.get("version") == OPERATING_ADMISSION_VERSION
+    remote_identity = type(value) is dict and value.get("version") in (REMOTE_IDENTITY_ADMISSION_VERSION, OPERATING_ADMISSION_VERSION)
+    nonwaiting = type(value) is dict and value.get("version") in (NONWAITING_ADMISSION_VERSION, REMOTE_IDENTITY_ADMISSION_VERSION, OPERATING_ADMISSION_VERSION)
+    selected_pair = type(value) is dict and value.get("version") in (SELECTED_PAIR_ADMISSION_VERSION, NONWAITING_ADMISSION_VERSION, REMOTE_IDENTITY_ADMISSION_VERSION, OPERATING_ADMISSION_VERSION)
+    oneshot = type(value) is dict and value.get("version") in (ONESHOT_ADMISSION_VERSION, SELECTED_PAIR_ADMISSION_VERSION, NONWAITING_ADMISSION_VERSION, REMOTE_IDENTITY_ADMISSION_VERSION, OPERATING_ADMISSION_VERSION)
+    fields(value, "version scope state source_git_sha original_job_id original_source_git_sha original_selection_sha256 original_source_root allocation_producer_sha256 historical_collection_sha256 window grant_nonce collection_purpose helper_sha256 parent_sha256 verifier_sha256 collection_plan_sha256 collection_review_sha256 software_review_sha256 process_graph_sha256 max_collection_jobs max_collection_seconds collection_pool_bytes collection_pool_creations control_pool_bytes B_authorized public_authorized protected_authorized scientific_acceptance" + ("" if operating else " maximum_preparation_and_native_processes") + (" one_shot_control_policy" if oneshot else "") + (" submission_terminal_policy" if nonwaiting else ""), "AUTHORITY")
+    need(value["version"] in ("stage12_collection_only_admission_v1", ONESHOT_ADMISSION_VERSION, SELECTED_PAIR_ADMISSION_VERSION, NONWAITING_ADMISSION_VERSION, REMOTE_IDENTITY_ADMISSION_VERSION, OPERATING_ADMISSION_VERSION) and value["scope"] == "TERMINAL_COLLECTION_NO_SERVICE"
          and value["state"] == ("TEST_ONLY" if offline else "ISSUED"), "AUTHORITY")
     for key in ("source_git_sha","original_job_id","original_source_git_sha","original_selection_sha256","original_source_root",
                 "allocation_producer_sha256","window","grant_nonce","helper_sha256","parent_sha256","verifier_sha256","collection_purpose"):
@@ -642,11 +653,13 @@ def validate_collection_admission(value, binding, authority, offline):
     for key in ("max_collection_jobs","max_collection_seconds","collection_pool_bytes","collection_pool_creations","control_pool_bytes"):
         tc.uint(value[key])
         need(value[key] == authority[key], "AUTHORITY")
-    need(type(value["maximum_preparation_and_native_processes"]) is int
-         and value["maximum_preparation_and_native_processes"] == (384 if nonwaiting else 228 if selected_pair else 208 if oneshot else 69), "AUTHORITY")
+    need(operating == (value["window"].get("version") == windows.SIMPLE_WINDOW_VERSION), "AUTHORITY")
+    if not operating:
+        need(type(value["maximum_preparation_and_native_processes"]) is int
+             and value["maximum_preparation_and_native_processes"] == (384 if nonwaiting else 228 if selected_pair else 208 if oneshot else 69), "AUTHORITY")
     if oneshot:
         policy = value["one_shot_control_policy"]
-        validate_oneshot_control_policy(policy, selected_remote_pair=binding["output_path"] if selected_pair else None, nonwaiting=nonwaiting, remote_directory_scope=REMOTE_DIRECTORY_SCOPE if remote_identity else None)
+        validate_oneshot_control_policy(policy, selected_remote_pair=binding["output_path"] if selected_pair else None, nonwaiting=nonwaiting, remote_directory_scope=REMOTE_DIRECTORY_SCOPE if remote_identity else None, operating=operating)
     if nonwaiting:
         validate_nonwaiting_terminal_policy(value["submission_terminal_policy"])
     need(all(value[key] is False for key in ("B_authorized","public_authorized","protected_authorized","scientific_acceptance")), "SCOPE")
@@ -1076,10 +1089,10 @@ def run_pair(
     if binding["version"] == SUCCESSOR_VERSION:
         admission = load_control(Path(binding["collection_admission_path"]), authority["collection_admission_sha256"], control)
         validate_collection_admission(admission, binding, authority, offline)
-        if admission["version"] in (ONESHOT_ADMISSION_VERSION, SELECTED_PAIR_ADMISSION_VERSION, NONWAITING_ADMISSION_VERSION, REMOTE_IDENTITY_ADMISSION_VERSION):
+        if admission["version"] in (ONESHOT_ADMISSION_VERSION, SELECTED_PAIR_ADMISSION_VERSION, NONWAITING_ADMISSION_VERSION, REMOTE_IDENTITY_ADMISSION_VERSION, OPERATING_ADMISSION_VERSION):
             for filename, key in ONESHOT_SOURCE_FIELDS:
                 source_hash(parent.with_name(filename), admission["one_shot_control_policy"][key], control)
-        if admission["version"] in (NONWAITING_ADMISSION_VERSION, REMOTE_IDENTITY_ADMISSION_VERSION):
+        if admission["version"] in (NONWAITING_ADMISSION_VERSION, REMOTE_IDENTITY_ADMISSION_VERSION, OPERATING_ADMISSION_VERSION):
             source_hash(parent.with_name("stage12_ra_g1_nonwaiting_submit.py"),
                         admission["submission_terminal_policy"]["module_sha256"], control)
     original_selection, original_producer = load_control_large(
@@ -1138,7 +1151,7 @@ def run_pair(
         external_logs=binding["collection_external_logs"],
         native_or_scientific_acceptance=False,
     )
-    if binding["version"] == SUCCESSOR_VERSION and admission["version"] == REMOTE_IDENTITY_ADMISSION_VERSION:
+    if binding["version"] == SUCCESSOR_VERSION and admission["version"] in (REMOTE_IDENTITY_ADMISSION_VERSION, OPERATING_ADMISSION_VERSION):
         sourceinfo.update(remote_directory_scope=REMOTE_DIRECTORY_SCOPE, transport_evidence_version=REMOTE_TRANSPORT_VERSION)
     if binding["version"] == SUCCESSOR_VERSION:
         sourceinfo.update(version=SUCCESSOR_VERSION, window=binding["window"], collection_purpose=binding["collection_purpose"], original_source_root=binding["original_source_root"], original_producer_path=binding["original_producer_path"], original_producer_sha256=binding["allocation_producer_sha256"])

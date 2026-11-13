@@ -1,6 +1,85 @@
 """Exact task-scoped collection coordinator; no retries or automatic replacement."""
 import hashlib,os,stat,subprocess,time,types,sys
+from pathlib import Path
+from safe_geocoding_pipeline.preprocessing.stages import s12_public_diagnostics as diagnostics
 if sys.flags.optimize!=0:raise RuntimeError("CONTROLLER_OPTIMIZATION_UNSUPPORTED")
+
+# The supplementary mechanism is part of this exact reviewed driver dependency.
+DIAGNOSTICS_SHA256 = "f9377d24164e65b5763fd1e86ca66ace6871471fd68c8216cf8dfb78728595e1"
+COLLECTION_OPERATIONS = frozenset(("SUBMIT", "OBSERVE", "READY", "FETCH", "RECEIPT",
+                                 "WAIT_TERMINAL", "FINAL_OPEN", "COMPLETE"))
+SOURCE_MAP_READ_ATTEMPTS = 64
+
+
+class _DiagnosticSourceReader:
+ """A small pre-read stop inside the SAME original controller owner."""
+ def __init__(self,overall):
+  self.overall=overall;self.read_calls=0;self.read_bytes=0
+ @property
+ def cleanup_uncertain(self):return self.overall.cleanup_uncertain
+ @cleanup_uncertain.setter
+ def cleanup_uncertain(self,value):self.overall.cleanup_uncertain=value
+ def check(self):self.overall.check()
+ def read(self,fd,amount):
+  if self.read_calls>=SOURCE_MAP_READ_ATTEMPTS:
+   raise RuntimeError("DIAGNOSTIC_MAP_READ_LIMIT")
+  self.read_calls+=1
+  raw=self.overall.read(fd,amount)
+  self.read_bytes+=len(raw)
+  return raw
+
+
+def prepare_failure_descriptor(modules, observer, terminal, admission, overall):
+ """Fresh existing-reader pins, once, before submission; no I/O during capture."""
+ tc,pair,transport,verify=modules
+ pin_reader=_DiagnosticSourceReader(overall)
+ prepared=None
+ try:
+  root=Path(__file__).absolute().parent.parent
+  diagnostic_path=root/"src/safe_geocoding_pipeline/preprocessing/stages/s12_public_diagnostics.py"
+  if Path(diagnostics.__file__).absolute()!=diagnostic_path:
+   raise ValueError
+  pair.source_hash(diagnostic_path,DIAGNOSTICS_SHA256,pin_reader)
+  policy=admission["one_shot_control_policy"]
+  selected=[("COLLECTION_DRIVER",_execute,policy["collection_driver_sha256"]),
+            ("COLLECTION_CORE",tc,admission["helper_sha256"]),
+            ("COLLECTION_PARENT",pair,admission["parent_sha256"]),
+            ("COLLECTION_TRANSPORT",transport,policy["transport_sha256"]),
+            ("COLLECTION_VERIFY",verify,admission["verifier_sha256"]),
+            ("COLLECTION_OBSERVER",observer,policy["one_shot_controls_sha256"])]
+  if terminal is not None:
+   selected.append(("COLLECTION_TERMINAL",terminal,admission["submission_terminal_policy"]["module_sha256"]))
+  inventory=dict(diagnostics.COLLECTION_MODULES)
+  rows=[dict(path=inventory[label],bytes=(root/inventory[label]).lstat().st_size,sha256=digest)
+        for label,_,digest in selected]
+  def verify_source(path,row):
+   pair.source_hash(path,row["sha256"],pin_reader)
+   return True
+  prepared=diagnostics.prepare_collection_failure_descriptor(
+      [(label,module) for label,module,_ in selected],rows,
+      source_root=root,verify_source=verify_source)
+ except BaseException:
+  # Retention is supplementary. Actual admission/source/deadline gates remain.
+  prepared=diagnostics.FirstFailureDescriptor()
+ prepared.preparation_read_calls=pin_reader.read_calls
+ prepared.preparation_read_bytes=pin_reader.read_bytes
+ return prepared
+
+
+def capture_failure_descriptor(prepared,error,stage):
+ """Capture before safe-code classification without retaining the exception."""
+ operation=stage if type(stage) is str and stage in COLLECTION_OPERATIONS else "UNAVAILABLE"
+ try:
+  row=prepared.capture(error)
+  row.update(version=diagnostics.COLLECTION_FAILURE_VERSION,operation=operation,
+             source_map_sha256=prepared.source_map_sha256,
+             source_pin_read_calls=getattr(prepared,"preparation_read_calls",0),
+             source_pin_read_bytes=getattr(prepared,"preparation_read_bytes",0),
+             source_pin_read_attempt_limit=SOURCE_MAP_READ_ATTEMPTS)
+  return row
+ except BaseException:
+  return dict(version=diagnostics.COLLECTION_FAILURE_VERSION,operation=operation,
+              exception_class="UNKNOWN",frames=[],retention_uncertain=True)
 
 def validate_prelude(raw,rows,ancestors,transport,uid,gid,*,remote_directory_scope=None):
  lines=raw.splitlines(keepends=True); n=len(rows)+len(ancestors)
@@ -158,7 +237,13 @@ def load_verified_admission(plan, command, overall, pair, transport, observer, *
  pair.need((command.get("version") == "stage12_selected_pair_remote_directory_exact_commands_v3") == selected_remote, "BINDING")
  pair.need(command.get("remote_directory_scope") == plan.get("remote_directory_scope")
            and command.get("transport_evidence_version") == plan.get("transport_evidence_version"), "BINDING")
- pair.need(admission["version"]==(pair.REMOTE_IDENTITY_ADMISSION_VERSION if selected_remote else pair.NONWAITING_ADMISSION_VERSION if nonwaiting_module is not None else pair.SELECTED_PAIR_ADMISSION_VERSION), "AUTHORITY")
+ from safe_geocoding_pipeline.preprocessing.stages import s12_ra_g1_windows as windows
+ operating = binding.get("window",{}).get("version") == windows.SIMPLE_WINDOW_VERSION
+ pair.need(admission["version"]==(
+     pair.OPERATING_ADMISSION_VERSION if operating else
+     pair.REMOTE_IDENTITY_ADMISSION_VERSION if selected_remote else
+     pair.NONWAITING_ADMISSION_VERSION if nonwaiting_module is not None else
+     pair.SELECTED_PAIR_ADMISSION_VERSION), "AUTHORITY")
  pair.need(plan["remote_pair"]==binding["output_path"], "BINDING")
  for key in ("source_git_sha","original_source_git_sha","original_source_root",
              "original_producer_path","allocation_producer_sha256"):
@@ -216,6 +301,7 @@ def _execute(plan,command,rows,ancestors,base,modules,observer,wait_module,hando
  handles["control"]=overall
  if nonwaiting:handles["terminal_query_bank"]=wait_module.new_query_bank()
  original_check=overall.check;streams=None;stage="SUBMIT";phase_owners=[];proc=None;fds={};readers={};failure=None;result=None;failure_hook=None
+ failure_descriptor=diagnostics.FirstFailureDescriptor()
  def check(self):
   original_check()
   if streams is not None:streams.pump()
@@ -226,14 +312,21 @@ def _execute(plan,command,rows,ancestors,base,modules,observer,wait_module,hando
  try:
   assert "observer_argv" not in command
   actual_admission=load_verified_admission(plan,command,overall,pair,transport,observer,nonwaiting_module=wait_module if nonwaiting else None)
+  failure_descriptor=prepare_failure_descriptor(modules,observer,wait_module if nonwaiting else None,actual_admission,overall)
   pair.need(plan.get("local_directory_scope") == transport.TASK_LOCAL_DIRECTORY_SCOPE, "BINDING")
   policy=actual_admission["one_shot_control_policy"]
-  expected_task_selection={key:policy[key] for key in ("version","maximum_probes","probe_seconds","minimum_start_spacing_seconds","spacing_anchor","maximum_process_units","directory_readiness","selected_remote_pair")}
+  task_keys=("version","maximum_probes","probe_seconds","minimum_start_spacing_seconds","spacing_anchor","directory_readiness","selected_remote_pair")
+  if actual_admission["version"]!=getattr(pair,"OPERATING_ADMISSION_VERSION",None):
+   task_keys+=("maximum_process_units",)
+  expected_task_selection={key:policy[key] for key in task_keys}
   assert command["task_control_selection"] == expected_task_selection
   assert (observer.REMOTE_VERSION if plan.get("remote_directory_scope") is not None else observer.VERSION)==(policy["readiness_reader_version"] if nonwaiting else policy["version"]) and policy["selected_remote_pair"]==plan["remote_pair"]
   for label in ("stdout","stderr"):
    path=base/("submission."+label+".raw");fd=os.open(path,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600);fds[label]=(fd,path);readfd=os.open(path,os.O_RDONLY|os.O_NOFOLLOW);assert os.fstat(readfd).st_ino==os.fstat(fd).st_ino and os.fstat(readfd).st_dev==os.fstat(fd).st_dev;readers[label]=(readfd,path)
-  record("EXECUTION_ENTRY.record",dict(entry_mono_ns=started,entry_epoch_ns=epoch,role_deadline_mono_ns=overall.end,window_end_epoch_ns=overall.epoch_end,source=plan["source_git_sha"],nonce=command["nonce"],actual_admission_sha256=command["admission_sha256"],actual_admission_version=actual_admission["version"],actual_admission_process_cap=actual_admission["maximum_preparation_and_native_processes"]))
+  entry_record=dict(entry_mono_ns=started,entry_epoch_ns=epoch,role_deadline_mono_ns=overall.end,window_end_epoch_ns=overall.epoch_end,source=plan["source_git_sha"],nonce=command["nonce"],actual_admission_sha256=command["admission_sha256"],actual_admission_version=actual_admission["version"],actual_admission_process_cap=actual_admission.get("maximum_preparation_and_native_processes"))
+  if actual_admission["version"]==getattr(pair,"OPERATING_ADMISSION_VERSION",None):
+   entry_record["task_administrative_process_cap_retired"]=True
+  record("EXECUTION_ENTRY.record",entry_record)
   charge("QUALIFICATION_SOLE_ORDINARY_SUBMISSION_AND_POSSIBLE_NATIVE_ROLES" if nonwaiting else "QUALIFICATION_SOLE_SUBMIT_WAIT_TERMINAL_AND_POSSIBLE_NATIVE_ROLES",8 if nonwaiting else 11)
   mark_slot()
   if nonwaiting:overall.check()  # fresh original-controller/window gate after ledger fsync
@@ -301,7 +394,11 @@ def _execute(plan,command,rows,ancestors,base,modules,observer,wait_module,hando
   stage="FINAL_OPEN";charge("QUALIFICATION_POSTTERMINAL_SIX_ORIGINALS_AND_ACTUAL_OPENER",12);c=action_control(stage,120,min(ready["context"]["overall_deadline_epoch_ns"],terminal["start_epoch_ns"]+1800*10**9));open_entry=time.monotonic_ns();result=handoff.finish_collected(plan,terminal,__import__("pathlib").Path(plan["local_final_logs"]),__import__("pathlib").Path(plan["local_retained"]),c)
   overall.check();record("ACTUAL_OPENER_COMPLETION.record",dict(invoked_mono_ns=open_entry,complete_mono_ns=time.monotonic_ns(),complete_epoch_ns=time.time_ns(),status=result["status"],result=result));stage="COMPLETE"
  except BaseException as error:
+  # The existing first-failure owner retains initiation before generic mapping,
+  # hooks, stream draining or close failures can obscure the original traceback.
+  first_descriptor=capture_failure_descriptor(failure_descriptor,error,stage)
   failure=dict(stage=stage,code=(wait_module.safe_code(error) if nonwaiting and type(error) is wait_module.Stop else pair.safe_code(error)),kind=("TC_STOP" if type(error) is tc.Stop else "ASSERTION" if type(error) is AssertionError else "OS_ERROR" if isinstance(error,OSError) else "UNCLASSIFIED"),observed_mono_ns=time.monotonic_ns(),observed_epoch_ns=time.time_ns(),transport=getattr(error,"transport_diagnostic",None),historical_cause_not_inferred=True)
+  failure["first_failure_descriptor"]=first_descriptor
   if nonwaiting and getattr(error,"terminal_query_diagnostic",None) is not None:
    failure["terminal_query"]=error.terminal_query_diagnostic
    failure["query_persistence_uncertain"]=getattr(error,"query_persistence_uncertain",False)

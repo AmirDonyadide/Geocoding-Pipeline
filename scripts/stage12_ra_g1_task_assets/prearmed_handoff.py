@@ -1,6 +1,7 @@
 """Task-scoped prearmed REP handoffs. No authority is issued by this program.
 
-Only immutable root-precharged vouchers can launch the declared child roles.
+Selected immutable role ownership binds the declared child roles. Historical
+precharged records remain readable; current ownership does not assert funding.
 Collector facts and independent review remain separate; expected B input is never
 derived on the factual-publication path. Native allocation gates stay authoritative.
 """
@@ -168,6 +169,8 @@ def load_script(path, name):
 
 
 CATALOG_SCHEMA = "stage12_task_prearmed_factual_handoff_local_catalog_v3"
+SIMPLE_CATALOG_SCHEMA = "stage12_task_prearmed_handoff_role_ownership_v4"
+ROLE_OWNERSHIP = "stage12_handoff_role_ownership_v2"
 CATALOG_EXACT_SCHEMA = "stage12_task_exact_input_checker_local_catalog_v2"
 LOCAL_CATALOG_VERSION = "stage12_task_local_record_catalog_v1"
 LOCAL_CATALOG_ROLES = ("adoption", "project_approval", "resource_review", "software_review", "software_report")
@@ -342,9 +345,9 @@ class Bound:
         need(type(unissued) is bool,"PREARMED_CONFIG")
         self.unissued=unissued
         self.raw=raw;self.cfg=parse(raw);c=self.cfg
-        catalog_selected=c.get("schema_version")==CATALOG_SCHEMA
+        catalog_selected=c.get("schema_version") in (CATALOG_SCHEMA,SIMPLE_CATALOG_SCHEMA)
         need(set(c)==(CONFIG_KEYS|{"local_record_catalog"} if catalog_selected else CONFIG_KEYS)
-            and c["schema_version"] in (SCHEMA,CATALOG_SCHEMA) and c["source_sha"]==SOURCE,"PREARMED_CONFIG")
+            and c["schema_version"] in (SCHEMA,CATALOG_SCHEMA,SIMPLE_CATALOG_SCHEMA) and c["source_sha"]==SOURCE,"PREARMED_CONFIG")
         if unissued:
             need(all(c[field] is None for field in ("job_id","state_dir","review_dir","vouchers")),"PREARMED_UNISSUED_FIELDS")
         else:
@@ -386,6 +389,9 @@ class Bound:
         self.helper=load_script(self.source/"scripts/stage12_ra_g1_review_handoff.py","prearmed_review_handoff")
         self.selected=self.controller.validate_selection(self.controller.parse(self.selection_raw))
         s=self.selected
+        need((c["schema_version"]==SIMPLE_CATALOG_SCHEMA)==
+             (s.get("rep_admin_budget_adoption",{}).get("window",{}).get("version")==
+              "SYNTHETIC_AND_COLLECTION_OPERATING_WINDOW_r4"),"PREARMED_CONFIG")
         need(s["version"]==self.controller.REP512_VERSION and s["source_sha"]==SOURCE
              and s["source_files"]==inventory and s["resource_selection_sha256"]==sha(self.resource_raw),"PREARMED_SOURCE")
         from safe_geocoding_pipeline.preprocessing.stages import s12_ra_g1_assurance as assurance
@@ -721,17 +727,30 @@ def extract_collector(bound, raw, stderr, ready):
     bound.archive_sha=sha(raw);bound.inventory_sha=sha(canonical(inventory))
     return destination,inventory,dict(path=str(codec_path),sha256=sha(codec),offset=0,bytes=1024)
 
+def validate_role_ownership(value, cfg, selection_sha, resource_sha, scope_sha, decision_sha=None):
+    """The legacy `vouchers` config key remains a hash reference, not a payer."""
+    simple=cfg["schema_version"]==SIMPLE_CATALOG_SCHEMA
+    base={"schema_version","source_sha","job_id","selection_sha256","resource_selection_sha256",
+          "configuration_scope_sha256","orchestrator_sha256","roles"}
+    need(set(value)==(base|{"decision_delta_sha256"} if simple else base|{"ledger_reservation_id"}),"PREARMED_VOUCHER")
+    need(value["schema_version"]==(ROLE_OWNERSHIP if simple else "stage12_root_precharged_handoff_vouchers_v1")
+         and value["source_sha"]==SOURCE and value["job_id"]==cfg["job_id"]
+         and value["selection_sha256"]==selection_sha and value["resource_selection_sha256"]==resource_sha
+         and value["configuration_scope_sha256"]==scope_sha
+         and value["roles"]==(sorted(ROLES) if simple else ROLES)
+         and value["orchestrator_sha256"]==sha(read_original(Path(__file__).resolve(),256*1024,private=False)),"PREARMED_VOUCHER")
+    if simple:
+        need(type(decision_sha) is str and re.fullmatch(r"[0-9a-f]{64}",decision_sha)
+             and value["decision_delta_sha256"]==decision_sha,"PREARMED_VOUCHER")
+
+
 class Vouchers:
-    """Only this task's six exact role slots; never edits the root ledger."""
+    """Exact single-use role ownership; legacy class/config names are codecs."""
     def __init__(self,bound):
         self.b=bound;self.raw=ref(bound.cfg["vouchers"],65536);self.v=parse(self.raw)
-        need(set(self.v)=={"schema_version","source_sha","job_id","selection_sha256","resource_selection_sha256",
-             "configuration_scope_sha256","orchestrator_sha256","ledger_reservation_id","roles"},"PREARMED_VOUCHER")
-        need(self.v["schema_version"]=="stage12_root_precharged_handoff_vouchers_v1"
-             and self.v["source_sha"]==SOURCE and self.v["job_id"]==bound.cfg["job_id"]
-             and self.v["selection_sha256"]==bound.sha and self.v["resource_selection_sha256"]==bound.resource_sha
-             and self.v["configuration_scope_sha256"]==bound.config_scope and self.v["roles"]==ROLES
-             and self.v["orchestrator_sha256"]==sha(read_original(Path(__file__).resolve(),256*1024,private=False)),"PREARMED_VOUCHER")
+        validate_role_ownership(self.v,bound.cfg,bound.sha,bound.resource_sha,bound.config_scope,
+            bound.selected["rep_admin_budget_adoption"]["window"]["owner_authority_sha256"]
+            if bound.cfg["schema_version"]==SIMPLE_CATALOG_SCHEMA else None)
     def start(self,plan):
         role=plan["role"];need(role in ROLES and role not in REVIEWER_ROLES and plan["units"]==ROLES[role],"PREARMED_VOUCHER")
         need(_DRIVER.get("bound") is self.b and _DRIVER.get("armed_pid") == os.getpid(), "PREARMED_DRIVER_OWNERSHIP")
@@ -824,7 +843,7 @@ def ready_marker(bound,name):
     return read_original(path,8192)
 
 def run(bound):
-    need(bound.cfg["schema_version"]==CATALOG_SCHEMA and bound.local_catalog is not None,"PREARMED_LOCAL_CATALOG_REQUIRED")
+    need(bound.cfg["schema_version"] in (CATALOG_SCHEMA,SIMPLE_CATALOG_SCHEMA) and bound.local_catalog is not None,"PREARMED_LOCAL_CATALOG_REQUIRED")
     b=bound
     driver_checkpoint("ARM",bound=b)
     _DRIVER["armed_pid"] = os.getpid()
@@ -1015,21 +1034,22 @@ def collector_file_limit(bound, rel, ready):
 def pure_configuration(config_path):
     """Metadata-only pre-tool validation. Never imports production modules."""
     raw=read_original(config_path,4*2**20);cfg=parse(raw)
-    catalog_selected=cfg.get("schema_version")==CATALOG_SCHEMA
+    catalog_selected=cfg.get("schema_version") in (CATALOG_SCHEMA,SIMPLE_CATALOG_SCHEMA)
     need(set(cfg)==(CONFIG_KEYS|{"local_record_catalog"} if catalog_selected else CONFIG_KEYS)
-         and cfg["schema_version"] in (SCHEMA,CATALOG_SCHEMA) and cfg["source_sha"]==SOURCE
+         and cfg["schema_version"] in (SCHEMA,CATALOG_SCHEMA,SIMPLE_CATALOG_SCHEMA) and cfg["source_sha"]==SOURCE
          and cfg["limits"]==LIMITS and cfg["host"]=="goethe"
          and type(cfg["job_id"]) is str and re.fullmatch(r"[1-9][0-9]{0,19}",cfg["job_id"]),"PREARMED_CONFIG")
     voucher_raw=ref(cfg["vouchers"],65536);voucher=parse(voucher_raw)
     selection_raw=ref(cfg["selection"],4*2**20);selection=json.loads(selection_raw)
+    need((cfg["schema_version"]==SIMPLE_CATALOG_SCHEMA)==
+         (selection.get("rep_admin_budget_adoption",{}).get("window",{}).get("version")==
+          "SYNTHETIC_AND_COLLECTION_OPERATING_WINDOW_r4"),"PREARMED_CONFIG")
     resource_raw=ref(cfg["resource_selection"],65536)
-    need(voucher["schema_version"]=="stage12_root_precharged_handoff_vouchers_v1"
-         and voucher["roles"]==ROLES and voucher["source_sha"]==SOURCE and voucher["job_id"]==cfg["job_id"]
-         and voucher["selection_sha256"]==sha(selection_raw)
-         and voucher["resource_selection_sha256"]==sha(resource_raw)
-         and voucher["configuration_scope_sha256"]==sha(canonical({k:v for k,v in cfg.items() if k!="vouchers"}))
-         and voucher["orchestrator_sha256"]==sha(read_original(Path(__file__).resolve(),256*1024,private=False))
-         and selection["source_sha"]==SOURCE,"PREARMED_VOUCHER")
+    validate_role_ownership(voucher,cfg,sha(selection_raw),sha(resource_raw),
+                            sha(canonical({k:v for k,v in cfg.items() if k!="vouchers"})),
+                            selection["rep_admin_budget_adoption"]["window"]["owner_authority_sha256"]
+                            if cfg["schema_version"]==SIMPLE_CATALOG_SCHEMA else None)
+    need(selection["source_sha"]==SOURCE,"PREARMED_VOUCHER")
     return cfg,raw,voucher_raw
 
 def _role_request(cfg,config_raw,role):
@@ -1258,7 +1278,7 @@ def mechanical_plan(bound,role):
 
 def exact_checker_request(bound, exact_root):
     b=bound
-    need(b.cfg["schema_version"]==CATALOG_SCHEMA and b.local_catalog is not None,"PREARMED_LOCAL_CATALOG_REQUIRED")
+    need(b.cfg["schema_version"] in (CATALOG_SCHEMA,SIMPLE_CATALOG_SCHEMA) and b.local_catalog is not None,"PREARMED_LOCAL_CATALOG_REQUIRED")
     config=dict(schema_version=CATALOG_EXACT_SCHEMA,local_record_catalog=b.cfg["local_record_catalog"],
         orchestration_config=dict(path=str(b.state/"ORCHESTRATION_CONFIG.record"),sha256=sha(b.raw)),
         collector_checker_config=dict(path=str(b.state/"CHECKER_INPUT.record"),sha256=sha(read_original(b.state/"CHECKER_INPUT.record",4*2**20))),
@@ -1374,7 +1394,7 @@ def driver_result(result):
 
 
 def static_preflight(bound):
-    need(bound.cfg["schema_version"]==CATALOG_SCHEMA and bound.local_catalog is not None,"PREARMED_LOCAL_CATALOG_REQUIRED")
+    need(bound.cfg["schema_version"] in (CATALOG_SCHEMA,SIMPLE_CATALOG_SCHEMA) and bound.local_catalog is not None,"PREARMED_LOCAL_CATALOG_REQUIRED")
     need(bound.unissued,"PREARMED_UNISSUED_FIELDS")
     from safe_geocoding_pipeline.preprocessing.stages import s12_ra_g1_accounting as accounting
     compiled=accounting.validate_inventory(bound.selected["accounting_inventory"])
