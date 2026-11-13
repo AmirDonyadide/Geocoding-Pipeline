@@ -177,7 +177,7 @@ def validation_for(identity):
     raise c.Stage12Error("S12_PUBLIC_VALIDATION_BINDING_INVALID")
 
 
-def verify_successor_assets(repository, *, contract=None, rep_admin_successor=False, first64_512_successor=False):
+def verify_successor_assets(repository, *, contract=None, rep_admin_successor=False, first64_512_successor=False, foreground_successor=False):
     from . import s12_wf_ap2_contract as successor
 
     successor = successor if contract is None else contract
@@ -186,6 +186,8 @@ def verify_successor_assets(repository, *, contract=None, rep_admin_successor=Fa
     options = {"rep_admin_successor": True} if rep_admin_successor else {}
     if first64_512_successor:
         options["first64_512_successor"] = True
+    if foreground_successor:
+        options["foreground_successor"] = True
     descriptors = successor.descriptors(**options)
     # The shared wire descriptor keeps its frozen v3 identity. RA instance
     # schema/policy/chunk limits are independently enforced by writer/readers.

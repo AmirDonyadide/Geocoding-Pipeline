@@ -166,10 +166,15 @@ REP_ADMIN_ADOPTION_SCHEMA = {
 REP512_SELECTION = "stage12_resource_selection_rep_first64_512_ra_g1_v1"
 REP512_POLICY = "stage12_rep_first64_512_policy_ra_g1_v1"
 REP512_ADOPTION = "stage12_advisory_delegated_rep_first64_512_adoption_v1"
-REP_ADMIN_SELECTIONS = (REP_ADMIN_SELECTION, REP512_SELECTION)
+REP_FOREGROUND_SELECTION = "stage12_resource_selection_rep_foreground_ra_g1_v1"
+REP512_SELECTIONS = (REP512_SELECTION, REP_FOREGROUND_SELECTION)
+REP_ADMIN_SELECTIONS = (REP_ADMIN_SELECTION, *REP512_SELECTIONS)
 REP512_SELECTION_SCHEMA = {
     **REP_ADMIN_SELECTION_SCHEMA, "schema_version": "=" + REP512_SELECTION,
     "rep_first64_512_policy_sha256": "D", "rep_first64_512_adoption_sha256": "D",
+}
+REP_FOREGROUND_SELECTION_SCHEMA = {
+    **REP512_SELECTION_SCHEMA, "schema_version": "=" + REP_FOREGROUND_SELECTION,
 }
 REP512_ADOPTION_SCHEMA = {
     "schema_version":"=" + REP512_ADOPTION, "scope":"=REPRESENTATIVE_NO_SERVICE",
@@ -423,7 +428,7 @@ SCOPE_CEILINGS: dict[str, dict[str, int]] = {
 def validate_scope_ceilings(record: Any) -> None:
     limits, scope = record["limits"], record["scope"]
     ceilings = SCOPE_CEILINGS[scope]
-    if record.get("schema_version") == REP512_SELECTION:
+    if record.get("schema_version") in REP512_SELECTIONS:
         c.require(scope == "REPRESENTATIVE_NO_SERVICE", "RA_G1_SCOPE")
         ceilings = {**ceilings, "creations":204860}
     for key, maximum in ceilings.items():
@@ -446,7 +451,7 @@ def validate_scope_ceilings(record: Any) -> None:
     stage_caps: tuple[int, ...]
     if scope == "REPRESENTATIVE_NO_SERVICE":
         stage_caps = (
-            512000 if record.get("schema_version") == REP512_SELECTION else 346000,
+            512000 if record.get("schema_version") in REP512_SELECTIONS else 346000,
             300000,
             180000,
             180000,
@@ -516,7 +521,8 @@ def validate_scope_ceilings(record: Any) -> None:
 
 
 def validate_selection(record: Any) -> Any:
-    shape(record, REP512_SELECTION_SCHEMA if record.get("schema_version") == REP512_SELECTION
+    shape(record, REP_FOREGROUND_SELECTION_SCHEMA if record.get("schema_version") == REP_FOREGROUND_SELECTION
+          else REP512_SELECTION_SCHEMA if record.get("schema_version") in REP512_SELECTIONS
           else REP_ADMIN_SELECTION_SCHEMA if record.get("schema_version") == REP_ADMIN_SELECTION
           else BOOTSTRAP_SELECTION_SCHEMA if record.get("schema_version") == BOOTSTRAP_SELECTION else SELECTION_SCHEMA)
     if record["schema_version"] in (BOOTSTRAP_SELECTION, *REP_ADMIN_SELECTIONS):
@@ -525,12 +531,12 @@ def validate_selection(record: Any) -> Any:
                   "RA_G1_BOOTSTRAP_POLICY")
     if record["schema_version"] in REP_ADMIN_SELECTIONS:
         c.require(record["rep_admin_budget_policy_sha256"] == old.digest(rep_admin_policy_descriptor()), "RA_G1_SELECTION_BINDING")
-    if record["schema_version"] == REP512_SELECTION:
+    if record["schema_version"] in REP512_SELECTIONS:
         c.require(record["rep_first64_512_policy_sha256"] == old.digest(rep512_policy_descriptor()), "RA_G1_SELECTION_BINDING")
     c.require(record["valid_from"] < record["valid_until"], "RA_G1_EXPIRED")
     limits = record["limits"]
     validate_scope_ceilings(record)
-    if record["schema_version"] == REP512_SELECTION:
+    if record["schema_version"] in REP512_SELECTIONS:
         signatures = [
             (512000,80000,320,26608,43419598848,77767),
             (300000,80000,160,15088,21805826048,44478),

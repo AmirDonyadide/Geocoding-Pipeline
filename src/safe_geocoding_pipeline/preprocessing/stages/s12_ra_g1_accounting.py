@@ -18,6 +18,26 @@ BOOTSTRAP_VERSION = "stage12_ra_g1_bootstrap30_accounting_inventory_v1"
 SHARED_LEASE_VERSION = "stage12_ra_g1_shared_lease_accounting_inventory_v1"
 REP_ADMIN_VERSION = "stage12_ra_g1_rep_admin_budget_accounting_inventory_v1"
 REP512_VERSION = "stage12_ra_g1_rep_first64_512_accounting_inventory_v1"
+REP_FOREGROUND_VERSION = "stage12_ra_g1_rep_foreground_accounting_inventory_v1"
+FOREGROUND_MAX_BYTES = 2**20
+FOREGROUND_EXTRA_SNAPSHOT_BYTES = 4096
+FOREGROUND_MEMBERS = (
+    ('DIAGNOSTIC', 'scripts/stage12_ra_g1_diagnostic.py'),
+    ('PUBLIC_RESPONSE', 'src/safe_geocoding_pipeline/preprocessing/stages/s12_public_response.py'),
+    ('PUBLIC_RUNTIME', 'src/safe_geocoding_pipeline/preprocessing/stages/s12_public_runtime.py'),
+    ('PUBLIC_AUTHORITY', 'src/safe_geocoding_pipeline/preprocessing/stages/s12_ra_g1_public.py'),
+    ('PUBLIC_SAMPLING', 'src/safe_geocoding_pipeline/preprocessing/stages/s12_public_sampling.py'),
+    ('PUBLIC_SCHEDULER', 'src/safe_geocoding_pipeline/preprocessing/stages/s12_public_scheduler.py'),
+    ('PUBLIC_OPERATIONS', 'src/safe_geocoding_pipeline/preprocessing/stages/s12_public_operations.py'),
+    ('PUBLIC_RECOVERY', 'src/safe_geocoding_pipeline/preprocessing/stages/s12_public_recovery.py'),
+    ('RETRIEVAL_GUARD', 'src/safe_geocoding_pipeline/preprocessing/stages/s12_retrieval_contract.py'),
+    ('RESPONSE_GUARD', 'src/safe_geocoding_pipeline/preprocessing/stages/s12_response.py'),
+    ('RA_ASSURANCE', 'src/safe_geocoding_pipeline/preprocessing/stages/s12_ra_g1_assurance.py'),
+    ('RA_CONTRACT', 'src/safe_geocoding_pipeline/preprocessing/stages/s12_ra_g1_contract.py'),
+    ('PROBE_CLI', 'src/safe_geocoding_pipeline/preprocessing/stage12_probe_cli.py'),
+    ('RA_EXECUTION', 'src/safe_geocoding_pipeline/preprocessing/stages/s12_ra_g1_execution.py'),
+)
+
 MAX_U = 2**64 - 1
 SOURCE_MAX = 64 * 2**20
 METADATA_MAX = 4 * 2**20
@@ -758,11 +778,12 @@ def validate_inventory(inventory: Any) -> dict[str, Any]:
     expected, _ = compile_inventory(
         inventory["sources"], inventory["backends"], inventory["scope"],
         bootstrap_successor=(inventory.get("schema_version") == BOOTSTRAP_VERSION
-            or inventory.get("schema_version") in (SHARED_LEASE_VERSION, REP_ADMIN_VERSION, REP512_VERSION)
+            or inventory.get("schema_version") in (SHARED_LEASE_VERSION, REP_ADMIN_VERSION, REP512_VERSION, REP_FOREGROUND_VERSION)
             and inventory.get("bootstrap_proof_record_count") == 3),
-        shared_lease_successor=inventory.get("schema_version") in (SHARED_LEASE_VERSION, REP_ADMIN_VERSION, REP512_VERSION),
-        rep_admin_successor=inventory.get("schema_version") in (REP_ADMIN_VERSION, REP512_VERSION),
-        first64_512_successor=inventory.get("schema_version") == REP512_VERSION,
+        shared_lease_successor=inventory.get("schema_version") in (SHARED_LEASE_VERSION, REP_ADMIN_VERSION, REP512_VERSION, REP_FOREGROUND_VERSION),
+        rep_admin_successor=inventory.get("schema_version") in (REP_ADMIN_VERSION, REP512_VERSION, REP_FOREGROUND_VERSION),
+        first64_512_successor=inventory.get("schema_version") in (REP512_VERSION, REP_FOREGROUND_VERSION),
+        foreground_successor=inventory.get("schema_version") == REP_FOREGROUND_VERSION,
     )
     need(inventory == expected, "RA_G1_ACCOUNTING_CHANGED")
     return dict(inventory)
@@ -903,9 +924,11 @@ def compile_inventory(sources: Any, backends: Any, scope: str, *,
                       bootstrap_successor: bool = False,
                       shared_lease_successor: bool = False,
                       rep_admin_successor: bool = False,
-                       first64_512_successor: bool = False) -> tuple[dict[str, Any], Any]:
+                       first64_512_successor: bool = False,
+                      foreground_successor: bool = False) -> tuple[dict[str, Any], Any]:
     """Explicit current writer primitive; historical grammars remain unchanged."""
     need(not first64_512_successor or rep_admin_successor, "RA_G1_ACCOUNTING_SCOPE")
+    need(not foreground_successor or (first64_512_successor and scope == "REPRESENTATIVE_NO_SERVICE"), "RA_G1_ACCOUNTING_SCOPE")
     need(not rep_admin_successor or (scope == "REPRESENTATIVE_NO_SERVICE"
         and bootstrap_successor and shared_lease_successor), "RA_G1_ACCOUNTING_SCOPE")
     inventory, accounting = _compile_bootstrap_inventory(
@@ -968,6 +991,38 @@ def compile_inventory(sources: Any, backends: Any, scope: str, *,
                 extra["component"] = row["component"].replace("REP_ADMIN_ADOPTION", "REP512_ADOPTION")
                 inventory["cost_rows"].append(extra)
         inventory["proof_count"]["cost_rows"] = len(inventory["cost_rows"])
+    if foreground_successor:
+        selected = {row["path"]: row for row in inventory["sources"]}
+        need(all(path in selected for _, path in FOREGROUND_MEMBERS), "RA_G1_ACCOUNTING_FOREGROUND_SOURCES")
+        members = [dict(module_id=module, **selected[path]) for module, path in FOREGROUND_MEMBERS]
+        size = add(*(row["bytes"] for row in members))
+        need(size <= FOREGROUND_MAX_BYTES, "RA_G1_ACCOUNTING_FOREGROUND_SOURCES")
+        count = len(members)
+        parents = add(*(len(PurePosixPath(row["path"]).parts) - 1 for row in members))
+        calls = add(size, count)
+        # Each positive-one-byte/EOF read has one deadline, two charged read
+        # guards (three predicates each), and its data/EOF predicate. Root walks
+        # allow 64 ancestors plus the first rejected 65th attempt:132 checks per
+        # walk; two walks and eight fixed entry/path/file/equality checks/file.
+        checks = add(mul(8, calls), mul(4, parents), mul(272, count))
+        inventory["cost_rows"].append(dict(stage_id=1,
+            component="REP_FOREGROUND_ONCE_SELECTED_SOURCE_MAP", invocations=1,
+            per_invocation_read_calls=calls, per_invocation_read_bytes=calls,
+            per_invocation_checks=checks, original_read_calls=calls,
+            original_read_bytes=calls, check_calls=checks,
+            basis="ONCE_PRE_SESSION_PREFIX_TO_STAGE1_POSITIVE_ONE_BYTE_EOF_GROWTH_ROOT_PARENT_AND_DEADLINE_GUARDS"))
+        inventory["schema_version"] = REP_FOREGROUND_VERSION
+        inventory["graph_id"] += "_FOREGROUND_ONCE14_1MIB"
+        inventory["rep_foreground"] = dict(stage_id=1, maximum_passes_per_process=1,
+            maximum_members=14, maximum_source_bytes=FOREGROUND_MAX_BYTES,
+            selected_members=members, selected_source_bytes=size,
+            selected_internal_parent_entries=parents, source_root_ancestor_limit=64,
+            first_rejected_root_ancestor_attempt=65,
+            maximum_extra_snapshot_bytes=FOREGROUND_EXTRA_SNAPSHOT_BYTES,
+            existing_summary_reservation_bytes=2**20,
+            summary_original_passes="EXISTING_FULL_1MIB_PASSES_NO_ADDITIONAL_PASS_OR_CAP",
+            native_memory_assurance="EXISTING_RA_G1_SCOPED_MONITORING_NOT_HARD_CONTAINMENT")
+        inventory["proof_count"]["cost_rows"] = len(inventory["cost_rows"])
     for stage in inventory["stage_accounting"]:
         own = [r for r in inventory["cost_rows"] if r["stage_id"] == stage["stage_id"]]
         stage.update(
@@ -986,7 +1041,22 @@ def compile_inventory(sources: Any, backends: Any, scope: str, *,
 def descriptor(*, bootstrap_successor: bool = False,
                shared_lease_successor: bool = False,
                rep_admin_successor: bool = False,
-               first64_512_successor: bool = False) -> dict[str, Any]:
+               first64_512_successor: bool = False,
+               foreground_successor: bool = False) -> dict[str, Any]:
+    if foreground_successor:
+        need(first64_512_successor, "RA_G1_ACCOUNTING_SCOPE")
+        value = descriptor(first64_512_successor=True)
+        return {**value, "descriptor_version": REP_FOREGROUND_VERSION,
+            "outer_fields": [*value["outer_fields"], "rep_foreground"],
+            "maximum_source_map_passes_per_process":1, "source_map_stage_id":1,
+            "source_map_members":[dict(module_id=m,path=p) for m,p in FOREGROUND_MEMBERS],
+            "source_map_maximum_source_bytes":FOREGROUND_MAX_BYTES,
+            "source_map_read_bound":"SELECTED_BYTES_PLUS_MEMBER_EOFS_AND_GROWTH_BYTES",
+            "source_map_check_bound":"8_READ_CALLS+4_INTERNAL_PARENTS+272_MEMBERS",
+            "source_root_ancestor_limit":64, "first_rejected_root_ancestor_attempt":65,
+            "maximum_extra_snapshot_bytes":FOREGROUND_EXTRA_SNAPSHOT_BYTES,
+            "existing_summary_reservation_bytes":2**20,
+            "summary_original_passes":"UNCHANGED_FULL_1MIB_PASSES_NO_ADDITIONAL_PASS_OR_CAP"}
     if first64_512_successor:
         value = descriptor(rep_admin_successor=True)
         return {**value, "descriptor_version": REP512_VERSION,

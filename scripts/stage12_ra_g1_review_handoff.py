@@ -48,7 +48,7 @@ def _selection(raw, expected_sha256, source_sha, job_id):
     controller = _script("stage12_ra_g1_allocation")
     need(type(raw) is bytes and len(raw) <= 4 * 2**20 and sha(raw) == expected_sha256)
     selected = controller.validate_selection(controller.parse(raw))
-    need(selected["version"] in (controller.REP_ADMIN_VERSION, controller.REP512_VERSION),
+    need(selected["version"] in (controller.REP_ADMIN_VERSION, controller.REP512_VERSION, controller.REP_FOREGROUND_VERSION),
          "RA_G1_HANDOFF_POLICY")
     need(selected["source_sha"] == source_sha)
     need(type(job_id) is str and re.fullmatch(r"[1-9][0-9]{0,19}", job_id), "RA_G1_HANDOFF_JOB")
@@ -144,6 +144,7 @@ def publication_plan(
     expected_resource_family = {
         controller.REP_ADMIN_VERSION: assurance.REP_ADMIN_SELECTION,
         controller.REP512_VERSION: assurance.REP512_SELECTION,
+        controller.REP_FOREGROUND_VERSION: assurance.REP_FOREGROUND_SELECTION,
     }[selected["version"]]
     need(resource["schema_version"] == expected_resource_family, "RA_G1_HANDOFF_POLICY")
     context = execution.validate_supervisor_context(values["context"])

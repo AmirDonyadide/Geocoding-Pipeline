@@ -106,18 +106,23 @@ def family_end(value):
     return WINDOW_END_NS
 
 
-def bootstrap_family_end(*, same_domain_successor, handoff_window_successor=False):
+def bootstrap_family_end(*, same_domain_successor, handoff_window_successor=False, discriminator_window_successor=False):
     """Only select a control-read ceiling; canonical controls must match below."""
-    need(not handoff_window_successor or same_domain_successor, "SCOPE")
+    need(not (handoff_window_successor and discriminator_window_successor), "SCOPE")
+    need(not (handoff_window_successor or discriminator_window_successor) or same_domain_successor, "SCOPE")
     if not same_domain_successor:
         return WINDOW_END_NS
     from safe_geocoding_pipeline.preprocessing.stages import s12_ra_g1_windows as windows
+    if discriminator_window_successor:
+        return windows.epoch_ns(windows.DISCRIMINATOR_WINDOW_END)
     return windows.epoch_ns(windows.HANDOFF_WINDOW_END if handoff_window_successor else windows.WINDOW_END)
 
-def validate_cli_window(value, *, handoff_window_successor):
+def validate_cli_window(value, *, handoff_window_successor, discriminator_window_successor=False):
     from safe_geocoding_pipeline.preprocessing.stages import s12_ra_g1_windows as windows
     window = value.get("window", value.get("context", {}).get("window", {}))
+    need(not (handoff_window_successor and discriminator_window_successor), "SCOPE")
     need(handoff_window_successor == (window.get("version") == windows.HANDOFF_WINDOW_VERSION), "SCOPE")
+    need(discriminator_window_successor == (window.get("version") == windows.DISCRIMINATOR_WINDOW_VERSION), "SCOPE")
 
 def validate_collection_window(value, *, now_epoch_ns, required_remaining_seconds):
     from safe_geocoding_pipeline.preprocessing.stages import s12_ra_g1_windows as windows
@@ -894,7 +899,9 @@ def original_candidate_eligible(terminal, verification):
 def validate_original_namespace(original, template, binding, producer, offline):
     need(
         type(original) is dict
-        and original.get("version") == producer.REP512_VERSION
+        and (original.get("version") == producer.REP512_VERSION
+             or (original.get("version") == "stage12_ra_g1_rep_foreground_allocation_selection_v1"
+                 and getattr(producer, "REP_FOREGROUND_VERSION", None) == original["version"]))
         and original.get("scope") == producer.SCOPE == "REPRESENTATIVE_NO_SERVICE",
         "SCOPE",
     )
@@ -2275,16 +2282,19 @@ def main(argv=None):
     parser.add_argument("--result-out", type=Path)
     parser.add_argument("--same-domain-successor", action="store_true")
     parser.add_argument("--handoff-window-successor", action="store_true")
+    parser.add_argument("--discriminator-window-successor", action="store_true")
     parser.add_argument("--offline-invented", action="store_true")
     parser.add_argument("--test-root", type=Path)
     args = parser.parse_args(argv)
     try:
         os.umask(0o077)
-        need(not args.handoff_window_successor or args.same_domain_successor, "SCOPE")
+        need(not (args.handoff_window_successor and args.discriminator_window_successor), "SCOPE")
+        need(not (args.handoff_window_successor or args.discriminator_window_successor) or args.same_domain_successor, "SCOPE")
         bootstrap = Control(
             _ENTRY_MONO_NS,
             bootstrap_family_end(same_domain_successor=args.same_domain_successor,
-                                  handoff_window_successor=args.handoff_window_successor) if not args.offline_invented else time.time_ns() + 30 * 10**9,
+                                  handoff_window_successor=args.handoff_window_successor,
+                                  discriminator_window_successor=args.discriminator_window_successor) if not args.offline_invented else time.time_ns() + 30 * 10**9,
             5,
         )
         if args.action == "verify-final-logs":
@@ -2292,7 +2302,7 @@ def main(argv=None):
                 args.provisional, args.provisional_sha256, bootstrap
             )
             need(args.same_domain_successor == (provisional.get("version") == SUCCESSOR_VERSION), "SCOPE")
-            validate_cli_window(provisional, handoff_window_successor=args.handoff_window_successor)
+            validate_cli_window(provisional, handoff_window_successor=args.handoff_window_successor, discriminator_window_successor=args.discriminator_window_successor)
             terminal = load_control(
                 args.collection_terminal, args.collection_terminal_sha256, bootstrap
             )
@@ -2311,7 +2321,7 @@ def main(argv=None):
         elif args.action == "verify-retention":
             ready = load_control(args.ready, args.ready_sha256, bootstrap)
             need(args.same_domain_successor == (ready.get("version") in (SUCCESSOR_READY_VERSION, REMOTE_IDENTITY_READY_VERSION)), "SCOPE")
-            validate_cli_window(ready, handoff_window_successor=args.handoff_window_successor)
+            validate_cli_window(ready, handoff_window_successor=args.handoff_window_successor, discriminator_window_successor=args.discriminator_window_successor)
             result = verify_retention(
                 ready,
                 args.ready_sha256,
@@ -2329,7 +2339,7 @@ def main(argv=None):
                 require_goethe_nhr_slurm("stage12_terminal_original_pair")
             binding = load_control(args.binding, args.binding_sha256, bootstrap)
             need(args.same_domain_successor == (binding.get("version") == SUCCESSOR_VERSION), "SCOPE")
-            validate_cli_window(binding, handoff_window_successor=args.handoff_window_successor)
+            validate_cli_window(binding, handoff_window_successor=args.handoff_window_successor, discriminator_window_successor=args.discriminator_window_successor)
             validate_binding(binding, args.offline_invented, args.test_root)
             authority = load_control(args.authority, args.authority_sha256, bootstrap)
             need(binding["authority_sha256"] == args.authority_sha256, "AUTHORITY")

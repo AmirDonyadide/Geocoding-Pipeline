@@ -572,7 +572,7 @@ class PhaseSession:
         if self.selection["schema_version"] not in a.REP_ADMIN_SELECTIONS:
             return None
         c.require(callable(self.bootstrap_adoption_reader), "RA_G1_SELECTION_BINDING")
-        if self.selection["schema_version"] == a.REP512_SELECTION:
+        if self.selection["schema_version"] in a.REP512_SELECTIONS:
             selected = self.bootstrap_adoption_reader(self.selection["rep_first64_512_adoption_sha256"])
             if type(selected) is bytes:
                 import json

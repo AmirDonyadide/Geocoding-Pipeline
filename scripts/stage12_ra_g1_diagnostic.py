@@ -39,7 +39,10 @@ REP_ADMIN_VERSION = "stage12_ra_g1_rep_admin_budget_representative_input_v1"
 REP_ADMIN_SELECTION = "stage12_resource_selection_rep_admin_budget_ra_g1_v1"
 REP512_VERSION = "stage12_ra_g1_rep_first64_512_representative_input_v1"
 REP512_SELECTION = "stage12_resource_selection_rep_first64_512_ra_g1_v1"
-REP_ADMIN_VERSIONS = (REP_ADMIN_VERSION, REP512_VERSION)
+REP_FOREGROUND_VERSION = "stage12_ra_g1_rep_foreground_representative_input_v1"
+REP_FOREGROUND_SELECTION = "stage12_resource_selection_rep_foreground_ra_g1_v1"
+REP512_VERSIONS = (REP512_VERSION, REP_FOREGROUND_VERSION)
+REP_ADMIN_VERSIONS = (REP_ADMIN_VERSION, *REP512_VERSIONS)
 ACTIVE_DIAGNOSTIC_TRACE = None
 ACTIVE_DIAGNOSTIC_CHECK = None
 BOOTSTRAP_SELECTION = "stage12_resource_selection_bootstrap30_ra_g1_v1"
@@ -56,7 +59,7 @@ REP512_PHASES = (("first64", 512000, 1817, 64), *PHASES[1:])
 
 
 def phases_for(version):
-    return REP512_PHASES if version == REP512_VERSION else PHASES
+    return REP512_PHASES if version in REP512_VERSIONS else PHASES
 
 
 _RESOURCE_PURPOSES = frozenset(
@@ -303,7 +306,7 @@ def validate_envelope(data, source_sha, *, for_execution, defer_response_payload
     require(
         limits["seconds"] == 7200
         and limits["summary_reserve_bytes"] == 2**20
-        and limits["maximum_creations"] == (204860 if data["version"] == REP512_VERSION else 184184)
+        and limits["maximum_creations"] == (204860 if data["version"] in REP512_VERSIONS else 184184)
         and limits["maximum_bytes"] == 72 * 2**30
         and limits["rss_bytes"] == 768 * 2**20
     )
@@ -378,7 +381,7 @@ def validate_envelope(data, source_sha, *, for_execution, defer_response_payload
             == plan["blocks"][0]["budget"]["active_duration_ms"]
             == duration
         )
-        if data["version"] == REP512_VERSION:
+        if data["version"] in REP512_VERSIONS:
             observations = (duration + 49) // 50 + 2
             require(plan["sampling_budget"]["maximum_observations"] == observations
                 and plan["sampling_budget"]["additional_event_tokens"] == 2 * observations + 4
@@ -440,7 +443,8 @@ def validate_resource_family(input_version, selected):
         and selected.get("scope") == SCOPE
         and selected.get("schema_version")
         == (
-            REP512_SELECTION if input_version == REP512_VERSION else
+            REP_FOREGROUND_SELECTION if input_version == REP_FOREGROUND_VERSION else
+            REP512_SELECTION if input_version in REP512_VERSIONS else
             REP_ADMIN_SELECTION if input_version == REP_ADMIN_VERSION else BOOTSTRAP_SELECTION
             if input_version in (BOOTSTRAP_VERSION, SHARED_LEASE_VERSION, *REP_ADMIN_VERSIONS)
             else "stage12_resource_selection_ra_g1_v1"
@@ -1451,10 +1455,11 @@ def execute(args, *, started_ns, cpu_started_ns):
         module = sys.modules.get(name)
         if type(module) is type(sys):
             foreground_specs.append((module_id, module))
-    foreground_descriptor = prepare_first_failure_descriptor(
+    # Only the explicitly funded successor may perform the additional original pass.
+    foreground_descriptor = (prepare_first_failure_descriptor(
         foreground_specs, original.review["source_files"], source_root=source,
         verify_source=original.verify_diagnostic_source,
-    )
+    ) if data["version"] == REP_FOREGROUND_VERSION else None)
     capture_failures = Failures(
         clock, closure=True, observer=observer_stage_enabled,
         first_failure_descriptor=foreground_descriptor, sampling=True,
@@ -1519,7 +1524,8 @@ def execute(args, *, started_ns, cpu_started_ns):
     def initialize_current_runtime():
         runtime.verify_successor_assets(source, contract=ap,
             rep_admin_successor=data["version"] in REP_ADMIN_VERSIONS,
-            first64_512_successor=data["version"] == REP512_VERSION)
+            first64_512_successor=data["version"] in REP512_VERSIONS,
+            foreground_successor=data["version"] == REP_FOREGROUND_VERSION)
         require(
             (source / "docs/scientific_assets" / (data["version"] + ".json")).read_bytes()
             == canonical(descriptor(data["version"])),
@@ -2193,9 +2199,9 @@ def descriptor(version=VERSION):
         value.update(required_accounting_inventory="stage12_ra_g1_rep_admin_budget_accounting_inventory_v1",
             required_resource_selection=REP_ADMIN_SELECTION, representative_admin_seconds={
                 "collector":120, "review":480, "binder_complete":240, "binder_process":720})
-    if version == REP512_VERSION:
-        value.update(required_accounting_inventory="stage12_ra_g1_rep_first64_512_accounting_inventory_v1",
-            required_resource_selection=REP512_SELECTION, maximum_creations=204860,
+    if version in REP512_VERSIONS:
+        value.update(required_accounting_inventory=("stage12_ra_g1_rep_foreground_accounting_inventory_v1" if version == REP_FOREGROUND_VERSION else "stage12_ra_g1_rep_first64_512_accounting_inventory_v1"),
+            required_resource_selection=(REP_FOREGROUND_SELECTION if version == REP_FOREGROUND_VERSION else REP512_SELECTION), maximum_creations=204860,
             maximum_event_files=57237, historical_first64_ms=346000)
     return value
 
