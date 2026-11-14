@@ -1,7 +1,7 @@
 import pytest
 from test_stage10_context_pipeline import synthetic_inputs as synthetic_inputs
 from test_stage09_reference_evaluator import reference_view as reference_view
-from stage12_b2_synthetic import Authority, H, offline
+from stage12_b2_synthetic import Authority, offline as offline
 from safe_geocoding_pipeline.preprocessing.stages import (
     s12_b2_lineage as lineage,
     s12_b2_contract as b,
@@ -208,5 +208,82 @@ def test_test_lineage_rejected_before_any_accepted_input_read(
                 scratch=tmp_path / "unopened-scratch",
                 memory_bytes=64 * 1024 * 1024,
             )
+    finally:
+        p.close()
+
+
+def test_projection_source_population_is_independent_of_representations(
+    synthetic_inputs, tmp_path
+):
+    p = project(synthetic_inputs, tmp_path)
+    try:
+        sources = list(p.source_rows())
+        occurrences = list(p.rows())
+        assert len(sources) == 3 and len(occurrences) == 4
+        assert len({x["stable_source_row_id_v1"] for x in occurrences}) == 2
+        assert all(
+            set(x)
+            == {
+                "id",
+                "source_file",
+                "source_logical_record_number",
+                "stable_source_row_id_v1",
+                "source_file_sha256",
+            }
+            for x in sources
+        )
+    finally:
+        p.close()
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "duplicate_source",
+        "missing_contextless_source",
+        "duplicate_occurrence",
+        "orphan_occurrence",
+    ],
+)
+def test_projection_rejects_source_and_occurrence_defects(
+    synthetic_inputs, tmp_path, mutation
+):
+    p = project(synthetic_inputs, tmp_path)
+    try:
+        if mutation in {"duplicate_source", "missing_contextless_source"}:
+            p.db.execute(
+                "create table damaged_sources as select * from source_candidate_map"
+            )
+            if mutation == "duplicate_source":
+                p.db.execute(
+                    "insert into damaged_sources select * from damaged_sources limit 1"
+                )
+            else:
+                p.db.execute(
+                    "delete from damaged_sources where stage06_standard_exact_candidate_id is null"
+                )
+            p.db.execute(
+                "create or replace view source_candidate_map as select * from damaged_sources"
+            )
+        else:
+            p.db.execute(
+                "create table damaged_occurrences as select * from stage08_occurrence"
+            )
+            if mutation == "duplicate_occurrence":
+                p.db.execute(
+                    "insert into damaged_occurrences select * from damaged_occurrences limit 1"
+                )
+            else:
+                p.db.execute(
+                    "update damaged_occurrences set stable_source_row_id_v1=?",
+                    [b.sha(b"invented orphan source")],
+                )
+            p.db.execute(
+                "create or replace view stage08_occurrence as select * from damaged_occurrences"
+            )
+        with pytest.raises(
+            c.Stage12Error, match="B2_SOURCE_POPULATION|B2_OCCURRENCE_TOTALITY"
+        ):
+            p.validate_source_relations()
     finally:
         p.close()

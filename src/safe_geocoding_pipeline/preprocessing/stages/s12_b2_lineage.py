@@ -166,6 +166,7 @@ class LineageProjection:
         self.db.execute(
             "create index b2_evidence_key on b2_evidence(stage06_exact_candidate_id,stable_source_row_id_v1)"
         )
+        self.validate_source_relations()
         self.db.execute(
             "create table b2_occurrences as select o.*,s as source,l as lines from stage08_occurrence o join source_candidate_map s using(stable_source_row_id_v1) join stage06_row_map l using(stable_source_row_id_v1)"
         )
@@ -175,6 +176,72 @@ class LineageProjection:
             "B2_LINEAGE_TOTALITY",
         )
         self.validate()
+
+    def validate_source_relations(self):
+        """Check source population before any occurrence/query inner join.
+
+        Accepted source rows without a representation remain in this population.
+        The expected occurrence relation is reconstructed only from the accepted
+        representation slots; no query outcome selects a source row or role.
+        """
+        checks = (
+            "select count(*) from (select stable_source_row_id_v1 from source_candidate_map group by 1 having count(*)<>1)",
+            "select count(*) from (select stable_source_row_id_v1 from stage06_row_map group by 1 having count(*)<>1)",
+            "select count(*) from source_candidate_map s full outer join stage06_row_map l using(stable_source_row_id_v1) where s.stable_source_row_id_v1 is null or l.stable_source_row_id_v1 is null or s.stage06_standard_exact_candidate_id is distinct from l.stage06_standard_exact_candidate_id or s.stage06_native_exact_candidate_id is distinct from l.stage06_native_exact_candidate_id",
+            "select count(*) from source_candidate_map where (stage08_standard_representation_status='PRESENT') is distinct from (stage06_standard_exact_candidate_id is not null) or (stage08_native_representation_status='PRESENT') is distinct from (stage06_native_exact_candidate_id is not null)",
+        )
+        for query in checks:
+            b.require(self.db.execute(query).fetchone() == (0,), "B2_SOURCE_POPULATION")
+        expected = """select stable_source_row_id_v1,'STANDARD' as stage08_representation,
+            stage06_standard_exact_candidate_id as stage06_exact_candidate_id
+            from source_candidate_map where stage08_standard_representation_status='PRESENT'
+            union all select stable_source_row_id_v1,'NATIVE',stage06_native_exact_candidate_id
+            from source_candidate_map where stage08_native_representation_status='PRESENT'"""
+        actual = "select stable_source_row_id_v1,stage08_representation,stage06_exact_candidate_id from stage08_occurrence"
+        for left, right in ((actual, expected), (expected, actual)):
+            b.require(
+                self.db.execute(
+                    f"select count(*) from (({left}) except all ({right}))"
+                ).fetchone()
+                == (0,),
+                "B2_OCCURRENCE_TOTALITY",
+            )
+        b.require(
+            self.db.execute(
+                "select count(*) from (select stable_source_row_id_v1,stage08_representation from stage08_occurrence group by all having count(*)<>1)"
+            ).fetchone()
+            == (0,),
+            "B2_OCCURRENCE_TOTALITY",
+        )
+        if self.population_scope == b.DEVELOPMENT:
+            b.require(
+                self.db.execute("select count(*) from source_candidate_map").fetchone()
+                == (35000,),
+                "B2_SOURCE_POPULATION",
+            )
+            from .s01_identity import stable_source_row_id_v1
+
+            for row in self.source_rows():
+                b.require(
+                    stable_source_row_id_v1(
+                        bytes.fromhex(row["source_file_sha256"]),
+                        row["source_logical_record_number"],
+                    ).hex()
+                    == row["stable_source_row_id_v1"],
+                    "B2_SOURCE_LINEAGE",
+                )
+
+    def source_rows(self):
+        """Exact original identity fields, independent of generated contexts."""
+        for row in contexts.sql_rows(
+            self.db,
+            "select id,source_file,source_logical_record_number,stable_source_row_id_v1,source_file_sha256 from source_candidate_map order by stable_source_row_id_v1",
+        ):
+            yield {
+                **row,
+                "stable_source_row_id_v1": row["stable_source_row_id_v1"].hex(),
+                "source_file_sha256": row["source_file_sha256"].hex(),
+            }
 
     def assert_accepted_chain(self):
         b.require(
@@ -208,6 +275,7 @@ class LineageProjection:
             and current.identifier == self.accepted.identifier,
             "B2_LINEAGE_CHANGED",
         )
+        self.validate_source_relations()
 
     def country(self, code):
         # Exact accepted ISO country object fields, not a hand-maintained mapping.

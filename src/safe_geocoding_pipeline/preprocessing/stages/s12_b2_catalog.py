@@ -27,15 +27,20 @@ ACCEPTED = {
 }
 
 
-def connect(path: Path):
+def connect(path: Path, *, read_only=False):
     limits.sqlite_before(path)
     io.private_directory(path.parent)
     if not path.exists():
+        b.require(not read_only, "B2_CATALOG_MISSING")
         fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY | os.O_NOFOLLOW, 0o600)
         os.close(fd)
     else:
         s11io.private(path)
-    db = sqlite3.connect(path, check_same_thread=False)
+    db = sqlite3.connect(
+        path.as_uri() + "?mode=ro" if read_only else path,
+        uri=read_only,
+        check_same_thread=False,
+    )
     try:
         limits.sqlite_cap(db)
     except BaseException:
@@ -67,7 +72,12 @@ class ChannelRows:
 
 class Catalog:
     def __init__(
-        self, path: Path, binding: dict, *, expected_file_sha256: str | None = None
+        self,
+        path: Path,
+        binding: dict,
+        *,
+        expected_file_sha256: str | None = None,
+        read_only=False,
     ):
         b.validate(binding, "stage12_stage11_input_binding_b2_v1")
         if path.exists():
@@ -77,7 +87,7 @@ class Catalog:
                 "B2_CATALOG_HASH",
             )
         self.path, self.binding, self.file_sha256 = path, binding, expected_file_sha256
-        self.db = connect(path)
+        self.db = connect(path, read_only=read_only)
 
     def close(self):
         self.db.close()
@@ -94,6 +104,7 @@ class Catalog:
         contexts: Callable,
         families: Callable,
         authority,
+        sources: Callable | None = None,
     ):
         """Factories reopen hash-validated accepted relations, never a row sample.
 
@@ -104,6 +115,7 @@ class Catalog:
         b.validate(binding, "stage12_stage11_input_binding_b2_v1")
         authority.require("protected_input", b.digest(binding), binding)
         if binding["population_scope"] == b.DEVELOPMENT:
+            b.require(sources is not None, "B2_SOURCE_POPULATION_REQUIRED")
             from ...execution_policy import require_goethe_nhr_slurm
 
             require_goethe_nhr_slurm("stage12 accepted Stage11 catalog")
@@ -121,8 +133,9 @@ class Catalog:
         self = cls(path, binding)
         db = self.db
         db.executescript("""
+        create table source_lineage(source blob primary key, body blob not null) without rowid;
         create table semantic(q blob primary key, core blob not null, mode text not null, country text not null) without rowid;
-        create table context(u blob primary key, source blob not null, metadata blob not null) without rowid;
+        create table context(u blob primary key, source blob not null references source_lineage(source), metadata blob not null) without rowid;
         create table channel(u blob not null references context(u),ordinal integer,body blob not null,primary key(u,ordinal)) without rowid;
         create table hypothesis(h blob primary key, q blob not null references semantic(q), u blob not null references context(u)) without rowid;
         create table mapping(h blob primary key references hypothesis(h), q blob not null references semantic(q)) without rowid;
@@ -134,6 +147,30 @@ class Catalog:
         create table stratum(q blob primary key references semantic(q), body blob not null, ordering blob not null) without rowid;
         create table occurrence_tuple(q blob not null, body blob not null, primary key(q,body)) without rowid;
         """)
+        if sources is not None:
+            for row in sources():
+                b.require(
+                    set(row)
+                    == {
+                        "id",
+                        "source_file",
+                        "source_logical_record_number",
+                        "stable_source_row_id_v1",
+                        "source_file_sha256",
+                    },
+                    "B2_SOURCE_LINEAGE_SCHEMA",
+                )
+                b.validate_type(row["stable_source_row_id_v1"], "D")
+                b.validate_type(row["source_file_sha256"], "D")
+                b.require(
+                    type(row["id"]) is str and type(row["source_file"]) is str,
+                    "B2_SOURCE_LINEAGE_SCHEMA",
+                )
+                b.uint(row["source_logical_record_number"], True)
+                db.execute(
+                    "insert into source_lineage values(?,?)",
+                    (bytes.fromhex(row["stable_source_row_id_v1"]), b.canonical(row)),
+                )
         count = 0
 
         def semantic_rows():
@@ -195,6 +232,16 @@ class Catalog:
             for k in ("query_context_id", "stable_source_row_id_v1", "origin_sha256"):
                 b.validate_type(row[k], "D")
             authority.require("lineage_context", row["origin_sha256"], row)
+            if sources is None:
+                db.execute(
+                    "insert or ignore into source_lineage values(?,?)",
+                    (
+                        bytes.fromhex(row["stable_source_row_id_v1"]),
+                        b.canonical(
+                            {"stable_source_row_id_v1": row["stable_source_row_id_v1"]}
+                        ),
+                    ),
+                )
             db.execute(
                 "insert into context values(?,?,?)",
                 (
@@ -249,10 +296,10 @@ class Catalog:
                     expected is not None and expected[0] == row["query_context_id"],
                     "B2_LINEAGE_MISMATCH",
                 )
-                db.execute(
-                    "insert into family values(?,?,?)",
-                    (row["query_context_id"], row["hypothesis_id"], row["family"]),
-                )
+            db.execute(
+                "insert into family values(?,?,?)",
+                (row["query_context_id"], row["hypothesis_id"], row["family"]),
+            )
 
         def maps():
             for row in mapping():
@@ -282,7 +329,7 @@ class Catalog:
         b.require(
             db.execute("select count(*) from hypothesis").fetchone()[0]
             == binding["map_count"]
-            and db.execute("select count(distinct source) from context").fetchone()[0]
+            and db.execute("select count(*) from source_lineage").fetchone()[0]
             == binding["source_count"],
             "B2_MAP_TOTALITY",
         )
@@ -295,6 +342,7 @@ class Catalog:
         )
         db.commit()
         self.make_memberships()
+        self.validate_relations()
         self.seal()
         return self
 
@@ -350,6 +398,250 @@ class Catalog:
                 "hypothesis_id": h.hex() if h else None,
                 "query_semantic_id": q.hex() if q else None,
             }
+
+    def source_rows(self):
+        """Independent accepted source population, including rows with no query."""
+        for (raw,) in self.db.execute(
+            "select body from source_lineage order by source"
+        ):
+            yield json.loads(raw)
+
+    def population_mapback(self):
+        """Source-first lineage retains contextless sources and zero-query roles."""
+        for raw, u, metadata, h, q in self.db.execute(
+            "select s.body,c.u,c.metadata,h.h,m.q from source_lineage s left join context c on c.source=s.source left join hypothesis h on h.u=c.u left join mapping m on m.h=h.h order by s.source,c.u,h.h"
+        ):
+            yield {
+                **json.loads(raw),
+                "query_context_id": u.hex() if u else None,
+                "representation": json.loads(metadata)["representation"]
+                if metadata
+                else None,
+                "hypothesis_id": h.hex() if h else None,
+                "query_semantic_id": q.hex() if q else None,
+            }
+
+    def validate_relations(self, expected_counts=None):
+        """Reopenable relational validation; returns protected-safe counts only.
+
+        Every request retains every context and every hypothesis edge. Source
+        totality comes from its own table, and zero-query contexts stay explicit.
+        Memberships are checked as exact sets derived from all context edges.
+        """
+        db = self.db
+        b.require(
+            db.execute("pragma integrity_check").fetchall() == [("ok",)]
+            and db.execute("pragma foreign_key_check").fetchone() is None,
+            "B2_CATALOG_INTEGRITY",
+        )
+        checks = (
+            "select count(*) from hypothesis h left join mapping m on m.h=h.h and m.q=h.q where m.h is null",
+            "select count(*) from semantic s where not exists(select 1 from mapping m where m.q=s.q)",
+            "select count(*) from family f join hypothesis h on h.h=f.h where f.u<>h.u",
+            "select count(*) from hypothesis h where not exists(select 1 from family f where f.h=h.h and f.u=h.u)",
+            "select count(*) from (select source,count(*) n,count(distinct json_extract(metadata,'$.representation')) roles from context group by source having n>2 or n<>roles)",
+        )
+        for query in checks:
+            b.require(db.execute(query).fetchone() == (0,), "B2_CATALOG_RELATIONS")
+        for u, source, raw in db.execute("select u,source,metadata from context"):
+            row = json.loads(raw)
+            b.require(
+                row["query_context_id"] == u.hex()
+                and row["stable_source_row_id_v1"] == source.hex()
+                and row["representation"] in ("STANDARD", "NATIVE"),
+                "B2_LINEAGE_MISMATCH",
+            )
+        if self.binding["population_scope"] == b.DEVELOPMENT:
+            b.require(
+                db.execute(
+                    "select count(*) from (select c.u from context c left join family f on f.u=c.u group by c.u having count(f.name)<>6)"
+                ).fetchone()
+                == (0,),
+                "B2_FAMILY_LINEAGE_MISSING",
+            )
+        counts = {
+            name: db.execute(f"select count(*) from {table}").fetchone()[0]
+            for name, table in (
+                ("sources", "source_lineage"),
+                ("contexts", "context"),
+                ("semantic_requests", "semantic"),
+                ("hypothesis_links", "hypothesis"),
+                ("mapping_links", "mapping"),
+                ("family_decisions", "family"),
+                ("memberships", "membership"),
+            )
+        }
+        counts.update(
+            standard_contexts=db.execute(
+                "select count(*) from context where json_extract(metadata,'$.representation')='STANDARD'"
+            ).fetchone()[0],
+            native_contexts=db.execute(
+                "select count(*) from context where json_extract(metadata,'$.representation')='NATIVE'"
+            ).fetchone()[0],
+            zero_query_contexts=db.execute(
+                "select count(*) from context c where not exists(select 1 from hypothesis h where h.u=c.u)"
+            ).fetchone()[0],
+            sources_without_context=db.execute(
+                "select count(*) from source_lineage s where not exists(select 1 from context c where c.source=s.source)"
+            ).fetchone()[0],
+            eligible_family_links=db.execute(
+                "select count(*) from family where h is not null"
+            ).fetchone()[0],
+        )
+        counts["mapback_rows"] = sum(1 for _ in self.mapback())
+        counts["shared_requests_multiple_contexts"] = db.execute(
+            "select count(*) from (select q from hypothesis group by q having count(distinct u)>1)"
+        ).fetchone()[0]
+        counts["shared_requests_multiple_sources"] = db.execute(
+            "select count(*) from (select h.q from hypothesis h join context c on c.u=h.u group by h.q having count(distinct c.source)>1)"
+        ).fetchone()[0]
+        counts["max_hypothesis_multiplicity"] = db.execute(
+            "select coalesce(max(n),0) from (select count(*) n from mapping group by q)"
+        ).fetchone()[0]
+        counts["sum_hypothesis_multiplicity"] = counts["mapping_links"]
+        counts["population_mapback_rows"] = sum(1 for _ in self.population_mapback())
+        b.require(
+            counts["mapback_rows"]
+            == counts["hypothesis_links"] + counts["zero_query_contexts"]
+            and counts["population_mapback_rows"]
+            == counts["mapback_rows"] + counts["sources_without_context"],
+            "B2_MAP_TOTALITY",
+        )
+        b.require(
+            counts["sources"] == self.binding["source_count"]
+            and counts["semantic_requests"] == self.binding["semantic_count"]
+            and counts["hypothesis_links"]
+            == counts["mapping_links"]
+            == self.binding["map_count"]
+            and counts["standard_contexts"] + counts["native_contexts"]
+            == counts["contexts"],
+            "B2_CATALOG_TOTALITY",
+        )
+        if expected_counts is not None:
+            b.require(
+                all(counts.get(k) == v for k, v in expected_counts.items()),
+                "B2_CATALOG_TOTALITY",
+            )
+        semantic_hash = s11.relation_digest(
+            "semantic_request", counts["semantic_requests"], self.semantics()
+        ).hex()
+        mapping_hash = s11.relation_digest(
+            "hypothesis_request_map",
+            counts["mapping_links"],
+            (
+                {"hypothesis_id": h, "query_semantic_id": q}
+                for h, q in db.execute("select h,q from mapping order by h")
+            ),
+        ).hex()
+        b.require(
+            semantic_hash == self.binding["semantic_sha256"]
+            and mapping_hash == self.binding["map_sha256"],
+            "B2_CATALOG_HASH",
+        )
+        for source, raw in db.execute("select source,body from source_lineage"):
+            row = json.loads(raw)
+            b.require(
+                row["stable_source_row_id_v1"] == source.hex(), "B2_SOURCE_LINEAGE"
+            )
+            if self.binding["population_scope"] == b.DEVELOPMENT:
+                from .s01_identity import stable_source_row_id_v1
+
+                b.require(
+                    set(row)
+                    == {
+                        "id",
+                        "source_file",
+                        "source_logical_record_number",
+                        "stable_source_row_id_v1",
+                        "source_file_sha256",
+                    }
+                    and stable_source_row_id_v1(
+                        bytes.fromhex(row["source_file_sha256"]),
+                        row["source_logical_record_number"],
+                    )
+                    == source,
+                    "B2_SOURCE_LINEAGE",
+                )
+        # Temporary expected sets never modify the sealed catalog bytes.
+        db.executescript(
+            "drop table if exists temp.expected_membership; drop table if exists temp.expected_tuple; drop table if exists temp.expected_stratum; create temp table expected_membership(q blob,cell blob,source blob,primary key(q,cell,source)) without rowid; create temp table expected_tuple(q blob,body blob,primary key(q,body)) without rowid; create temp table expected_stratum(q blob primary key,body blob,ordering blob) without rowid;"
+        )
+        for q, mode, country in db.execute(
+            "select q,mode,country from semantic order by q"
+        ):
+            for context in self.contexts(q):
+                source = bytes.fromhex(context["stable_source_row_id_v1"])
+                u = bytes.fromhex(context["query_context_id"])
+                families = [
+                    r[0]
+                    for r in db.execute(
+                        "select distinct f.name from family f join mapping m on m.h=f.h where f.u=? and m.q=? order by f.name",
+                        (u, q),
+                    )
+                ]
+                for channel, value in (
+                    ("country", country),
+                    ("script", context["script"]),
+                    ("capability", context["capability"]),
+                    ("completeness", context["completeness"]),
+                    ("representation", context["representation"]),
+                    *(("family", x) for x in families),
+                ):
+                    db.execute(
+                        "insert or ignore into expected_membership values(?,?,?)",
+                        (q, b.canonical([channel, value, mode]), source),
+                    )
+                for family in families:
+                    db.execute(
+                        "insert or ignore into expected_tuple values(?,?)",
+                        (
+                            q,
+                            b.canonical(
+                                [
+                                    context["script"],
+                                    context["capability"],
+                                    context["completeness"],
+                                    context["representation"],
+                                    family,
+                                ]
+                            ),
+                        ),
+                    )
+            parts, weight = [], 0
+            for (raw,) in db.execute("select body from expected_tuple where q=?", (q,)):
+                weight += len(raw)
+                b.require(weight <= b.MAX_METADATA, "B2_STRATUM_MEMORY_BOUND")
+                parts.append(json.loads(raw))
+            parts.sort(key=c.framed)
+            full = [country, mode, parts]
+            order = c.identity(
+                "SAFE:stage12-tail-stratum:v1",
+                [
+                    ("protocol_version", "stage12_calibration_protocol_v1"),
+                    ("stratum", full),
+                ],
+            )
+            db.execute(
+                "insert into expected_stratum values(?,?,?)",
+                (q, b.canonical(full), order),
+            )
+        for actual, expected in (
+            ("membership", "expected_membership"),
+            ("occurrence_tuple", "expected_tuple"),
+            ("stratum", "expected_stratum"),
+        ):
+            for left, right in ((actual, expected), (expected, actual)):
+                b.require(
+                    db.execute(
+                        f"select count(*) from (select * from {left} except select * from {right})"
+                    ).fetchone()
+                    == (0,),
+                    "B2_CATALOG_MEMBERSHIP",
+                )
+        db.executescript(
+            "drop table temp.expected_membership; drop table temp.expected_tuple; drop table temp.expected_stratum;"
+        )
+        return counts
 
     def make_memberships(self):
         for q, mode, country in self.db.execute(
@@ -415,6 +707,14 @@ class Catalog:
         self.db.commit()
 
 
+class AcceptedStage11Relations(dict):
+    """Reopenable factories plus the actually validated accepted manifest."""
+
+    def __init__(self, manifest):
+        super().__init__()
+        self.manifest = manifest
+
+
 def load_stage11(root: Path, binding: dict, authority):
     """Open the real accepted catalog only after exact permission/site gates."""
     b.validate(binding, "stage12_stage11_input_binding_b2_v1")
@@ -433,7 +733,7 @@ def load_stage11(root: Path, binding: dict, authority):
     b.require(
         manifest["logical_sha256"] == binding["dataset_sha256"], "B2_CATALOG_HASH"
     )
-    result = {}
+    result = AcceptedStage11Relations(manifest)
     for relation in manifest["relations"]:
         name = relation["name"]
         paths = tuple(s11io.verify_file(root, x) for x in relation["files"])
@@ -503,15 +803,33 @@ def build_accepted(
                 db, "select * from h order by hypothesis_id"
             ),
             contexts=lineage.rows,
+            sources=lineage.source_rows,
             families=lambda: publication.sql_rows(
                 db, "select * from d order by query_context_id,family"
             ),
             authority=authority,
         )
-        b.require(
-            result.db.execute("select count(*) from context").fetchone()[0] == 69747,
-            "B2_CONTEXT_TOTALITY",
+        result.validate_relations(
+            {
+                "sources": 35000,
+                "contexts": 69747,
+                "semantic_requests": 105805,
+                "hypothesis_links": 142677,
+                "mapping_links": 142677,
+                "standard_contexts": 34822,
+                "native_contexts": 34925,
+                "family_decisions": 418482,
+                "eligible_family_links": 172112,
+                "zero_query_contexts": 1668,
+                "sources_without_context": 0,
+            }
         )
+        result.input_provenance = {
+            "stage11_manifest": relations.manifest,
+            "stage10_binding": dict(accepted.binding),
+            "lineage_binding": dict(lineage.accepted.binding),
+            "lineage_projection_sha256": lineage.binding_sha256,
+        }
         lineage.validate()
         return result
     finally:
