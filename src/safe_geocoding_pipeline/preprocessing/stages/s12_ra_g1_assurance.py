@@ -167,7 +167,9 @@ REP512_SELECTION = "stage12_resource_selection_rep_first64_512_ra_g1_v1"
 REP512_POLICY = "stage12_rep_first64_512_policy_ra_g1_v1"
 REP512_ADOPTION = "stage12_advisory_delegated_rep_first64_512_adoption_v1"
 REP_FOREGROUND_SELECTION = "stage12_resource_selection_rep_foreground_ra_g1_v1"
-REP512_SELECTIONS = (REP512_SELECTION, REP_FOREGROUND_SELECTION)
+REP_ACK_SELECTION = "stage12_resource_selection_rep_ack_queue_ra_g1_v1"
+REP_ACK_ADOPTION = "stage12_rep_ack_queue_policy_adoption_v1"
+REP512_SELECTIONS = (REP512_SELECTION, REP_FOREGROUND_SELECTION, REP_ACK_SELECTION)
 REP_ADMIN_SELECTIONS = (REP_ADMIN_SELECTION, *REP512_SELECTIONS)
 REP512_SELECTION_SCHEMA = {
     **REP_ADMIN_SELECTION_SCHEMA, "schema_version": "=" + REP512_SELECTION,
@@ -188,6 +190,27 @@ REP512_ADOPTION_SCHEMA = {
     "other_stage_caps_unchanged":"B", "public_protected_budgets_unchanged":"B",
     "workload_authority_issued":"B",
 }
+
+REP_ACK_SELECTION_SCHEMA = {
+    **REP_FOREGROUND_SELECTION_SCHEMA, "schema_version": "=" + REP_ACK_SELECTION,
+    "rep_ack_policy_sha256": "D", "rep_ack_policy_adoption_sha256": "D",
+}
+REP_ACK_ADOPTION_SCHEMA = {
+    "schema_version":"="+REP_ACK_ADOPTION, "scope":"=REPRESENTATIVE_NO_SERVICE",
+    "policy_sha256":"D", "decision_delta_sha256":"D", "prospective_only":"B",
+    "withdrawn_maximum_ack_age_ms":"U", "actual_ack_age_retained":"B",
+    "maximum_outstanding_observations":"U", "maximum_writer_action_ms":"U", "maximum_close_ms":"U",
+}
+
+def validate_rep_ack_adoption(value, selected):
+    from . import s12_ra_g1_rep_ack_contract as contract
+    shape(value, REP_ACK_ADOPTION_SCHEMA)
+    c.require(value["prospective_only"]is True and value["actual_ack_age_retained"]is True
+        and value["withdrawn_maximum_ack_age_ms"]==500 and value["maximum_outstanding_observations"]==16
+        and value["maximum_writer_action_ms"]==value["maximum_close_ms"]==5000
+        and value["policy_sha256"]==contract.POLICY_SHA==selected["rep_ack_policy_sha256"]
+        and old.digest(value)==selected["rep_ack_policy_adoption_sha256"],"RA_G1_SELECTION_BINDING")
+    return value
 
 
 def rep512_policy_descriptor() -> Any:
@@ -521,7 +544,8 @@ def validate_scope_ceilings(record: Any) -> None:
 
 
 def validate_selection(record: Any) -> Any:
-    shape(record, REP_FOREGROUND_SELECTION_SCHEMA if record.get("schema_version") == REP_FOREGROUND_SELECTION
+    shape(record, REP_ACK_SELECTION_SCHEMA if record.get("schema_version") == REP_ACK_SELECTION
+          else REP_FOREGROUND_SELECTION_SCHEMA if record.get("schema_version") == REP_FOREGROUND_SELECTION
           else REP512_SELECTION_SCHEMA if record.get("schema_version") in REP512_SELECTIONS
           else REP_ADMIN_SELECTION_SCHEMA if record.get("schema_version") == REP_ADMIN_SELECTION
           else BOOTSTRAP_SELECTION_SCHEMA if record.get("schema_version") == BOOTSTRAP_SELECTION else SELECTION_SCHEMA)
@@ -533,6 +557,9 @@ def validate_selection(record: Any) -> Any:
         c.require(record["rep_admin_budget_policy_sha256"] == old.digest(rep_admin_policy_descriptor()), "RA_G1_SELECTION_BINDING")
     if record["schema_version"] in REP512_SELECTIONS:
         c.require(record["rep_first64_512_policy_sha256"] == old.digest(rep512_policy_descriptor()), "RA_G1_SELECTION_BINDING")
+    if record["schema_version"] == REP_ACK_SELECTION:
+        from . import s12_ra_g1_rep_ack_contract as contract
+        c.require(record["rep_ack_policy_sha256"]==contract.POLICY_SHA,"RA_G1_SELECTION_BINDING")
     c.require(record["valid_from"] < record["valid_until"], "RA_G1_EXPIRED")
     limits = record["limits"]
     validate_scope_ceilings(record)
@@ -750,6 +777,9 @@ def verify_runtime(record: Any, authority: Any, context: Any) -> Any:
         and selected["source_git_sha"] == record["source_git_sha"],
         "RA_G1_SELECTION_BINDING",
     )
+    if "profile" in context:
+        ack_profile=context["profile"].get("schema_version")=="stage12_transport_operations_rep_ack_queue_ra_g1_v1"
+        c.require((selected["schema_version"]==REP_ACK_SELECTION)==ack_profile,"RA_G1_SELECTION_BINDING")
     limits = [
         facts[key]["value"]
         for key in ("memory_max_bytes", "memory_high_bytes")

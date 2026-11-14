@@ -380,6 +380,12 @@ FOREGROUND_MODULES = (
     ("PROBE_CLI", "src/safe_geocoding_pipeline/preprocessing/stage12_probe_cli.py"),
     ("RA_EXECUTION", "src/safe_geocoding_pipeline/preprocessing/stages/s12_ra_g1_execution.py"),
 )
+REP_ACK_FOREGROUND_MODULES = tuple(
+    (module, "src/safe_geocoding_pipeline/preprocessing/stages/s12_ra_g1_rep_ack_contract.py"
+     if module == "RA_CONTRACT" else relative)
+    for module, relative in FOREGROUND_MODULES
+)
+
 COLLECTION_FAILURE_VERSION = "stage12_collection_first_failure_discriminator_v1"
 COLLECTION_MODULES = (
     ("COLLECTION_DRIVER", "scripts/stage12_ra_g1_collection_driver.py"),
@@ -454,7 +460,7 @@ class FirstFailureDescriptor:
             tb = frame = code = row = error = None
 
 
-def prepare_first_failure_descriptor(specs, source_rows, *, source_root, verify_source):
+def prepare_first_failure_descriptor(specs, source_rows, *, source_root, verify_source, ack_queue_successor=False):
     """Pin already-loaded modules using the caller's actual original reader.
 
     verify_source(path, selected_row) must return exact True after the caller's
@@ -465,8 +471,22 @@ def prepare_first_failure_descriptor(specs, source_rows, *, source_root, verify_
     """
     return _prepare_first_failure_descriptor(
         specs, source_rows, source_root=source_root, verify_source=verify_source,
-        allowed_modules=FOREGROUND_MODULES,
+        allowed_modules=REP_ACK_FOREGROUND_MODULES if ack_queue_successor else FOREGROUND_MODULES,
     )
+
+
+DIRECT_RECOVERY_MODULES = (
+    ("DIRECT_RECOVERY","scripts/stage12_ra_g1_direct_recovery.py"),
+    ("COLLECTION_CORE","scripts/stage12_ra_g1_terminal_collect.py"),
+    ("COLLECTION_PARENT","scripts/stage12_ra_g1_terminal_parent.py"),
+    ("COLLECTION_TRANSPORT","scripts/stage12_ra_g1_terminal_transport.py"),
+    ("COLLECTION_VERIFIER", "scripts/stage12_ra_g1_terminal_verify.py"),
+)
+
+def prepare_direct_recovery_failure_descriptor(specs, source_rows, *, source_root, verify_source):
+    """One explicit direct recovery map; no change to legacy collection maps."""
+    return _prepare_first_failure_descriptor(specs,source_rows,source_root=source_root,
+        verify_source=verify_source,allowed_modules=DIRECT_RECOVERY_MODULES)
 
 
 def prepare_collection_failure_descriptor(specs, source_rows, *, source_root, verify_source):

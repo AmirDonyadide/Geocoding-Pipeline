@@ -39,6 +39,7 @@ LOWER_VERSION = "stage12_public_lower_rate_configuration_v1"
 MATRIX_VERSION = "stage12_public_diverse_capability_configuration_v1"
 AP2_CONFIG = "stage12_public_sampling_runtime_configuration_v2"
 RA_CONFIG = "stage12_public_sampling_runtime_configuration_ra_g1_v1"
+REP_ACK_CONFIG = "stage12_ra_g1_representative_ack_queue_configuration_v1"
 WF_CONFIGS = (AP2_CONFIG, RA_CONFIG)
 SAMPLING_CONFIGS = ("stage12_public_sampling_runtime_configuration_v1", *WF_CONFIGS)
 
@@ -46,6 +47,10 @@ SAMPLING_CONFIGS = ("stage12_public_sampling_runtime_configuration_v1", *WF_CONF
 def sampling_contract(profile=None, config=None):
     version = (profile or {}).get("schema_version")
     config_version = (config or {}).get("version")
+    if version == "stage12_transport_operations_rep_ack_queue_ra_g1_v1" or config_version == REP_ACK_CONFIG:
+        from . import s12_ra_g1_rep_ack_contract
+
+        return s12_ra_g1_rep_ack_contract
     if (
         version == "stage12_transport_operations_ra_g1_v1"
         or config_version == RA_CONFIG
@@ -177,7 +182,7 @@ def validation_for(identity):
     raise c.Stage12Error("S12_PUBLIC_VALIDATION_BINDING_INVALID")
 
 
-def verify_successor_assets(repository, *, contract=None, rep_admin_successor=False, first64_512_successor=False, foreground_successor=False):
+def verify_successor_assets(repository, *, contract=None, rep_admin_successor=False, first64_512_successor=False, foreground_successor=False, ack_queue_successor=False):
     from . import s12_wf_ap2_contract as successor
 
     successor = successor if contract is None else contract
@@ -188,6 +193,8 @@ def verify_successor_assets(repository, *, contract=None, rep_admin_successor=Fa
         options["first64_512_successor"] = True
     if foreground_successor:
         options["foreground_successor"] = True
+    if ack_queue_successor:
+        options["ack_queue_successor"] = True
     descriptors = successor.descriptors(**options)
     # The shared wire descriptor keeps its frozen v3 identity. RA instance
     # schema/policy/chunk limits are independently enforced by writer/readers.
@@ -205,7 +212,7 @@ def successor_timing(config, output, review, clock, deadline):
     from . import s12_public_checkpoints as checkpoints
 
     if config.get("version") == RA_CONFIG:
-        from . import s12_ra_g1_contract as ap
+        ap = sampling_contract(config=config)
         from . import s12_ra_g1_assurance as assurance
 
     phases = config["campaigns"]

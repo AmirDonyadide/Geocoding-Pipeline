@@ -16,6 +16,7 @@ import os
 import sys
 
 VERSION = "stage12_terminal_original_workload_verification_v1"
+ACK_VERSION = "stage12_terminal_rep_ack_original_workload_verification_v1"
 MAX_READ_BYTES = 32 * 2**30
 MAX_READS = 1_000_000
 MAX_OPENS = 500_000
@@ -27,7 +28,7 @@ def need(value):
 
 
 @contextmanager
-def bounded_reads(check, charge_read):
+def bounded_reads(check, charge_read, *, check_read=None):
     counts = dict(read_calls=0, returned_bytes=0, opens=0)
     active = [True]
     originals = {
@@ -89,6 +90,8 @@ def bounded_reads(check, charge_read):
                 and requested >= 0
                 and counts["returned_bytes"] + requested <= MAX_READ_BYTES
             )
+            if check_read is not None:
+                check_read(requested)
             value = original(*args)
             size = value if name.endswith("v") else len(value)
             counts["returned_bytes"] += size
@@ -360,7 +363,20 @@ def verify_resource(
     )
 
 
-def verify_original_workload(selection, *, check, charge_read):
+def workload_contract(selection):
+    """Exact selected native reader family; no inferred or duck-typed policy."""
+    from safe_geocoding_pipeline.preprocessing.stages import s12_ra_g1_contract
+    from safe_geocoding_pipeline.preprocessing.stages import s12_ra_g1_rep_ack_contract
+
+    need(type(selection) is dict and selection.get("scope") == "REPRESENTATIVE_NO_SERVICE")
+    version = selection.get("version")
+    if version == "stage12_ra_g1_rep_first64_512_allocation_selection_v1":
+        return s12_ra_g1_contract
+    need(version == "stage12_ra_g1_rep_ack_queue_allocation_selection_v1")
+    return s12_ra_g1_rep_ack_contract
+
+
+def verify_original_workload(selection, *, check, charge_read, check_read=None):
     """Fresh original readers; no writes, clocks or eligibility are repaired."""
     from safe_geocoding_pipeline.preprocessing.stages import (
         s12_public_operations as contract,
@@ -383,13 +399,11 @@ def verify_original_workload(selection, *, check, charge_read):
         s12_public_checkpoints as cp,
     )
     from safe_geocoding_pipeline.preprocessing.stages import s12_public_timing as timing
-    from safe_geocoding_pipeline.preprocessing.stages import s12_ra_g1_contract as ap
+    ap = workload_contract(selection)
 
     need(
         type(selection) is dict
         and selection.get("scope") == "REPRESENTATIVE_NO_SERVICE"
-        and selection.get("version")
-        == "stage12_ra_g1_rep_first64_512_allocation_selection_v1"
         and type(selection.get("source_sha")) is str
         and len(selection["source_sha"]) == 40
         and set(selection["source_sha"]) <= set("0123456789abcdef")
@@ -400,7 +414,7 @@ def verify_original_workload(selection, *, check, charge_read):
     from safe_geocoding_pipeline.preprocessing.stages import s12_public_matrix as matrix
 
     result = dict(
-        schema=VERSION,
+        schema=ACK_VERSION if ap.POLICY["maximum_unacknowledged_age_ms"] is None else VERSION,
         complete=False,
         scope="REPRESENTATIVE_NO_SERVICE",
         source_sha=selection["source_sha"],
@@ -409,7 +423,7 @@ def verify_original_workload(selection, *, check, charge_read):
         original_timed_acceptance_repaired=False,
         current_environment_or_old_clock_equivalence_asserted=False,
     )
-    with bounded_reads(check, charge_read) as counts, io.cooperative_io(check):
+    with bounded_reads(check, charge_read, check_read=check_read) as counts, io.cooperative_io(check):
         check()
         if not (root / "summary.json").is_file() or not Path(paths["tail"]).is_file():
             result["counts"] = dict(counts)
@@ -497,7 +511,18 @@ def verify_original_workload(selection, *, check, charge_read):
             check,
             charge_read,
         )
-        diagnostic.validate_envelope(data)
+        diagnostic.validate_envelope(data, selection["source_sha"], for_execution=True)
+        if selection["version"] == "stage12_ra_g1_rep_ack_queue_allocation_selection_v1":
+            need(data["version"] == "stage12_ra_g1_rep_ack_queue_representative_input_v1"
+                 and diagnostic.contract_for_input(data) is ap)
+        else:
+            # Historical pinned diagnostic modules predate contract_for_input;
+            # their original validator and exact family remain authoritative.
+            need(data["version"] == "stage12_ra_g1_rep_first64_512_representative_input_v1")
+        # Full validation is read-only here: no source or authority record is
+        # repaired, no native eligibility clock is restarted.
+        controller.validate_selection(selection)
+        diagnostic.validate_workloads(data)
         originals = tail["counter_originals"]
         need(type(originals) is dict and len(originals) <= 32)
         for identity, value in originals.items():

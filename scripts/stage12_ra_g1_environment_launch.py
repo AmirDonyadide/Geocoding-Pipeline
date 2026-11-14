@@ -561,9 +561,10 @@ def validate_gate(gate, selected, binding, *, now_epoch_ns, qualification=None, 
         required_remaining_ns=remaining*10**9, native_timing_PASS=False, service_or_protected_authority=False)
 
 
-def verified_qualification_validator(run):
+def verified_qualification_validator(run, *, source_name="scripts/stage12_ra_g1_terminal_verify.py", function_name="validate_qualification"):
     """Bounded source read, permitting immutable Git 0644 files/0755 directories."""
-    name = "scripts/stage12_ra_g1_terminal_verify.py"
+    need((source_name,function_name) in (("scripts/stage12_ra_g1_terminal_verify.py","validate_qualification"),("scripts/stage12_ra_g1_direct_recovery.py","validate_recovery_proof")),"RA_G1_SOURCE_INVENTORY")
+    name = source_name
     row = next(item for item in run.s["source_files"] if item["path"] == name)
     need(type(row["bytes"]) is int and 0 < row["bytes"] <= 131072, "RA_G1_SOURCE_INVENTORY")
     path = Path(run.s["paths"]["source"]) / name
@@ -592,7 +593,7 @@ def verified_qualification_validator(run):
     namespace = {"__file__": str(path), "__name__": "actual_collection_qualification"}
     exec(compile(raw,str(path),"exec"),namespace)
     run.check()
-    return namespace["validate_qualification"]
+    return namespace[function_name]
 
 def validate_original_gate(run):
     """Fresh counted control reads; exact opt-in path was admitted by the hook."""
@@ -617,7 +618,14 @@ def validate_original_gate(run):
     need(hashlib.sha256(raw).hexdigest() == identity, "RA_G1_ORIGINAL_CHANGED")
     # Use the actual production canonical parser rather than a parallel permissive one.
     gate = run.environment_gate_parser(raw)
-    if collection_binding(binding):
+    if direct_binding(binding):
+        qualification_raw=run.original(qualification_path(run.s,binding),limit=QUALIFICATION_MAX_BYTES)
+        need(digest(run.environment_gate_parser(qualification_raw))==binding["qualification_bundle_sha256"],"RA_G1_ORIGINAL_CHANGED")
+        proof_path,review_path=direct_recovery_paths(run.s,binding)
+        proof_raw=run.original(proof_path,limit=2**20);review_raw=run.original(review_path,limit=65536)
+        need(hashlib.sha256(proof_raw).hexdigest()==binding["direct_recovery_result_sha256"]            and hashlib.sha256(review_raw).hexdigest()==binding["direct_recovery_review_sha256"],"RA_G1_ORIGINAL_CHANGED")
+        proof=validate_gate(gate,run.s,binding,now_epoch_ns=time.time_ns(),            qualification=run.environment_gate_parser(qualification_raw),qualification_validator=verified_qualification_validator(run),            direct_recovery=run.environment_gate_parser(proof_raw),direct_review=run.environment_gate_parser(review_raw),            direct_validator=verified_qualification_validator(run,source_name="scripts/stage12_ra_g1_direct_recovery.py",function_name="validate_recovery_proof"))
+    elif collection_binding(binding):
         qualification_raw = run.original(qualification_path(run.s, binding), limit=QUALIFICATION_MAX_BYTES)
         need(hashlib.sha256(qualification_raw).hexdigest() == binding["qualification_bundle_sha256"], "RA_G1_ORIGINAL_CHANGED")
         qualification = run.environment_gate_parser(qualification_raw)
@@ -651,3 +659,100 @@ def after_ready(run):
     need(all(proof[key] == previous[key] for key in stable), "RA_G1_ORIGINAL_CHANGED")
     run.check()
     return proof
+
+
+# Explicit representative ACK-policy/direct-recovery successor. Historical
+# collection gates retain their original paired-qualification assertions.
+DIRECT_COLLECTION_VERSION="stage12_rep_ack_direct_recovery_environment_gate_v6"
+DIRECT_COLLECTION_BINDING="stage12_rep_ack_direct_recovery_environment_binding_v6"
+DIRECT_COLLECTION_POLICY="RA_G1_REP_ACK_DIRECT_RECOVERY_ENVIRONMENT_r6"
+DIRECT_ALLOCATION="stage12_ra_g1_rep_ack_queue_allocation_selection_v1"
+DIRECT_PROOF_FIELDS=("direct_recovery_plan_sha256","direct_recovery_result_sha256","direct_recovery_review_sha256",    "direct_recovery_software_inventory_sha256","direct_recovery_consumer_inventory_sha256")
+DIRECT_BINDING_HASHES=(*COLLECTION_BINDING_HASHES,*DIRECT_PROOF_FIELDS)
+DIRECT_SOFTWARE_FIELD="direct_recovery_software_source_sha"
+DIRECT_REMAINING=11220
+DIRECT_BUDGET=dict(SIMPLE_BUDGET,complete_admission_reserve_seconds=DIRECT_REMAINING,    post_export_transfer_seconds=900,AP_ACK_age_ms=None)
+DIRECT_HISTORY=dict(COLLECTION_HISTORY,historical_Q2_scope="ORIGINAL_PAIRED_QUALIFICATION_ONLY_NOT_CURRENT_DIRECT_COLLECTION",    old_B_job="1814976",old_F_job="1814977",old_results="FAILED_INCOMPLETE_UNCHANGED",    old_failure_initiation="UNKNOWN",current_direct_proof="ARTIFACT_INTEGRITY_NOT_SCIENTIFIC_B_PASS")
+DIRECT_CONSUMER_PATHS=("scripts/stage12_ra_g1_terminal_verify.py","scripts/stage12_ra_g1_direct_recovery.py","scripts/stage12_ra_g1_terminal_collect.py",    "scripts/stage12_ra_g1_terminal_transport.py","scripts/stage12_ra_g1_terminal_parent.py",    "src/safe_geocoding_pipeline/preprocessing/stages/s12_public_diagnostics.py",    "cluster/goethe_nhr/stage12_ra_g1_direct_export.sbatch")
+
+def direct_collection_descriptor():
+    return dict(version=DIRECT_COLLECTION_VERSION,policy=DIRECT_COLLECTION_POLICY,scope=SCOPE,
+        allocation_version=DIRECT_ALLOCATION,budget=dict(DIRECT_BUDGET),history=dict(DIRECT_HISTORY),
+        historical_amendment_document=COLLECTION_DOCUMENT,
+        representative_sampling_policy="stage12_representative_sampling_policy_ack_queue_ra_g1_v1",
+        maximum_selected_submissions=1,only_selected_bundle_slots=True,
+        current_collection="REVIEWED_DIRECT_RECOVERY_ORIGINALS_AND_ACTUAL_INDEPENDENT_REOPEN",
+        require_current_direct_integrity_review=True,
+        historical_Q2="ORIGINAL_IDENTITY_AND_SCOPE_REUSED_NOT_CURRENT_PAIRED_QUALIFICATION",
+        direct_consumer_paths=list(DIRECT_CONSUMER_PATHS),
+        window_binding="EXACT_SELECTED_CLOSED_WINDOW_ORIGINAL_NO_EXTENSION",
+        old_failures="PRESERVED_NO_CAUSE_OR_SCIENTIFIC_RELABELLING",
+        required_remaining_seconds=DIRECT_REMAINING,complete_remaining_seconds=DIRECT_REMAINING,
+        local_timing_pass_replaced_only=True,native_acceptance_unchanged=True,
+        no_full_local_timing_run=True,public_protected_eligible=False,task_profiling="DISABLED",
+        whole_workflow_qualification="NOT_ESTABLISHED",no_additional_public_or_protected_authority=True)
+
+
+def direct_binding(value):
+    return type(value)is dict and value.get("version")==DIRECT_COLLECTION_BINDING
+
+_prior_direct_collection_binding=collection_binding
+_prior_direct_validate_binding=validate_binding
+_prior_direct_validate_gate=validate_gate
+_prior_direct_allowed_paths=allowed_original_paths
+
+def collection_binding(value):
+    return direct_binding(value)or _prior_direct_collection_binding(value)
+
+def validate_binding(binding,selected):
+    if not direct_binding(binding):return _prior_direct_validate_binding(binding,selected)
+    need(set(binding)=={"version","source_tree",*DIRECT_BINDING_HASHES,*REMOTE_COLLECTION_FIELDS,DIRECT_SOFTWARE_FIELD},"RA_G1_FIELDS")
+    need(is_hash(binding["source_tree"],40)and is_hash(binding[DIRECT_SOFTWARE_FIELD],40)        and all(is_hash(binding[k])for k in DIRECT_BINDING_HASHES),"RA_G1_SELECTION_BINDING")
+    need(selected.get("version")==DIRECT_ALLOCATION and selected.get("scope")==SCOPE,"RA_G1_AUTHORITY_REQUIRED")
+    need(binding["policy_sha256"]==digest(direct_collection_descriptor())        and binding["remote_directory_scope"]==REMOTE_DIRECTORY_SCOPE        and binding["transport_evidence_version"]==REMOTE_TRANSPORT_VERSION        and is_hash(binding["remote_directory_adoption_sha256"]),"RA_G1_SELECTION_BINDING")
+    windows=window_module();adoption=selected.get("rep_admin_budget_adoption")
+    need(windows.is_window_adoption(adoption),"RA_G1_AUTHORITY_REQUIRED")
+    need(binding["window_policy_sha256"]==windows.digest(windows.selected_descriptor(adoption["window"]))        and adoption["window"]["grant_nonce"]==binding["grant_nonce"]        and adoption["window"]["owner_authority_sha256"]==binding["owner_authority_sha256"]        and adoption["qualification_bundle_sha256"]==binding["qualification_bundle_sha256"]==windows.Q2_BUNDLE        and adoption["qualification_review_sha256"]==binding["qualification_review_sha256"]==windows.Q2_REVIEW,"RA_G1_SELECTION_BINDING")
+    rows=selected.get("source_files");need(type(rows)is list and 1<=len(rows)<=2048,"RA_G1_SOURCE_INVENTORY")
+    for name in (*REQUIRED_SOURCE,COLLECTION_DOCUMENT,*DIRECT_CONSUMER_PATHS,            "src/safe_geocoding_pipeline/preprocessing/stages/s12_ra_g1_rep_ack_contract.py"):
+        found=[r for r in rows if r.get("path")==name];need(len(found)==1 and is_hash(found[0].get("sha256")),"RA_G1_SOURCE_INVENTORY")
+        if name==COLLECTION_DOCUMENT:need(found[0]["sha256"]==binding["amendment_sha256"],"RA_G1_SOURCE_CHANGED")
+    return binding
+
+def direct_recovery_paths(selected,binding):
+    root=Path(selected["paths"]["records"])
+    return(root/(binding["direct_recovery_result_sha256"]+".direct-recovery.record"),        root/(binding["direct_recovery_review_sha256"]+".direct-recovery-review.record"))
+
+def allowed_original_paths(selected,binding,identity):
+    if not direct_binding(binding):return _prior_direct_allowed_paths(selected,binding,identity)
+    return(gate_path(selected,identity),qualification_path(selected,binding),*direct_recovery_paths(selected,binding))
+
+def validate_gate(gate,selected,binding,*,now_epoch_ns,qualification=None,qualification_validator=None,        direct_recovery=None,direct_review=None,direct_validator=None):
+    if not direct_binding(binding):
+        need(direct_recovery is None and direct_review is None and direct_validator is None,"RA_G1_AUTHORITY_REQUIRED")
+        return _prior_direct_validate_gate(gate,selected,binding,now_epoch_ns=now_epoch_ns,qualification=qualification,qualification_validator=qualification_validator)
+    validate_binding(binding,selected)
+    keys={"version","scope","state","source_git_sha","source_tree","valid_from","valid_until","outer_window_end",        "grant_kind","maximum_submissions","task_profiling","budget","history","window",*GATE_HASHES,*DIRECT_BINDING_HASHES,*REMOTE_COLLECTION_FIELDS,DIRECT_SOFTWARE_FIELD}
+    need(type(gate)is dict and set(gate)==keys,"RA_G1_FIELDS")
+    need(gate["version"]==DIRECT_COLLECTION_VERSION and gate["scope"]==SCOPE        and gate["state"]=="ISSUED_FOR_DIRECT_RECOVERY_REVIEWED_REP_ACK_DIAGNOSTIC","RA_G1_AUTHORITY_REQUIRED")
+    need(all(gate[k]==binding[k]for k in(*DIRECT_BINDING_HASHES,*REMOTE_COLLECTION_FIELDS,DIRECT_SOFTWARE_FIELD,"source_tree")))
+    actual=selection_digest(selected)
+    need(gate["source_git_sha"]==selected["source_sha"]and gate["selection_sha256"]==actual        and gate["resource_selection_sha256"]==selected["resource_selection_sha256"]        and gate["software_review_sha256"]==selected["records"]["software_review"]        and gate["resource_review_sha256"]==selected["records"]["resource_review"]        and gate["source_inventory_sha256"]==selected["accounting_inventory"]["source_inventory_sha256"],"RA_G1_SELECTION_BINDING")
+    windows=window_module();window=gate["window"];policy=windows.selected_descriptor(window)
+    need(gate["grant_kind"]==windows.REP_GRANT and type(gate["maximum_submissions"])is int        and gate["maximum_submissions"]==1 and gate["task_profiling"]=="DISABLED","RA_G1_AUTHORITY_REQUIRED")
+    need(gate["budget"]==DIRECT_BUDGET and canonical(gate["history"])==canonical(DIRECT_HISTORY),"RA_G1_LIMITS")
+    need(window==selected["rep_admin_budget_adoption"]["window"]        and gate["valid_from"]==selected["valid_from"]==policy["valid_from"]        and gate["valid_until"]==selected["valid_until"]==gate["outer_window_end"]==policy["valid_until"],"RA_G1_WINDOW")
+    remaining=policy.get("complete_admission_reserve_seconds",policy.get("representative_remaining_seconds",10320))
+    # Validate the unchanged selected window's own declared family first; the
+    # explicit direct graph additionally needs11220s and grants no extension.
+    windows.validate_window(window,scope=SCOPE,now_epoch_ns=now_epoch_ns,required_remaining_seconds=remaining)
+    need(now_epoch_ns+DIRECT_REMAINING*10**9<=epoch_ns(gate["valid_until"]),"RA_G1_DEADLINE")
+    need(type(qualification)is dict and digest(qualification)==windows.Q2_BUNDLE        and callable(qualification_validator),"RA_G1_COLLECTION_QUALIFICATION_REQUIRED")
+    qualification_validator(qualification,expected_window=qualification["window"],        expected_original_source_git_sha=windows.ORIGINAL_SOURCE,expected_original_job_id=int(windows.ORIGINAL_JOB),        expected_original_selection_sha256=windows.ORIGINAL_SELECTION,expected_collector_source_git_sha=windows.Q2_SOURCE,        expected_qualification_review_sha256=binding["qualification_review_sha256"],expected_remote_directory_scope=REMOTE_DIRECTORY_SCOPE)
+    need(type(direct_recovery)is dict and digest(direct_recovery)==binding["direct_recovery_result_sha256"]        and type(direct_review)is dict and digest(direct_review)==binding["direct_recovery_review_sha256"]        and callable(direct_validator),"RA_G1_COLLECTION_QUALIFICATION_REQUIRED")
+    direct_validator(direct_recovery,review=direct_review,expected_plan_sha256=binding["direct_recovery_plan_sha256"],        expected_software_source_sha=binding[DIRECT_SOFTWARE_FIELD],        expected_software_inventory_sha256=binding["direct_recovery_software_inventory_sha256"],        expected_review_sha256=binding["direct_recovery_review_sha256"],        expected_consumer_inventory_sha256=binding["direct_recovery_consumer_inventory_sha256"])
+    consumers=direct_recovery["recovery_consumer_inventory"]
+    need(type(consumers)is list and sorted(r["path"]for r in consumers)==sorted(DIRECT_CONSUMER_PATHS)        and digest(consumers)==binding["direct_recovery_consumer_inventory_sha256"],"RA_G1_SOURCE_CHANGED")
+    for row in consumers:
+        need([r for r in selected["source_files"]if r["path"]==row["path"]]==[row],"RA_G1_SOURCE_CHANGED")
+    return dict(status="DIRECT_RECOVERY_REVIEWED_REP_ACK_DIAGNOSTIC_ELIGIBLE_NOT_NATIVE_QUALIFIED",        gate_sha256=digest(gate),selection_sha256=actual,resource_selection_sha256=selected["resource_selection_sha256"],        policy_sha256=binding["policy_sha256"],grant_nonce=binding["grant_nonce"],        qualification_bundle_sha256=binding["qualification_bundle_sha256"],        direct_recovery_result_sha256=binding["direct_recovery_result_sha256"],        checked_epoch_ns=now_epoch_ns,remaining_ns=epoch_ns(gate["valid_until"])-now_epoch_ns,        required_remaining_ns=DIRECT_REMAINING*10**9,native_timing_PASS=False,service_or_protected_authority=False)

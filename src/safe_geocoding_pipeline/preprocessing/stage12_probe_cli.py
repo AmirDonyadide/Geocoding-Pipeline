@@ -563,6 +563,8 @@ def _run_operations_block(
         from .stages import s12_wf_ap2_contract as po
     elif profile.get("schema_version") == "stage12_transport_operations_ra_g1_v1":
         from .stages import s12_ra_g1_contract as po
+    elif profile.get("schema_version")=="stage12_transport_operations_rep_ack_queue_ra_g1_v1":
+        from .stages import s12_ra_g1_rep_ack_contract as po
     from .stages import s12_public_operational_audit as oa
     from .stages import s12_public_journal as pj
     from .stages import s12_public_scheduler as ps
@@ -577,7 +579,7 @@ def _run_operations_block(
     # Explicitly captured by writer callbacks; thread-local selections do not cross.
     reader_options = (
         {"descriptor_relative": True}
-        if po.PROFILE == "stage12_transport_operations_ra_g1_v1" else {}
+        if po.PROFILE in ("stage12_transport_operations_ra_g1_v1","stage12_transport_operations_rep_ack_queue_ra_g1_v1") else {}
     )
     resource_limits = (po.resources_view(profile) if getattr(po, "RA_ENABLED", False) else profile["resources"])
     po.verify_work_manifest(work_factory, plan)
@@ -1936,7 +1938,7 @@ def _run_operations_block(
 
 
 def run_operations_block(profile, plan, start, **kwargs):
-    if profile.get("schema_version") in ("stage12_transport_operations_v4", "stage12_transport_operations_ra_g1_v1"):
+    if profile.get("schema_version") in ("stage12_transport_operations_v4", "stage12_transport_operations_ra_g1_v1", "stage12_transport_operations_rep_ack_queue_ra_g1_v1"):
         from .stages import s12_paged_history as history
 
         with history.selected(plan["history_limits"]):

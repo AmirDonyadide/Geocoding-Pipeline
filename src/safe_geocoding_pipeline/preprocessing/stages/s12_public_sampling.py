@@ -6,8 +6,22 @@ from collections import deque
 from contextlib import nullcontext
 import threading
 import time
+import sys
+from types import ModuleType
 from . import s12_public_sampling_contract as a
 from . import s12_retrieval_contract as c
+
+
+def maximum_ack_age_ns(contract):
+    """Only the real selected representative contract withdraws the age gate."""
+    selected=sys.modules.get("safe_geocoding_pipeline.preprocessing.stages.s12_ra_g1_rep_ack_contract")
+    if type(contract)is ModuleType and selected is contract:
+        contract.require(contract.PROFILE=="stage12_transport_operations_rep_ack_queue_ra_g1_v1"
+            and contract.POLICY["maximum_unacknowledged_age_ms"]is None
+            and contract.POLICY_SHA==contract.digest(contract.POLICY))
+        return None
+    contract.require(contract.POLICY["maximum_unacknowledged_age_ms"]==500)
+    return 500_000_000
 
 
 def count(value):
@@ -21,6 +35,7 @@ class SamplingFailure(RuntimeError):
 class Sampler:
     def __init__(self, coordinator):
         self.contract = coordinator.contract
+        self.maximum_ack_age_ns = maximum_ack_age_ns(self.contract)
         self.co = coordinator
         self.writer = coordinator.writer
         self.log = coordinator.journal
@@ -234,7 +249,8 @@ class Sampler:
             for i, state in enumerate(self.states):
                 if (
                     state in (1, 2, 3)
-                    and now - (self.observed[i] or self.entered[i]) > 500_000_000
+                    and self.maximum_ack_age_ns is not None
+                    and now - (self.observed[i] or self.entered[i]) > self.maximum_ack_age_ns
                 ):
                     self.fail("ACK_AGE_LIMIT", "ACK")
             if (
@@ -606,7 +622,7 @@ class Sampler:
                 self.trace_mark(i, "event_ack_publish_ns", acknowledged)
                 age = acknowledged - value["observed_mono_ns"]
                 self.maximum_age = max(self.maximum_age, age)
-                if age > 500_000_000:
+                if self.maximum_ack_age_ns is not None and age > self.maximum_ack_age_ns:
                     self.fail("ACK_AGE_LIMIT", "ACK")
             ah = self.log.event(
                 "SAMPLE_ACK",
@@ -787,6 +803,7 @@ def inspect(factory, profile, start, *, maximum_segments, contract=a):
     cache. Each invocation belongs to one mandatory validation stage.
     """
     a = contract
+    ack_limit = maximum_ack_age_ns(a)
     results = []
     context = None
     previous = None
@@ -836,7 +853,7 @@ def inspect(factory, profile, start, *, maximum_segments, contract=a):
             and s["pending"] is None
             and s["final"] is not None
             and s["gaps"] == 0
-            and s["lag"] <= 500_000_000
+            and (ack_limit is None or s["lag"] <= ack_limit)
         )
         if close:
             a.require(

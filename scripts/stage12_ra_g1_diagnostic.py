@@ -41,7 +41,10 @@ REP512_VERSION = "stage12_ra_g1_rep_first64_512_representative_input_v1"
 REP512_SELECTION = "stage12_resource_selection_rep_first64_512_ra_g1_v1"
 REP_FOREGROUND_VERSION = "stage12_ra_g1_rep_foreground_representative_input_v1"
 REP_FOREGROUND_SELECTION = "stage12_resource_selection_rep_foreground_ra_g1_v1"
-REP512_VERSIONS = (REP512_VERSION, REP_FOREGROUND_VERSION)
+REP_ACK_VERSION = "stage12_ra_g1_rep_ack_queue_representative_input_v1"
+REP_ACK_SELECTION = "stage12_resource_selection_rep_ack_queue_ra_g1_v1"
+REP_ACK_CONFIG_VERSION = "stage12_ra_g1_representative_ack_queue_configuration_v1"
+REP512_VERSIONS = (REP512_VERSION, REP_FOREGROUND_VERSION, REP_ACK_VERSION)
 REP_ADMIN_VERSIONS = (REP_ADMIN_VERSION, *REP512_VERSIONS)
 ACTIVE_DIAGNOSTIC_TRACE = None
 ACTIVE_DIAGNOSTIC_CHECK = None
@@ -269,6 +272,14 @@ def hash_value(value, size=64):
     )
 
 
+def contract_for_input(data):
+    if data.get("version")==REP_ACK_VERSION:
+        from safe_geocoding_pipeline.preprocessing.stages import s12_ra_g1_rep_ack_contract
+        return s12_ra_g1_rep_ack_contract
+    from safe_geocoding_pipeline.preprocessing.stages import s12_ra_g1_contract
+    return s12_ra_g1_contract
+
+
 def input_scope(data):
     value = dict(data)
     value["selection"] = {
@@ -322,7 +333,7 @@ def validate_envelope(data, source_sha, *, for_execution, defer_response_payload
     require(
         type(config) is dict
         and set(config) == _CONFIG
-        and config.get("version") == CONFIG_VERSION
+        and config.get("version") == (REP_ACK_CONFIG_VERSION if data["version"]==REP_ACK_VERSION else CONFIG_VERSION)
     )
     require(
         config.get("transport") == {"scope": SCOPE, "authority": "TEST_ONLY_NO_NETWORK"}
@@ -361,14 +372,14 @@ def validate_envelope(data, source_sha, *, for_execution, defer_response_payload
         require(hash_value(phase["epoch_id"]))
         profile, plan, start = item["profile"], item["plan"], phase["start"]
         require(
-            profile.get("schema_version") == "stage12_transport_operations_ra_g1_v1"
+            profile.get("schema_version") == ("stage12_transport_operations_rep_ack_queue_ra_g1_v1" if data["version"]==REP_ACK_VERSION else "stage12_transport_operations_ra_g1_v1")
         )
         require(
             plan.get("schema_version")
-            == "stage12_public_characterization_plan_ra_g1_v1"
+            == ("stage12_representative_plan_ack_queue_ra_g1_v1" if data["version"]==REP_ACK_VERSION else "stage12_public_characterization_plan_ra_g1_v1")
         )
         require(
-            start.get("schema_version") == "stage12_public_operations_campaign_ra_g1_v1"
+            start.get("schema_version") == ("stage12_representative_campaign_ack_queue_ra_g1_v1" if data["version"]==REP_ACK_VERSION else "stage12_public_operations_campaign_ra_g1_v1")
         )
         require(
             start["client_git_sha"] == source_sha
@@ -443,6 +454,7 @@ def validate_resource_family(input_version, selected):
         and selected.get("scope") == SCOPE
         and selected.get("schema_version")
         == (
+            REP_ACK_SELECTION if input_version == REP_ACK_VERSION else
             REP_FOREGROUND_SELECTION if input_version == REP_FOREGROUND_VERSION else
             REP512_SELECTION if input_version in REP512_VERSIONS else
             REP_ADMIN_SELECTION if input_version == REP_ADMIN_VERSION else BOOTSTRAP_SELECTION
@@ -488,7 +500,7 @@ def prepare_first_phase(session, data, *, initialize_runtime, validation, check)
 
 def validate_workloads(data):
     """Exact public corpus, successor contracts and cumulative T3 reservation."""
-    from safe_geocoding_pipeline.preprocessing.stages import s12_ra_g1_contract as a
+    a = contract_for_input(data)
     from safe_geocoding_pipeline.preprocessing.stages import s12_public_matrix as matrix
 
     campaign = data["configuration"]["campaigns"]
@@ -1301,7 +1313,7 @@ def execute(args, *, started_ns, cpu_started_ns):
     from safe_geocoding_pipeline.preprocessing.stages import (
         s12_ra_g1_assurance as assurance,
     )
-    from safe_geocoding_pipeline.preprocessing.stages import s12_ra_g1_contract as ap
+    ap = contract_for_input(data)
     from safe_geocoding_pipeline.preprocessing.stages import (
         s12_public_journal as journal,
     )
@@ -1324,7 +1336,7 @@ def execute(args, *, started_ns, cpu_started_ns):
     from safe_geocoding_pipeline.preprocessing.stages import s12_transport as transport
     from safe_geocoding_pipeline.preprocessing import stage12_probe_cli as cli
     from safe_geocoding_pipeline.preprocessing.stages.s12_public_diagnostics import (
-        Failures, FOREGROUND_MODULES, prepare_first_failure_descriptor,
+        Failures, FOREGROUND_MODULES, REP_ACK_FOREGROUND_MODULES, prepare_first_failure_descriptor,
     )
 
     transport.Secret.runtime = transport.Secret.private_file = denied
@@ -1449,7 +1461,8 @@ def execute(args, *, started_ns, cpu_started_ns):
     # Only already-loaded, exactly selected modules are eligible. Pinning uses
     # the same bounded original source guards; denial remains active throughout.
     foreground_specs = []
-    for module_id, relative in FOREGROUND_MODULES:
+    foreground_modules=REP_ACK_FOREGROUND_MODULES if data["version"]==REP_ACK_VERSION else FOREGROUND_MODULES
+    for module_id, relative in foreground_modules:
         name = (__name__ if module_id == "DIAGNOSTIC" else
                 relative.removeprefix("src/").removesuffix(".py").replace("/", "."))
         module = sys.modules.get(name)
@@ -1458,8 +1471,8 @@ def execute(args, *, started_ns, cpu_started_ns):
     # Only the explicitly funded successor may perform the additional original pass.
     foreground_descriptor = (prepare_first_failure_descriptor(
         foreground_specs, original.review["source_files"], source_root=source,
-        verify_source=original.verify_diagnostic_source,
-    ) if data["version"] == REP_FOREGROUND_VERSION else None)
+        verify_source=original.verify_diagnostic_source,ack_queue_successor=data["version"]==REP_ACK_VERSION,
+    ) if data["version"] in (REP_FOREGROUND_VERSION,REP_ACK_VERSION) else None)
     capture_failures = Failures(
         clock, closure=True, observer=observer_stage_enabled,
         first_failure_descriptor=foreground_descriptor, sampling=True,
@@ -1525,7 +1538,8 @@ def execute(args, *, started_ns, cpu_started_ns):
         runtime.verify_successor_assets(source, contract=ap,
             rep_admin_successor=data["version"] in REP_ADMIN_VERSIONS,
             first64_512_successor=data["version"] in REP512_VERSIONS,
-            foreground_successor=data["version"] == REP_FOREGROUND_VERSION)
+            foreground_successor=data["version"] in (REP_FOREGROUND_VERSION,REP_ACK_VERSION),
+            ack_queue_successor=data["version"] == REP_ACK_VERSION)
         require(
             (source / "docs/scientific_assets" / (data["version"] + ".json")).read_bytes()
             == canonical(descriptor(data["version"])),
@@ -2203,6 +2217,9 @@ def descriptor(version=VERSION):
         value.update(required_accounting_inventory=("stage12_ra_g1_rep_foreground_accounting_inventory_v1" if version == REP_FOREGROUND_VERSION else "stage12_ra_g1_rep_first64_512_accounting_inventory_v1"),
             required_resource_selection=(REP_FOREGROUND_SELECTION if version == REP_FOREGROUND_VERSION else REP512_SELECTION), maximum_creations=204860,
             maximum_event_files=57237, historical_first64_ms=346000)
+    if version==REP_ACK_VERSION:
+        value.update(required_accounting_inventory="stage12_ra_g1_rep_ack_queue_accounting_inventory_v1",
+            required_resource_selection=REP_ACK_SELECTION,sampling_contract="s12_ra_g1_rep_ack_contract")
     return value
 
 

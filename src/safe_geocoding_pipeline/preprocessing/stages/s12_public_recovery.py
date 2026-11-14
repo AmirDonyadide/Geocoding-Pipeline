@@ -368,6 +368,8 @@ def snapshot_evidence(
         from . import s12_wf_ap2_contract as o
     elif snapshot.get("schema_version") == "stage12_public_recovery_snapshot_ra_g1_v1":
         from . import s12_ra_g1_contract as o
+    elif snapshot.get("schema_version") == "stage12_representative_snapshot_ack_queue_ra_g1_v1":
+        from . import s12_ra_g1_rep_ack_contract as o
     check()
     o.validate(snapshot, o.SNAPSHOT)
     o.require(
@@ -674,6 +676,8 @@ def clean_continuation(
         from . import s12_wf_ap2_contract as o
     elif profile.get("schema_version") == "stage12_transport_operations_ra_g1_v1":
         from . import s12_ra_g1_contract as o
+    elif profile.get("schema_version") == "stage12_transport_operations_rep_ack_queue_ra_g1_v1":
+        from . import s12_ra_g1_rep_ack_contract as o
     o.verify_authorities(profile, plan, expected_start, authority)
     o.require(io.read(root / "campaign_start.json") == c.canonical(expected_start))
     o.require(io.read(root / "_SEGMENT_SEALED", limit=0) == b"")

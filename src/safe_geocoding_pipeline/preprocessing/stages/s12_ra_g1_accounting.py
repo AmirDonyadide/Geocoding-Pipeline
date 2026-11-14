@@ -19,6 +19,7 @@ SHARED_LEASE_VERSION = "stage12_ra_g1_shared_lease_accounting_inventory_v1"
 REP_ADMIN_VERSION = "stage12_ra_g1_rep_admin_budget_accounting_inventory_v1"
 REP512_VERSION = "stage12_ra_g1_rep_first64_512_accounting_inventory_v1"
 REP_FOREGROUND_VERSION = "stage12_ra_g1_rep_foreground_accounting_inventory_v1"
+REP_ACK_VERSION = "stage12_ra_g1_rep_ack_queue_accounting_inventory_v1"
 FOREGROUND_MAX_BYTES = 2**20
 FOREGROUND_EXTRA_SNAPSHOT_BYTES = 4096
 FOREGROUND_MEMBERS = (
@@ -36,6 +37,12 @@ FOREGROUND_MEMBERS = (
     ('RA_CONTRACT', 'src/safe_geocoding_pipeline/preprocessing/stages/s12_ra_g1_contract.py'),
     ('PROBE_CLI', 'src/safe_geocoding_pipeline/preprocessing/stage12_probe_cli.py'),
     ('RA_EXECUTION', 'src/safe_geocoding_pipeline/preprocessing/stages/s12_ra_g1_execution.py'),
+)
+
+REP_ACK_FOREGROUND_MEMBERS = tuple(
+    (module, "src/safe_geocoding_pipeline/preprocessing/stages/s12_ra_g1_rep_ack_contract.py"
+     if module == "RA_CONTRACT" else relative)
+    for module, relative in FOREGROUND_MEMBERS
 )
 
 MAX_U = 2**64 - 1
@@ -778,12 +785,13 @@ def validate_inventory(inventory: Any) -> dict[str, Any]:
     expected, _ = compile_inventory(
         inventory["sources"], inventory["backends"], inventory["scope"],
         bootstrap_successor=(inventory.get("schema_version") == BOOTSTRAP_VERSION
-            or inventory.get("schema_version") in (SHARED_LEASE_VERSION, REP_ADMIN_VERSION, REP512_VERSION, REP_FOREGROUND_VERSION)
+            or inventory.get("schema_version") in (SHARED_LEASE_VERSION, REP_ADMIN_VERSION, REP512_VERSION, REP_FOREGROUND_VERSION, REP_ACK_VERSION)
             and inventory.get("bootstrap_proof_record_count") == 3),
-        shared_lease_successor=inventory.get("schema_version") in (SHARED_LEASE_VERSION, REP_ADMIN_VERSION, REP512_VERSION, REP_FOREGROUND_VERSION),
-        rep_admin_successor=inventory.get("schema_version") in (REP_ADMIN_VERSION, REP512_VERSION, REP_FOREGROUND_VERSION),
-        first64_512_successor=inventory.get("schema_version") in (REP512_VERSION, REP_FOREGROUND_VERSION),
-        foreground_successor=inventory.get("schema_version") == REP_FOREGROUND_VERSION,
+        shared_lease_successor=inventory.get("schema_version") in (SHARED_LEASE_VERSION, REP_ADMIN_VERSION, REP512_VERSION, REP_FOREGROUND_VERSION, REP_ACK_VERSION),
+        rep_admin_successor=inventory.get("schema_version") in (REP_ADMIN_VERSION, REP512_VERSION, REP_FOREGROUND_VERSION, REP_ACK_VERSION),
+        first64_512_successor=inventory.get("schema_version") in (REP512_VERSION, REP_FOREGROUND_VERSION, REP_ACK_VERSION),
+        foreground_successor=inventory.get("schema_version") in (REP_FOREGROUND_VERSION, REP_ACK_VERSION),
+        ack_queue_successor=inventory.get("schema_version") == REP_ACK_VERSION,
     )
     need(inventory == expected, "RA_G1_ACCOUNTING_CHANGED")
     return dict(inventory)
@@ -925,8 +933,10 @@ def compile_inventory(sources: Any, backends: Any, scope: str, *,
                       shared_lease_successor: bool = False,
                       rep_admin_successor: bool = False,
                        first64_512_successor: bool = False,
-                      foreground_successor: bool = False) -> tuple[dict[str, Any], Any]:
+                      foreground_successor: bool = False,
+                      ack_queue_successor: bool = False) -> tuple[dict[str, Any], Any]:
     """Explicit current writer primitive; historical grammars remain unchanged."""
+    need(not ack_queue_successor or foreground_successor, "RA_G1_ACCOUNTING_SCOPE")
     need(not first64_512_successor or rep_admin_successor, "RA_G1_ACCOUNTING_SCOPE")
     need(not foreground_successor or (first64_512_successor and scope == "REPRESENTATIVE_NO_SERVICE"), "RA_G1_ACCOUNTING_SCOPE")
     need(not rep_admin_successor or (scope == "REPRESENTATIVE_NO_SERVICE"
@@ -993,8 +1003,9 @@ def compile_inventory(sources: Any, backends: Any, scope: str, *,
         inventory["proof_count"]["cost_rows"] = len(inventory["cost_rows"])
     if foreground_successor:
         selected = {row["path"]: row for row in inventory["sources"]}
-        need(all(path in selected for _, path in FOREGROUND_MEMBERS), "RA_G1_ACCOUNTING_FOREGROUND_SOURCES")
-        members = [dict(module_id=module, **selected[path]) for module, path in FOREGROUND_MEMBERS]
+        source_members = REP_ACK_FOREGROUND_MEMBERS if ack_queue_successor else FOREGROUND_MEMBERS
+        need(all(path in selected for _, path in source_members), "RA_G1_ACCOUNTING_FOREGROUND_SOURCES")
+        members = [dict(module_id=module, **selected[path]) for module, path in source_members]
         size = add(*(row["bytes"] for row in members))
         need(size <= FOREGROUND_MAX_BYTES, "RA_G1_ACCOUNTING_FOREGROUND_SOURCES")
         count = len(members)
@@ -1023,6 +1034,29 @@ def compile_inventory(sources: Any, backends: Any, scope: str, *,
             summary_original_passes="EXISTING_FULL_1MIB_PASSES_NO_ADDITIONAL_PASS_OR_CAP",
             native_memory_assurance="EXISTING_RA_G1_SCOPED_MONITORING_NOT_HARD_CONTAINMENT")
         inventory["proof_count"]["cost_rows"] = len(inventory["cost_rows"])
+    if ack_queue_successor:
+        from . import s12_ra_g1_rep_ack_contract as contract
+        inventory["schema_version"] = REP_ACK_VERSION
+        inventory["graph_id"] += "_ACK_QUEUE_NO500MS_ACCEPTANCE"
+        inventory["rep_ack_policy_sha256"] = contract.POLICY_SHA
+        # One additional exact adoption original follows every unchanged
+        # REP512 adoption start/reopening pass, inside existing stage reserves.
+        for row in list(inventory["cost_rows"]):
+            if row["component"].startswith("REP512_ADOPTION"):
+                inventory["cost_rows"].append({**row,"component":row["component"].replace("REP512_ADOPTION","REP_ACK_ADOPTION")})
+        # Two actual native environment checks (precheck and after ready) read
+        # one <=1MiB recovery proof, one <=64KiB review, and one <=128KiB
+        # exact-source validator. Positive-one-byte progress and all3 EOF/growth
+        # calls are bounded; no current paired outcome is substituted.
+        direct_calls=add(2**20,65536,131072,3)
+        inventory["cost_rows"].append(dict(stage_id=6,
+            component="REP_ACK_DIRECT_GATE_FRESH_PROOF_REVIEW_AND_VALIDATOR",invocations=2,
+            per_invocation_read_calls=direct_calls,per_invocation_read_bytes=direct_calls,
+            per_invocation_checks=add(mul(8,direct_calls),mul(272,3),1024),
+            original_read_calls=mul(2,direct_calls),original_read_bytes=mul(2,direct_calls),
+            check_calls=mul(2,add(mul(8,direct_calls),mul(272,3),1024)),
+            basis="PRECHECK_AND_AFTER_READY_FULL_ORIGINALS_SOURCE_HASH_IDENTITY_EOF_PRIVATE_PARENT_NO_NEW_PASS_OR_CAP"))
+        inventory["proof_count"]["cost_rows"] = len(inventory["cost_rows"])
     for stage in inventory["stage_accounting"]:
         own = [r for r in inventory["cost_rows"] if r["stage_id"] == stage["stage_id"]]
         stage.update(
@@ -1042,7 +1076,19 @@ def descriptor(*, bootstrap_successor: bool = False,
                shared_lease_successor: bool = False,
                rep_admin_successor: bool = False,
                first64_512_successor: bool = False,
-               foreground_successor: bool = False) -> dict[str, Any]:
+               foreground_successor: bool = False,
+               ack_queue_successor: bool = False) -> dict[str, Any]:
+    if ack_queue_successor:
+        need(foreground_successor and first64_512_successor, "RA_G1_ACCOUNTING_SCOPE")
+        from . import s12_ra_g1_rep_ack_contract as contract
+        value = descriptor(first64_512_successor=True, foreground_successor=True)
+        return {**value, "descriptor_version": REP_ACK_VERSION,
+            "outer_fields": [*value["outer_fields"], "rep_ack_policy_sha256"],
+            "source_map_members": [dict(module_id=m,path=p) for m,p in REP_ACK_FOREGROUND_MEMBERS],
+            "sampling_policy_sha256": contract.POLICY_SHA,
+            "ack_acceptance": "COMPLETE_DURABLE_PAIRS_WITHIN_UNCHANGED_ACTION_CLOSE_AND_CUMULATIVE_DEADLINES",
+            "additional_adoption_originals": "SAME_FINITE_REP512_START_OPEN_AND_BINDER_DAG_PASSES",
+            "direct_gate_fresh_originals": {"passes":2,"stage_id":6,"proof_bytes":2**20,"review_bytes":65536,"validator_bytes":131072,"positive_one_byte_EOF_and_growth":True}}
     if foreground_successor:
         need(first64_512_successor, "RA_G1_ACCOUNTING_SCOPE")
         value = descriptor(first64_512_successor=True)

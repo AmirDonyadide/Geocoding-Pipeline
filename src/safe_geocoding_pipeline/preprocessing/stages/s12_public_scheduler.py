@@ -493,7 +493,8 @@ class Coordinator:
             )
             or any(
                 state in (1, 2, 3)
-                and now - (sampler.observed[i] or sampler.entered[i]) > 500_000_000
+                and sampler.maximum_ack_age_ns is not None
+                and now - (sampler.observed[i] or sampler.entered[i]) > sampler.maximum_ack_age_ns
                 for i, state in enumerate(sampler.states)
             )
         ):

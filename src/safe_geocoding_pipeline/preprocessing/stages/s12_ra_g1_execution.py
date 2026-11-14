@@ -572,6 +572,15 @@ class PhaseSession:
         if self.selection["schema_version"] not in a.REP_ADMIN_SELECTIONS:
             return None
         c.require(callable(self.bootstrap_adoption_reader), "RA_G1_SELECTION_BINDING")
+        if self.selection["schema_version"] == a.REP_ACK_SELECTION:
+            selected=self.bootstrap_adoption_reader(self.selection["rep_ack_policy_adoption_sha256"])
+            if type(selected)is bytes:
+                import json
+                c.require(len(selected)<=8192,"RA_G1_RECORD_LIMIT")
+                raw=selected;selected=json.loads(raw)
+                c.require(c.canonical(selected)==raw,"RA_G1_SELECTION_BINDING")
+            c.require(len(c.canonical(selected))<=8192,"RA_G1_RECORD_LIMIT")
+            a.validate_rep_ack_adoption(selected,self.selection)
         if self.selection["schema_version"] in a.REP512_SELECTIONS:
             selected = self.bootstrap_adoption_reader(self.selection["rep_first64_512_adoption_sha256"])
             if type(selected) is bytes:
