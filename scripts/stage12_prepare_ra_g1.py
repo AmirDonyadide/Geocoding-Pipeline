@@ -740,6 +740,9 @@ def build(
     if allocation.get("version")==REP_ACK_ALLOCATION_VERSION:
         retained=retain("adoptions",allocation["rep_ack_policy_adoption"])
         c.require(retained==allocation["rep_ack_policy_adoption_sha256"],"RA_G1_SELECTION_BINDING")
+    if allocation.get("version")==REP_FAIR_ALLOCATION_VERSION:
+        retained=retain("adoptions",allocation["rep_fair_policy_adoption"])
+        c.require(retained==allocation["rep_fair_policy_adoption_sha256"],"RA_G1_SELECTION_BINDING")
     review = dict(
         version=DIAGNOSTIC_REVIEW,
         scope=SCOPE,
