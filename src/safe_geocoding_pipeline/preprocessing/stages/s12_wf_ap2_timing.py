@@ -30,6 +30,8 @@ POLICY_VERSIONS = (POLICY_VERSION, "stage12_development_sampling_policy_b2_ap_v1
 RA_SCHEMA = "stage12_public_path_timing_ra_g1_v1"
 RA_POLICY = "stage12_public_sampling_policy_ra_g1_v1"
 RA_PROTECTED_POLICY = "stage12_development_sampling_policy_b2_ap_ra_g1_v1"
+RA_ACK_POLICY = "stage12_representative_sampling_policy_ack_queue_ra_g1_v1"
+RA_ACK_POLICY_SHA256 = "150bbf357f7d1a8f05c9776dcf7a9f455dac91087909f1b39db582ba66864282"
 RA_MAX_FILES = 2980
 
 
@@ -38,8 +40,11 @@ def selected_max_files(schema, policy):
     if schema == SCHEMA:
         _require(policy in POLICY_VERSIONS, "CHECKPOINT_BINDING_INVALID")
         return MAX_FILES
-    _require(policy in (RA_POLICY, RA_PROTECTED_POLICY), "CHECKPOINT_BINDING_INVALID")
-    return RA_MAX_FILES if policy == RA_POLICY else MAX_FILES
+    _require(
+        policy in (RA_POLICY, RA_PROTECTED_POLICY, RA_ACK_POLICY),
+        "CHECKPOINT_BINDING_INVALID",
+    )
+    return MAX_FILES if policy == RA_PROTECTED_POLICY else RA_MAX_FILES
 
 
 MAGIC = b"S12T3\x00\x01\n"
@@ -97,6 +102,22 @@ def validate_binding(value):
 def validate_policy_version(value, *, schema=SCHEMA):
     selected_max_files(schema, value)
     _require(type(value) is str)
+    return value
+
+
+def validate_policy_binding(value, binding, *, schema=SCHEMA):
+    """Keep the representative ACK policy explicit in the unchanged RA wire.
+
+    Legacy policy bindings retain their original validation. The new policy
+    cannot be relabelled as a strict/public policy or paired with another hash.
+    No successor contract is imported by a legacy timing path.
+    """
+    value = validate_policy_version(value, schema=schema)
+    binding = validate_binding(binding)
+    _require(
+        (value == RA_ACK_POLICY)
+        == (binding["policy_sha256"] == RA_ACK_POLICY_SHA256)
+    )
     return value
 
 
@@ -159,8 +180,9 @@ def decode_header(block, *, schema=SCHEMA):
         bounded.canonical_match(header, raw)
         _require(not any(block[12 + length :]), "CHECKPOINT_CANONICAL_INVALID")
         _require(header["schema"] == schema)
-        validate_policy_version(header["policy_version"], schema=schema)
-        validate_binding({k: header[k] for k in _BINDING})
+        validate_policy_binding(
+            header["policy_version"], {k: header[k] for k in _BINDING}, schema=schema
+        )
         integers = (
             _HEADER
             - _BINDING
@@ -306,8 +328,8 @@ class Checkpoints:
     ):
         self.binding = validate_binding(timing_binding)
         self.schema = timing_schema
-        self.policy_version = validate_policy_version(
-            timing_policy_version, schema=self.schema
+        self.policy_version = validate_policy_binding(
+            timing_policy_version, self.binding, schema=self.schema
         )
         _require(cp._integer(cumulative_deadline_ns) and cumulative_deadline_ns > 0)
         _require(type(phase_windows) is list and 1 <= len(phase_windows) <= 32)

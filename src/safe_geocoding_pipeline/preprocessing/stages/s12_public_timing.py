@@ -142,8 +142,7 @@ class PublicTiming:
         if timing_schema in (cp.WF_SCHEMA, cp.RA_SCHEMA):
             from . import s12_wf_ap2_timing as compact
 
-            compact.validate_binding(timing_binding)
-            timing_policy_version = compact.validate_policy_version(
+            timing_policy_version = compact.validate_policy_binding(
                 (
                     compact.RA_POLICY
                     if timing_schema == cp.RA_SCHEMA
@@ -151,6 +150,7 @@ class PublicTiming:
                 )
                 if timing_policy_version is None
                 else timing_policy_version,
+                timing_binding,
                 schema=timing_schema,
             )
             if type(phase_windows) is not list or len(phase_windows) != phase_count:
