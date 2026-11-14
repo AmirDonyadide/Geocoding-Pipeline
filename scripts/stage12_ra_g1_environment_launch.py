@@ -667,6 +667,13 @@ DIRECT_COLLECTION_VERSION="stage12_rep_ack_direct_recovery_environment_gate_v6"
 DIRECT_COLLECTION_BINDING="stage12_rep_ack_direct_recovery_environment_binding_v6"
 DIRECT_COLLECTION_POLICY="RA_G1_REP_ACK_DIRECT_RECOVERY_ENVIRONMENT_r6"
 DIRECT_ALLOCATION="stage12_ra_g1_rep_ack_queue_allocation_selection_v1"
+FAIR_DIRECT_COLLECTION_VERSION="stage12_rep_fair_direct_recovery_environment_gate_v7"
+FAIR_DIRECT_COLLECTION_BINDING="stage12_rep_fair_direct_recovery_environment_binding_v7"
+FAIR_DIRECT_COLLECTION_POLICY="RA_G1_REP_FAIR_DIRECT_RECOVERY_ENVIRONMENT_r7"
+FAIR_DIRECT_ALLOCATION="stage12_ra_g1_rep_fair_service_allocation_selection_v1"
+FAIR_COMPATIBILITY_VERSION="stage12_direct_recovery_fair_consumer_compatibility_v1"
+FAIR_COMPATIBILITY_FIELDS=("direct_recovery_consumer_compatibility", "direct_recovery_consumer_compatibility_sha256")
+FAIR_COMPATIBILITY_ALLOWED_CHANGED=("scripts/stage12_ra_g1_terminal_verify.py", "src/safe_geocoding_pipeline/preprocessing/stages/s12_public_diagnostics.py")
 DIRECT_PROOF_FIELDS=("direct_recovery_plan_sha256","direct_recovery_result_sha256","direct_recovery_review_sha256",    "direct_recovery_software_inventory_sha256","direct_recovery_consumer_inventory_sha256")
 DIRECT_BINDING_HASHES=(*COLLECTION_BINDING_HASHES,*DIRECT_PROOF_FIELDS)
 DIRECT_SOFTWARE_FIELD="direct_recovery_software_source_sha"
@@ -675,8 +682,8 @@ DIRECT_BUDGET=dict(SIMPLE_BUDGET,complete_admission_reserve_seconds=DIRECT_REMAI
 DIRECT_HISTORY=dict(COLLECTION_HISTORY,historical_Q2_scope="ORIGINAL_PAIRED_QUALIFICATION_ONLY_NOT_CURRENT_DIRECT_COLLECTION",    old_B_job="1814976",old_F_job="1814977",old_results="FAILED_INCOMPLETE_UNCHANGED",    old_failure_initiation="UNKNOWN",current_direct_proof="ARTIFACT_INTEGRITY_NOT_SCIENTIFIC_B_PASS")
 DIRECT_CONSUMER_PATHS=("scripts/stage12_ra_g1_terminal_verify.py","scripts/stage12_ra_g1_direct_recovery.py","scripts/stage12_ra_g1_terminal_collect.py",    "scripts/stage12_ra_g1_terminal_transport.py","scripts/stage12_ra_g1_terminal_parent.py",    "src/safe_geocoding_pipeline/preprocessing/stages/s12_public_diagnostics.py",    "cluster/goethe_nhr/stage12_ra_g1_direct_export.sbatch")
 
-def direct_collection_descriptor():
-    return dict(version=DIRECT_COLLECTION_VERSION,policy=DIRECT_COLLECTION_POLICY,scope=SCOPE,
+def direct_collection_descriptor(*, fair_service_successor=False):
+    value = dict(version=DIRECT_COLLECTION_VERSION,policy=DIRECT_COLLECTION_POLICY,scope=SCOPE,
         allocation_version=DIRECT_ALLOCATION,budget=dict(DIRECT_BUDGET),history=dict(DIRECT_HISTORY),
         historical_amendment_document=COLLECTION_DOCUMENT,
         representative_sampling_policy="stage12_representative_sampling_policy_ack_queue_ra_g1_v1",
@@ -691,10 +698,55 @@ def direct_collection_descriptor():
         local_timing_pass_replaced_only=True,native_acceptance_unchanged=True,
         no_full_local_timing_run=True,public_protected_eligible=False,task_profiling="DISABLED",
         whole_workflow_qualification="NOT_ESTABLISHED",no_additional_public_or_protected_authority=True)
+    if fair_service_successor:
+        value.update(version=FAIR_DIRECT_COLLECTION_VERSION, policy=FAIR_DIRECT_COLLECTION_POLICY,
+            allocation_version=FAIR_DIRECT_ALLOCATION,
+            representative_sampling_policy="stage12_representative_sampling_policy_fair_service_ra_g1_v1",
+            consumer_compatibility=dict(version=FAIR_COMPATIBILITY_VERSION,
+                maximum_canonical_bytes=16384, allowed_changed_paths=list(FAIR_COMPATIBILITY_ALLOWED_CHANGED),
+                original_proof_source_and_review_unchanged=True, current_consumers_exactly_selected=True,
+                no_new_qualification_or_historical_relabelling=True))
+    return value
+
+
+def fair_direct_binding(value):
+    return type(value) is dict and value.get("version") == FAIR_DIRECT_COLLECTION_BINDING
 
 
 def direct_binding(value):
-    return type(value)is dict and value.get("version")==DIRECT_COLLECTION_BINDING
+    return type(value)is dict and value.get("version")in(DIRECT_COLLECTION_BINDING, FAIR_DIRECT_COLLECTION_BINDING)
+
+
+def validate_fair_consumer_compatibility(value, selected, binding, old_consumers=None):
+    keys={"version", "current_source_sha", "current_source_inventory_sha256", "old_result_sha256", "old_review_sha256",
+          "old_source_sha", "old_consumer_inventory_sha256", "current_consumer_inventory", "changed_paths",
+          "focused_compatibility_review_sha256"}
+    need(type(value) is dict and set(value)==keys and len(canonical(value))<=16384, "RA_G1_FIELDS")
+    need(value["version"]==FAIR_COMPATIBILITY_VERSION and value["current_source_sha"]==selected["source_sha"]
+         and value["current_source_inventory_sha256"]==selected["accounting_inventory"]["source_inventory_sha256"]
+         and value["old_result_sha256"]==binding["direct_recovery_result_sha256"]
+         and value["old_review_sha256"]==binding["direct_recovery_review_sha256"]
+         and value["old_source_sha"]==binding[DIRECT_SOFTWARE_FIELD]
+         and value["old_consumer_inventory_sha256"]==binding["direct_recovery_consumer_inventory_sha256"]
+         and is_hash(value["focused_compatibility_review_sha256"]), "RA_G1_SELECTION_BINDING")
+    rows=value["current_consumer_inventory"];changes=value["changed_paths"]
+    need(type(rows)is list and len(rows)==len(DIRECT_CONSUMER_PATHS)
+         and sorted(r.get("path", "")for r in rows if type(r)is dict)==sorted(DIRECT_CONSUMER_PATHS)
+         and type(changes)is list and changes==sorted(set(changes))
+         and set(changes)<=set(FAIR_COMPATIBILITY_ALLOWED_CHANGED), "RA_G1_SOURCE_CHANGED")
+    for row in rows:
+        need(type(row)is dict and set(row)=={"path","bytes","sha256"}
+             and [r for r in selected["source_files"]if r["path"]==row["path"]]==[row], "RA_G1_SOURCE_CHANGED")
+    if old_consumers is not None:
+        need(type(old_consumers)is list and len(old_consumers)==len(DIRECT_CONSUMER_PATHS)
+             and digest(old_consumers)==value["old_consumer_inventory_sha256"], "RA_G1_SOURCE_CHANGED")
+        actual=[]
+        for row in rows:
+            prior=[r for r in old_consumers if r.get("path")==row["path"]]
+            need(len(prior)==1, "RA_G1_SOURCE_CHANGED")
+            if prior[0]!=row: actual.append(row["path"])
+        need(sorted(actual)==changes, "RA_G1_SOURCE_CHANGED")
+    return value
 
 _prior_direct_collection_binding=collection_binding
 _prior_direct_validate_binding=validate_binding
@@ -706,17 +758,26 @@ def collection_binding(value):
 
 def validate_binding(binding,selected):
     if not direct_binding(binding):return _prior_direct_validate_binding(binding,selected)
-    need(set(binding)=={"version","source_tree",*DIRECT_BINDING_HASHES,*REMOTE_COLLECTION_FIELDS,DIRECT_SOFTWARE_FIELD},"RA_G1_FIELDS")
+    fair=fair_direct_binding(binding)
+    need(set(binding)=={"version","source_tree",*DIRECT_BINDING_HASHES,*REMOTE_COLLECTION_FIELDS,DIRECT_SOFTWARE_FIELD,
+        *(FAIR_COMPATIBILITY_FIELDS if fair else ())},"RA_G1_FIELDS")
     need(is_hash(binding["source_tree"],40)and is_hash(binding[DIRECT_SOFTWARE_FIELD],40)        and all(is_hash(binding[k])for k in DIRECT_BINDING_HASHES),"RA_G1_SELECTION_BINDING")
-    need(selected.get("version")==DIRECT_ALLOCATION and selected.get("scope")==SCOPE,"RA_G1_AUTHORITY_REQUIRED")
-    need(binding["policy_sha256"]==digest(direct_collection_descriptor())        and binding["remote_directory_scope"]==REMOTE_DIRECTORY_SCOPE        and binding["transport_evidence_version"]==REMOTE_TRANSPORT_VERSION        and is_hash(binding["remote_directory_adoption_sha256"]),"RA_G1_SELECTION_BINDING")
+    need(selected.get("version")== (FAIR_DIRECT_ALLOCATION if fair else DIRECT_ALLOCATION)
+         and selected.get("scope")==SCOPE,"RA_G1_AUTHORITY_REQUIRED")
+    need(binding["policy_sha256"]==digest(direct_collection_descriptor(fair_service_successor=fair))        and binding["remote_directory_scope"]==REMOTE_DIRECTORY_SCOPE        and binding["transport_evidence_version"]==REMOTE_TRANSPORT_VERSION        and is_hash(binding["remote_directory_adoption_sha256"]),"RA_G1_SELECTION_BINDING")
     windows=window_module();adoption=selected.get("rep_admin_budget_adoption")
     need(windows.is_window_adoption(adoption),"RA_G1_AUTHORITY_REQUIRED")
     need(binding["window_policy_sha256"]==windows.digest(windows.selected_descriptor(adoption["window"]))        and adoption["window"]["grant_nonce"]==binding["grant_nonce"]        and adoption["window"]["owner_authority_sha256"]==binding["owner_authority_sha256"]        and adoption["qualification_bundle_sha256"]==binding["qualification_bundle_sha256"]==windows.Q2_BUNDLE        and adoption["qualification_review_sha256"]==binding["qualification_review_sha256"]==windows.Q2_REVIEW,"RA_G1_SELECTION_BINDING")
     rows=selected.get("source_files");need(type(rows)is list and 1<=len(rows)<=2048,"RA_G1_SOURCE_INVENTORY")
-    for name in (*REQUIRED_SOURCE,COLLECTION_DOCUMENT,*DIRECT_CONSUMER_PATHS,            "src/safe_geocoding_pipeline/preprocessing/stages/s12_ra_g1_rep_ack_contract.py"):
+    for name in (*REQUIRED_SOURCE,COLLECTION_DOCUMENT,*DIRECT_CONSUMER_PATHS,
+            "src/safe_geocoding_pipeline/preprocessing/stages/s12_ra_g1_rep_fair_contract.py" if fair else
+            "src/safe_geocoding_pipeline/preprocessing/stages/s12_ra_g1_rep_ack_contract.py"):
         found=[r for r in rows if r.get("path")==name];need(len(found)==1 and is_hash(found[0].get("sha256")),"RA_G1_SOURCE_INVENTORY")
         if name==COLLECTION_DOCUMENT:need(found[0]["sha256"]==binding["amendment_sha256"],"RA_G1_SOURCE_CHANGED")
+    if fair:
+        compatibility=binding["direct_recovery_consumer_compatibility"]
+        need(digest(compatibility)==binding["direct_recovery_consumer_compatibility_sha256"],"RA_G1_SELECTION_BINDING")
+        validate_fair_consumer_compatibility(compatibility,selected,binding)
     return binding
 
 def direct_recovery_paths(selected,binding):
@@ -732,10 +793,12 @@ def validate_gate(gate,selected,binding,*,now_epoch_ns,qualification=None,qualif
         need(direct_recovery is None and direct_review is None and direct_validator is None,"RA_G1_AUTHORITY_REQUIRED")
         return _prior_direct_validate_gate(gate,selected,binding,now_epoch_ns=now_epoch_ns,qualification=qualification,qualification_validator=qualification_validator)
     validate_binding(binding,selected)
-    keys={"version","scope","state","source_git_sha","source_tree","valid_from","valid_until","outer_window_end",        "grant_kind","maximum_submissions","task_profiling","budget","history","window",*GATE_HASHES,*DIRECT_BINDING_HASHES,*REMOTE_COLLECTION_FIELDS,DIRECT_SOFTWARE_FIELD}
+    fair=fair_direct_binding(binding)
+    keys={"version","scope","state","source_git_sha","source_tree","valid_from","valid_until","outer_window_end",        "grant_kind","maximum_submissions","task_profiling","budget","history","window",*GATE_HASHES,*DIRECT_BINDING_HASHES,*REMOTE_COLLECTION_FIELDS,DIRECT_SOFTWARE_FIELD,
+        *(FAIR_COMPATIBILITY_FIELDS if fair else ())}
     need(type(gate)is dict and set(gate)==keys,"RA_G1_FIELDS")
-    need(gate["version"]==DIRECT_COLLECTION_VERSION and gate["scope"]==SCOPE        and gate["state"]=="ISSUED_FOR_DIRECT_RECOVERY_REVIEWED_REP_ACK_DIAGNOSTIC","RA_G1_AUTHORITY_REQUIRED")
-    need(all(gate[k]==binding[k]for k in(*DIRECT_BINDING_HASHES,*REMOTE_COLLECTION_FIELDS,DIRECT_SOFTWARE_FIELD,"source_tree")))
+    need(gate["version"]==(FAIR_DIRECT_COLLECTION_VERSION if fair else DIRECT_COLLECTION_VERSION) and gate["scope"]==SCOPE        and gate["state"]==("ISSUED_FOR_DIRECT_RECOVERY_REVIEWED_REP_FAIR_DIAGNOSTIC" if fair else "ISSUED_FOR_DIRECT_RECOVERY_REVIEWED_REP_ACK_DIAGNOSTIC"),"RA_G1_AUTHORITY_REQUIRED")
+    need(all(gate[k]==binding[k]for k in(*DIRECT_BINDING_HASHES,*REMOTE_COLLECTION_FIELDS,DIRECT_SOFTWARE_FIELD,"source_tree",*(FAIR_COMPATIBILITY_FIELDS if fair else ()))))
     actual=selection_digest(selected)
     need(gate["source_git_sha"]==selected["source_sha"]and gate["selection_sha256"]==actual        and gate["resource_selection_sha256"]==selected["resource_selection_sha256"]        and gate["software_review_sha256"]==selected["records"]["software_review"]        and gate["resource_review_sha256"]==selected["records"]["resource_review"]        and gate["source_inventory_sha256"]==selected["accounting_inventory"]["source_inventory_sha256"],"RA_G1_SELECTION_BINDING")
     windows=window_module();window=gate["window"];policy=windows.selected_descriptor(window)
@@ -753,6 +816,9 @@ def validate_gate(gate,selected,binding,*,now_epoch_ns,qualification=None,qualif
     direct_validator(direct_recovery,review=direct_review,expected_plan_sha256=binding["direct_recovery_plan_sha256"],        expected_software_source_sha=binding[DIRECT_SOFTWARE_FIELD],        expected_software_inventory_sha256=binding["direct_recovery_software_inventory_sha256"],        expected_review_sha256=binding["direct_recovery_review_sha256"],        expected_consumer_inventory_sha256=binding["direct_recovery_consumer_inventory_sha256"])
     consumers=direct_recovery["recovery_consumer_inventory"]
     need(type(consumers)is list and sorted(r["path"]for r in consumers)==sorted(DIRECT_CONSUMER_PATHS)        and digest(consumers)==binding["direct_recovery_consumer_inventory_sha256"],"RA_G1_SOURCE_CHANGED")
-    for row in consumers:
-        need([r for r in selected["source_files"]if r["path"]==row["path"]]==[row],"RA_G1_SOURCE_CHANGED")
-    return dict(status="DIRECT_RECOVERY_REVIEWED_REP_ACK_DIAGNOSTIC_ELIGIBLE_NOT_NATIVE_QUALIFIED",        gate_sha256=digest(gate),selection_sha256=actual,resource_selection_sha256=selected["resource_selection_sha256"],        policy_sha256=binding["policy_sha256"],grant_nonce=binding["grant_nonce"],        qualification_bundle_sha256=binding["qualification_bundle_sha256"],        direct_recovery_result_sha256=binding["direct_recovery_result_sha256"],        checked_epoch_ns=now_epoch_ns,remaining_ns=epoch_ns(gate["valid_until"])-now_epoch_ns,        required_remaining_ns=DIRECT_REMAINING*10**9,native_timing_PASS=False,service_or_protected_authority=False)
+    if fair:
+        validate_fair_consumer_compatibility(binding["direct_recovery_consumer_compatibility"],selected,binding,consumers)
+    else:
+        for row in consumers:
+            need([r for r in selected["source_files"]if r["path"]==row["path"]]==[row],"RA_G1_SOURCE_CHANGED")
+    return dict(status=("DIRECT_RECOVERY_REVIEWED_REP_FAIR_DIAGNOSTIC_ELIGIBLE_NOT_NATIVE_QUALIFIED" if fair else "DIRECT_RECOVERY_REVIEWED_REP_ACK_DIAGNOSTIC_ELIGIBLE_NOT_NATIVE_QUALIFIED"),        gate_sha256=digest(gate),selection_sha256=actual,resource_selection_sha256=selected["resource_selection_sha256"],        policy_sha256=binding["policy_sha256"],grant_nonce=binding["grant_nonce"],        qualification_bundle_sha256=binding["qualification_bundle_sha256"],        direct_recovery_result_sha256=binding["direct_recovery_result_sha256"],        checked_epoch_ns=now_epoch_ns,remaining_ns=epoch_ns(gate["valid_until"])-now_epoch_ns,        required_remaining_ns=DIRECT_REMAINING*10**9,native_timing_PASS=False,service_or_protected_authority=False)

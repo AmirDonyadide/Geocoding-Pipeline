@@ -43,7 +43,8 @@ REP_ADMIN_VERSION = "stage12_ra_g1_rep_admin_budget_allocation_selection_v1"
 REP512_VERSION = "stage12_ra_g1_rep_first64_512_allocation_selection_v1"
 REP_FOREGROUND_VERSION = "stage12_ra_g1_rep_foreground_allocation_selection_v1"
 REP_ACK_VERSION = "stage12_ra_g1_rep_ack_queue_allocation_selection_v1"
-REP512_VERSIONS = (REP512_VERSION, REP_FOREGROUND_VERSION, REP_ACK_VERSION)
+REP_FAIR_VERSION = "stage12_ra_g1_rep_fair_service_allocation_selection_v1"
+REP512_VERSIONS = (REP512_VERSION, REP_FOREGROUND_VERSION, REP_ACK_VERSION, REP_FAIR_VERSION)
 REP_ADMIN_VERSIONS = (REP_ADMIN_VERSION, *REP512_VERSIONS)
 DIAGNOSTIC_VERSION = "stage12_ra_g1_startup_monitor_trace_v2"
 SCOPE = "REPRESENTATIVE_NO_SERVICE"
@@ -250,7 +251,7 @@ def _validate_legacy_selection(s, *, expected_limits=LIMITS):
     from safe_geocoding_pipeline.preprocessing.stages import s12_ra_g1_accounting
 
     s12_ra_g1_accounting.validate_inventory(s["accounting_inventory"])
-    need(s["accounting_inventory"]["schema_version"] not in (s12_ra_g1_accounting.REP_ADMIN_VERSION, s12_ra_g1_accounting.REP512_VERSION, s12_ra_g1_accounting.REP_FOREGROUND_VERSION, s12_ra_g1_accounting.REP_ACK_VERSION)
+    need(s["accounting_inventory"]["schema_version"] not in (s12_ra_g1_accounting.REP_ADMIN_VERSION, s12_ra_g1_accounting.REP512_VERSION, s12_ra_g1_accounting.REP_FOREGROUND_VERSION, s12_ra_g1_accounting.REP_ACK_VERSION, s12_ra_g1_accounting.REP_FAIR_VERSION)
          or expected_limits == REP_ADMIN_LIMITS, "RA_G1_ACCOUNTING")
     need(
         s["accounting_inventory"]["sources"] == s["source_files"]
@@ -320,12 +321,15 @@ def validate_selection(value):
     if value["version"] == REP_ACK_VERSION:
         extra |= {"rep_ack_policy_adoption", "rep_ack_policy_adoption_sha256"}
         need(extra <= set(value), "RA_G1_SELECTION_BINDING")
+    if value["version"] == REP_FAIR_VERSION:
+        extra |= {"rep_fair_policy_adoption", "rep_fair_policy_adoption_sha256"}
+        need(extra <= set(value), "RA_G1_SELECTION_BINDING")
     base = {key: item for key, item in value.items() if key not in extra}
     base["version"] = VERSION
     _validate_legacy_selection(base, expected_limits=REP_ADMIN_LIMITS if value["version"] in REP_ADMIN_VERSIONS else LIMITS)
     from safe_geocoding_pipeline.preprocessing.stages import s12_ra_g1_assurance as assurance
     from safe_geocoding_pipeline.preprocessing.stages import s12_ra_g1_accounting as accounting
-    expected_inventory = (accounting.REP_ACK_VERSION if value["version"] == REP_ACK_VERSION else accounting.REP_FOREGROUND_VERSION if value["version"] == REP_FOREGROUND_VERSION else accounting.REP512_VERSION if value["version"] in REP512_VERSIONS else accounting.REP_ADMIN_VERSION if value["version"] in REP_ADMIN_VERSIONS else accounting.SHARED_LEASE_VERSION if value["version"] == SHARED_LEASE_VERSION else accounting.BOOTSTRAP_VERSION)
+    expected_inventory = (accounting.REP_FAIR_VERSION if value["version"] == REP_FAIR_VERSION else accounting.REP_ACK_VERSION if value["version"] == REP_ACK_VERSION else accounting.REP_FOREGROUND_VERSION if value["version"] == REP_FOREGROUND_VERSION else accounting.REP512_VERSION if value["version"] in REP512_VERSIONS else accounting.REP_ADMIN_VERSION if value["version"] in REP_ADMIN_VERSIONS else accounting.SHARED_LEASE_VERSION if value["version"] == SHARED_LEASE_VERSION else accounting.BOOTSTRAP_VERSION)
     need(value["scope"] == SCOPE and value["accounting_inventory"]["schema_version"] == expected_inventory,
          "RA_G1_BOOTSTRAP_POLICY")
     if value["version"] in (SHARED_LEASE_VERSION, *REP_ADMIN_VERSIONS):
@@ -352,6 +356,13 @@ def validate_selection(value):
             "rep_ack_policy_adoption_sha256":value["rep_ack_policy_adoption_sha256"]})
         need(windows.is_window_adoption(value["rep_admin_budget_adoption"])
             and value["rep_ack_policy_adoption"]["decision_delta_sha256"]==value["rep_admin_budget_adoption"]["window"]["owner_authority_sha256"],"RA_G1_SELECTION_BINDING")
+    if value["version"] == REP_FAIR_VERSION:
+        from safe_geocoding_pipeline.preprocessing.stages import s12_ra_g1_rep_fair_contract as contract
+        assurance.validate_rep_fair_adoption(value["rep_fair_policy_adoption"],{
+            "rep_fair_policy_sha256":contract.POLICY_SHA,
+            "rep_fair_policy_adoption_sha256":value["rep_fair_policy_adoption_sha256"]})
+        need(windows.is_window_adoption(value["rep_admin_budget_adoption"])
+            and value["rep_fair_policy_adoption"]["decision_delta_sha256"]==value["rep_admin_budget_adoption"]["window"]["owner_authority_sha256"],"RA_G1_SELECTION_BINDING")
     return value
 
 
@@ -1243,14 +1254,14 @@ def resource_selection(run):
 
         review = run.record("resource_review")
         producer=module(run.s["paths"]["source"],"stage12_prepare_ra_g1")
-        if run.s["version"]==REP_ACK_VERSION:
+        if run.s["version"] in (REP_ACK_VERSION, REP_FAIR_VERSION):
             contract=producer.contract_for_allocation(run.s)
         run.selected_resource = producer.resource_selection(
             run.s,
             policy_sha256=digest(contract.descriptors(rep_admin_successor=run.s["version"] in REP_ADMIN_VERSIONS,
                 first64_512_successor=run.s["version"] in REP512_VERSIONS,
-                foreground_successor=run.s["version"] in (REP_FOREGROUND_VERSION,REP_ACK_VERSION),
-                **({"ack_queue_successor":True} if run.s["version"]==REP_ACK_VERSION else {}))[a.POLICY]),
+                foreground_successor=run.s["version"] in (REP_FOREGROUND_VERSION,REP_ACK_VERSION,REP_FAIR_VERSION),
+                **({"fair_service_successor":True} if run.s["version"]==REP_FAIR_VERSION else {"ack_queue_successor":True} if run.s["version"]==REP_ACK_VERSION else {}))[a.POLICY]),
             adoption_sha256=run.s["records"]["adoption"],
             descriptor_inventory_sha256=review["descriptor_inventory_sha256"],
             graph_sha256=review["workload_graph_sha256"],
@@ -2255,7 +2266,7 @@ _SOURCE_PERMISSION_BINDING_KEYS = (
     "version", "scope", "source_sha", "valid_from", "valid_until",
     "replay_sha256", "resource_selection_sha256", "intent_id",
     "bootstrap_prefix_adoption_sha256", "rep_admin_budget_adoption_sha256",
-    "rep_first64_512_adoption_sha256", "rep_ack_policy_adoption_sha256",
+    "rep_first64_512_adoption_sha256", "rep_ack_policy_adoption_sha256", "rep_fair_policy_adoption_sha256",
 )
 
 
@@ -2307,6 +2318,8 @@ class _SourcePermissionIndex(tuple):
             policy = MappingProxyType({**policy, "rep_first64_512_adoption_sha256":selected["rep_first64_512_adoption_sha256"]})
         if selected["version"] == REP_ACK_VERSION:
             policy = MappingProxyType({**policy,"rep_ack_policy_adoption_sha256":selected["rep_ack_policy_adoption_sha256"]})
+        if selected["version"] == REP_FAIR_VERSION:
+            policy = MappingProxyType({**policy,"rep_fair_policy_adoption_sha256":selected["rep_fair_policy_adoption_sha256"]})
         scalar_binding = tuple(selected.get(key) for key in _SOURCE_PERMISSION_BINDING_KEYS)
         return tuple.__new__(cls, (
             selected, rows, names, entries, policy, scalar_binding, tuple(selected), source_parts,
@@ -2405,6 +2418,9 @@ def allocation_path_policy(s, path, write=False, *, source_index=None):
         return True
     if (not write and s.get("version")==REP_ACK_VERSION
             and resolved==original==Path(s["paths"]["records"])/(s["rep_ack_policy_adoption_sha256"]+".record")):
+        return True
+    if (not write and s.get("version")==REP_FAIR_VERSION
+            and resolved==original==Path(s["paths"]["records"])/(s["rep_fair_policy_adoption_sha256"]+".record")):
         return True
     if resolved == original and resolved in {
         Path(s["paths"]["records"]) / (identity + ".record")
@@ -3136,6 +3152,10 @@ def descriptor(version=VERSION):
         value.update(required_accounting_inventory="stage12_ra_g1_rep_ack_queue_accounting_inventory_v1",
             required_resource_selection="stage12_resource_selection_rep_ack_queue_ra_g1_v1",
             additional_original_fields=[*value["additional_original_fields"],"rep_ack_policy_adoption","rep_ack_policy_adoption_sha256"])
+    if version==REP_FAIR_VERSION:
+        value.update(required_accounting_inventory="stage12_ra_g1_rep_fair_service_accounting_inventory_v1",
+            required_resource_selection="stage12_resource_selection_rep_fair_service_ra_g1_v1",
+            additional_original_fields=[*value["additional_original_fields"],"rep_fair_policy_adoption","rep_fair_policy_adoption_sha256"])
     return value
 
 

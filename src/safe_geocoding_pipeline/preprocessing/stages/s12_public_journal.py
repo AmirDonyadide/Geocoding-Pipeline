@@ -10,6 +10,7 @@ import os
 import stat
 from collections.abc import Callable, Iterator
 from concurrent.futures import Future
+from contextlib import nullcontext
 from pathlib import Path
 from typing import Any, TypeVar
 
@@ -47,6 +48,9 @@ class Writer:
         self.sampling = None
         self.ap_credit = False
         self.ap_active_started = None
+        # The selected fair-service family owns this through persistence,
+        # post-action guards and credit retirement, including their callbacks.
+        self.ap_pair_active = False
         self.failures = None
         self.charge_write: Callable[[Path, int], None] = lambda path, size: None
         self.storage_guard: Callable[[], None] = lambda: None
@@ -112,6 +116,10 @@ class Writer:
 
     def _execute_periodic(self):
         # Sole-writer inline turn: no per-observation/pair Future or callback.
+        if self.sampling.fair_checkpoint_service and (
+            self.ap_pair_active or self.ap_active_started is not None
+        ):
+            return
         self.ap_active_started = self.sampling.clock.now_ns()
         try:
             self.assert_owner()
@@ -137,13 +145,55 @@ class Writer:
             self.ap_active_started = None
 
     def sampling_pair(self):
-        result = self.sampling.service()
-        if result:
-            self.sampling.pair_return()
-            self.check_deadline()
-            self.storage_guard()
-            self.sampling.after_turn()
-        return result
+        if not self.sampling.fair_checkpoint_service:
+            result = self.sampling.service()
+            if result:
+                self.sampling.pair_return()
+                self.check_deadline()
+                self.storage_guard()
+                self.sampling.after_turn()
+            return result
+        if self.ap_pair_active:
+            return False
+        from .s12_wf_ap2_scratch import pair_service_safe
+
+        if not pair_service_safe():
+            return False
+        self.ap_pair_active = True
+        try:
+            result = self.sampling.service()
+            if result:
+                self.sampling.pair_return()
+                self.check_deadline()
+                self.storage_guard()
+                self.sampling.after_turn()
+            return result
+        finally:
+            self.ap_pair_active = False
+
+    def cooperative_checkpoint(self):
+        """One opportunity after ordinary progress, never inside a pair/lease.
+
+        Only the explicit transaction/storage-scan boundaries call this. Generic
+        publication checkpoints remain deadline-only while event bytes are live.
+        Nested pair service consumes the original outer action's time origin.
+        """
+        self.check_deadline()
+        if self.sampling is None or not self.sampling.fair_checkpoint_service:
+            self.service_periodic()
+            return
+        self.assert_owner()
+        if self.ap_pair_active:
+            return
+        from .s12_wf_ap2_scratch import pair_service_safe
+
+        if not pair_service_safe():
+            return
+        self.sampling.health()
+        # This opportunity also consumes the old post-action turn, even when
+        # empty. Later explicit checkpoints remain independently eligible.
+        self.ap_credit = False
+        self.sampling_pair()
 
     def contract_check_empty(self):
         o.require(
@@ -203,6 +253,8 @@ class Writer:
         """
         o.require(threading.current_thread() is self.thread)
         if self.sampling is not None:
+            if self.ap_pair_active:
+                return
             self.sampling.health()
             if self.ap_credit:
                 self.ap_credit = False
@@ -224,8 +276,7 @@ class Writer:
     def cooperative(self, action: Callable[[], T]) -> T:
         def run() -> T:
             def checkpoint():
-                self.check_deadline()
-                self.service_periodic()
+                self.cooperative_checkpoint()
 
             with io.cooperative_io(checkpoint):
                 return action()
@@ -544,8 +595,7 @@ class Journal:
         events_root = self.writer.root / "events"
 
         def checkpoint():
-            self.writer.check_deadline()
-            self.writer.service_periodic()
+            self.writer.cooperative_checkpoint()
             self.writer.assert_owner()
 
         def appended_sample(path):
@@ -570,40 +620,49 @@ class Journal:
         # A pending observation remains bounded in its existing single slot.
         end, head, accounted = self.seq, self.last_hash, self.accounted_bytes
         tail_bytes, previous, mono = 0, before_head, before_mono
-        for seq in range(before_seq + 1, end + 1):
-            self.writer.check_deadline()
-            raw = (
-                io.read(events_root / f"{seq:020d}.json", limit=4096)
-                if self.writer.sampling is not None
-                else io.read(events_root / f"{seq:020d}.json")
-            )
-            obj = self.contract.parse(raw, self.contract.EVENT)
+        # A fair checkpoint may append a pair during the scan, never while
+        # validating its now-frozen tail/head. Keep the original deadline checks
+        # active without exposing another pair opportunity inside this proof.
+        with (
+            io.cooperative_io(self.writer.publication_checkpoint)
+            if self.writer.sampling is not None
+            and self.writer.sampling.fair_checkpoint_service
+            else nullcontext()
+        ):
+            for seq in range(before_seq + 1, end + 1):
+                self.writer.check_deadline()
+                raw = (
+                    io.read(events_root / f"{seq:020d}.json", limit=4096)
+                    if self.writer.sampling is not None
+                    else io.read(events_root / f"{seq:020d}.json")
+                )
+                obj = self.contract.parse(raw, self.contract.EVENT)
+                self.contract.require(
+                    obj["seq"] == seq
+                    and obj["previous_event_sha256"] == previous
+                    and obj["campaign_start_sha256"] == self.start_hash
+                    and obj["segment_id"] == self.segment
+                    and obj["epoch_id"] == self.epoch
+                    and obj["mono_ns"] >= mono
+                    and (
+                        (obj["kind"] == "RESOURCE" and obj["body"]["cause"] == "PERIODIC")
+                        if self.writer.sampling is None
+                        else obj["kind"] in ("RESOURCE_SAMPLE", "SAMPLE_ACK")
+                    ),
+                    "S12_PUBLIC_STORAGE_ACCOUNTING_MISMATCH",
+                )
+                tail_bytes = self.contract.checked(tail_bytes + len(raw))
+                previous, mono = self.contract.digest(obj), obj["mono_ns"]
+            info = self.writer.root.stat(follow_symlinks=False)
+            self.writer.assert_owner()
             self.contract.require(
-                obj["seq"] == seq
-                and obj["previous_event_sha256"] == previous
-                and obj["campaign_start_sha256"] == self.start_hash
-                and obj["segment_id"] == self.segment
-                and obj["epoch_id"] == self.epoch
-                and obj["mono_ns"] >= mono
-                and (
-                    (obj["kind"] == "RESOURCE" and obj["body"]["cause"] == "PERIODIC")
-                    if self.writer.sampling is None
-                    else obj["kind"] in ("RESOURCE_SAMPLE", "SAMPLE_ACK")
-                ),
+                (info.st_dev, info.st_ino) == self.root_identity
+                and actual_old == before_bytes
+                and before_bytes + tail_bytes == accounted == self.accounted_bytes
+                and (end, head) == (self.seq, self.last_hash)
+                and previous == head,
                 "S12_PUBLIC_STORAGE_ACCOUNTING_MISMATCH",
             )
-            tail_bytes = self.contract.checked(tail_bytes + len(raw))
-            previous, mono = self.contract.digest(obj), obj["mono_ns"]
-        info = self.writer.root.stat(follow_symlinks=False)
-        self.writer.assert_owner()
-        self.contract.require(
-            (info.st_dev, info.st_ino) == self.root_identity
-            and actual_old == before_bytes
-            and before_bytes + tail_bytes == accounted == self.accounted_bytes
-            and (end, head) == (self.seq, self.last_hash)
-            and previous == head,
-            "S12_PUBLIC_STORAGE_ACCOUNTING_MISMATCH",
-        )
         return accounted
 
     def reconcile_storage(self) -> int:

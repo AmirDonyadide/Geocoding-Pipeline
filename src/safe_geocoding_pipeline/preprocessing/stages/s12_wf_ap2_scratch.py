@@ -24,6 +24,12 @@ _locks = {key: threading.RLock() for key in RA_G1_CAPS}
 _local = threading.local()
 
 
+def pair_service_safe():
+    """The sole writer must have returned both pair serialization partitions."""
+    occupied = getattr(_local, "occupied", ())
+    return "EVENT" not in occupied and "OBSERVATION" not in occupied
+
+
 @contextmanager
 def lease(kind, *, requested=None):
     """Reserve before materialization; a second same-thread lease is rejected.

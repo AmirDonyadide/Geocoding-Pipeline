@@ -465,7 +465,9 @@ class Authority:
         return record
 
     def sampling_bound(self, profile, start):
-        if profile.get("schema_version")=="stage12_transport_operations_rep_ack_queue_ra_g1_v1":
+        if profile.get("schema_version")=="stage12_transport_operations_rep_fair_service_ra_g1_v1":
+            from . import s12_ra_g1_rep_fair_contract as contract
+        elif profile.get("schema_version")=="stage12_transport_operations_rep_ack_queue_ra_g1_v1":
             from . import s12_ra_g1_rep_ack_contract as contract
         else:
             from . import s12_ra_g1_contract as contract

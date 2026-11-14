@@ -15,8 +15,9 @@ from . import s12_retrieval_contract as c
 def maximum_ack_age_ns(contract):
     """Only the real selected representative contract withdraws the age gate."""
     selected=sys.modules.get("safe_geocoding_pipeline.preprocessing.stages.s12_ra_g1_rep_ack_contract")
-    if type(contract)is ModuleType and selected is contract:
-        contract.require(contract.PROFILE=="stage12_transport_operations_rep_ack_queue_ra_g1_v1"
+    fair=sys.modules.get("safe_geocoding_pipeline.preprocessing.stages.s12_ra_g1_rep_fair_contract")
+    if type(contract)is ModuleType and contract in (selected, fair):
+        contract.require(contract.PROFILE in ("stage12_transport_operations_rep_ack_queue_ra_g1_v1", "stage12_transport_operations_rep_fair_service_ra_g1_v1")
             and contract.POLICY["maximum_unacknowledged_age_ms"]is None
             and contract.POLICY_SHA==contract.digest(contract.POLICY))
         return None
@@ -36,6 +37,12 @@ class Sampler:
     def __init__(self, coordinator):
         self.contract = coordinator.contract
         self.maximum_ack_age_ns = maximum_ack_age_ns(self.contract)
+        self.fair_checkpoint_service = (
+            self.contract is sys.modules.get(
+                "safe_geocoding_pipeline.preprocessing.stages.s12_ra_g1_rep_fair_contract"
+            )
+            and self.contract.POLICY["maximum_periodic_pairs_per_outer_checkpoint"] == 1
+        )
         self.co = coordinator
         self.writer = coordinator.writer
         self.log = coordinator.journal

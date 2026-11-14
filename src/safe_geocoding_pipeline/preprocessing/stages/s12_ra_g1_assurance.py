@@ -169,7 +169,9 @@ REP512_ADOPTION = "stage12_advisory_delegated_rep_first64_512_adoption_v1"
 REP_FOREGROUND_SELECTION = "stage12_resource_selection_rep_foreground_ra_g1_v1"
 REP_ACK_SELECTION = "stage12_resource_selection_rep_ack_queue_ra_g1_v1"
 REP_ACK_ADOPTION = "stage12_rep_ack_queue_policy_adoption_v1"
-REP512_SELECTIONS = (REP512_SELECTION, REP_FOREGROUND_SELECTION, REP_ACK_SELECTION)
+REP_FAIR_SELECTION = "stage12_resource_selection_rep_fair_service_ra_g1_v1"
+REP_FAIR_ADOPTION = "stage12_rep_fair_service_policy_adoption_v1"
+REP512_SELECTIONS = (REP512_SELECTION, REP_FOREGROUND_SELECTION, REP_ACK_SELECTION, REP_FAIR_SELECTION)
 REP_ADMIN_SELECTIONS = (REP_ADMIN_SELECTION, *REP512_SELECTIONS)
 REP512_SELECTION_SCHEMA = {
     **REP_ADMIN_SELECTION_SCHEMA, "schema_version": "=" + REP512_SELECTION,
@@ -201,6 +203,35 @@ REP_ACK_ADOPTION_SCHEMA = {
     "withdrawn_maximum_ack_age_ms":"U", "actual_ack_age_retained":"B",
     "maximum_outstanding_observations":"U", "maximum_writer_action_ms":"U", "maximum_close_ms":"U",
 }
+
+REP_FAIR_SELECTION_SCHEMA = {
+    **REP_FOREGROUND_SELECTION_SCHEMA, "schema_version": "=" + REP_FAIR_SELECTION,
+    "rep_fair_policy_sha256": "D", "rep_fair_policy_adoption_sha256": "D",
+}
+REP_FAIR_ADOPTION_SCHEMA = {
+    **REP_ACK_ADOPTION_SCHEMA, "schema_version": "=" + REP_FAIR_ADOPTION,
+    "old_fairness_assertions_withdrawn": "B",
+    "maximum_pairs_per_outer_checkpoint": "U",
+    "pair_active_through_credit_retirement": "B",
+    "original_action_deadline_preserved": "B",
+}
+
+
+def validate_rep_fair_adoption(value, selected):
+    from . import s12_ra_g1_rep_fair_contract as contract
+    shape(value, REP_FAIR_ADOPTION_SCHEMA)
+    c.require(value["prospective_only"] is True and value["actual_ack_age_retained"] is True
+        and value["withdrawn_maximum_ack_age_ms"] == 500
+        and value["maximum_outstanding_observations"] == 16
+        and value["maximum_writer_action_ms"] == value["maximum_close_ms"] == 5000
+        and value["old_fairness_assertions_withdrawn"] is True
+        and value["maximum_pairs_per_outer_checkpoint"] == 1
+        and value["pair_active_through_credit_retirement"] is True
+        and value["original_action_deadline_preserved"] is True
+        and value["policy_sha256"] == contract.POLICY_SHA == selected["rep_fair_policy_sha256"]
+        and old.digest(value) == selected["rep_fair_policy_adoption_sha256"], "RA_G1_SELECTION_BINDING")
+    return value
+
 
 def validate_rep_ack_adoption(value, selected):
     from . import s12_ra_g1_rep_ack_contract as contract
@@ -544,7 +575,8 @@ def validate_scope_ceilings(record: Any) -> None:
 
 
 def validate_selection(record: Any) -> Any:
-    shape(record, REP_ACK_SELECTION_SCHEMA if record.get("schema_version") == REP_ACK_SELECTION
+    shape(record, REP_FAIR_SELECTION_SCHEMA if record.get("schema_version") == REP_FAIR_SELECTION
+          else REP_ACK_SELECTION_SCHEMA if record.get("schema_version") == REP_ACK_SELECTION
           else REP_FOREGROUND_SELECTION_SCHEMA if record.get("schema_version") == REP_FOREGROUND_SELECTION
           else REP512_SELECTION_SCHEMA if record.get("schema_version") in REP512_SELECTIONS
           else REP_ADMIN_SELECTION_SCHEMA if record.get("schema_version") == REP_ADMIN_SELECTION
@@ -560,6 +592,9 @@ def validate_selection(record: Any) -> Any:
     if record["schema_version"] == REP_ACK_SELECTION:
         from . import s12_ra_g1_rep_ack_contract as contract
         c.require(record["rep_ack_policy_sha256"]==contract.POLICY_SHA,"RA_G1_SELECTION_BINDING")
+    if record["schema_version"] == REP_FAIR_SELECTION:
+        from . import s12_ra_g1_rep_fair_contract as contract
+        c.require(record["rep_fair_policy_sha256"] == contract.POLICY_SHA, "RA_G1_SELECTION_BINDING")
     c.require(record["valid_from"] < record["valid_until"], "RA_G1_EXPIRED")
     limits = record["limits"]
     validate_scope_ceilings(record)
@@ -780,6 +815,8 @@ def verify_runtime(record: Any, authority: Any, context: Any) -> Any:
     if "profile" in context:
         ack_profile=context["profile"].get("schema_version")=="stage12_transport_operations_rep_ack_queue_ra_g1_v1"
         c.require((selected["schema_version"]==REP_ACK_SELECTION)==ack_profile,"RA_G1_SELECTION_BINDING")
+        fair_profile = context["profile"].get("schema_version") == "stage12_transport_operations_rep_fair_service_ra_g1_v1"
+        c.require((selected["schema_version"] == REP_FAIR_SELECTION) == fair_profile, "RA_G1_SELECTION_BINDING")
     limits = [
         facts[key]["value"]
         for key in ("memory_max_bytes", "memory_high_bytes")

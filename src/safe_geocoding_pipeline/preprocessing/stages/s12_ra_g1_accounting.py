@@ -20,6 +20,7 @@ REP_ADMIN_VERSION = "stage12_ra_g1_rep_admin_budget_accounting_inventory_v1"
 REP512_VERSION = "stage12_ra_g1_rep_first64_512_accounting_inventory_v1"
 REP_FOREGROUND_VERSION = "stage12_ra_g1_rep_foreground_accounting_inventory_v1"
 REP_ACK_VERSION = "stage12_ra_g1_rep_ack_queue_accounting_inventory_v1"
+REP_FAIR_VERSION = "stage12_ra_g1_rep_fair_service_accounting_inventory_v1"
 FOREGROUND_MAX_BYTES = 2**20
 FOREGROUND_EXTRA_SNAPSHOT_BYTES = 4096
 FOREGROUND_MEMBERS = (
@@ -44,6 +45,12 @@ REP_ACK_FOREGROUND_MEMBERS = tuple(
      if module == "RA_CONTRACT" else relative)
     for module, relative in FOREGROUND_MEMBERS
 )
+REP_FAIR_FOREGROUND_MEMBERS = tuple(
+    (module, "src/safe_geocoding_pipeline/preprocessing/stages/s12_ra_g1_rep_fair_contract.py"
+     if module == "RA_CONTRACT" else relative)
+    for module, relative in FOREGROUND_MEMBERS
+)
+
 
 MAX_U = 2**64 - 1
 SOURCE_MAX = 64 * 2**20
@@ -785,13 +792,14 @@ def validate_inventory(inventory: Any) -> dict[str, Any]:
     expected, _ = compile_inventory(
         inventory["sources"], inventory["backends"], inventory["scope"],
         bootstrap_successor=(inventory.get("schema_version") == BOOTSTRAP_VERSION
-            or inventory.get("schema_version") in (SHARED_LEASE_VERSION, REP_ADMIN_VERSION, REP512_VERSION, REP_FOREGROUND_VERSION, REP_ACK_VERSION)
+            or inventory.get("schema_version") in (SHARED_LEASE_VERSION, REP_ADMIN_VERSION, REP512_VERSION, REP_FOREGROUND_VERSION, REP_ACK_VERSION, REP_FAIR_VERSION)
             and inventory.get("bootstrap_proof_record_count") == 3),
-        shared_lease_successor=inventory.get("schema_version") in (SHARED_LEASE_VERSION, REP_ADMIN_VERSION, REP512_VERSION, REP_FOREGROUND_VERSION, REP_ACK_VERSION),
-        rep_admin_successor=inventory.get("schema_version") in (REP_ADMIN_VERSION, REP512_VERSION, REP_FOREGROUND_VERSION, REP_ACK_VERSION),
-        first64_512_successor=inventory.get("schema_version") in (REP512_VERSION, REP_FOREGROUND_VERSION, REP_ACK_VERSION),
-        foreground_successor=inventory.get("schema_version") in (REP_FOREGROUND_VERSION, REP_ACK_VERSION),
+        shared_lease_successor=inventory.get("schema_version") in (SHARED_LEASE_VERSION, REP_ADMIN_VERSION, REP512_VERSION, REP_FOREGROUND_VERSION, REP_ACK_VERSION, REP_FAIR_VERSION),
+        rep_admin_successor=inventory.get("schema_version") in (REP_ADMIN_VERSION, REP512_VERSION, REP_FOREGROUND_VERSION, REP_ACK_VERSION, REP_FAIR_VERSION),
+        first64_512_successor=inventory.get("schema_version") in (REP512_VERSION, REP_FOREGROUND_VERSION, REP_ACK_VERSION, REP_FAIR_VERSION),
+        foreground_successor=inventory.get("schema_version") in (REP_FOREGROUND_VERSION, REP_ACK_VERSION, REP_FAIR_VERSION),
         ack_queue_successor=inventory.get("schema_version") == REP_ACK_VERSION,
+        fair_service_successor=inventory.get("schema_version") == REP_FAIR_VERSION,
     )
     need(inventory == expected, "RA_G1_ACCOUNTING_CHANGED")
     return dict(inventory)
@@ -934,9 +942,11 @@ def compile_inventory(sources: Any, backends: Any, scope: str, *,
                       rep_admin_successor: bool = False,
                        first64_512_successor: bool = False,
                       foreground_successor: bool = False,
-                      ack_queue_successor: bool = False) -> tuple[dict[str, Any], Any]:
+                      ack_queue_successor: bool = False,
+                      fair_service_successor: bool = False) -> tuple[dict[str, Any], Any]:
     """Explicit current writer primitive; historical grammars remain unchanged."""
-    need(not ack_queue_successor or foreground_successor, "RA_G1_ACCOUNTING_SCOPE")
+    need(not (ack_queue_successor and fair_service_successor), "RA_G1_ACCOUNTING_SCOPE")
+    need(not (ack_queue_successor or fair_service_successor) or foreground_successor, "RA_G1_ACCOUNTING_SCOPE")
     need(not first64_512_successor or rep_admin_successor, "RA_G1_ACCOUNTING_SCOPE")
     need(not foreground_successor or (first64_512_successor and scope == "REPRESENTATIVE_NO_SERVICE"), "RA_G1_ACCOUNTING_SCOPE")
     need(not rep_admin_successor or (scope == "REPRESENTATIVE_NO_SERVICE"
@@ -1003,7 +1013,7 @@ def compile_inventory(sources: Any, backends: Any, scope: str, *,
         inventory["proof_count"]["cost_rows"] = len(inventory["cost_rows"])
     if foreground_successor:
         selected = {row["path"]: row for row in inventory["sources"]}
-        source_members = REP_ACK_FOREGROUND_MEMBERS if ack_queue_successor else FOREGROUND_MEMBERS
+        source_members = REP_FAIR_FOREGROUND_MEMBERS if fair_service_successor else REP_ACK_FOREGROUND_MEMBERS if ack_queue_successor else FOREGROUND_MEMBERS
         need(all(path in selected for _, path in source_members), "RA_G1_ACCOUNTING_FOREGROUND_SOURCES")
         members = [dict(module_id=module, **selected[path]) for module, path in source_members]
         size = add(*(row["bytes"] for row in members))
@@ -1034,29 +1044,100 @@ def compile_inventory(sources: Any, backends: Any, scope: str, *,
             summary_original_passes="EXISTING_FULL_1MIB_PASSES_NO_ADDITIONAL_PASS_OR_CAP",
             native_memory_assurance="EXISTING_RA_G1_SCOPED_MONITORING_NOT_HARD_CONTAINMENT")
         inventory["proof_count"]["cost_rows"] = len(inventory["cost_rows"])
-    if ack_queue_successor:
-        from . import s12_ra_g1_rep_ack_contract as contract
-        inventory["schema_version"] = REP_ACK_VERSION
-        inventory["graph_id"] += "_ACK_QUEUE_NO500MS_ACCEPTANCE"
-        inventory["rep_ack_policy_sha256"] = contract.POLICY_SHA
+    if ack_queue_successor or fair_service_successor:
+        if fair_service_successor:
+            from . import s12_ra_g1_rep_fair_contract as contract
+        else:
+            from . import s12_ra_g1_rep_ack_contract as contract
+        inventory["schema_version"] = REP_FAIR_VERSION if fair_service_successor else REP_ACK_VERSION
+        inventory["graph_id"] += "_FAIR_OUTER_CHECKPOINT_SERVICE" if fair_service_successor else "_ACK_QUEUE_NO500MS_ACCEPTANCE"
+        inventory["rep_fair_policy_sha256" if fair_service_successor else "rep_ack_policy_sha256"] = contract.POLICY_SHA
+        adoption_component = "REP_FAIR_ADOPTION" if fair_service_successor else "REP_ACK_ADOPTION"
         # One additional exact adoption original follows every unchanged
         # REP512 adoption start/reopening pass, inside existing stage reserves.
         for row in list(inventory["cost_rows"]):
             if row["component"].startswith("REP512_ADOPTION"):
-                inventory["cost_rows"].append({**row,"component":row["component"].replace("REP512_ADOPTION","REP_ACK_ADOPTION")})
+                inventory["cost_rows"].append({**row,"component":row["component"].replace("REP512_ADOPTION",adoption_component)})
         # Two actual native environment checks (precheck and after ready) read
         # one <=1MiB recovery proof, one <=64KiB review, and one <=128KiB
         # exact-source validator. Positive-one-byte progress and all3 EOF/growth
         # calls are bounded; no current paired outcome is substituted.
         direct_calls=add(2**20,65536,131072,3)
         inventory["cost_rows"].append(dict(stage_id=6,
-            component="REP_ACK_DIRECT_GATE_FRESH_PROOF_REVIEW_AND_VALIDATOR",invocations=2,
+            component=("REP_FAIR_DIRECT_GATE_FRESH_PROOF_REVIEW_AND_VALIDATOR" if fair_service_successor else "REP_ACK_DIRECT_GATE_FRESH_PROOF_REVIEW_AND_VALIDATOR"),invocations=2,
             per_invocation_read_calls=direct_calls,per_invocation_read_bytes=direct_calls,
             per_invocation_checks=add(mul(8,direct_calls),mul(272,3),1024),
             original_read_calls=mul(2,direct_calls),original_read_bytes=mul(2,direct_calls),
             check_calls=mul(2,add(mul(8,direct_calls),mul(272,3),1024)),
             basis="PRECHECK_AND_AFTER_READY_FULL_ORIGINALS_SOURCE_HASH_IDENTITY_EOF_PRIVATE_PARENT_NO_NEW_PASS_OR_CAP"))
         inventory["proof_count"]["cost_rows"] = len(inventory["cost_rows"])
+    if fair_service_successor:
+        # Each eligible outer boundary follows an existing charged I/O/deadline
+        # check, or a precharged zero-byte creation/fsync. This deliberately
+        # overbounds positive-one-byte reads and the fixed namespace scans.
+        # New pair scheduling adds no observation/event/file beyond the already
+        # selected cadence inventory. Deadline.check is the original clock-only
+        # guard, not the charged source ledger; all existing pair I/O/postchecks
+        # remain counted exactly once. Bound pure predicate work separately.
+        eligible_caps = (77767, 44478, 24369, 23293)
+        selected_durations = (512000, 300000, 180000, 180000)
+        selected_attempt_liabilities = (320, 160, 40, 15)
+        checkpoint_bounds = []
+        for stage, (creations, duration, attempts) in enumerate(zip(eligible_caps, selected_durations, selected_attempt_liabilities), 1):
+            existing = [row for row in inventory["cost_rows"] if row["stage_id"] == stage]
+            source_reads = add(*(row["original_read_calls"] for row in existing))
+            # Admission scans follow resource_prewrite -> sampling_bound ->
+            # _resource_evidence, which charges at least one source-original
+            # read. One final scan is outside that admission count. A scan
+            # has root plus directory-entry callbacks over precharged entries.
+            scans = add(source_reads, 1)
+            scan_boundaries = mul(scans, add(mul(2, creations), 1))
+            # Actual DATA complete/reopen: at most119 original invocations,
+            # rounded to128; begin/finish writes/reserves at most32. Validators
+            # visit bounded wire nodes in three passes; sixteen per wire byte
+            # also covers fixed target/context checkpoints. Inherited64MiB
+            # reader limits deliberately overbound the selected smaller inputs.
+            per_attempt_boundaries = add(mul(128, 64 * 2**20 + 1), 32,
+                                         mul(16, 64 * 2**20 + 1))
+            action_boundaries = add(mul(attempts, per_attempt_boundaries), creations)
+            boundaries = add(scan_boundaries, action_boundaries)
+            observations = add((duration + 49) // 50, 2)
+            checks = add(mul(128, boundaries), mul(64, observations))
+            checkpoint_bounds.append(dict(stage_id=stage, maximum_outer_boundaries=boundaries,
+                control_barrier_bounded_storage_scans=scans,
+                scan_outer_boundaries=scan_boundaries,
+                scientific_action_outer_boundaries=action_boundaries,
+                DATA_original_read_invocations_per_attempt=128,
+                DATA_inherited_reader_bytes=64 * 2**20,
+                DATA_write_reserve_callbacks_per_attempt=32,
+                DATA_validator_node_checks_per_wire_byte=16,
+                maximum_pairs=observations, maximum_extra_pure_predicates=checks,
+                charged_source_original_read_call_delta=0, charged_source_check_call_delta=0,
+                scientific_tail_originals=mul(2, observations),
+                scientific_tail_valid_original_bytes=mul(2, observations, 4096),
+                scientific_tail_failure_inclusive_returned_bytes=mul(2, observations, 4097),
+                scientific_tail_positive_one_byte_EOF_reads=mul(2, observations, 4097),
+                scientific_tail_file_opens=mul(2, observations),
+                scientific_tail_identity_predicates=mul(2, observations, 272),
+                scientific_tail_clock_checks=mul(2, observations, 4129)))
+        inventory["proof_count"]["cost_rows"] = len(inventory["cost_rows"])
+        inventory["rep_fair_service"] = dict(
+            checkpoint_guard_bounds=checkpoint_bounds,
+            maximum_pairs_per_eligible_outer_checkpoint=1,
+            maximum_serviced_pairs="UNCHANGED_SELECTED_MAXIMUM_OBSERVATIONS_PER_PHASE",
+            extra_source_original_reads=0, extra_writes=0, extra_creations=0,
+            scientific_tail_original_reads="AT_MOST_TWO_FULL_EVENT_READS_PER_SELECTED_OBSERVATION_SEPARATE_PHASE_QUOTE",
+            scientific_tail_source_ledger_scope="EXCLUDED_IO_AS_DECLARED_SEPARATE_FINITE_SCIENTIFIC_PHASE_BOUNDS",
+            scientific_tail_multiplicity="ONE_PINNED_TAIL_PER_EVENT_MONOTONE_SEQ_SINGLE_WRITER_FAILED_ACTION_NOT_RETRIED",
+            scientific_tail_fixed_caps="UNCHANGED_EVENT_CREATION_BYTES_SCRATCH_ACTION_PHASE_AND_ORIGINAL_VALIDATION_GUARDS",
+            pair_guards="OWNER_ACTIVE_THROUGH_RETURN_POST_GUARDS_AND_CREDIT_RETIREMENT",
+            checkpoint_guards="ORIGINAL_CLOCK_ONLY_DEADLINE_AND_HEALTH_CALLS_UNCHANGED_EXTRA_PURE_SCRATCH_PAIR_OWNERSHIP",
+            charged_source_and_check_ledger_delta=0,
+            ordinary_progress="ONLY_EXISTING_EXPLICIT_COOPERATIVE_IO_OR_STORAGE_SCAN_BOUNDARIES",
+            time_charge="ORIGINAL_OUTER_ACTION_OR_ORIGINAL_STANDALONE_PAIR_NO_CLOCK_RESET",
+            logical_pair_active_scalar_bytes=8,
+            temporary_object_native_overhead="RA_G1_SCOPED_ASSURANCE_NOT_PROVEN_NATIVE_BOUND",
+            sample_ACK_witness_and_retirement="EXISTING_PER_OBSERVATION_COST_ROWS_NO_DUPLICATE_IO_CHARGE")
     for stage in inventory["stage_accounting"]:
         own = [r for r in inventory["cost_rows"] if r["stage_id"] == stage["stage_id"]]
         stage.update(
@@ -1077,7 +1158,23 @@ def descriptor(*, bootstrap_successor: bool = False,
                rep_admin_successor: bool = False,
                first64_512_successor: bool = False,
                foreground_successor: bool = False,
-               ack_queue_successor: bool = False) -> dict[str, Any]:
+               ack_queue_successor: bool = False,
+                      fair_service_successor: bool = False) -> dict[str, Any]:
+    if fair_service_successor:
+        need(not ack_queue_successor and foreground_successor and first64_512_successor, "RA_G1_ACCOUNTING_SCOPE")
+        from . import s12_ra_g1_rep_fair_contract as contract
+        value = descriptor(first64_512_successor=True, foreground_successor=True)
+        return {**value, "descriptor_version": REP_FAIR_VERSION,
+            "outer_fields": [*value["outer_fields"], "rep_fair_policy_sha256", "rep_fair_service"],
+            "source_map_members": [dict(module_id=m,path=p) for m,p in REP_FAIR_FOREGROUND_MEMBERS],
+            "sampling_policy_sha256": contract.POLICY_SHA,
+            "fair_service": "ONE_PAIR_PER_EXPLICIT_OUTER_SCRATCH_SAFE_CHECKPOINT_ORIGINAL_ACTION_DEADLINE",
+            "extra_pair_IO": "SAMPLE_ACK_PAIR_COUNT_UNCHANGED_ADDITIONAL_PINNED_TAIL_ORIGINAL_READS_QUOTED_SEPARATELY",
+            "scientific_tail_read_bound": "2_SELECTED_OBSERVATIONS_FULL4096_BYTES_WITH4097_ONE_BYTE_EOF_CALLS_EACH_SINGLE_MONOTONE_TAIL",
+            "scientific_tail_checks": "272_IDENTITY_PREDICATES_AND4129_CLOCK_CHECKS_PER_FULL_EVENT_READ",
+            "scientific_tail_source_ledger": "EXCLUDED_SCIENTIFIC_IO_NO_SOURCE_COUNTER_STOP_ENLARGEMENT",
+            "additional_adoption_originals": "SAME_FINITE_REP512_START_OPEN_AND_BINDER_DAG_PASSES",
+            "direct_gate_fresh_originals": {"passes":2,"stage_id":6,"proof_bytes":2**20,"review_bytes":65536,"validator_bytes":131072,"positive_one_byte_EOF_and_growth":True}}
     if ack_queue_successor:
         need(foreground_successor and first64_512_successor, "RA_G1_ACCOUNTING_SCOPE")
         from . import s12_ra_g1_rep_ack_contract as contract

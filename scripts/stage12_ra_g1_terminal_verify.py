@@ -17,6 +17,7 @@ import sys
 
 VERSION = "stage12_terminal_original_workload_verification_v1"
 ACK_VERSION = "stage12_terminal_rep_ack_original_workload_verification_v1"
+FAIR_VERSION = "stage12_terminal_rep_fair_original_workload_verification_v1"
 MAX_READ_BYTES = 32 * 2**30
 MAX_READS = 1_000_000
 MAX_OPENS = 500_000
@@ -372,6 +373,9 @@ def workload_contract(selection):
     version = selection.get("version")
     if version == "stage12_ra_g1_rep_first64_512_allocation_selection_v1":
         return s12_ra_g1_contract
+    if version == "stage12_ra_g1_rep_fair_service_allocation_selection_v1":
+        from safe_geocoding_pipeline.preprocessing.stages import s12_ra_g1_rep_fair_contract
+        return s12_ra_g1_rep_fair_contract
     need(version == "stage12_ra_g1_rep_ack_queue_allocation_selection_v1")
     return s12_ra_g1_rep_ack_contract
 
@@ -414,7 +418,8 @@ def verify_original_workload(selection, *, check, charge_read, check_read=None):
     from safe_geocoding_pipeline.preprocessing.stages import s12_public_matrix as matrix
 
     result = dict(
-        schema=ACK_VERSION if ap.POLICY["maximum_unacknowledged_age_ms"] is None else VERSION,
+        schema=(FAIR_VERSION if getattr(ap, "REP_FAIR_ENABLED", False) else
+                ACK_VERSION if ap.POLICY["maximum_unacknowledged_age_ms"] is None else VERSION),
         complete=False,
         scope="REPRESENTATIVE_NO_SERVICE",
         source_sha=selection["source_sha"],
@@ -423,6 +428,9 @@ def verify_original_workload(selection, *, check, charge_read, check_read=None):
         original_timed_acceptance_repaired=False,
         current_environment_or_old_clock_equivalence_asserted=False,
     )
+    if getattr(ap, "REP_FAIR_ENABLED", False):
+        result["sampling_policy_sha256"] = ap.POLICY_SHA
+        result["sampling_policy_version"] = ap.POLICY_VERSION
     with bounded_reads(check, charge_read, check_read=check_read) as counts, io.cooperative_io(check):
         check()
         if not (root / "summary.json").is_file() or not Path(paths["tail"]).is_file():
@@ -512,7 +520,10 @@ def verify_original_workload(selection, *, check, charge_read, check_read=None):
             charge_read,
         )
         diagnostic.validate_envelope(data, selection["source_sha"], for_execution=True)
-        if selection["version"] == "stage12_ra_g1_rep_ack_queue_allocation_selection_v1":
+        if selection["version"] == "stage12_ra_g1_rep_fair_service_allocation_selection_v1":
+            need(data["version"] == "stage12_ra_g1_rep_fair_service_representative_input_v1"
+                 and diagnostic.contract_for_input(data) is ap)
+        elif selection["version"] == "stage12_ra_g1_rep_ack_queue_allocation_selection_v1":
             need(data["version"] == "stage12_ra_g1_rep_ack_queue_representative_input_v1"
                  and diagnostic.contract_for_input(data) is ap)
         else:
