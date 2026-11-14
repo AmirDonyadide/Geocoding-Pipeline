@@ -256,7 +256,11 @@ def test_new_assets_exact_and_no_legacy_map_call():
     value=next(n.value for n in execute.body if isinstance(n,ast.Assign)and any(isinstance(t,ast.Name)and t.id=="foreground_descriptor" for t in n.targets))
     assert isinstance(value,ast.IfExp)
     calls=[]
-    env=dict(prepare_first_failure_descriptor=lambda *a,**k:calls.append(True),foreground_specs=[],original=types.SimpleNamespace(review={"source_files":[]},verify_diagnostic_source=None),source=ROOT,REP_FOREGROUND_VERSION=diagnostic.REP_FOREGROUND_VERSION)
+    env=dict(prepare_first_failure_descriptor=lambda *a,**k:calls.append(True),foreground_specs=[],original=types.SimpleNamespace(review={"source_files":[]},verify_diagnostic_source=None),source=ROOT,
+        REP_FOREGROUND_VERSION=diagnostic.REP_FOREGROUND_VERSION,
+        REP_ACK_VERSION=diagnostic.REP_ACK_VERSION,
+        REP_FAIR_VERSION=diagnostic.REP_FAIR_VERSION,
+        REP_COVERAGE_VERSION=diagnostic.REP_COVERAGE_VERSION)
     expression=ast.Expression(value);ast.fix_missing_locations(expression)
     for version in (diagnostic.REP512_VERSION,diagnostic.REP_FOREGROUND_VERSION):
         env["data"]={"version":version};eval(compile(expression,"TEST_ONLY_ACTUAL_FUNDED_EXPRESSION","eval"),env)

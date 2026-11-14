@@ -18,6 +18,7 @@ import sys
 VERSION = "stage12_terminal_original_workload_verification_v1"
 ACK_VERSION = "stage12_terminal_rep_ack_original_workload_verification_v1"
 FAIR_VERSION = "stage12_terminal_rep_fair_original_workload_verification_v1"
+COVERAGE_VERSION = "stage12_terminal_rep_coverage_original_workload_verification_v1"
 MAX_READ_BYTES = 32 * 2**30
 MAX_READS = 1_000_000
 MAX_OPENS = 500_000
@@ -373,6 +374,9 @@ def workload_contract(selection):
     version = selection.get("version")
     if version == "stage12_ra_g1_rep_first64_512_allocation_selection_v1":
         return s12_ra_g1_contract
+    if version == "stage12_ra_g1_rep_coverage_allocation_selection_v1":
+        from safe_geocoding_pipeline.preprocessing.stages import s12_ra_g1_rep_coverage_contract
+        return s12_ra_g1_rep_coverage_contract
     if version == "stage12_ra_g1_rep_fair_service_allocation_selection_v1":
         from safe_geocoding_pipeline.preprocessing.stages import s12_ra_g1_rep_fair_contract
         return s12_ra_g1_rep_fair_contract
@@ -418,7 +422,8 @@ def verify_original_workload(selection, *, check, charge_read, check_read=None):
     from safe_geocoding_pipeline.preprocessing.stages import s12_public_matrix as matrix
 
     result = dict(
-        schema=(FAIR_VERSION if getattr(ap, "REP_FAIR_ENABLED", False) else
+        schema=(COVERAGE_VERSION if getattr(ap, "REP_COVERAGE_ENABLED", False) else
+                FAIR_VERSION if getattr(ap, "REP_FAIR_ENABLED", False) else
                 ACK_VERSION if ap.POLICY["maximum_unacknowledged_age_ms"] is None else VERSION),
         complete=False,
         scope="REPRESENTATIVE_NO_SERVICE",
@@ -428,6 +433,9 @@ def verify_original_workload(selection, *, check, charge_read, check_read=None):
         original_timed_acceptance_repaired=False,
         current_environment_or_old_clock_equivalence_asserted=False,
     )
+    if getattr(ap, "REP_COVERAGE_ENABLED", False):
+        result.update(workload_evidence_complete=False, ap_coverage_complete=None,
+            administrative_monitor_coverage_complete=None, qualification_outcome="WORKLOAD_INCOMPLETE")
     if getattr(ap, "REP_FAIR_ENABLED", False):
         result["sampling_policy_sha256"] = ap.POLICY_SHA
         result["sampling_policy_version"] = ap.POLICY_VERSION
@@ -456,7 +464,8 @@ def verify_original_workload(selection, *, check, charge_read, check_read=None):
             and tail["selection_sha256"] == controller.digest(selection)
             and tail["summary_sha256"] == controller.digest(summary)
             and tail["input_sha256"] == controller.digest(data)
-            and tail["version"] == "stage12_ra_g1_allocation_terminal_v1"
+            and tail["version"] == ("stage12_ra_g1_coverage_allocation_terminal_v1"
+                if getattr(ap, "REP_COVERAGE_ENABLED", False) else "stage12_ra_g1_allocation_terminal_v1")
             and state["source_sha"] == selection["source_sha"]
             and state["selection_sha256"] == controller.digest(selection)
             and type(tail["completed_mono_ns"]) is int
@@ -469,6 +478,9 @@ def verify_original_workload(selection, *, check, charge_read, check_read=None):
             summary_sha256=controller.digest(summary),
             input_sha256=controller.digest(data),
         )
+        if getattr(ap, "REP_COVERAGE_ENABLED", False):
+            need(all(tail[key] == summary[key] for key in ("workload_complete", "ap_coverage_complete",
+                 "administrative_monitor_coverage_complete", "qualification_outcome")))
         if (
             summary["complete"] is not True
             or tail["status"] != "COMPLETE_REPRESENTATIVE_NO_SERVICE"
@@ -520,7 +532,15 @@ def verify_original_workload(selection, *, check, charge_read, check_read=None):
             charge_read,
         )
         diagnostic.validate_envelope(data, selection["source_sha"], for_execution=True)
-        if selection["version"] == "stage12_ra_g1_rep_fair_service_allocation_selection_v1":
+        if selection["version"] == "stage12_ra_g1_rep_coverage_allocation_selection_v1":
+            need(data["version"] == "stage12_ra_g1_rep_coverage_representative_input_v1"
+                 and diagnostic.contract_for_input(data) is ap)
+            need(summary["workload_complete"] is True
+                 and type(summary["ap_coverage_complete"]) is bool
+                 and summary["administrative_monitor_coverage_complete"] is True
+                 and summary["qualification_outcome"] == ("WORKLOAD_AND_AP_COVERAGE_COMPLETE"
+                    if summary["ap_coverage_complete"] else "WORKLOAD_COMPLETE_AP_COVERAGE_INCOMPLETE"))
+        elif selection["version"] == "stage12_ra_g1_rep_fair_service_allocation_selection_v1":
             need(data["version"] == "stage12_ra_g1_rep_fair_service_representative_input_v1"
                  and diagnostic.contract_for_input(data) is ap)
         elif selection["version"] == "stage12_ra_g1_rep_ack_queue_allocation_selection_v1":
@@ -547,6 +567,7 @@ def verify_original_workload(selection, *, check, charge_read, check_read=None):
             need(terminal["root_counter_watermarks_sha256"] in originals)
         config = data["configuration"]
         phases = []
+        phase_ap_coverage = []
         frozen_data = {}
         for item, phase in zip(config["campaigns"], data["phases"], strict=True):
             check()
@@ -610,9 +631,16 @@ def verify_original_workload(selection, *, check, charge_read, check_read=None):
                 (campaign / "_SEGMENT_SEALED").is_file()
                 and (campaign / "_WRITER_RELEASED.json").is_file()
             )
-            frozen_data[len(phases) + 1] = contract.digest(
-                _object(io, contract, campaign / "campaign_report.json")
-            )
+            original_report = _object(io, contract, campaign / "campaign_report.json")
+            if getattr(ap, "REP_COVERAGE_ENABLED", False):
+                ap.validate(original_report, ap.REPORT)
+                need(bool(original_report["sampling_segments"])
+                     and all(row["workload_complete"] for row in original_report["sampling_segments"]))
+                if item["label"] != "malformed":
+                    need(original_report["workload_evidence_complete"] is True
+                         and original_report["report_complete"] is True)
+                phase_ap_coverage.append(original_report["ap_coverage_complete"])
+            frozen_data[len(phases) + 1] = contract.digest(original_report)
             phases.append(
                 dict(
                     label=item["label"],
@@ -774,6 +802,13 @@ def verify_original_workload(selection, *, check, charge_read, check_read=None):
                     check,
                 )
             )
+        if getattr(ap, "REP_COVERAGE_ENABLED", False):
+            covered = bool(phase_ap_coverage) and all(phase_ap_coverage)
+            need(covered == summary["ap_coverage_complete"])
+            result.update(workload_evidence_complete=True, ap_coverage_complete=covered,
+                administrative_monitor_coverage_complete=True,
+                qualification_outcome="WORKLOAD_AND_AP_COVERAGE_COMPLETE" if covered
+                    else "WORKLOAD_COMPLETE_AP_COVERAGE_INCOMPLETE")
         result.update(
             complete=True,
             status="FRESH_ORIGINAL_CONTENT_AND_TIMED_RECORDS_VERIFIED",

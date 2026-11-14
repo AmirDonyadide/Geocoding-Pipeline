@@ -41,6 +41,7 @@ AP2_CONFIG = "stage12_public_sampling_runtime_configuration_v2"
 RA_CONFIG = "stage12_public_sampling_runtime_configuration_ra_g1_v1"
 REP_ACK_CONFIG = "stage12_ra_g1_representative_ack_queue_configuration_v1"
 REP_FAIR_CONFIG = "stage12_ra_g1_representative_fair_service_configuration_v1"
+REP_COVERAGE_CONFIG = "stage12_ra_g1_representative_coverage_configuration_v1"
 WF_CONFIGS = (AP2_CONFIG, RA_CONFIG)
 SAMPLING_CONFIGS = ("stage12_public_sampling_runtime_configuration_v1", *WF_CONFIGS)
 
@@ -48,6 +49,12 @@ SAMPLING_CONFIGS = ("stage12_public_sampling_runtime_configuration_v1", *WF_CONF
 def sampling_contract(profile=None, config=None):
     version = (profile or {}).get("schema_version")
     config_version = (config or {}).get("version")
+    if version == "stage12_transport_operations_rep_coverage_ra_g1_v1" or config_version == REP_COVERAGE_CONFIG:
+        c.require(version in (None, "stage12_transport_operations_rep_coverage_ra_g1_v1")
+                  and config_version in (None, REP_COVERAGE_CONFIG), "S12_PUBLIC_OPERATIONS_INVALID")
+        from . import s12_ra_g1_rep_coverage_contract
+
+        return s12_ra_g1_rep_coverage_contract
     if version == "stage12_transport_operations_rep_fair_service_ra_g1_v1" or config_version == REP_FAIR_CONFIG:
         from . import s12_ra_g1_rep_fair_contract
 
@@ -187,7 +194,7 @@ def validation_for(identity):
     raise c.Stage12Error("S12_PUBLIC_VALIDATION_BINDING_INVALID")
 
 
-def verify_successor_assets(repository, *, contract=None, rep_admin_successor=False, first64_512_successor=False, foreground_successor=False, ack_queue_successor=False, fair_service_successor=False):
+def verify_successor_assets(repository, *, contract=None, rep_admin_successor=False, first64_512_successor=False, foreground_successor=False, ack_queue_successor=False, fair_service_successor=False, coverage_successor=False):
     from . import s12_wf_ap2_contract as successor
 
     successor = successor if contract is None else contract
@@ -202,6 +209,8 @@ def verify_successor_assets(repository, *, contract=None, rep_admin_successor=Fa
         options["ack_queue_successor"] = True
     if fair_service_successor:
         options["fair_service_successor"] = True
+    if coverage_successor:
+        options["coverage_successor"] = True
     descriptors = successor.descriptors(**options)
     # The shared wire descriptor keeps its frozen v3 identity. RA instance
     # schema/policy/chunk limits are independently enforced by writer/readers.
@@ -994,6 +1003,7 @@ def reopen_completed(
         "stage12_transport_operations_ra_g1_v1",
         "stage12_transport_operations_rep_ack_queue_ra_g1_v1",
         "stage12_transport_operations_rep_fair_service_ra_g1_v1",
+        "stage12_transport_operations_rep_coverage_ra_g1_v1",
     ):
         from .s12_paged_history import Fresh as FreshReads
     elif sampling_contract(profile) is not None:
@@ -1005,6 +1015,7 @@ def reopen_completed(
             "stage12_transport_operations_ra_g1_v1",
             "stage12_transport_operations_rep_ack_queue_ra_g1_v1",
             "stage12_transport_operations_rep_fair_service_ra_g1_v1",
+        "stage12_transport_operations_rep_coverage_ra_g1_v1",
         ):
             from .s12_paged_history import selected
 
@@ -1016,7 +1027,8 @@ def reopen_completed(
                        if profile.get("schema_version") in (
                            "stage12_transport_operations_ra_g1_v1",
                            "stage12_transport_operations_rep_ack_queue_ra_g1_v1",
-                           "stage12_transport_operations_rep_fair_service_ra_g1_v1")
+                           "stage12_transport_operations_rep_fair_service_ra_g1_v1",
+                           "stage12_transport_operations_rep_coverage_ra_g1_v1")
                        else {}),
                 )
             )
@@ -1576,6 +1588,7 @@ def _reopen_sampling_completed(
                 "stage12_transport_operations_ra_g1_v1",
                 "stage12_transport_operations_rep_ack_queue_ra_g1_v1",
                 "stage12_transport_operations_rep_fair_service_ra_g1_v1",
+        "stage12_transport_operations_rep_coverage_ra_g1_v1",
             ):
                 from .s12_paged_history import Fresh as FreshReads
             else:
@@ -1588,7 +1601,8 @@ def _reopen_sampling_completed(
                    if profile.get("schema_version") in (
                        "stage12_transport_operations_ra_g1_v1",
                        "stage12_transport_operations_rep_ack_queue_ra_g1_v1",
-                       "stage12_transport_operations_rep_fair_service_ra_g1_v1")
+                       "stage12_transport_operations_rep_fair_service_ra_g1_v1",
+                           "stage12_transport_operations_rep_coverage_ra_g1_v1")
                    else {}),
                 **(
                     {"limits": plan["history_limits"]}

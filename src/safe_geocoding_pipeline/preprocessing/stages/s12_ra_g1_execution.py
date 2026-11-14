@@ -590,6 +590,15 @@ class PhaseSession:
                 c.require(c.canonical(selected)==raw,"RA_G1_SELECTION_BINDING")
             c.require(len(c.canonical(selected))<=8192,"RA_G1_RECORD_LIMIT")
             a.validate_rep_fair_adoption(selected,self.selection)
+        if self.selection["schema_version"] == a.REP_COVERAGE_SELECTION:
+            selected=self.bootstrap_adoption_reader(self.selection["rep_coverage_policy_adoption_sha256"])
+            if type(selected)is bytes:
+                import json
+                c.require(len(selected)<=8192,"RA_G1_RECORD_LIMIT")
+                raw=selected;selected=json.loads(raw)
+                c.require(c.canonical(selected)==raw,"RA_G1_SELECTION_BINDING")
+            c.require(len(c.canonical(selected))<=8192,"RA_G1_RECORD_LIMIT")
+            a.validate_rep_coverage_adoption(selected,self.selection)
         if self.selection["schema_version"] in a.REP512_SELECTIONS:
             selected = self.bootstrap_adoption_reader(self.selection["rep_first64_512_adoption_sha256"])
             if type(selected) is bytes:

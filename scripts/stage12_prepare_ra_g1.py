@@ -50,12 +50,18 @@ REP_ACK_CONFIG_VERSION = "stage12_ra_g1_representative_ack_queue_configuration_v
 REP_FAIR_VERSION = "stage12_ra_g1_rep_fair_service_representative_input_v1"
 REP_FAIR_ALLOCATION_VERSION = "stage12_ra_g1_rep_fair_service_allocation_selection_v1"
 REP_FAIR_CONFIG_VERSION = "stage12_ra_g1_representative_fair_service_configuration_v1"
-REP512_ALLOCATION_VERSIONS = (REP512_ALLOCATION_VERSION, REP_FOREGROUND_ALLOCATION_VERSION, REP_ACK_ALLOCATION_VERSION, REP_FAIR_ALLOCATION_VERSION)
+REP_COVERAGE_VERSION = "stage12_ra_g1_rep_coverage_representative_input_v1"
+REP_COVERAGE_ALLOCATION_VERSION = "stage12_ra_g1_rep_coverage_allocation_selection_v1"
+REP_COVERAGE_CONFIG_VERSION = "stage12_ra_g1_representative_coverage_configuration_v1"
+REP512_ALLOCATION_VERSIONS = (REP512_ALLOCATION_VERSION, REP_FOREGROUND_ALLOCATION_VERSION, REP_ACK_ALLOCATION_VERSION, REP_FAIR_ALLOCATION_VERSION, REP_COVERAGE_ALLOCATION_VERSION)
 REP_ADMIN_ALLOCATION_VERSIONS = (REP_ADMIN_ALLOCATION_VERSION, *REP512_ALLOCATION_VERSIONS)
 CONFIG_VERSION = "stage12_ra_g1_representative_configuration_v1"
 
 
 def contract_for_allocation(allocation):
+    if allocation.get("version")==REP_COVERAGE_ALLOCATION_VERSION:
+        from safe_geocoding_pipeline.preprocessing.stages import s12_ra_g1_rep_coverage_contract
+        return s12_ra_g1_rep_coverage_contract
     if allocation.get("version")==REP_ACK_ALLOCATION_VERSION:
         from safe_geocoding_pipeline.preprocessing.stages import s12_ra_g1_rep_ack_contract
         return s12_ra_g1_rep_ack_contract
@@ -243,7 +249,7 @@ def build_campaigns(selection, facts, resource_selection, capacity):
             }
         )
     config = {
-        "version": REP_FAIR_CONFIG_VERSION if selection.get("version")==REP_FAIR_ALLOCATION_VERSION else REP_ACK_CONFIG_VERSION if selection.get("version")==REP_ACK_ALLOCATION_VERSION else diagnostic.CONFIG_VERSION,
+        "version": REP_COVERAGE_CONFIG_VERSION if selection.get("version")==REP_COVERAGE_ALLOCATION_VERSION else REP_FAIR_CONFIG_VERSION if selection.get("version")==REP_FAIR_ALLOCATION_VERSION else REP_ACK_CONFIG_VERSION if selection.get("version")==REP_ACK_ALLOCATION_VERSION else diagnostic.CONFIG_VERSION,
         "window_start": window_start,
         "window_end": window_end,
         "sources": role_hashes,
@@ -290,11 +296,11 @@ def _strict_resource_selection(
     )
     c.require(
         accounting_inventory["schema_version"]
-        == (accounting_compiler.REP_FAIR_VERSION if allocation.get("version") == REP_FAIR_ALLOCATION_VERSION else accounting_compiler.REP_ACK_VERSION if allocation.get("version") == REP_ACK_ALLOCATION_VERSION else accounting_compiler.REP_FOREGROUND_VERSION if allocation.get("version") == REP_FOREGROUND_ALLOCATION_VERSION
+        == (accounting_compiler.REP_COVERAGE_VERSION if allocation.get("version") == REP_COVERAGE_ALLOCATION_VERSION else accounting_compiler.REP_FAIR_VERSION if allocation.get("version") == REP_FAIR_ALLOCATION_VERSION else accounting_compiler.REP_ACK_VERSION if allocation.get("version") == REP_ACK_ALLOCATION_VERSION else accounting_compiler.REP_FOREGROUND_VERSION if allocation.get("version") == REP_FOREGROUND_ALLOCATION_VERSION
             else accounting_compiler.REP512_VERSION if allocation.get("version") in REP512_ALLOCATION_VERSIONS
             else accounting_compiler.REP_ADMIN_VERSION if allocation.get("version") == REP_ADMIN_ALLOCATION_VERSION
             else accounting_inventory["schema_version"])
-        and ((accounting_inventory["schema_version"] in (accounting_compiler.REP_ADMIN_VERSION,accounting_compiler.REP512_VERSION,accounting_compiler.REP_FOREGROUND_VERSION,accounting_compiler.REP_ACK_VERSION,accounting_compiler.REP_FAIR_VERSION))
+        and ((accounting_inventory["schema_version"] in (accounting_compiler.REP_ADMIN_VERSION,accounting_compiler.REP512_VERSION,accounting_compiler.REP_FOREGROUND_VERSION,accounting_compiler.REP_ACK_VERSION,accounting_compiler.REP_FAIR_VERSION,accounting_compiler.REP_COVERAGE_VERSION))
              == (allocation.get("version") in REP_ADMIN_ALLOCATION_VERSIONS)),
         "RA_G1_ACCOUNTING_CHANGED",
     )
@@ -463,7 +469,7 @@ def _strict_resource_selection(
             rep_admin_budget_policy_sha256=digest(m.rep_admin_policy_descriptor()),
             rep_admin_budget_adoption_sha256=allocation["rep_admin_budget_adoption_sha256"])
     if allocation.get("version") in REP512_ALLOCATION_VERSIONS:
-        record.update(schema_version=(m.REP_FAIR_SELECTION if allocation.get("version")==REP_FAIR_ALLOCATION_VERSION else m.REP_ACK_SELECTION if allocation.get("version")==REP_ACK_ALLOCATION_VERSION else m.REP_FOREGROUND_SELECTION if allocation.get("version") == REP_FOREGROUND_ALLOCATION_VERSION else m.REP512_SELECTION),
+        record.update(schema_version=(m.REP_COVERAGE_SELECTION if allocation.get("version")==REP_COVERAGE_ALLOCATION_VERSION else m.REP_FAIR_SELECTION if allocation.get("version")==REP_FAIR_ALLOCATION_VERSION else m.REP_ACK_SELECTION if allocation.get("version")==REP_ACK_ALLOCATION_VERSION else m.REP_FOREGROUND_SELECTION if allocation.get("version") == REP_FOREGROUND_ALLOCATION_VERSION else m.REP512_SELECTION),
             rep_first64_512_policy_sha256=digest(m.rep512_policy_descriptor()),
             rep_first64_512_adoption_sha256=allocation["rep_first64_512_adoption_sha256"])
     if allocation.get("version")==REP_ACK_ALLOCATION_VERSION:
@@ -472,6 +478,9 @@ def _strict_resource_selection(
     if allocation.get("version")==REP_FAIR_ALLOCATION_VERSION:
         record.update(rep_fair_policy_sha256=contract_for_allocation(allocation).POLICY_SHA,
             rep_fair_policy_adoption_sha256=allocation["rep_fair_policy_adoption_sha256"])
+    if allocation.get("version")==REP_COVERAGE_ALLOCATION_VERSION:
+        record.update(rep_coverage_policy_sha256=contract_for_allocation(allocation).POLICY_SHA,
+            rep_coverage_policy_adoption_sha256=allocation["rep_coverage_policy_adoption_sha256"])
     m.validate_selection(record)
     return record
 
@@ -493,6 +502,8 @@ def resource_selection(allocation, **kwargs):
             m.validate_rep512_adoption(allocation["rep_first64_512_adoption"], record)
         if allocation.get("version")==REP_ACK_ALLOCATION_VERSION:
             m.validate_rep_ack_adoption(allocation["rep_ack_policy_adoption"],record)
+        if allocation.get("version")==REP_COVERAGE_ALLOCATION_VERSION:
+            m.validate_rep_coverage_adoption(allocation["rep_coverage_policy_adoption"],record)
         return record
     if allocation.get("version") not in (BOOTSTRAP_ALLOCATION_VERSION, SHARED_LEASE_ALLOCATION_VERSION):
         return record
@@ -571,8 +582,8 @@ def build(
         name: digest(value) for name, value in a.descriptors(
             rep_admin_successor=allocation.get("version") in REP_ADMIN_ALLOCATION_VERSIONS,
             first64_512_successor=allocation.get("version") in REP512_ALLOCATION_VERSIONS,
-            foreground_successor=allocation.get("version") in (REP_FOREGROUND_ALLOCATION_VERSION,REP_ACK_ALLOCATION_VERSION,REP_FAIR_ALLOCATION_VERSION),
-            **({"fair_service_successor":True} if allocation.get("version")==REP_FAIR_ALLOCATION_VERSION else {"ack_queue_successor":True} if allocation.get("version")==REP_ACK_ALLOCATION_VERSION else {})).items()
+            foreground_successor=allocation.get("version") in (REP_FOREGROUND_ALLOCATION_VERSION,REP_ACK_ALLOCATION_VERSION,REP_FAIR_ALLOCATION_VERSION,REP_COVERAGE_ALLOCATION_VERSION),
+            **({"coverage_successor":True,"fair_service_successor":True} if allocation.get("version")==REP_COVERAGE_ALLOCATION_VERSION else {"fair_service_successor":True} if allocation.get("version")==REP_FAIR_ALLOCATION_VERSION else {"ack_queue_successor":True} if allocation.get("version")==REP_ACK_ALLOCATION_VERSION else {})).items()
     }
     paths = {
         "scope": SCOPE,
@@ -743,6 +754,9 @@ def build(
     if allocation.get("version")==REP_FAIR_ALLOCATION_VERSION:
         retained=retain("adoptions",allocation["rep_fair_policy_adoption"])
         c.require(retained==allocation["rep_fair_policy_adoption_sha256"],"RA_G1_SELECTION_BINDING")
+    if allocation.get("version")==REP_COVERAGE_ALLOCATION_VERSION:
+        retained=retain("adoptions",allocation["rep_coverage_policy_adoption"])
+        c.require(retained==allocation["rep_coverage_policy_adoption_sha256"],"RA_G1_SELECTION_BINDING")
     review = dict(
         version=DIAGNOSTIC_REVIEW,
         scope=SCOPE,
@@ -761,7 +775,7 @@ def build(
     replay = json.loads(replay_path.read_bytes())
     c.require(digest(replay) == allocation["replay_sha256"], "RA_G1_REPLAY_CHANGED")
     data = dict(
-        version=(REP_FAIR_VERSION if allocation.get("version")==REP_FAIR_ALLOCATION_VERSION else REP_ACK_VERSION if allocation.get("version")==REP_ACK_ALLOCATION_VERSION else REP_FOREGROUND_VERSION if allocation.get("version") == REP_FOREGROUND_ALLOCATION_VERSION else REP512_VERSION if allocation.get("version") in REP512_ALLOCATION_VERSIONS
+        version=(REP_COVERAGE_VERSION if allocation.get("version")==REP_COVERAGE_ALLOCATION_VERSION else REP_FAIR_VERSION if allocation.get("version")==REP_FAIR_ALLOCATION_VERSION else REP_ACK_VERSION if allocation.get("version")==REP_ACK_ALLOCATION_VERSION else REP_FOREGROUND_VERSION if allocation.get("version") == REP_FOREGROUND_ALLOCATION_VERSION else REP512_VERSION if allocation.get("version") in REP512_ALLOCATION_VERSIONS
                   else REP_ADMIN_VERSION if allocation.get("version") == REP_ADMIN_ALLOCATION_VERSION
                  else SHARED_LEASE_VERSION if allocation.get("version") == SHARED_LEASE_ALLOCATION_VERSION
                  else BOOTSTRAP_VERSION if allocation.get("version") == BOOTSTRAP_ALLOCATION_VERSION else VERSION),

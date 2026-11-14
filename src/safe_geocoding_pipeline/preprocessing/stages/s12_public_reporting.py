@@ -592,7 +592,7 @@ def block_report(
         mutations_ok
         and schedule_ok
         and periodic_seen
-        and (not ap or all(s["complete"] for s in required_sampling))
+        and (not ap or all(s["workload_complete"] if getattr(o, "AP_COVERAGE_ONLY", False) else s["complete"] for s in required_sampling))
     )
     if not mutations_ok:
         for key in (
@@ -755,7 +755,7 @@ def block_report(
     }
     if ap:
         result["sampling"] = sampling
-        if not sampling["complete"]:
+        if not (sampling["workload_complete"] if getattr(o, "AP_COVERAGE_ONLY", False) else sampling["complete"]):
             result["status"] = "INCOMPLETE"
             result["reasons"] = sorted(set(result["reasons"] + ["SAMPLING_INCOMPLETE"]))
     o.validate_type(result, "BlockReport")
@@ -844,8 +844,11 @@ def campaign_report(
         )
         result["sampling_segments"] = sampling_segments
         result["report_complete"] = result["report_complete"] and all(
-            v["complete"] for v in sampling_segments
+            (v["workload_complete"] if getattr(o, "AP_COVERAGE_ONLY", False) else v["complete"]) for v in sampling_segments
         )
+    if getattr(o, "AP_COVERAGE_ONLY", False):
+        result["workload_evidence_complete"] = result["report_complete"]
+        result["ap_coverage_complete"] = bool(sampling_segments) and all(v["ap_coverage_complete"] for v in sampling_segments)
     if callable(getattr(o, "assurance_fields", None)):
         result.update(o.assurance_fields())
     o.validate(result, o.REPORT)

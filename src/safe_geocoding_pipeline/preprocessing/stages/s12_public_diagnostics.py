@@ -390,6 +390,11 @@ REP_FAIR_FOREGROUND_MODULES = tuple(
      if module == "RA_CONTRACT" else path)
     for module, path in FOREGROUND_MODULES
 )
+REP_COVERAGE_FOREGROUND_MODULES = tuple(
+    (module, "src/safe_geocoding_pipeline/preprocessing/stages/s12_ra_g1_rep_coverage_contract.py"
+     if module == "RA_CONTRACT" else path)
+    for module, path in FOREGROUND_MODULES
+)
 
 COLLECTION_FAILURE_VERSION = "stage12_collection_first_failure_discriminator_v1"
 COLLECTION_MODULES = (
@@ -465,7 +470,7 @@ class FirstFailureDescriptor:
             tb = frame = code = row = error = None
 
 
-def prepare_first_failure_descriptor(specs, source_rows, *, source_root, verify_source, ack_queue_successor=False, fair_service_successor=False):
+def prepare_first_failure_descriptor(specs, source_rows, *, source_root, verify_source, ack_queue_successor=False, fair_service_successor=False, coverage_successor=False):
     """Pin already-loaded modules using the caller's actual original reader.
 
     verify_source(path, selected_row) must return exact True after the caller's
@@ -476,7 +481,7 @@ def prepare_first_failure_descriptor(specs, source_rows, *, source_root, verify_
     """
     return _prepare_first_failure_descriptor(
         specs, source_rows, source_root=source_root, verify_source=verify_source,
-        allowed_modules=REP_FAIR_FOREGROUND_MODULES if fair_service_successor else REP_ACK_FOREGROUND_MODULES if ack_queue_successor else FOREGROUND_MODULES,
+        allowed_modules=REP_COVERAGE_FOREGROUND_MODULES if coverage_successor else REP_FAIR_FOREGROUND_MODULES if fair_service_successor else REP_ACK_FOREGROUND_MODULES if ack_queue_successor else FOREGROUND_MODULES,
     )
 
 

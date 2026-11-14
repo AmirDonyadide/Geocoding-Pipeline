@@ -34,6 +34,8 @@ RA_ACK_POLICY = "stage12_representative_sampling_policy_ack_queue_ra_g1_v1"
 RA_ACK_POLICY_SHA256 = "150bbf357f7d1a8f05c9776dcf7a9f455dac91087909f1b39db582ba66864282"
 RA_FAIR_POLICY = "stage12_representative_sampling_policy_fair_service_ra_g1_v1"
 RA_FAIR_POLICY_SHA256 = "d8bdd7dc19d2c421709a8a04a35ed0add7e49bb2906fc68fdb3c0e5c91be140f"
+RA_COVERAGE_POLICY = "stage12_representative_sampling_policy_coverage_ra_g1_v1"
+RA_COVERAGE_POLICY_SHA256 = "fc32d74996f7f5b2c5f849d50c9d9af3a38497c901442e15b33dd5fc99c4acf5"
 RA_MAX_FILES = 2980
 
 
@@ -43,7 +45,7 @@ def selected_max_files(schema, policy):
         _require(policy in POLICY_VERSIONS, "CHECKPOINT_BINDING_INVALID")
         return MAX_FILES
     _require(
-        policy in (RA_POLICY, RA_PROTECTED_POLICY, RA_ACK_POLICY, RA_FAIR_POLICY),
+        policy in (RA_POLICY, RA_PROTECTED_POLICY, RA_ACK_POLICY, RA_FAIR_POLICY, RA_COVERAGE_POLICY),
         "CHECKPOINT_BINDING_INVALID",
     )
     return MAX_FILES if policy == RA_PROTECTED_POLICY else RA_MAX_FILES
@@ -121,6 +123,8 @@ def validate_policy_binding(value, binding, *, schema=SCHEMA):
         == (binding["policy_sha256"] == RA_ACK_POLICY_SHA256)
         and (value == RA_FAIR_POLICY)
         == (binding["policy_sha256"] == RA_FAIR_POLICY_SHA256)
+        and (value == RA_COVERAGE_POLICY)
+        == (binding["policy_sha256"] == RA_COVERAGE_POLICY_SHA256)
     )
     return value
 

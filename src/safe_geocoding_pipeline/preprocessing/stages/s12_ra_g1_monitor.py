@@ -1336,6 +1336,38 @@ class ResourceMonitor:
             self._latch_failure(error)
             raise
 
+    def require_current(
+        self: Any, *, next_write_bytes: Any = 0, next_creations: Any = 0
+    ) -> None:
+        """Final nonwaiting admission check of the existing durable original.
+
+        No external callback, acquisition, read, persistence or freshness wait.
+        The actual clock is read after taking the existing monitor-state lock,
+        so time spent waiting or in a preceding caller callback is not hidden.
+        """
+        try:
+            with self.lock:
+                row, failure = self.last, self.failure
+                c.require(failure is None, failure or "RA_G1_MONITOR_INCOMPLETE")
+                c.require(row is not None, "RA_G1_MONITOR_INCOMPLETE")
+                c.require(
+                    not self.writer.poisoned and self.writer.acked >= row["seq"],
+                    "RA_G1_WRITE_UNCERTAIN",
+                )
+                thresholds(row, self.selected, next_write_bytes=next_write_bytes,
+                           next_creations=next_creations)
+                c.require(
+                    not self.writer.poisoned and self.writer.acked >= row["seq"],
+                    "RA_G1_WRITE_UNCERTAIN",
+                )
+                now = self.clock()
+                c.require(now < self.deadline, "RA_G1_DEADLINE")
+                c.require(0 <= now - row["enter_mono_ns"] <= MAX_GAP_NS,
+                          "RA_G1_MONITOR_GAP")
+        except BaseException as error:
+            self._latch_failure(error)
+            raise
+
     def finish(self: Any, *, opener_return_ns: Any) -> Any:
         c.require(self.failure is None, "RA_G1_MONITOR_INCOMPLETE")
         self.stop_event.set()

@@ -423,25 +423,28 @@ class Authority:
     def verify_representative_release(self):
         identity = self.config.get("representative_validation_sha256")
         record = self._resource_evidence(identity, "representative_outcomes")
-        a.shape(
-            record,
-            {
-                "schema_version": "=stage12_ra_g1_representative_independent_outcome_v1",
-                "scope": "=REPRESENTATIVE_NO_SERVICE",
-                "source_git_sha": "G",
-                "selection_sha256": "D",
-                "input_sha256": "D",
-                "artifact_manifest_sha256": "D",
-                "independent_report_sha256": "D",
-                "disposition": "=PASS_COMPLETE_REPRESENTATIVE",
-                "expected_attempts": "=106",
-                "maximum_attempts": "=107",
-                "scenarios_completed": "=4",
-                "actual_reopening": "B",
-                "sampling_and_monitor_coverage": "=COMPLETE_SELECTED_SCOPE",
-                "authority_attribution": "=INDEPENDENT_AGENT_OUTCOME_NOT_HUMAN_OR_OPERATOR",
-            },
-        )
+        if record.get("schema_version") == a.REP_COVERAGE_OUTCOME:
+            a.validate_rep_coverage_outcome(record)
+        else:
+            a.shape(
+                record,
+                {
+                    "schema_version": "=stage12_ra_g1_representative_independent_outcome_v1",
+                    "scope": "=REPRESENTATIVE_NO_SERVICE",
+                    "source_git_sha": "G",
+                    "selection_sha256": "D",
+                    "input_sha256": "D",
+                    "artifact_manifest_sha256": "D",
+                    "independent_report_sha256": "D",
+                    "disposition": "=PASS_COMPLETE_REPRESENTATIVE",
+                    "expected_attempts": "=106",
+                    "maximum_attempts": "=107",
+                    "scenarios_completed": "=4",
+                    "actual_reopening": "B",
+                    "sampling_and_monitor_coverage": "=COMPLETE_SELECTED_SCOPE",
+                    "authority_attribution": "=INDEPENDENT_AGENT_OUTCOME_NOT_HUMAN_OR_OPERATOR",
+                },
+            )
         o.require(
             record["source_git_sha"] == self.git_sha
             and record["actual_reopening"] is True,
@@ -465,7 +468,9 @@ class Authority:
         return record
 
     def sampling_bound(self, profile, start):
-        if profile.get("schema_version")=="stage12_transport_operations_rep_fair_service_ra_g1_v1":
+        if profile.get("schema_version")=="stage12_transport_operations_rep_coverage_ra_g1_v1":
+            from . import s12_ra_g1_rep_coverage_contract as contract
+        elif profile.get("schema_version")=="stage12_transport_operations_rep_fair_service_ra_g1_v1":
             from . import s12_ra_g1_rep_fair_contract as contract
         elif profile.get("schema_version")=="stage12_transport_operations_rep_ack_queue_ra_g1_v1":
             from . import s12_ra_g1_rep_ack_contract as contract
@@ -672,9 +677,15 @@ class Authority:
         self._deadline_check()
         o.require(self._source_verified, "RA_G1_SOURCE_NOT_VERIFIED")
         o.require(self.resource_monitor is not None, "RA_G1_MONITOR_REQUIRED")
-        self.resource_monitor.barrier(
-            next_write_bytes=next_write_bytes, next_creations=next_creations
+        coverage_profile = (
+            self.active is not None
+            and self.active[0]["profile"].get("schema_version")
+            == "stage12_transport_operations_rep_coverage_ra_g1_v1"
         )
+        if not coverage_profile:
+            self.resource_monitor.barrier(
+                next_write_bytes=next_write_bytes, next_creations=next_creations
+            )
         o.require(
             self.allocation_controls is not None, "RA_G1_ALLOCATION_CONTROLS_REQUIRED"
         )
@@ -712,6 +723,35 @@ class Authority:
         )
         a.check_capacity(
             current, next_write_bytes=next_write_bytes, next_creations=next_creations
+        )
+        if coverage_profile:
+            # The sole strict barrier follows every potentially blocking
+            # original/capacity read. No stale AP snapshot supplies safety.
+            self.resource_monitor.barrier(
+                next_write_bytes=next_write_bytes, next_creations=next_creations
+            )
+
+    def resource_current(self, *, next_write_bytes, next_creations):
+        """Pure final-use guard after all potentially blocking callbacks."""
+        o.require(
+            self._source_verified and self.resource_monitor is not None
+            and self.active is not None
+            and self.active[0]["profile"].get("schema_version")
+            == "stage12_transport_operations_rep_coverage_ra_g1_v1",
+            "RA_G1_AUTHORITY_SCOPE",
+        )
+        o.require(self.allocation_controls is not None, "RA_G1_ALLOCATION_CONTROLS_REQUIRED")
+        usage = self.allocation_controls.snapshot()
+        limits = self.allocation_controls.selected["limits"]
+        o.require(
+            usage["bytes"] + next_write_bytes
+            <= limits["logical_write_bytes"] - limits["closure_reserve_bytes"]
+            and usage["creations"] + next_creations
+            <= limits["creations"] - limits["closure_reserve_creations"],
+            "RA_G1_CLOSURE_RESERVE",
+        )
+        return self.resource_monitor.require_current(
+            next_write_bytes=next_write_bytes, next_creations=next_creations
         )
 
     def bind(self, item, plan, start):

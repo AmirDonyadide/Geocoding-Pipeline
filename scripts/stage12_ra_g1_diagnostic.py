@@ -47,7 +47,10 @@ REP_ACK_CONFIG_VERSION = "stage12_ra_g1_representative_ack_queue_configuration_v
 REP_FAIR_VERSION = "stage12_ra_g1_rep_fair_service_representative_input_v1"
 REP_FAIR_SELECTION = "stage12_resource_selection_rep_fair_service_ra_g1_v1"
 REP_FAIR_CONFIG_VERSION = "stage12_ra_g1_representative_fair_service_configuration_v1"
-REP512_VERSIONS = (REP512_VERSION, REP_FOREGROUND_VERSION, REP_ACK_VERSION, REP_FAIR_VERSION)
+REP_COVERAGE_VERSION = "stage12_ra_g1_rep_coverage_representative_input_v1"
+REP_COVERAGE_SELECTION = "stage12_resource_selection_rep_coverage_ra_g1_v1"
+REP_COVERAGE_CONFIG_VERSION = "stage12_ra_g1_representative_coverage_configuration_v1"
+REP512_VERSIONS = (REP512_VERSION, REP_FOREGROUND_VERSION, REP_ACK_VERSION, REP_FAIR_VERSION, REP_COVERAGE_VERSION)
 REP_ADMIN_VERSIONS = (REP_ADMIN_VERSION, *REP512_VERSIONS)
 ACTIVE_DIAGNOSTIC_TRACE = None
 ACTIVE_DIAGNOSTIC_CHECK = None
@@ -276,6 +279,9 @@ def hash_value(value, size=64):
 
 
 def contract_for_input(data):
+    if data.get("version")==REP_COVERAGE_VERSION:
+        from safe_geocoding_pipeline.preprocessing.stages import s12_ra_g1_rep_coverage_contract
+        return s12_ra_g1_rep_coverage_contract
     if data.get("version")==REP_FAIR_VERSION:
         from safe_geocoding_pipeline.preprocessing.stages import s12_ra_g1_rep_fair_contract
         return s12_ra_g1_rep_fair_contract
@@ -339,7 +345,7 @@ def validate_envelope(data, source_sha, *, for_execution, defer_response_payload
     require(
         type(config) is dict
         and set(config) == _CONFIG
-        and config.get("version") == (REP_FAIR_CONFIG_VERSION if data["version"]==REP_FAIR_VERSION else REP_ACK_CONFIG_VERSION if data["version"]==REP_ACK_VERSION else CONFIG_VERSION)
+        and config.get("version") == (REP_COVERAGE_CONFIG_VERSION if data["version"]==REP_COVERAGE_VERSION else REP_FAIR_CONFIG_VERSION if data["version"]==REP_FAIR_VERSION else REP_ACK_CONFIG_VERSION if data["version"]==REP_ACK_VERSION else CONFIG_VERSION)
     )
     require(
         config.get("transport") == {"scope": SCOPE, "authority": "TEST_ONLY_NO_NETWORK"}
@@ -378,14 +384,14 @@ def validate_envelope(data, source_sha, *, for_execution, defer_response_payload
         require(hash_value(phase["epoch_id"]))
         profile, plan, start = item["profile"], item["plan"], phase["start"]
         require(
-            profile.get("schema_version") == ("stage12_transport_operations_rep_fair_service_ra_g1_v1" if data["version"]==REP_FAIR_VERSION else "stage12_transport_operations_rep_ack_queue_ra_g1_v1" if data["version"]==REP_ACK_VERSION else "stage12_transport_operations_ra_g1_v1")
+            profile.get("schema_version") == ("stage12_transport_operations_rep_coverage_ra_g1_v1" if data["version"]==REP_COVERAGE_VERSION else "stage12_transport_operations_rep_fair_service_ra_g1_v1" if data["version"]==REP_FAIR_VERSION else "stage12_transport_operations_rep_ack_queue_ra_g1_v1" if data["version"]==REP_ACK_VERSION else "stage12_transport_operations_ra_g1_v1")
         )
         require(
             plan.get("schema_version")
-            == ("stage12_representative_plan_fair_service_ra_g1_v1" if data["version"]==REP_FAIR_VERSION else "stage12_representative_plan_ack_queue_ra_g1_v1" if data["version"]==REP_ACK_VERSION else "stage12_public_characterization_plan_ra_g1_v1")
+            == ("stage12_representative_plan_coverage_ra_g1_v1" if data["version"]==REP_COVERAGE_VERSION else "stage12_representative_plan_fair_service_ra_g1_v1" if data["version"]==REP_FAIR_VERSION else "stage12_representative_plan_ack_queue_ra_g1_v1" if data["version"]==REP_ACK_VERSION else "stage12_public_characterization_plan_ra_g1_v1")
         )
         require(
-            start.get("schema_version") == ("stage12_representative_campaign_fair_service_ra_g1_v1" if data["version"]==REP_FAIR_VERSION else "stage12_representative_campaign_ack_queue_ra_g1_v1" if data["version"]==REP_ACK_VERSION else "stage12_public_operations_campaign_ra_g1_v1")
+            start.get("schema_version") == ("stage12_representative_campaign_coverage_ra_g1_v1" if data["version"]==REP_COVERAGE_VERSION else "stage12_representative_campaign_fair_service_ra_g1_v1" if data["version"]==REP_FAIR_VERSION else "stage12_representative_campaign_ack_queue_ra_g1_v1" if data["version"]==REP_ACK_VERSION else "stage12_public_operations_campaign_ra_g1_v1")
         )
         require(
             start["client_git_sha"] == source_sha
@@ -460,6 +466,7 @@ def validate_resource_family(input_version, selected):
         and selected.get("scope") == SCOPE
         and selected.get("schema_version")
         == (
+            REP_COVERAGE_SELECTION if input_version == REP_COVERAGE_VERSION else
             REP_FAIR_SELECTION if input_version == REP_FAIR_VERSION else
             REP_ACK_SELECTION if input_version == REP_ACK_VERSION else
             REP_FOREGROUND_SELECTION if input_version == REP_FOREGROUND_VERSION else
@@ -1343,7 +1350,7 @@ def execute(args, *, started_ns, cpu_started_ns):
     from safe_geocoding_pipeline.preprocessing.stages import s12_transport as transport
     from safe_geocoding_pipeline.preprocessing import stage12_probe_cli as cli
     from safe_geocoding_pipeline.preprocessing.stages.s12_public_diagnostics import (
-        Failures, FOREGROUND_MODULES, REP_ACK_FOREGROUND_MODULES, REP_FAIR_FOREGROUND_MODULES, prepare_first_failure_descriptor,
+        Failures, FOREGROUND_MODULES, REP_ACK_FOREGROUND_MODULES, REP_FAIR_FOREGROUND_MODULES, REP_COVERAGE_FOREGROUND_MODULES, prepare_first_failure_descriptor,
     )
 
     transport.Secret.runtime = transport.Secret.private_file = denied
@@ -1468,7 +1475,8 @@ def execute(args, *, started_ns, cpu_started_ns):
     # Only already-loaded, exactly selected modules are eligible. Pinning uses
     # the same bounded original source guards; denial remains active throughout.
     foreground_specs = []
-    foreground_modules=(REP_FAIR_FOREGROUND_MODULES if data["version"]==REP_FAIR_VERSION else
+    foreground_modules=(REP_COVERAGE_FOREGROUND_MODULES if data["version"]==REP_COVERAGE_VERSION else
+                        REP_FAIR_FOREGROUND_MODULES if data["version"]==REP_FAIR_VERSION else
                         REP_ACK_FOREGROUND_MODULES if data["version"]==REP_ACK_VERSION else FOREGROUND_MODULES)
     for module_id, relative in foreground_modules:
         name = (__name__ if module_id == "DIAGNOSTIC" else
@@ -1480,8 +1488,9 @@ def execute(args, *, started_ns, cpu_started_ns):
     foreground_descriptor = (prepare_first_failure_descriptor(
         foreground_specs, original.review["source_files"], source_root=source,
         verify_source=original.verify_diagnostic_source,ack_queue_successor=data["version"]==REP_ACK_VERSION,
-        fair_service_successor=data["version"]==REP_FAIR_VERSION,
-    ) if data["version"] in (REP_FOREGROUND_VERSION,REP_ACK_VERSION,REP_FAIR_VERSION) else None)
+        fair_service_successor=data["version"] in (REP_FAIR_VERSION,REP_COVERAGE_VERSION),
+        coverage_successor=data["version"]==REP_COVERAGE_VERSION,
+    ) if data["version"] in (REP_FOREGROUND_VERSION,REP_ACK_VERSION,REP_FAIR_VERSION,REP_COVERAGE_VERSION) else None)
     capture_failures = Failures(
         clock, closure=True, observer=observer_stage_enabled,
         first_failure_descriptor=foreground_descriptor, sampling=True,
@@ -1547,9 +1556,10 @@ def execute(args, *, started_ns, cpu_started_ns):
         runtime.verify_successor_assets(source, contract=ap,
             rep_admin_successor=data["version"] in REP_ADMIN_VERSIONS,
             first64_512_successor=data["version"] in REP512_VERSIONS,
-            foreground_successor=data["version"] in (REP_FOREGROUND_VERSION,REP_ACK_VERSION,REP_FAIR_VERSION),
+            foreground_successor=data["version"] in (REP_FOREGROUND_VERSION,REP_ACK_VERSION,REP_FAIR_VERSION,REP_COVERAGE_VERSION),
             ack_queue_successor=data["version"] == REP_ACK_VERSION,
-            fair_service_successor=data["version"] == REP_FAIR_VERSION)
+            fair_service_successor=data["version"] in (REP_FAIR_VERSION,REP_COVERAGE_VERSION),
+            coverage_successor=data["version"] == REP_COVERAGE_VERSION)
         require(
             (source / "docs/scientific_assets" / (data["version"] + ".json")).read_bytes()
             == canonical(descriptor(data["version"])),
@@ -1726,7 +1736,7 @@ def execute(args, *, started_ns, cpu_started_ns):
                         contract=ap,
                     )
                     require(
-                        summaries and all(row["complete"] for row in summaries),
+                        summaries and all(row["workload_complete"] if data["version"] == REP_COVERAGE_VERSION else row["complete"] for row in summaries),
                         "RA_G1_DIAGNOSTIC_SAMPLING_INCOMPLETE",
                     )
                     closure_mark("SAMPLING_INSPECTION", completed=True, deadline=boundary)
@@ -1909,6 +1919,9 @@ def execute(args, *, started_ns, cpu_started_ns):
                             campaign_report_sha256=ap.digest(report),
                             regular_acknowledgements=state["regular"],
                             original_reopen=True,
+                            **({"ap_coverage_complete":all(row["ap_coverage_complete"] for row in summaries),
+                                "workload_complete":all(row["workload_complete"] for row in summaries)}
+                               if data["version"] == REP_COVERAGE_VERSION else {}),
                         )
                     )
         require(106 <= attempts <= 107)
@@ -2138,6 +2151,15 @@ def execute(args, *, started_ns, cpu_started_ns):
         source_sha=args.source_sha,
         input_sha256=args.input_sha256,
         complete=failure is None and len(phases) == 4,
+        **({
+            "workload_complete":failure is None and len(phases) == 4,
+            "ap_coverage_complete":failure is None and len(phases) == 4 and all(row["ap_coverage_complete"] for row in phases),
+            "administrative_monitor_coverage_complete":failure is None and len(phases) == 4 and len(resource_sessions) == 5,
+            "qualification_outcome":(
+                "WORKLOAD_INCOMPLETE" if failure is not None or len(phases) != 4 else
+                "WORKLOAD_AND_AP_COVERAGE_COMPLETE" if all(row["ap_coverage_complete"] for row in phases) else
+                "WORKLOAD_COMPLETE_AP_COVERAGE_INCOMPLETE"),
+        } if data["version"] == REP_COVERAGE_VERSION else {}),
         error=failure,
         initiating_failure=first_failure,
         initiating_failure_scope="CAUGHT_FOREGROUND_EXCEPTION_ONLY_SEE_CAPTURE_AND_MONITOR",
@@ -2233,6 +2255,15 @@ def descriptor(version=VERSION):
     if version==REP_FAIR_VERSION:
         value.update(required_accounting_inventory="stage12_ra_g1_rep_fair_service_accounting_inventory_v1",
             required_resource_selection=REP_FAIR_SELECTION,sampling_contract="s12_ra_g1_rep_fair_contract")
+    if version==REP_COVERAGE_VERSION:
+        value.update(required_accounting_inventory="stage12_ra_g1_rep_coverage_accounting_inventory_v1",
+            required_resource_selection=REP_COVERAGE_SELECTION,sampling_contract="s12_ra_g1_rep_coverage_contract",
+            workload_and_AP_coverage_separate=True, positive_AP_gap_fail_stop=False,
+            configuration_version=REP_COVERAGE_CONFIG_VERSION,
+            profile_family="stage12_transport_operations_rep_coverage_ra_g1_v1",
+            plan_family="stage12_representative_plan_coverage_ra_g1_v1",
+            start_family="stage12_representative_campaign_coverage_ra_g1_v1",
+            historical_families_strict=True)
     return value
 
 

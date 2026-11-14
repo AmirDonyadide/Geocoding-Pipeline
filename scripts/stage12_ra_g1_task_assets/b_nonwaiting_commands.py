@@ -1,19 +1,22 @@
-"""Task-only REP ordinary submission and fixed long-envelope observations.
+"""Task-only REP ordinary submission and bounded long-envelope observations.
 
 Commands and parsed submission facts issue no execution, factual or input approval.
 The existing online handoff driver/tail is separate and remains unchanged.
 """
 from pathlib import Path, PurePosixPath
 import hashlib, importlib.util, json, os, re, shlex, stat, time
-VERSION="stage12_b_direct_layout_submit_and_observation_v4"
-SUBMISSION_RECORD="stage12_b_catalog_observed_submit_client_v3"
-SCHEDULE_VERSION="stage12_b_catalog_fixed_terminal_schedule_v3"
+VERSION="stage12_b_coverage_first_terminal_operations_v1"
+SUBMISSION_RECORD="stage12_b_coverage_observed_submit_client_v1"
+LEGACY_SCHEDULE_VERSION="stage12_b_catalog_fixed_terminal_schedule_v3"
+SCHEDULE_VERSION="stage12_b_first_complete_terminal_schedule_v1"
+TERMINAL_POLICY="stage12_first_complete_authoritative_terminal_v1"
+TERMINAL_ROLE="QUALIFYING_AUTHORITATIVE_TERMINAL_OBSERVATION"
 OFFSETS=tuple(range(0,7801,600))+(8260,8380)
-FOLLOWON_AND_REVIEW_SECONDS=1920
+FOLLOWON_AND_REVIEW_SECONDS=2820
 NATIVE_PROCESSING_SECONDS=8160
 NATIVE_SCHEDULER_SECONDS=8400
 ORIGINAL_WATCH_SECONDS=8400
-WINDOW_END_NS=1794597201620987000
+WINDOW_END_NS=1794683601620987000
 NATIVE_PYTHON="/panfs/vdura1/footprint/donyadidegan/safe_geocoding_pipeline/runtimes/stage06/stage06_development_20260828T223804Z_f39047cc825d/venv/bin/python"
 PROJECT="/panfs/vdura1/footprint/donyadidegan/safe_geocoding_pipeline/"
 def need(value,code="B_NONWAITING_BINDING"):
@@ -110,21 +113,32 @@ def render_submission(*,allocation,selection_sha256,gate_sha256,helper_sha256,no
         online_handoff_watch_seconds=8400,online_handoff_watch_changed=False,no_resubmission_on_uncertain_submission=True,
         raw_stdout_is_not_wait_result=True,submit_exit_zero_is_not_job_success=True)
 
-def terminal_schedule(*,entry_mono_ns,entry_epoch_ns,absolute_window_end_epoch_ns):
+def legacy_terminal_schedule(*,entry_mono_ns,entry_epoch_ns,absolute_window_end_epoch_ns):
     need(type(entry_mono_ns)is int and entry_mono_ns>0 and type(entry_epoch_ns)is int and entry_epoch_ns>0)
     need(type(absolute_window_end_epoch_ns)is int and absolute_window_end_epoch_ns==WINDOW_END_NS)
     need(entry_epoch_ns+(NATIVE_SCHEDULER_SECONDS+FOLLOWON_AND_REVIEW_SECONDS)*10**9<absolute_window_end_epoch_ns,"B_WINDOW_INSUFFICIENT")
-    return dict(version=SCHEDULE_VERSION,anchor="ORIGINAL_B_SUBMISSION_ENTRY_NOT_RESET",entry_mono_ns=entry_mono_ns,entry_epoch_ns=entry_epoch_ns,
+    return dict(version=LEGACY_SCHEDULE_VERSION,anchor="ORIGINAL_B_SUBMISSION_ENTRY_NOT_RESET",entry_mono_ns=entry_mono_ns,entry_epoch_ns=entry_epoch_ns,
         deadline_mono_ns=entry_mono_ns+8400*10**9,deadline_epoch_ns=entry_epoch_ns+8400*10**9,
         absolute_window_end_epoch_ns=absolute_window_end_epoch_ns,offset_seconds=list(OFFSETS),maximum_observations=16,
         final_authoritative_slots=[14,15],query_seconds=15,query_process_units=4,maximum_query_process_units=64,
         early_terminal_rule="STOP_REGULAR_SLOTS;FINAL_START_OFFSETS=FIRST_TERMINAL_ACTUAL_START_MINUS_ORIGINAL_ENTRY_PLUS_120_AND_240",
         last_selected_query_finish_offset_seconds=8395,finalization_reserve_seconds=5,
         followon_and_review_reserved_seconds=FOLLOWON_AND_REVIEW_SECONDS,
+        required_remaining_seconds=11220,
         queue_and_full_scheduler_risk="EARLIER_CONTROLLER_EXHAUSTION_CAN_REMAIN_INCOMPLETE;NO_NATIVE_DEADLINE_RESET_OR_EXTENSION",
         native_processing_seconds=8160,native_scheduler_seconds=8400,online_handoff_watch_seconds=8400)
 
+def terminal_schedule(*,entry_mono_ns,entry_epoch_ns,absolute_window_end_epoch_ns):
+    schedule=legacy_terminal_schedule(entry_mono_ns=entry_mono_ns,entry_epoch_ns=entry_epoch_ns,
+        absolute_window_end_epoch_ns=absolute_window_end_epoch_ns)
+    del schedule["final_authoritative_slots"]
+    schedule.update(version=SCHEDULE_VERSION,terminal_observation_policy=TERMINAL_POLICY,
+        qualifying_observation_role=TERMINAL_ROLE,fixed_confirmation_wait=False,
+        early_terminal_rule="FIRST_COMPLETE_AUTHORITATIVE_ORIGINAL_QUALIFIES_DRIVER_CLOSURE_SEPARATE")
+    return schedule
+
 def final_not_before(schedule,first_terminal_query_start=None):
+    need(schedule.get("version")==LEGACY_SCHEDULE_VERSION,"B_LEGACY_CONFIRMATION_POLICY")
     origin=schedule["entry_mono_ns"]
     if first_terminal_query_start is None:return origin+8260*10**9,origin+8380*10**9
     need(type(first_terminal_query_start)is int and origin<=first_terminal_query_start<origin+8260*10**9,"B_TERMINAL_ANCHOR")
@@ -133,9 +147,15 @@ def final_not_before(schedule,first_terminal_query_start=None):
     return origin+offsets[0],origin+offsets[1]
 
 def slot_bounds(schedule,index,*,first_terminal_query_start=None):
-    need(type(schedule)is dict and schedule.get("version")==SCHEDULE_VERSION and schedule.get("offset_seconds")==list(OFFSETS) and schedule.get("maximum_observations")==16)
+    need(type(schedule)is dict and schedule.get("version")in(SCHEDULE_VERSION,LEGACY_SCHEDULE_VERSION) and schedule.get("offset_seconds")==list(OFFSETS) and schedule.get("maximum_observations")==16)
     need(type(index)is int and 0<=index<16)
     origin=schedule["entry_mono_ns"]
+    if schedule["version"]==SCHEDULE_VERSION:
+        expected=terminal_schedule(entry_mono_ns=origin,entry_epoch_ns=schedule["entry_epoch_ns"],absolute_window_end_epoch_ns=schedule["absolute_window_end_epoch_ns"])
+        need(schedule==expected and first_terminal_query_start is None,"B_TERMINAL_POLICY_CHANGED")
+        earliest=origin+OFFSETS[index]*10**9
+        latest=origin+((OFFSETS[index+1]-15)if index<15 else 8385)*10**9
+        return earliest,latest
     if index>=14:
         finals=final_not_before(schedule,first_terminal_query_start)
         return finals[index-14],schedule["deadline_mono_ns"]-(135 if index==14 else 15)*10**9
@@ -169,6 +189,14 @@ def final_terminal_disposition(first,second,*,job_id,nonce):
     if all(row["all_completed_zero"] is True for row in (first,second)):return "TERMINAL_METADATA_SUCCESS_NOT_B_ACCEPTANCE"
     return "TERMINAL_METADATA_FAILURE_NOT_B_ACCEPTANCE"
 
+def first_terminal_disposition(facts,*,job_id,nonce):
+    """No synthetic confirmation or driver/scientific-completion assertion."""
+    need(type(facts)is dict and facts.get("version")=="stage12_authoritative_terminal_query_v1"
+        and facts.get("job_id")==job_id and facts.get("nonce")==nonce)
+    if facts.get("status")!="AUTHORITATIVE_TERMINAL":return "INCOMPLETE"
+    need(type(facts.get("all_completed_zero"))is bool)
+    return "TERMINAL_METADATA_SUCCESS_NOT_B_ACCEPTANCE"if facts["all_completed_zero"]else"TERMINAL_METADATA_FAILURE_NOT_B_ACCEPTANCE"
+
 def validate_submission(*,record,commands,stdout,stderr,shared):
     need(type(record)is dict and record.get("version")==SUBMISSION_RECORD and record.get("command_sha256")==sha(canonical(commands)))
     need(record.get("source_sha")==commands["source_sha"] and record.get("nonce")==commands["nonce"])
@@ -189,7 +217,7 @@ def graph_quote():
           dict(stage="ONLINE_HANDOFF_HELPER_ROLES",units=42,invocations=["prepaid exact seven helper-role slots"]),
           dict(stage="ONLINE_HANDOFF_DRIVER",units=1,invocations=["verified repository Python driver"])]
     need(sum(r["units"] for r in rows)==148)
-    return dict(version=VERSION,state="EXACT_WRAPPER_QUOTE_PENDING_ACTUAL_MATERIALIZED_BINDINGS",maximum_process_units=148,permitted_process_ceiling=192,remaining_margin=44,rows=rows,
+    return dict(version=VERSION,state="EXACT_WRAPPER_QUOTE_PENDING_ACTUAL_MATERIALIZED_BINDINGS",quoted_process_invocations=148,administrative_command_ceiling=None,rows=rows,
         historical_baseline_75_preserved=True,three_units_per_query_not_assumed=True,role42_is_single_global_precharge=True,
         maximum_terminal_query_read_calls=1536,maximum_terminal_query_returned_bytes=131072,maximum_terminal_query_encoded_records=262144,
         maximum_terminal_query_creations=16,query_record_limit_each=16384,no_native_descendant_or_memory_guarantee=True,
@@ -329,7 +357,8 @@ class ObservationOwner:
         need(self._directory.name=="terminal_observations" and self._directory.parent.name=="job_"+str(job_id) and self._directory.is_absolute() and self._directory.resolve(strict=False)==self._directory)
         parent=self._directory.parent.lstat();need(stat.S_ISDIR(parent.st_mode) and stat.S_IMODE(parent.st_mode)==0o700 and parent.st_uid==os.geteuid())
         self.check();self._creations+=1;self._directory.mkdir(mode=0o700);self._chain=self._ancestor_chain()
-        self.record("OBSERVER_BINDING.record",dict(version="stage12_b_terminal_observer_owner_v1",job_id=job_id,source_sha=source_sha,nonce=nonce,selection_sha256=selection_sha256,schedule=schedule,
+        self.record("OBSERVER_BINDING.record",dict(version="stage12_b_terminal_observer_owner_v2",job_id=job_id,source_sha=source_sha,nonce=nonce,selection_sha256=selection_sha256,schedule=schedule,
+            terminal_observation_policy=TERMINAL_POLICY,qualifying_operation_role=TERMINAL_ROLE,
             invocation_scope="FIXED_ORIGINAL_B_SUBMISSION_ANCHOR_NO_RESET",query_bank=dict(self._bank),maximum_record_count=self.MAX_RECORDS,maximum_record_bytes=self.MAX_RECORD_BYTES,
             maximum_read_calls=self.MAX_READ_CALLS,maximum_read_bytes=self.MAX_READ_BYTES,maximum_write_bytes=self.MAX_WRITE_BYTES,
             logical_buffer_quote="64KiB serialized record plus encoder/string copies,1KiB returned read block,hash/I/O scratch; no native-inclusive guarantee",no_job_or_scientific_acceptance=True))
@@ -400,9 +429,12 @@ def derive_three_column_scheduler(*,source_query_record_ref,observer_binding_ref
     import base64
     shared=source_module(shared_module_ref,source_dir,source_inventory)
     query_raw=read_ref(source_query_record_ref,16384);query=json.loads(query_raw);need(canonical(query)==query_raw and query.get("version")==shared.QUERY_VERSION)
-    bound_raw=read_ref(observer_binding_ref,65536);bound=json.loads(bound_raw);need(canonical(bound)==bound_raw and bound.get("version")=="stage12_b_terminal_observer_owner_v1")
+    bound_raw=read_ref(observer_binding_ref,65536);bound=json.loads(bound_raw);need(canonical(bound)==bound_raw and bound.get("version")in("stage12_b_terminal_observer_owner_v1","stage12_b_terminal_observer_owner_v2"))
     need(Path(source_query_record_ref["path"]).parent==Path(observer_binding_ref["path"]).parent and Path(observer_binding_ref["path"]).name=="OBSERVER_BINDING.record")
     need(bound.get("job_id")==expected_job_id and bound.get("nonce")==expected_nonce and bound.get("source_sha")==expected_source_sha and bound.get("selection_sha256")==expected_selection_sha256)
+    if bound["version"]=="stage12_b_terminal_observer_owner_v2":
+        shared.validate_first_terminal_original(query,bound,job_id=expected_job_id,nonce=expected_nonce,
+            source_sha=expected_source_sha,selection_sha256=expected_selection_sha256,uid=60099)
     need(type(query.get("actual_client_exit"))is int and query["actual_client_exit"]==0 and query.get("joined")is True and query.get("stdout_eof")is True and query.get("stderr_eof")is True and query.get("cleanup_uncertain")is False and query.get("first_safe_error")is None and query.get("signals")==[])
     need(query["entered_mono_ns"]>=bound["schedule"]["entry_mono_ns"] and query["completed_mono_ns"]<bound["schedule"]["deadline_mono_ns"])
     reservation=query["reservation"];need(type(reservation)is dict and reservation.get("version")==shared.BANK_VERSION and type(reservation.get("ordinal"))is int and 1<=reservation["ordinal"]<=16)

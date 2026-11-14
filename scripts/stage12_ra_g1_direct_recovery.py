@@ -22,6 +22,8 @@ REVIEW_VERSION = "stage12_direct_terminal_recovery_independent_review_v1"
 REOPEN_VERSION = "stage12_direct_terminal_recovery_reopen_v1"
 EXPORT_VERSION = "stage12_direct_terminal_export_v1"
 WORKLOAD_VERSION = "stage12_direct_recovery_original_workload_v1"
+WORKLOAD_COVERAGE_VERSION = "stage12_direct_recovery_coverage_original_workload_v1"
+COVERAGE_ALLOCATION = "stage12_ra_g1_rep_coverage_allocation_selection_v1"
 SCOPE = "DIRECT_TERMINAL_RECOVERY_NO_SERVICE"
 POOL_BYTES, POOL_CREATIONS = 24*2**30, 450000
 DIRECT_CONSUMER_PATHS = (
@@ -295,6 +297,34 @@ def _publish_manifests(output, selected, summary, role):
             tc.close_owned(role.budget,(fd,))
 
 
+def _coverage_workload_shape(value):
+    """The selected successor never folds AP coverage into workload success."""
+    from safe_geocoding_pipeline.preprocessing.stages import s12_ra_g1_rep_coverage_contract as policy
+    fields = set("schema complete scope source_sha allocation_selection_sha256 status original_timed_acceptance_repaired current_environment_or_old_clock_equivalence_asserted workload_evidence_complete ap_coverage_complete administrative_monitor_coverage_complete qualification_outcome sampling_policy_sha256 sampling_policy_version counts".split())
+    if type(value) is dict and (value.get("complete") is True
+            or "summary_sha256" in value or "input_sha256" in value):
+        fields.update(("summary_sha256", "input_sha256"))
+    if type(value) is dict and value.get("complete") is True:
+        fields.update(("data_phases", "resource_phases", "timing_prefix_sha256"))
+    need(type(value) is dict and value.get("schema") == verifier.COVERAGE_VERSION
+         and set(value) == fields
+         and value.get("sampling_policy_version") == policy.POLICY_VERSION
+         and value.get("sampling_policy_sha256") == policy.POLICY_SHA
+         and type(value.get("complete")) is bool
+         and value.get("workload_evidence_complete") is value["complete"], "DIRECT_PROOF")
+    if value["complete"]:
+        need(type(value.get("ap_coverage_complete")) is bool
+             and value.get("administrative_monitor_coverage_complete") is True
+             and value.get("qualification_outcome") == (
+                 "WORKLOAD_AND_AP_COVERAGE_COMPLETE" if value["ap_coverage_complete"]
+                 else "WORKLOAD_COMPLETE_AP_COVERAGE_INCOMPLETE"), "DIRECT_PROOF")
+    else:
+        need(value.get("ap_coverage_complete") is None or type(value["ap_coverage_complete"]) is bool, "DIRECT_PROOF")
+        need(value.get("administrative_monitor_coverage_complete") is None
+             or type(value["administrative_monitor_coverage_complete"]) is bool, "DIRECT_PROOF")
+        need(value.get("qualification_outcome") == "WORKLOAD_INCOMPLETE", "DIRECT_PROOF")
+
+
 def _workload(plan,role,prepared):
     """Actual original native-path reader, with no new owner or read allowance."""
     work=plan["original_workload"]
@@ -302,11 +332,14 @@ def _workload(plan,role,prepared):
     need(digest(raw)==work["selection_sha256"],"DIRECT_COHORT")
     original=tc.parse(raw)
     need(original.get("source_sha")==plan["originals"][0]["source_git_sha"],"DIRECT_COHORT")
-    result=dict(version=WORKLOAD_VERSION,original_source_sha=original["source_sha"],
+    coverage = original.get("version") == COVERAGE_ALLOCATION
+    result=dict(version=WORKLOAD_COVERAGE_VERSION if coverage else WORKLOAD_VERSION,original_source_sha=original["source_sha"],
         original_selection_sha256=work["selection_sha256"],verifier_sha256=work["verifier_sha256"],
         required_for_B_acceptance=work["required_for_B_acceptance"],complete=False,
         status="VERIFIER_REJECTED_OR_UNSUPPORTED",proof=None,first_failure=None,
         original_timed_acceptance_repaired=False)
+    if coverage:
+        result["original_allocation_version"] = COVERAGE_ALLOCATION
     def check_read(amount):
         role.check();tc.uint(amount)
         tc.need(role.budget.counts["read_bytes"]+amount<=role.budget.l["read_bytes"],"READ_BYTES")
@@ -319,6 +352,10 @@ def _workload(plan,role,prepared):
         need(type(actual) is dict and type(actual.get("complete")) is bool
              and actual.get("source_sha")==original["source_sha"]
              and actual.get("allocation_selection_sha256")==work["selection_sha256"],"DIRECT_PROOF")
+        if coverage:
+            _coverage_workload_shape(actual)
+        else:
+            need(actual.get("schema") != verifier.COVERAGE_VERSION, "DIRECT_PROOF")
         result.update(complete=actual["complete"],status=actual["status"],proof=actual)
     except Exception as error:
         # Unsupported/incomplete scientific originals remain negative evidence;
@@ -563,13 +600,22 @@ def _integrity(proof, *, allow_test_only=False):
     need(lookup["selection"]["sha256"] == selected.sha
          and lookup["export"]["sha256"] == digest(tc.canonical(exported)), "DIRECT_PROOF")
     work=proof["workload_verification"]
-    need(work["version"]==WORKLOAD_VERSION and type(work["complete"]) is bool
+    need(work["version"] in (WORKLOAD_VERSION, WORKLOAD_COVERAGE_VERSION) and type(work["complete"]) is bool
          and work["original_source_sha"]==proof["originals"][0]["source_git_sha"]
          and work["original_selection_sha256"]==proof["originals"][0]["identity_sha256"]
          and work["verifier_sha256"]==next(row["sha256"] for row in proof["recovery_consumer_inventory"]
               if row["path"]=="scripts/stage12_ra_g1_terminal_verify.py")
          and digest(tc.canonical(work))==lookup["workload"]["sha256"]
          and work["original_timed_acceptance_repaired"] is False,"DIRECT_PROOF")
+    if work["version"] == WORKLOAD_COVERAGE_VERSION:
+        need(work.get("original_allocation_version") == COVERAGE_ALLOCATION, "DIRECT_PROOF")
+        if work["proof"] is not None:
+            _coverage_workload_shape(work["proof"])
+            need(work["proof"]["complete"] is work["complete"], "DIRECT_PROOF")
+        else:
+            need(not work["complete"] and work["first_failure"] is not None, "DIRECT_PROOF")
+    elif work["proof"] is not None:
+        need(work["proof"].get("schema") != verifier.COVERAGE_VERSION, "DIRECT_PROOF")
     if work["complete"]:
         need(work["first_failure"] is None and work["proof"]["complete"] is True
              and work["status"]==work["proof"]["status"]=="FRESH_ORIGINAL_CONTENT_AND_TIMED_RECORDS_VERIFIED"

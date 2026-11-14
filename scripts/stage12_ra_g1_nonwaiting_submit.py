@@ -26,6 +26,11 @@ QUERY_STREAM_BYTES = 4096
 QUERY_RECORD_BYTES = 16384
 QUERY_CLEANUP_NS = 250000000
 QUERY_SPACING_NS = 120000000000
+# Prospective selected-B evidence contract. It changes neither the wire parser
+# nor any historical two-confirmation helper/artifact.
+FIRST_TERMINAL_POLICY = "stage12_first_complete_authoritative_terminal_v1"
+FIRST_TERMINAL_SCHEDULE = "stage12_b_first_complete_terminal_schedule_v1"
+QUALIFYING_TERMINAL_ROLE = "QUALIFYING_AUTHORITATIVE_TERMINAL_OBSERVATION"
 TERMINAL = frozenset(("COMPLETED", "FAILED", "CANCELLED", "TIMEOUT", "NODE_FAIL",
     "OUT_OF_MEMORY", "BOOT_FAIL", "DEADLINE", "PREEMPTED", "REVOKED"))
 ACTIVE = frozenset(("PENDING", "RUNNING", "CONFIGURING", "COMPLETING", "SUSPENDED",
@@ -208,6 +213,128 @@ class QueryParser:
             terminal=top[0] if top and status=="AUTHORITATIVE_TERMINAL" else None,
             all_completed_zero=status=="AUTHORITATIVE_TERMINAL" and all(r["state"]=="COMPLETED" and r["exit_code"]=="0:0" for r in rows),
             raw_sha256=hashlib.sha256(raw).hexdigest(), workload_or_scientific_acceptance=False)
+
+
+def validate_first_terminal_original(op, bound, *, job_id, nonce, source_sha,
+                                     selection_sha256, uid):
+    """Replay one complete selected query original, independently of its number.
+
+    Callers retain/read the immutable operation bytes and bind their full hash.
+    This validator establishes its semantic role only; driver closure and
+    scientific acceptance are separate requirements.
+    """
+    operation_keys = frozenset(('actual_client_exit', 'cleanup_deadline_mono_ns',
+        'cleanup_entry_mono_ns', 'cleanup_uncertain', 'completed_epoch_ns',
+        'completed_mono_ns', 'deadline_mono_ns', 'entered_epoch_ns',
+        'entered_mono_ns', 'facts', 'first_safe_error', 'joined', 'local_pid',
+        'observed_join_mono_ns', 'operation', 'persisted_timestamp_scope',
+        'read_calls', 'remote_endpoint_termination', 'reservation', 'signals',
+        'spawn_entered_mono_ns', 'spawn_returned_mono_ns', 'stderr_b64',
+        'stderr_bytes', 'stderr_eof', 'stderr_truncated', 'stdout_b64',
+        'stdout_bytes', 'stdout_eof', 'stdout_truncated', 'version',
+        'workload_or_scientific_acceptance'))
+    owner_keys = frozenset(('invocation_scope', 'job_id', 'logical_buffer_quote',
+        'maximum_read_bytes', 'maximum_read_calls', 'maximum_record_bytes',
+        'maximum_record_count', 'maximum_write_bytes', 'no_job_or_scientific_acceptance',
+        'nonce', 'query_bank', 'schedule', 'selection_sha256', 'source_sha',
+        'version', 'terminal_observation_policy', 'qualifying_operation_role'))
+    need(type(op) is dict and set(op) == operation_keys
+         and type(bound) is dict and set(bound) == owner_keys, "QUERY_CONFIG")
+    need(bound['version'] == 'stage12_b_terminal_observer_owner_v2'
+         and bound['terminal_observation_policy'] == FIRST_TERMINAL_POLICY
+         and bound['qualifying_operation_role'] == QUALIFYING_TERMINAL_ROLE
+         and bound['job_id'] == job_id and bound['nonce'] == nonce
+         and bound['source_sha'] == source_sha
+         and bound['selection_sha256'] == selection_sha256
+         and bound['invocation_scope'] == 'FIXED_ORIGINAL_B_SUBMISSION_ANCHOR_NO_RESET'
+         and bound['no_job_or_scientific_acceptance'] is True
+         and bound['query_bank'] == new_query_bank(normal_slots=16, cancellation_slots=0),
+         "QUERY_IDENTITY")
+    schedule = bound['schedule']
+    schedule_keys = frozenset(('version', 'anchor', 'entry_mono_ns', 'entry_epoch_ns',
+        'deadline_mono_ns', 'deadline_epoch_ns', 'absolute_window_end_epoch_ns',
+        'offset_seconds', 'maximum_observations', 'query_seconds', 'query_process_units',
+        'maximum_query_process_units', 'early_terminal_rule',
+        'last_selected_query_finish_offset_seconds', 'finalization_reserve_seconds',
+        'followon_and_review_reserved_seconds', 'queue_and_full_scheduler_risk',
+        'required_remaining_seconds',
+        'native_processing_seconds', 'native_scheduler_seconds',
+        'online_handoff_watch_seconds', 'terminal_observation_policy',
+        'qualifying_observation_role', 'fixed_confirmation_wait'))
+    need(type(schedule) is dict and set(schedule) == schedule_keys
+         and schedule.get('version') == FIRST_TERMINAL_SCHEDULE
+         and schedule.get('terminal_observation_policy') == FIRST_TERMINAL_POLICY
+         and schedule.get('qualifying_observation_role') == QUALIFYING_TERMINAL_ROLE
+         and schedule.get('fixed_confirmation_wait') is False
+         and 'final_authoritative_slots' not in schedule
+         and schedule['anchor'] == 'ORIGINAL_B_SUBMISSION_ENTRY_NOT_RESET'
+         and schedule['offset_seconds'] == list(range(0, 7801, 600)) + [8260, 8380]
+         and schedule['native_scheduler_seconds'] == 8400
+         and schedule['native_processing_seconds'] == 8160
+         and schedule['online_handoff_watch_seconds'] == 8400
+         and schedule['maximum_observations'] == 16 and schedule['query_seconds'] == 15
+         and schedule['query_process_units'] == 4 and schedule['maximum_query_process_units'] == 64
+         and schedule['followon_and_review_reserved_seconds'] == 2820
+         and schedule['required_remaining_seconds'] == 11220
+         and schedule['deadline_mono_ns'] - schedule['entry_mono_ns'] == 8400 * 10**9
+         and schedule['deadline_epoch_ns'] - schedule['entry_epoch_ns'] == 8400 * 10**9,
+         "QUERY_CONFIG")
+    need(op['version'] == QUERY_VERSION
+         and type(op['operation']) is str
+         and re.fullmatch(r'TERMINAL_QUERY_(?:0[1-9]|1[0-6])', op['operation'])
+         and type(op['actual_client_exit']) is int and op['actual_client_exit'] == 0
+         and op['joined'] is True and op['stdout_eof'] is True and op['stderr_eof'] is True
+         and op['stdout_truncated'] is False and op['stderr_truncated'] is False
+         and op['cleanup_uncertain'] is False and op['first_safe_error'] is None
+         and op['signals'] == [] and op['workload_or_scientific_acceptance'] is False
+         and op['persisted_timestamp_scope'] == 'BEFORE_QUERY_RECORD_FSYNC'
+         and op['remote_endpoint_termination'] == 'REPORTED_COMMAND_EXIT', "QUERY_EXIT")
+    for key in ('entered_mono_ns', 'completed_mono_ns', 'deadline_mono_ns',
+                'spawn_entered_mono_ns', 'spawn_returned_mono_ns', 'observed_join_mono_ns',
+                'cleanup_entry_mono_ns', 'cleanup_deadline_mono_ns', 'entered_epoch_ns',
+                'completed_epoch_ns', 'read_calls', 'stdout_bytes', 'stderr_bytes'):
+        need(type(op[key]) is int and op[key] >= 0, 'QUERY_TIME')
+    need(schedule['entry_mono_ns'] <= op['entered_mono_ns'] <= op['spawn_entered_mono_ns']
+         <= op['spawn_returned_mono_ns'] <= op['cleanup_entry_mono_ns']
+         <= op['observed_join_mono_ns'] <= op['completed_mono_ns']
+         <= op['cleanup_deadline_mono_ns'] <= op['deadline_mono_ns']
+         and op['completed_mono_ns'] < schedule['deadline_mono_ns']
+         and 0 < op['deadline_mono_ns'] - op['entered_mono_ns'] <= 15 * 10**9
+         and schedule['entry_epoch_ns'] <= op['entered_epoch_ns'] <= op['completed_epoch_ns']
+         < schedule['deadline_epoch_ns']
+         and op['read_calls'] <= QUERY_READ_ATTEMPTS, 'QUERY_TIME')
+    reservation = op['reservation']
+    need(type(reservation) is dict and set(reservation) == {
+        'version', 'entered_mono_ns', 'entered_epoch_ns', 'kind', 'ordinal'}
+        and reservation['version'] == BANK_VERSION and reservation['kind'] == 'NORMAL'
+        and type(reservation['ordinal']) is int and 1 <= reservation['ordinal'] <= 16
+        and reservation['entered_mono_ns'] == op['entered_mono_ns']
+        and reservation['entered_epoch_ns'] == op['entered_epoch_ns'], 'QUERY_CONFIG')
+    need(int(op['operation'][-2:]) == reservation['ordinal'], 'QUERY_CONFIG')
+    try:
+        raw = base64.b64decode(op['stdout_b64'], validate=True)
+        stderr = base64.b64decode(op['stderr_b64'], validate=True)
+    except (ValueError, TypeError):
+        raise Stop('QUERY_FRAME') from None
+    need(len(raw) == op['stdout_bytes'] <= QUERY_STREAM_BYTES
+         and len(stderr) == op['stderr_bytes'] <= QUERY_STREAM_BYTES, 'QUERY_OUTPUT_LIMIT')
+    parser = QueryParser(job_id, nonce, uid)
+    parser.feed(raw)
+    facts = parser.finish(op['actual_client_exit'])
+    need(facts['status'] == 'AUTHORITATIVE_TERMINAL' and type(op['facts']) is dict,
+         'NONTERMINAL')
+    for key in ('version', 'status', 'job_id', 'nonce', 'native_query_start_epoch_ns',
+                'observation_clock_scope', 'query_client_exit', 'rows', 'terminal',
+                'all_completed_zero', 'raw_sha256', 'workload_or_scientific_acceptance'):
+        need(op['facts'].get(key) == facts[key], 'QUERY_FRAME')
+    need(op['facts']['query_entered_mono_ns'] == op['entered_mono_ns']
+         and op['entered_mono_ns'] <= op['facts']['query_completed_mono_ns']
+         <= op['cleanup_entry_mono_ns']
+         and op['entered_epoch_ns'] <= op['facts']['observed_epoch_ns']
+         <= op['completed_epoch_ns'], 'QUERY_TIME')
+    return dict(semantic_role=QUALIFYING_TERMINAL_ROLE, policy=FIRST_TERMINAL_POLICY,
+        operation=op['operation'], facts=op['facts'], driver_closure='SEPARATELY_REQUIRED',
+        scientific_acceptance=False)
 
 BANK_VERSION = "stage12_selected_terminal_query_bank_v1"
 BANK_KEYS = frozenset(("version", "maximum", "normal_slots", "cancellation_slots",

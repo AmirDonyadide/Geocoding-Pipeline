@@ -239,11 +239,13 @@ def test_AP08_AP09_hard_FIFO_wins_and_periodic_credit_once():
     w.failed = threading.Event()
     w.thread = threading.current_thread()
     w.ap_credit = False
+    w.ap_pair_active = False
     order = []
     w.check_deadline = lambda: None
     w.storage_guard = lambda: None
     w.stop = lambda: None
     sample = NS(
+        fair_checkpoint_service=False,
         service=lambda: order.append("pair") or True,
         probe_cut=lambda: None,
         health=lambda: None,

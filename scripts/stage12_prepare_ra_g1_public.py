@@ -389,25 +389,28 @@ def compile_selection(
 def verify_representative(
     record: Any, report: bytes, manifest: bytes, source_sha: str
 ) -> None:
-    assurance.shape(
-        record,
-        dict(
-            schema_version="=" + OUTCOME,
-            scope="=REPRESENTATIVE_NO_SERVICE",
-            source_git_sha="G",
-            selection_sha256="D",
-            input_sha256="D",
-            artifact_manifest_sha256="D",
-            independent_report_sha256="D",
-            disposition="=PASS_COMPLETE_REPRESENTATIVE",
-            expected_attempts="=106",
-            maximum_attempts="=107",
-            scenarios_completed="=4",
-            actual_reopening="B",
-            sampling_and_monitor_coverage="=COMPLETE_SELECTED_SCOPE",
-            authority_attribution="=INDEPENDENT_AGENT_OUTCOME_NOT_HUMAN_OR_OPERATOR",
-        ),
-    )
+    if record.get("schema_version") == assurance.REP_COVERAGE_OUTCOME:
+        assurance.validate_rep_coverage_outcome(record)
+    else:
+        assurance.shape(
+            record,
+            dict(
+                schema_version="=" + OUTCOME,
+                scope="=REPRESENTATIVE_NO_SERVICE",
+                source_git_sha="G",
+                selection_sha256="D",
+                input_sha256="D",
+                artifact_manifest_sha256="D",
+                independent_report_sha256="D",
+                disposition="=PASS_COMPLETE_REPRESENTATIVE",
+                expected_attempts="=106",
+                maximum_attempts="=107",
+                scenarios_completed="=4",
+                actual_reopening="B",
+                sampling_and_monitor_coverage="=COMPLETE_SELECTED_SCOPE",
+                authority_attribution="=INDEPENDENT_AGENT_OUTCOME_NOT_HUMAN_OR_OPERATOR",
+            ),
+        )
     c.require(
         record["source_git_sha"] == source_sha
         and record["actual_reopening"] is True

@@ -16,13 +16,30 @@ def maximum_ack_age_ns(contract):
     """Only the real selected representative contract withdraws the age gate."""
     selected=sys.modules.get("safe_geocoding_pipeline.preprocessing.stages.s12_ra_g1_rep_ack_contract")
     fair=sys.modules.get("safe_geocoding_pipeline.preprocessing.stages.s12_ra_g1_rep_fair_contract")
-    if type(contract)is ModuleType and contract in (selected, fair):
-        contract.require(contract.PROFILE in ("stage12_transport_operations_rep_ack_queue_ra_g1_v1", "stage12_transport_operations_rep_fair_service_ra_g1_v1")
+    coverage=sys.modules.get("safe_geocoding_pipeline.preprocessing.stages.s12_ra_g1_rep_coverage_contract")
+    if type(contract)is ModuleType and contract in (selected, fair, coverage):
+        contract.require(contract.PROFILE in ("stage12_transport_operations_rep_ack_queue_ra_g1_v1", "stage12_transport_operations_rep_fair_service_ra_g1_v1", "stage12_transport_operations_rep_coverage_ra_g1_v1")
             and contract.POLICY["maximum_unacknowledged_age_ms"]is None
             and contract.POLICY_SHA==contract.digest(contract.POLICY))
         return None
     contract.require(contract.POLICY["maximum_unacknowledged_age_ms"]==500)
     return 500_000_000
+
+
+def positive_coverage_only(contract):
+    """Only the exact adopted family separates positive AP coverage gaps."""
+    selected = sys.modules.get(
+        "safe_geocoding_pipeline.preprocessing.stages.s12_ra_g1_rep_coverage_contract"
+    )
+    if type(contract) is ModuleType and contract is selected:
+        contract.require(
+            contract.AP_COVERAGE_ONLY is True
+            and contract.POLICY["positive_acquisition_gap_action"]
+            == "REPORT_COVERAGE_FAILURE"
+            and contract.POLICY_SHA == contract.digest(contract.POLICY)
+        )
+        return True
+    return False
 
 
 def count(value):
@@ -37,10 +54,13 @@ class Sampler:
     def __init__(self, coordinator):
         self.contract = coordinator.contract
         self.maximum_ack_age_ns = maximum_ack_age_ns(self.contract)
+        self.positive_coverage_only = positive_coverage_only(self.contract)
         self.fair_checkpoint_service = (
-            self.contract is sys.modules.get(
-                "safe_geocoding_pipeline.preprocessing.stages.s12_ra_g1_rep_fair_contract"
-            )
+            type(self.contract) is ModuleType
+            and any(self.contract is selected for selected in (
+                sys.modules.get("safe_geocoding_pipeline.preprocessing.stages.s12_ra_g1_rep_fair_contract"),
+                sys.modules.get("safe_geocoding_pipeline.preprocessing.stages.s12_ra_g1_rep_coverage_contract"),
+            ))
             and self.contract.POLICY["maximum_periodic_pairs_per_outer_checkpoint"] == 1
         )
         self.co = coordinator
@@ -98,6 +118,11 @@ class Sampler:
         self.close_failed = False
         self.maximum_gap = 0
         self.gaps = 0
+        # Distinct stale-observation episodes, rather than one event per poll.
+        # Fixed metadata never synthesizes observations or authorizes workload.
+        self.health_gap_count = 0
+        self.maximum_health_age = 0
+        self._health_gap_previous = None
         self.maximum_age = 0
         self.final_ack = None
         self.deadline_ns = self.clock.now_ns() + int(
@@ -252,7 +277,16 @@ class Sampler:
                 and now - self.last_observed > 100_000_000
             ):
                 self._retain_first_fault("ACQUISITION_GAP", predicate_origin="HEALTH_FRESHNESS", caller_context=caller_context, previous=self.last_observed, health_time=now)
-                self.fail("ACQUISITION_GAP")
+                if self.positive_coverage_only:
+                    if self._health_gap_previous != self.last_observed:
+                        self.health_gap_count += 1
+                        self._health_gap_previous = self.last_observed
+                else:
+                    self.fail("ACQUISITION_GAP")
+            if self.positive_coverage_only and self.failure is None and self.producer_closed is None:
+                self.maximum_health_age = max(
+                    self.maximum_health_age, now - self.last_observed
+                )
             for i, state in enumerate(self.states):
                 if (
                     state in (1, 2, 3)
@@ -493,7 +527,8 @@ class Sampler:
                     self.last_observed = observed
                     if gap < 0 or gap > 100_000_000:
                         self.gaps += 1
-                        self.fail("ACQUISITION_GAP")
+                        if gap < 0 or not self.positive_coverage_only:
+                            self.fail("ACQUISITION_GAP")
                     if final:
                         self.final_seq = self.ordinals[i]
                         self.final_observed = observed
@@ -794,6 +829,11 @@ class Sampler:
             failure=self.failure,
             result="INCOMPLETE" if self.failure else "COMPLETE",
         )
+        if self.positive_coverage_only:
+            body.update(
+                health_gap_count=self.health_gap_count,
+                maximum_health_age_ns=self.maximum_health_age,
+            )
         self.log.event("SAMPLING_CLOSE", body, closure=True)
         if time.monotonic() > end:
             self.fail("DRAIN_EXPIRED", "DRAIN")
@@ -811,6 +851,7 @@ def inspect(factory, profile, start, *, maximum_segments, contract=a):
     """
     a = contract
     ack_limit = maximum_ack_age_ns(a)
+    coverage_only = positive_coverage_only(a)
     results = []
     context = None
     previous = None
@@ -853,15 +894,25 @@ def inspect(factory, profile, start, *, maximum_segments, contract=a):
         known = close is not None
         n = s["n"]
         fault = s["fault"]
-        complete = (
+        workload_complete = (
             known
             and close["result"] == "COMPLETE"
             and fault is None
             and s["pending"] is None
             and s["final"] is not None
-            and s["gaps"] == 0
             and (ack_limit is None or s["lag"] <= ack_limit)
         )
+        coverage_complete = s["gaps"] == 0
+        health_gaps = close["health_gap_count"] if coverage_only and known else 0
+        maximum_health_age = close["maximum_health_age_ns"] if coverage_only and known else None
+        if coverage_only:
+            coverage_complete = coverage_complete and health_gaps == 0
+            if known:
+                a.require(
+                    health_gaps <= n + 1
+                    and
+                    (health_gaps == 0) == (maximum_health_age <= 100_000_000)
+                )
         if close:
             a.require(
                 close["policy_sha256"] == a.POLICY_SHA
@@ -877,13 +928,17 @@ def inspect(factory, profile, start, *, maximum_segments, contract=a):
                     "witnessed",
                 )
             ]
-            complete = complete and values == [n] * 5
+            workload_complete = workload_complete and values == [n] * 5
             a.require(
                 close["acquisition_head_sha256"] == s["head"]
                 and close["association_head_sha256"] == s["assoc"]
             )
             if close["result"] == "COMPLETE":
-                a.require(complete and close["failure"] is None)
+                a.require(
+                    workload_complete
+                    and (coverage_only or coverage_complete)
+                    and close["failure"] is None
+                )
                 a.require(
                     close["close_requested_mono_ns"]
                     <= close["cut_mono_ns"]
@@ -905,7 +960,8 @@ def inspect(factory, profile, start, *, maximum_segments, contract=a):
                     <= s["final_header"]
                 )
             else:
-                complete = False
+                workload_complete = False
+        complete = workload_complete and coverage_complete
         # Unknown volatile observations cannot be inferred as zero/exact total.
         exact = known and all(
             close[k]["value"] == n
@@ -958,9 +1014,16 @@ def inspect(factory, profile, start, *, maximum_segments, contract=a):
             maximum_outstanding_bytes=s["peak"] * 4096 if exact else None,
             acquisition_head_sha256=s["head"],
             association_head_sha256=s["assoc"],
-            failure=fault or (None if complete else "MISSING_TERMINAL"),
+            failure=fault or (None if workload_complete else "MISSING_TERMINAL"),
             complete=bool(complete),
         )
+        if coverage_only:
+            summary.update(
+                workload_complete=bool(workload_complete),
+                ap_coverage_complete=bool(complete),
+                health_gap_count=count(health_gaps) if known else {"value": None, "confirmed_min": 0},
+                maximum_health_age_ns=maximum_health_age,
+            )
         a.validate_type(summary, "SamplingSummary")
         return summary
 
@@ -1092,6 +1155,8 @@ def inspect(factory, profile, start, *, maximum_segments, contract=a):
                 and (later is None or v["observed_mono_ns"] <= later)
             )
             gap = v["observed_mono_ns"] - s["last_obs"]
+            if coverage_only:
+                a.require(gap >= 0)
             s["maxgap"] = max(s["maxgap"], gap)
             s["gaps"] += int(not 0 <= gap <= 100_000_000)
             s["last_obs"] = v["observed_mono_ns"]

@@ -368,6 +368,8 @@ def snapshot_evidence(
         from . import s12_wf_ap2_contract as o
     elif snapshot.get("schema_version") == "stage12_public_recovery_snapshot_ra_g1_v1":
         from . import s12_ra_g1_contract as o
+    elif snapshot.get("schema_version") == "stage12_representative_snapshot_coverage_ra_g1_v1":
+        from . import s12_ra_g1_rep_coverage_contract as o
     elif snapshot.get("schema_version") == "stage12_representative_snapshot_fair_service_ra_g1_v1":
         from . import s12_ra_g1_rep_fair_contract as o
     elif snapshot.get("schema_version") == "stage12_representative_snapshot_ack_queue_ra_g1_v1":
@@ -405,7 +407,7 @@ def snapshot_evidence(
             and snapshot["sampling_close_event_sha256"] == o.digest(close)
         )
         if snapshot["disposition"] in ("COMPLETED", "PAUSED_CLEAN"):
-            o.require(summaries[-1]["complete"])
+            o.require(summaries[-1]["workload_complete"] if getattr(o, "AP_COVERAGE_ONLY", False) else summaries[-1]["complete"])
     last = state["last_event"]
     o.require(
         state["closed"]
@@ -618,6 +620,7 @@ def write_snapshot(
                            "stage12_transport_operations_ra_g1_v1",
                            "stage12_transport_operations_rep_ack_queue_ra_g1_v1",
                            "stage12_transport_operations_rep_fair_service_ra_g1_v1",
+                           "stage12_transport_operations_rep_coverage_ra_g1_v1",
                        ) else {}),
                 ):
                     o.require(validate(len(raw), revalidate=True) == prepared)
@@ -682,6 +685,8 @@ def clean_continuation(
         from . import s12_wf_ap2_contract as o
     elif profile.get("schema_version") == "stage12_transport_operations_ra_g1_v1":
         from . import s12_ra_g1_contract as o
+    elif profile.get("schema_version") == "stage12_transport_operations_rep_coverage_ra_g1_v1":
+        from . import s12_ra_g1_rep_coverage_contract as o
     elif profile.get("schema_version") == "stage12_transport_operations_rep_fair_service_ra_g1_v1":
         from . import s12_ra_g1_rep_fair_contract as o
     elif profile.get("schema_version") == "stage12_transport_operations_rep_ack_queue_ra_g1_v1":
@@ -772,7 +777,7 @@ def clean_continuation(
             maximum_segments=plan["sampling_budget"]["maximum_segments"],
             contract=o,
         )
-        o.require(all(x["complete"] for x in summaries))
+        o.require(all(x["workload_complete"] if getattr(o, "AP_COVERAGE_ONLY", False) else x["complete"] for x in summaries))
     state = replay(event_factory(), contract=o)
     o.require(
         state["closed"] and not state["unfinished"] and state["breaker_reason"] is None

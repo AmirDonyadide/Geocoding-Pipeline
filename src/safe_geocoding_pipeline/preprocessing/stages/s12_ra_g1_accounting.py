@@ -21,6 +21,7 @@ REP512_VERSION = "stage12_ra_g1_rep_first64_512_accounting_inventory_v1"
 REP_FOREGROUND_VERSION = "stage12_ra_g1_rep_foreground_accounting_inventory_v1"
 REP_ACK_VERSION = "stage12_ra_g1_rep_ack_queue_accounting_inventory_v1"
 REP_FAIR_VERSION = "stage12_ra_g1_rep_fair_service_accounting_inventory_v1"
+REP_COVERAGE_VERSION = "stage12_ra_g1_rep_coverage_accounting_inventory_v1"
 FOREGROUND_MAX_BYTES = 2**20
 FOREGROUND_EXTRA_SNAPSHOT_BYTES = 4096
 FOREGROUND_MEMBERS = (
@@ -47,6 +48,12 @@ REP_ACK_FOREGROUND_MEMBERS = tuple(
 )
 REP_FAIR_FOREGROUND_MEMBERS = tuple(
     (module, "src/safe_geocoding_pipeline/preprocessing/stages/s12_ra_g1_rep_fair_contract.py"
+     if module == "RA_CONTRACT" else relative)
+    for module, relative in FOREGROUND_MEMBERS
+)
+
+REP_COVERAGE_FOREGROUND_MEMBERS = tuple(
+    (module, "src/safe_geocoding_pipeline/preprocessing/stages/s12_ra_g1_rep_coverage_contract.py"
      if module == "RA_CONTRACT" else relative)
     for module, relative in FOREGROUND_MEMBERS
 )
@@ -792,14 +799,15 @@ def validate_inventory(inventory: Any) -> dict[str, Any]:
     expected, _ = compile_inventory(
         inventory["sources"], inventory["backends"], inventory["scope"],
         bootstrap_successor=(inventory.get("schema_version") == BOOTSTRAP_VERSION
-            or inventory.get("schema_version") in (SHARED_LEASE_VERSION, REP_ADMIN_VERSION, REP512_VERSION, REP_FOREGROUND_VERSION, REP_ACK_VERSION, REP_FAIR_VERSION)
+            or inventory.get("schema_version") in (SHARED_LEASE_VERSION, REP_ADMIN_VERSION, REP512_VERSION, REP_FOREGROUND_VERSION, REP_ACK_VERSION, REP_FAIR_VERSION, REP_COVERAGE_VERSION)
             and inventory.get("bootstrap_proof_record_count") == 3),
-        shared_lease_successor=inventory.get("schema_version") in (SHARED_LEASE_VERSION, REP_ADMIN_VERSION, REP512_VERSION, REP_FOREGROUND_VERSION, REP_ACK_VERSION, REP_FAIR_VERSION),
-        rep_admin_successor=inventory.get("schema_version") in (REP_ADMIN_VERSION, REP512_VERSION, REP_FOREGROUND_VERSION, REP_ACK_VERSION, REP_FAIR_VERSION),
-        first64_512_successor=inventory.get("schema_version") in (REP512_VERSION, REP_FOREGROUND_VERSION, REP_ACK_VERSION, REP_FAIR_VERSION),
-        foreground_successor=inventory.get("schema_version") in (REP_FOREGROUND_VERSION, REP_ACK_VERSION, REP_FAIR_VERSION),
+        shared_lease_successor=inventory.get("schema_version") in (SHARED_LEASE_VERSION, REP_ADMIN_VERSION, REP512_VERSION, REP_FOREGROUND_VERSION, REP_ACK_VERSION, REP_FAIR_VERSION, REP_COVERAGE_VERSION),
+        rep_admin_successor=inventory.get("schema_version") in (REP_ADMIN_VERSION, REP512_VERSION, REP_FOREGROUND_VERSION, REP_ACK_VERSION, REP_FAIR_VERSION, REP_COVERAGE_VERSION),
+        first64_512_successor=inventory.get("schema_version") in (REP512_VERSION, REP_FOREGROUND_VERSION, REP_ACK_VERSION, REP_FAIR_VERSION, REP_COVERAGE_VERSION),
+        foreground_successor=inventory.get("schema_version") in (REP_FOREGROUND_VERSION, REP_ACK_VERSION, REP_FAIR_VERSION, REP_COVERAGE_VERSION),
         ack_queue_successor=inventory.get("schema_version") == REP_ACK_VERSION,
-        fair_service_successor=inventory.get("schema_version") == REP_FAIR_VERSION,
+        fair_service_successor=inventory.get("schema_version") in (REP_FAIR_VERSION, REP_COVERAGE_VERSION),
+        coverage_successor=inventory.get("schema_version") == REP_COVERAGE_VERSION,
     )
     need(inventory == expected, "RA_G1_ACCOUNTING_CHANGED")
     return dict(inventory)
@@ -943,8 +951,10 @@ def compile_inventory(sources: Any, backends: Any, scope: str, *,
                        first64_512_successor: bool = False,
                       foreground_successor: bool = False,
                       ack_queue_successor: bool = False,
-                      fair_service_successor: bool = False) -> tuple[dict[str, Any], Any]:
+                      fair_service_successor: bool = False,
+                      coverage_successor: bool = False) -> tuple[dict[str, Any], Any]:
     """Explicit current writer primitive; historical grammars remain unchanged."""
+    need(not coverage_successor or fair_service_successor, "RA_G1_ACCOUNTING_SCOPE")
     need(not (ack_queue_successor and fair_service_successor), "RA_G1_ACCOUNTING_SCOPE")
     need(not (ack_queue_successor or fair_service_successor) or foreground_successor, "RA_G1_ACCOUNTING_SCOPE")
     need(not first64_512_successor or rep_admin_successor, "RA_G1_ACCOUNTING_SCOPE")
@@ -1013,7 +1023,7 @@ def compile_inventory(sources: Any, backends: Any, scope: str, *,
         inventory["proof_count"]["cost_rows"] = len(inventory["cost_rows"])
     if foreground_successor:
         selected = {row["path"]: row for row in inventory["sources"]}
-        source_members = REP_FAIR_FOREGROUND_MEMBERS if fair_service_successor else REP_ACK_FOREGROUND_MEMBERS if ack_queue_successor else FOREGROUND_MEMBERS
+        source_members = REP_COVERAGE_FOREGROUND_MEMBERS if coverage_successor else REP_FAIR_FOREGROUND_MEMBERS if fair_service_successor else REP_ACK_FOREGROUND_MEMBERS if ack_queue_successor else FOREGROUND_MEMBERS
         need(all(path in selected for _, path in source_members), "RA_G1_ACCOUNTING_FOREGROUND_SOURCES")
         members = [dict(module_id=module, **selected[path]) for module, path in source_members]
         size = add(*(row["bytes"] for row in members))
@@ -1045,14 +1055,16 @@ def compile_inventory(sources: Any, backends: Any, scope: str, *,
             native_memory_assurance="EXISTING_RA_G1_SCOPED_MONITORING_NOT_HARD_CONTAINMENT")
         inventory["proof_count"]["cost_rows"] = len(inventory["cost_rows"])
     if ack_queue_successor or fair_service_successor:
-        if fair_service_successor:
+        if coverage_successor:
+            from . import s12_ra_g1_rep_coverage_contract as contract
+        elif fair_service_successor:
             from . import s12_ra_g1_rep_fair_contract as contract
         else:
             from . import s12_ra_g1_rep_ack_contract as contract
-        inventory["schema_version"] = REP_FAIR_VERSION if fair_service_successor else REP_ACK_VERSION
-        inventory["graph_id"] += "_FAIR_OUTER_CHECKPOINT_SERVICE" if fair_service_successor else "_ACK_QUEUE_NO500MS_ACCEPTANCE"
-        inventory["rep_fair_policy_sha256" if fair_service_successor else "rep_ack_policy_sha256"] = contract.POLICY_SHA
-        adoption_component = "REP_FAIR_ADOPTION" if fair_service_successor else "REP_ACK_ADOPTION"
+        inventory["schema_version"] = REP_COVERAGE_VERSION if coverage_successor else REP_FAIR_VERSION if fair_service_successor else REP_ACK_VERSION
+        inventory["graph_id"] += "_AP_COVERAGE_DIRECT_SAFETY" if coverage_successor else "_FAIR_OUTER_CHECKPOINT_SERVICE" if fair_service_successor else "_ACK_QUEUE_NO500MS_ACCEPTANCE"
+        inventory["rep_coverage_policy_sha256" if coverage_successor else "rep_fair_policy_sha256" if fair_service_successor else "rep_ack_policy_sha256"] = contract.POLICY_SHA
+        adoption_component = "REP_COVERAGE_ADOPTION" if coverage_successor else "REP_FAIR_ADOPTION" if fair_service_successor else "REP_ACK_ADOPTION"
         # One additional exact adoption original follows every unchanged
         # REP512 adoption start/reopening pass, inside existing stage reserves.
         for row in list(inventory["cost_rows"]):
@@ -1138,6 +1150,41 @@ def compile_inventory(sources: Any, backends: Any, scope: str, *,
             logical_pair_active_scalar_bytes=8,
             temporary_object_native_overhead="RA_G1_SCOPED_ASSURANCE_NOT_PROVEN_NATIVE_BOUND",
             sample_ACK_witness_and_retirement="EXISTING_PER_OBSERVATION_COST_ROWS_NO_DUPLICATE_IO_CHARGE")
+    if coverage_successor:
+        control = stream_bound(CONTROL_MAX)
+        kernel = stream_bound(KERNEL_MAX)
+        for phase, maximum_attempts in enumerate((320, 160, 40, 15), 1):
+            # Exactly two additional direct guard sets per actual attempt:
+            # start and final emission. This conservatively uses each selected
+            # phase's full attempt budget, not the106 expected/107 global cap.
+            checks = 2 * maximum_attempts
+            for component, originals, item in (
+                ("REP_COVERAGE_DIRECT_AUTHORITY_AND_CAPACITY_ORIGINALS", checks * 18, control),
+                ("REP_COVERAGE_DIRECT_CURRENT_KERNEL_ORIGINALS", checks * 6, kernel),
+            ):
+                per_checks = 3 * item["read_calls"] + 2
+                inventory["cost_rows"].append(dict(stage_id=phase, component=component,
+                    invocations=originals, per_invocation_read_calls=item["read_calls"],
+                    per_invocation_read_bytes=item["read_bytes"], per_invocation_checks=per_checks,
+                    original_read_calls=mul(originals,item["read_calls"]),
+                    original_read_bytes=mul(originals,item["read_bytes"]),
+                    check_calls=mul(originals,per_checks),
+                    basis="START_AND_EMISSION_FRESH_DISPATCH11_PLUS_PREWRITE7_CANONICAL_ORIGINALS_AND6_KERNEL_RECORDS_POSITIVE_ONE_BYTE_EOF"))
+            inventory["cost_rows"].append(dict(stage_id=phase,
+                component="REP_COVERAGE_DIRECT_BARRIER_CAPACITY_STATE_AND_STORAGE_PREDICATES",
+                invocations=checks, per_invocation_read_calls=0, per_invocation_read_bytes=0,
+                per_invocation_checks=65536, original_read_calls=0, original_read_bytes=0,
+                check_calls=mul(checks,65536),
+                basis="STRICT_DURABLE_ADMIN_BARRIER_CLOCK_THRESHOLDS_CURRENT_CAPACITY_STATVFS_RESERVATION_PENDING_STATE_STORAGE_NO_NEW_MONITOR_ACQUISITION_OR_FULLTREE_PASS"))
+    if coverage_successor:
+        inventory["rep_ap_coverage"] = dict(coverage_fail_stop_withdrawn=True, acquisition_bound_ns=100000000,
+            direct_safety_checks="ADMISSION_START_EMISSION_FRESH",
+            retained_scalar_and_first_fault_bytes=1024,
+            new_observation_event_or_file_count=0,
+            summary_bytes="WITHIN_EXISTING_FULL_1MIB_ORIGINAL_AND_READ_RESERVATION",
+            native_memory_assurance="EXISTING_RA_G1_SCOPED_NOT_A_NATIVE_OBJECT_BOUND")
+    if coverage_successor:
+        inventory["proof_count"]["cost_rows"] = len(inventory["cost_rows"])
     for stage in inventory["stage_accounting"]:
         own = [r for r in inventory["cost_rows"] if r["stage_id"] == stage["stage_id"]]
         stage.update(
@@ -1159,7 +1206,19 @@ def descriptor(*, bootstrap_successor: bool = False,
                first64_512_successor: bool = False,
                foreground_successor: bool = False,
                ack_queue_successor: bool = False,
-                      fair_service_successor: bool = False) -> dict[str, Any]:
+                      fair_service_successor: bool = False,
+                      coverage_successor: bool = False) -> dict[str, Any]:
+    if coverage_successor:
+        need(fair_service_successor and not ack_queue_successor and foreground_successor and first64_512_successor, "RA_G1_ACCOUNTING_SCOPE")
+        from . import s12_ra_g1_rep_coverage_contract as contract
+        value = descriptor(first64_512_successor=True, foreground_successor=True, fair_service_successor=True)
+        return {**value, "descriptor_version": REP_COVERAGE_VERSION,
+            "outer_fields": [key for key in value["outer_fields"] if key != "rep_fair_policy_sha256"] + ["rep_coverage_policy_sha256", "rep_ap_coverage"],
+            "source_map_members": [dict(module_id=m,path=p) for m,p in REP_COVERAGE_FOREGROUND_MEMBERS],
+            "sampling_policy_sha256": contract.POLICY_SHA,
+            "AP_coverage": "POSITIVE_GAPS_REPORTED_WITH_ACTUAL_OPERANDS_WORKLOAD_EVIDENCE_SEPARATE",
+            "direct_safety": "FRESH_ADMISSION_START_EMISSION_AUTHORITY_CAPACITY_STORAGE_STATE_AND_STRICT_ADMIN_BARRIER",
+            "historical_families": "UNCHANGED_STRICT"}
     if fair_service_successor:
         need(not ack_queue_successor and foreground_successor and first64_512_successor, "RA_G1_ACCOUNTING_SCOPE")
         from . import s12_ra_g1_rep_fair_contract as contract

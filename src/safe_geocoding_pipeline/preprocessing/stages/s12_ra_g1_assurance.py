@@ -171,7 +171,9 @@ REP_ACK_SELECTION = "stage12_resource_selection_rep_ack_queue_ra_g1_v1"
 REP_ACK_ADOPTION = "stage12_rep_ack_queue_policy_adoption_v1"
 REP_FAIR_SELECTION = "stage12_resource_selection_rep_fair_service_ra_g1_v1"
 REP_FAIR_ADOPTION = "stage12_rep_fair_service_policy_adoption_v1"
-REP512_SELECTIONS = (REP512_SELECTION, REP_FOREGROUND_SELECTION, REP_ACK_SELECTION, REP_FAIR_SELECTION)
+REP_COVERAGE_SELECTION = "stage12_resource_selection_rep_coverage_ra_g1_v1"
+REP_COVERAGE_ADOPTION = "stage12_rep_coverage_policy_adoption_v1"
+REP512_SELECTIONS = (REP512_SELECTION, REP_FOREGROUND_SELECTION, REP_ACK_SELECTION, REP_FAIR_SELECTION, REP_COVERAGE_SELECTION)
 REP_ADMIN_SELECTIONS = (REP_ADMIN_SELECTION, *REP512_SELECTIONS)
 REP512_SELECTION_SCHEMA = {
     **REP_ADMIN_SELECTION_SCHEMA, "schema_version": "=" + REP512_SELECTION,
@@ -215,6 +217,70 @@ REP_FAIR_ADOPTION_SCHEMA = {
     "pair_active_through_credit_retirement": "B",
     "original_action_deadline_preserved": "B",
 }
+
+
+REP_COVERAGE_SELECTION_SCHEMA = {
+    **REP_FOREGROUND_SELECTION_SCHEMA, "schema_version": "=" + REP_COVERAGE_SELECTION,
+    "rep_coverage_policy_sha256": "D", "rep_coverage_policy_adoption_sha256": "D",
+}
+REP_COVERAGE_ADOPTION_SCHEMA = {
+    **REP_FAIR_ADOPTION_SCHEMA, "schema_version": "=" + REP_COVERAGE_ADOPTION,
+    "prior_policy_sha256": "D", "positive_AP_gap_fail_stop_withdrawn": "B",
+    "coverage_limit_ms": "U", "workload_evidence_and_AP_coverage_separate": "B",
+    "direct_admission_start_emission_checks": "B", "administrative_monitor_limit_ms": "U",
+    "historical_strict_families_preserved": "B",
+}
+
+
+REP_COVERAGE_OUTCOME = "stage12_ra_g1_representative_coverage_independent_outcome_v1"
+REP_COVERAGE_OUTCOME_SCHEMA = {
+    "schema_version": "=" + REP_COVERAGE_OUTCOME,
+    "scope": "=REPRESENTATIVE_NO_SERVICE", "source_git_sha": "G",
+    "selection_sha256": "D", "input_sha256": "D", "artifact_manifest_sha256": "D",
+    "independent_report_sha256": "D", "disposition": "=PASS_COMPLETE_REPRESENTATIVE_WORKLOAD",
+    "expected_attempts": "=106", "maximum_attempts": "=107", "scenarios_completed": "=4",
+    "actual_reopening": "B", "workload_evidence_complete": "B",
+    "ap_coverage_status": {"enum": ["COMPLETE", "INCOMPLETE"]},
+    "administrative_monitor_coverage": "=COMPLETE_SELECTED_SCOPE",
+    "sampling_policy_version": "=stage12_representative_sampling_policy_coverage_ra_g1_v1",
+    "sampling_policy_sha256": "D",
+    "authority_attribution": "=INDEPENDENT_AGENT_OUTCOME_NOT_HUMAN_OR_OPERATOR",
+}
+
+
+def validate_rep_coverage_outcome(value):
+    """Conditional-public recognition only; never issues workload authority."""
+    from . import s12_ra_g1_rep_coverage_contract as contract
+    shape(value, REP_COVERAGE_OUTCOME_SCHEMA)
+    c.require(value["workload_evidence_complete"] is True
+        and value["actual_reopening"] is True
+        and value["sampling_policy_sha256"] == contract.POLICY_SHA,
+        "RA_G1_REPRESENTATIVE_RELEASE_REQUIRED")
+    return value
+
+
+def validate_rep_coverage_adoption(value, selected):
+    from . import s12_ra_g1_rep_coverage_contract as contract
+    from . import s12_ra_g1_rep_fair_contract as prior
+    shape(value, REP_COVERAGE_ADOPTION_SCHEMA)
+    c.require(value["prospective_only"] is True and value["actual_ack_age_retained"] is True
+        and value["withdrawn_maximum_ack_age_ms"] == 500
+        and value["maximum_outstanding_observations"] == 16
+        and value["maximum_writer_action_ms"] == value["maximum_close_ms"] == 5000
+        and value["old_fairness_assertions_withdrawn"] is True
+        and value["maximum_pairs_per_outer_checkpoint"] == 1
+        and value["pair_active_through_credit_retirement"] is True
+        and value["original_action_deadline_preserved"] is True
+        and value["prior_policy_sha256"] == prior.POLICY_SHA
+        and value["positive_AP_gap_fail_stop_withdrawn"] is True
+        and value["coverage_limit_ms"] == 100
+        and value["workload_evidence_and_AP_coverage_separate"] is True
+        and value["direct_admission_start_emission_checks"] is True
+        and value["administrative_monitor_limit_ms"] == 1000
+        and value["historical_strict_families_preserved"] is True
+        and value["policy_sha256"] == contract.POLICY_SHA == selected["rep_coverage_policy_sha256"]
+        and old.digest(value) == selected["rep_coverage_policy_adoption_sha256"], "RA_G1_SELECTION_BINDING")
+    return value
 
 
 def validate_rep_fair_adoption(value, selected):
@@ -575,7 +641,8 @@ def validate_scope_ceilings(record: Any) -> None:
 
 
 def validate_selection(record: Any) -> Any:
-    shape(record, REP_FAIR_SELECTION_SCHEMA if record.get("schema_version") == REP_FAIR_SELECTION
+    shape(record, REP_COVERAGE_SELECTION_SCHEMA if record.get("schema_version") == REP_COVERAGE_SELECTION
+          else REP_FAIR_SELECTION_SCHEMA if record.get("schema_version") == REP_FAIR_SELECTION
           else REP_ACK_SELECTION_SCHEMA if record.get("schema_version") == REP_ACK_SELECTION
           else REP_FOREGROUND_SELECTION_SCHEMA if record.get("schema_version") == REP_FOREGROUND_SELECTION
           else REP512_SELECTION_SCHEMA if record.get("schema_version") in REP512_SELECTIONS
@@ -595,6 +662,9 @@ def validate_selection(record: Any) -> Any:
     if record["schema_version"] == REP_FAIR_SELECTION:
         from . import s12_ra_g1_rep_fair_contract as contract
         c.require(record["rep_fair_policy_sha256"] == contract.POLICY_SHA, "RA_G1_SELECTION_BINDING")
+    if record["schema_version"] == REP_COVERAGE_SELECTION:
+        from . import s12_ra_g1_rep_coverage_contract as contract
+        c.require(record["rep_coverage_policy_sha256"] == contract.POLICY_SHA, "RA_G1_SELECTION_BINDING")
     c.require(record["valid_from"] < record["valid_until"], "RA_G1_EXPIRED")
     limits = record["limits"]
     validate_scope_ceilings(record)
@@ -817,6 +887,8 @@ def verify_runtime(record: Any, authority: Any, context: Any) -> Any:
         c.require((selected["schema_version"]==REP_ACK_SELECTION)==ack_profile,"RA_G1_SELECTION_BINDING")
         fair_profile = context["profile"].get("schema_version") == "stage12_transport_operations_rep_fair_service_ra_g1_v1"
         c.require((selected["schema_version"] == REP_FAIR_SELECTION) == fair_profile, "RA_G1_SELECTION_BINDING")
+        coverage_profile = context["profile"].get("schema_version") == "stage12_transport_operations_rep_coverage_ra_g1_v1"
+        c.require((selected["schema_version"] == REP_COVERAGE_SELECTION) == coverage_profile, "RA_G1_SELECTION_BINDING")
     limits = [
         facts[key]["value"]
         for key in ("memory_max_bytes", "memory_high_bytes")

@@ -348,25 +348,28 @@ def verify_launch_gate(selection, read):
         return value
 
     outcome = parse(raw("representative_outcome"))
-    a.shape(
-        outcome,
-        dict(
-            schema_version="=stage12_ra_g1_representative_independent_outcome_v1",
-            scope="=REPRESENTATIVE_NO_SERVICE",
-            source_git_sha="G",
-            selection_sha256="D",
-            input_sha256="D",
-            artifact_manifest_sha256="D",
-            independent_report_sha256="D",
-            disposition="=PASS_COMPLETE_REPRESENTATIVE",
-            expected_attempts="=106",
-            maximum_attempts="=107",
-            scenarios_completed="=4",
-            actual_reopening="B",
-            sampling_and_monitor_coverage="=COMPLETE_SELECTED_SCOPE",
-            authority_attribution="=INDEPENDENT_AGENT_OUTCOME_NOT_HUMAN_OR_OPERATOR",
-        ),
-    )
+    if outcome.get("schema_version") == a.REP_COVERAGE_OUTCOME:
+        a.validate_rep_coverage_outcome(outcome)
+    else:
+        a.shape(
+            outcome,
+            dict(
+                schema_version="=stage12_ra_g1_representative_independent_outcome_v1",
+                scope="=REPRESENTATIVE_NO_SERVICE",
+                source_git_sha="G",
+                selection_sha256="D",
+                input_sha256="D",
+                artifact_manifest_sha256="D",
+                independent_report_sha256="D",
+                disposition="=PASS_COMPLETE_REPRESENTATIVE",
+                expected_attempts="=106",
+                maximum_attempts="=107",
+                scenarios_completed="=4",
+                actual_reopening="B",
+                sampling_and_monitor_coverage="=COMPLETE_SELECTED_SCOPE",
+                authority_attribution="=INDEPENDENT_AGENT_OUTCOME_NOT_HUMAN_OR_OPERATOR",
+            ),
+        )
     report, manifest = (
         raw("representative_report", ".md"),
         raw("representative_manifest", ".manifest"),

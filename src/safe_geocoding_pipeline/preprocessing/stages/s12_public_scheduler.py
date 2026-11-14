@@ -488,6 +488,8 @@ class Coordinator:
         if (
             sampler.failure is not None
             or (
+                not getattr(sampler, "positive_coverage_only", False)
+                and
                 sampler.producer_closed is None
                 and now - self.last_sample_ns > 100_000_000
             )
@@ -504,6 +506,70 @@ class Coordinator:
             self.measurement_failed = True
             return False
         return True
+
+    def _coverage_current_state(self, slot=None):
+        """Read live owned state, never the last periodic AP snapshot.
+
+        The selected successor cannot replace admission/reservation safety with
+        a stale observation. Called under safety after any waiting interface.
+        """
+        if not self.ap_enabled or not getattr(self.ap_sampler, "positive_coverage_only", False):
+            return
+        current = self._ap_hard_state()
+        self.contract.require(
+            current["connection_slots"] <= self.selected["connections"]
+            and current["admitted_operations"] <= self.capacity
+            and current["pending_count"] <= 2 * self.capacity
+            and current["pending_bytes"] <= self.resources["pending_request_bytes"]
+            and current["reserved_bytes"] <= self.resources["admission_memory_bytes"]
+            and (slot is None or (
+                self.slots.get(slot.key) is slot and self._state_allows(slot.pending)
+            )),
+            "S12_PUBLIC_OPERATIONS_INVALID",
+        )
+
+    def _coverage_direct_checks(self, slot):
+        """Fresh source/authority, resource ACK, and storage checks at use.
+
+        These can block and therefore run outside safety. The caller repeats
+        owned state/stop/slot checks under safety immediately afterwards.
+        Historical policies keep their original call graph unchanged.
+        """
+        if not self.ap_enabled or not getattr(self.ap_sampler, "positive_coverage_only", False):
+            return
+        pending = slot.pending
+        self._time_gate()
+        with self.safety:
+            selected = self.selected
+            self._coverage_current_state(slot)
+        self.authority.require(
+            "dispatch", self.start["initial_workload_authority_sha256"],
+            {"work": pending.work, "attempt": pending.attempt, "state": selected},
+        )
+        available = self.free_bytes()
+        self.journal.check_storage(
+            self.resources["per_attempt_disk_bound_bytes"]
+            + self.resources["fixed_campaign_disk_bound_bytes"]
+        )
+        self.contract.require(
+            available >= self.resources["per_attempt_disk_bound_bytes"] + 1342177280,
+            "PUBLIC_PROBE_EVIDENCE_WRITE_FAILED",
+        )
+        barrier = getattr(self.authority, "resource_prewrite", None)
+        self.contract.require(callable(barrier), "RA_G1_RESOURCE_BARRIER_REQUIRED")
+        # The selected authority ends this check with its durable administrative
+        # barrier, after capacity/binding I/O. It is the final waiting boundary.
+        barrier(next_write_bytes=self.resources["per_attempt_disk_bound_bytes"], next_creations=1)
+        with self.safety:
+            self._coverage_current_state(slot)
+            self.contract.require(selected == self.selected, "S12_PUBLIC_OPERATIONS_INVALID")
+
+    def _coverage_final_resources(self):
+        if not self.ap_enabled or not getattr(self.ap_sampler, "positive_coverage_only", False):
+            return
+        current = getattr(self.authority, "resource_current", None)
+        self.contract.require(callable(current), "RA_G1_RESOURCE_BARRIER_REQUIRED")
+        current(next_write_bytes=self.resources["per_attempt_disk_bound_bytes"], next_creations=1)
 
     def audit_failed(self) -> None:
         with self.safety:
@@ -988,6 +1054,7 @@ class Coordinator:
         with self.mutation:
             with self.safety:
                 now = self.clock.now_ns()
+                self._coverage_current_state()
                 if (
                     not self._sampling_gate()
                     or self.ap_cut_granted
@@ -1133,7 +1200,10 @@ class Coordinator:
             return slot
 
     def started(self, slot: Slot, mono_ns: int) -> None:
+        self._coverage_direct_checks(slot)
+        self._coverage_final_resources()
         with self.safety:
+            self._coverage_current_state(slot)
             if (
                 not self._sampling_gate()
                 or self.ap_cut_granted
@@ -1196,7 +1266,8 @@ class Coordinator:
                         raise c.Stage12Error("TIMEOUT")
                     if now >= due and not blocked:
                         self._time_gate()
-                        slot.committed_ns = now
+                        if not (self.ap_enabled and getattr(self.ap_sampler, "positive_coverage_only", False)):
+                            slot.committed_ns = now
                         break
                 if blocked:
                     self.wake.wait(
@@ -1205,14 +1276,48 @@ class Coordinator:
                     self.wake.clear()
                 else:
                     self.clock.wait_until(min(due, self.next_wakeup_ns()))
+            if self.ap_enabled and getattr(self.ap_sampler, "positive_coverage_only", False):
+                with self.safety:
+                    self._coverage_current_state(slot)
+                    if (
+                        not self._sampling_gate() or self.ap_cut_granted
+                        or self.stop_reason or self.safety_barriers
+                        or any(s.ticket is not None for s in self.slots.values())
+                        or self.clock.now_ns() < max(self.cooldown_until, self.next_emit_ns)
+                    ):
+                        self._unknown(slot)
+                    self._time_gate()
+                    if self.clock.now_ns() - slot.started_ns >= 60_000_000_000:
+                        raise c.Stage12Error("TIMEOUT")
+                    slot.committed_ns = self.clock.now_ns()
             self.journal.event(
                 "EMIT_COMMITTED",
                 {**slot.identity(), "committed_mono_ns": slot.committed_ns},
             )
             entered, returned, result = None, None, "WRITE_FAILED"
             try:
+                if self.ap_enabled and getattr(self.ap_sampler, "positive_coverage_only", False):
+                    # EMIT_COMMITTED is durable intent, not permission to send
+                    # after a failure during that writer turn. Run the already
+                    # selected direct checks after it, then inspect owned state
+                    # once more immediately before the actual write callback.
+                    self._coverage_direct_checks(slot)
                 check_deadline()
                 self._time_gate()
+                if self.ap_enabled and getattr(self.ap_sampler, "positive_coverage_only", False):
+                    self._coverage_final_resources()
+                    with self.safety:
+                        self._coverage_current_state(slot)
+                        if (
+                            not self._sampling_gate() or self.ap_cut_granted
+                            or self.stop_reason or self.writer.failed.is_set()
+                            or self.safety_barriers
+                            or any(s.ticket is not None for s in self.slots.values())
+                            or self.clock.now_ns() < self.cooldown_until
+                        ):
+                            self._unknown(slot)
+                        if self.clock.now_ns() - slot.started_ns >= 60_000_000_000:
+                            raise c.Stage12Error("TIMEOUT")
                 entered = self.clock.now_ns()
                 slot.emitted_ns = entered
                 write()
