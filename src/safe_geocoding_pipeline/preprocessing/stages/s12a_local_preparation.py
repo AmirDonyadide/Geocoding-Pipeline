@@ -8,6 +8,7 @@ The witness interpretation is UNKNOWN throughout; memberships are diagnostics.
 from __future__ import annotations
 
 import json
+import hashlib
 import os
 from pathlib import Path
 import shutil
@@ -31,6 +32,46 @@ OWNER_INSTRUCTION_SHA256 = (
     "1d829225cac40dac81a6a6017021b0f439ba0eb3de32d4e7a03e62211d6167e9"
 )
 VALIDATED_PAYLOAD_BYTES = 1500838085
+OPERATING_POLICY = "stage12a_operating_43200_v1"
+PROGRESS_VERSION = "stage12a_fixed_boundary_progress_v1"
+MAX_PROGRESS_BYTES = 32 * 512
+OPERATING_DECISION_SHA256 = (
+    "8f15787a2b40599aef6d2a82a5ec975b108a42c01100e16d5b500e89ebb5037d"
+)
+PROGRESS_LABELS = (
+    "ACCEPTED_INPUT_PASS_1_BEGIN",
+    "ACCEPTED_INPUT_PASS_1_END",
+    "LINEAGE_CTOR_BEGIN",
+    "LINEAGE_REFERENCE_REGISTRY_BEGIN",
+    "LINEAGE_REFERENCE_REGISTRY_END",
+    "LINEAGE_REFERENCE_CAPABILITIES_BEGIN",
+    "LINEAGE_REFERENCE_CAPABILITIES_END",
+    "LINEAGE_REFERENCE_OBJECTS_BEGIN",
+    "LINEAGE_REFERENCE_OBJECTS_END",
+    "LINEAGE_REFERENCE_MEMBERS_BEGIN",
+    "LINEAGE_REFERENCE_MEMBERS_END",
+    "LINEAGE_EVIDENCE_BEGIN",
+    "LINEAGE_EVIDENCE_END",
+    "LINEAGE_SOURCE_RELATIONS_BEGIN",
+    "LINEAGE_SOURCE_RELATIONS_END",
+    "LINEAGE_OCCURRENCES_BEGIN",
+    "LINEAGE_OCCURRENCES_END",
+    "ACCEPTED_INPUT_PASS_2_BEGIN",
+    "ACCEPTED_INPUT_PASS_2_END",
+    "LINEAGE_CTOR_END",
+    "CATALOG_BUILD_BEGIN",
+    "ACCEPTED_INPUT_PASS_3_BEGIN",
+    "ACCEPTED_INPUT_PASS_3_END",
+    "LINEAGE_CONTEXT_PROJECTION_BEGIN",
+    "LINEAGE_CONTEXT_PROJECTION_END",
+    "ACCEPTED_INPUT_PASS_4_BEGIN",
+    "ACCEPTED_INPUT_PASS_4_END",
+    "CATALOG_BUILD_END",
+    "ACCEPTED_INPUT_PASS_5_BEGIN",
+    "ACCEPTED_INPUT_PASS_5_END",
+    "ARTIFACT_REOPEN_BEGIN",
+    "ARTIFACT_REOPEN_END",
+)
 _STAGE = "CONFIGURATION"
 INTERPRETATION = {
     "country_namespace": "UNKNOWN",
@@ -55,6 +96,52 @@ EXPECTED_COUNTS = {
 }
 
 
+def selected_operating_policy(config):
+    """Only an explicit closed successor selects the longer finite operation."""
+    if "operating_policy" not in config:
+        return None
+    value = config["operating_policy"]
+    b.require(
+        type(value) is dict
+        and set(value)
+        == {
+            "schema_version",
+            "application_seconds",
+            "scheduler_seconds",
+            "progress_policy",
+            "decision_record_path",
+            "decision_record_sha256",
+        }
+        and value["schema_version"] == OPERATING_POLICY
+        and type(value["application_seconds"]) is int
+        and value["application_seconds"] == 43200
+        and type(value["scheduler_seconds"]) is int
+        and value["scheduler_seconds"] == 44100
+        and value["progress_policy"] == PROGRESS_VERSION
+        and value["decision_record_sha256"] == OPERATING_DECISION_SHA256
+        and type(value["decision_record_path"]) is str,
+        "S12A_OPERATING_POLICY",
+    )
+    return value
+
+
+def validate_operating_entry(config, environment):
+    policy = selected_operating_policy(config)
+    b.require(
+        (
+            policy is None
+            and "STAGE12A_OPERATING_POLICY" not in environment
+            and "STAGE12A_SCHEDULER_SECONDS" not in environment
+        )
+        or (
+            policy is not None
+            and environment.get("STAGE12A_OPERATING_POLICY") == OPERATING_POLICY
+            and environment.get("STAGE12A_SCHEDULER_SECONDS") == "44100"
+        ),
+        "S12A_OPERATING_ENTRY",
+    )
+
+
 def validate_config(value):
     b.require(
         type(value) is dict
@@ -76,6 +163,7 @@ def validate_config(value):
             "scratch_path",
             "resources",
         }
+        | ({"operating_policy"} if "operating_policy" in value else set())
         and value["schema_version"] == VERSION
         and value["operation"] == OPERATION
         and value["population_scope"] == b.DEVELOPMENT
@@ -83,6 +171,7 @@ def validate_config(value):
         and value["holdout"] == "EXCLUDED",
         "S12A_LOCAL_SCOPE",
     )
+    policy = selected_operating_policy(value)
     b.require(
         type(value["source_git_sha"]) is str
         and len(value["source_git_sha"]) == 40
@@ -118,6 +207,8 @@ def validate_config(value):
             )
         ),
     ]
+    if policy is not None:
+        paths.append(policy["decision_record_path"])
     b.require(
         all(
             type(x) is str
@@ -141,6 +232,15 @@ def validate_config(value):
             and ".." not in path.parts
             and path != CONTROLLED_ROOT / child
             and path.is_relative_to(CONTROLLED_ROOT / child),
+            "S12A_CONTROLLED_LOCATION",
+        )
+    if policy is not None:
+        path = Path(policy["decision_record_path"])
+        b.require(
+            str(path) == policy["decision_record_path"]
+            and ".." not in path.parts
+            and path != CONTROLLED_ROOT / "controls"
+            and path.is_relative_to(CONTROLLED_ROOT / "controls"),
             "S12A_CONTROLLED_LOCATION",
         )
     b.require(
@@ -176,7 +276,11 @@ def validate_config(value):
         b.uint(limit, True)
     b.require(
         resources["duckdb_memory_bytes"] == 4 * 2**30
-        and resources["max_duration_seconds"] <= 7200
+        and (
+            resources["max_duration_seconds"] <= 7200
+            if policy is None
+            else resources["max_duration_seconds"] == 43200
+        )
         and resources["max_generated_disk_bytes"]
         >= max(64 * 2**30, 32 * VALIDATED_PAYLOAD_BYTES)
         and resources["minimum_free_bytes"]
@@ -184,6 +288,125 @@ def validate_config(value):
         "S12A_RESOURCE_SCOPE",
     )
     return value
+
+
+def check_duration(started, maximum):
+    now = time.monotonic()
+    b.require(now - started < maximum, "S12A_RUNTIME_LIMIT")
+    return now
+
+
+class Progress:
+    """At most 32 closed records; same run origin, private durable journal."""
+
+    def __init__(self, path, *, started, check, output=None):
+        self.started, self.check, self.count = started, check, 0
+        self.path, self.bytes = path, 0
+        self.emitted_sha256 = hashlib.sha256()
+        self.output = (
+            (
+                lambda row: print(
+                    json.dumps(row, sort_keys=True, separators=(",", ":")), flush=True
+                )
+            )
+            if output is None
+            else output
+        )
+        io.write(path, b"")
+        self.fd = os.open(path, os.O_APPEND | os.O_WRONLY | os.O_NOFOLLOW)
+        self.identity = os.fstat(self.fd)
+
+    def __call__(self, label):
+        self.check()
+        b.require(
+            self.count < len(PROGRESS_LABELS) and label == PROGRESS_LABELS[self.count],
+            "S12A_PROGRESS_BOUNDARY",
+        )
+        elapsed = int((time.monotonic() - self.started) * 1000)
+        b.uint(elapsed)
+        row = {
+            "schema_version": PROGRESS_VERSION,
+            "sequence": self.count + 1,
+            "boundary": label,
+            "elapsed_ms": elapsed,
+        }
+        raw = b.canonical(row)
+        b.require(
+            len(raw) <= 512 and self.bytes + len(raw) <= MAX_PROGRESS_BYTES,
+            "S12A_PROGRESS_BOUNDARY",
+        )
+        b.require(os.write(self.fd, raw) == len(raw), "S12A_PROGRESS_WRITE")
+        os.fsync(self.fd)
+        self.emitted_sha256.update(raw)
+        self.count += 1
+        self.bytes += len(raw)
+        self.output(row)
+        self.check()
+
+    def snapshot(self):
+        self.check()
+        b.require(self.count == len(PROGRESS_LABELS), "S12A_PROGRESS_INCOMPLETE")
+        os.fsync(self.fd)
+        info = self.path.lstat()
+        b.require(
+            not self.path.is_symlink()
+            and info.st_uid == os.geteuid()
+            and info.st_nlink == 1
+            and info.st_mode & 0o777 == 0o600
+            and (info.st_dev, info.st_ino)
+            == (self.identity.st_dev, self.identity.st_ino),
+            "S12A_PROGRESS_CHANGED",
+        )
+        raw = io.read(self.path, limit=MAX_PROGRESS_BYTES)
+        b.require(
+            b.sha(raw).hex() == self.emitted_sha256.hexdigest(), "S12A_PROGRESS_CHANGED"
+        )
+        rows = [io.metadata(line + b"\n") for line in raw.splitlines()]
+        b.require(
+            len(raw) == self.bytes
+            and len(rows) == self.count
+            and all(
+                set(row) == {"schema_version", "sequence", "boundary", "elapsed_ms"}
+                and row["schema_version"] == PROGRESS_VERSION
+                and row["sequence"] == index
+                and row["boundary"] == PROGRESS_LABELS[index - 1]
+                and type(row["elapsed_ms"]) is int
+                and 0 <= row["elapsed_ms"]
+                for index, row in enumerate(rows, 1)
+            )
+            and [row["elapsed_ms"] for row in rows]
+            == sorted(row["elapsed_ms"] for row in rows),
+            "S12A_PROGRESS_CHANGED",
+        )
+        after = self.path.lstat()
+        b.require(
+            (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns)
+            == (
+                after.st_dev,
+                after.st_ino,
+                after.st_size,
+                after.st_mtime_ns,
+                after.st_ctime_ns,
+            ),
+            "S12A_PROGRESS_CHANGED",
+        )
+        self.check()
+        return {
+            "schema_version": PROGRESS_VERSION,
+            "records": self.count,
+            "bytes": len(raw),
+            "sha256": b.sha(raw).hex(),
+            "max_records": 32,
+            "max_bytes": MAX_PROGRESS_BYTES,
+            "durability": "FSYNC_PER_RECORD_AND_FULL_READ_BEFORE_RESULT",
+            "scope": "SUPPLEMENTARY_OUTSIDE_ARTIFACT",
+            "lifetime": "PRESERVE_WITH_RUN",
+        }
+
+    def close(self):
+        if self.fd is not None:
+            descriptor, self.fd = self.fd, None
+            os.close(descriptor)
 
 
 class Authority:
@@ -476,9 +699,11 @@ def reopen_artifact(
 def run(config, *, repository):
     """One native invocation; preserves failed attempts and never resumes them."""
     global _STAGE
+    entry_started = time.monotonic()
     _STAGE = "SITE_SOURCE_VALIDATE"
     require_goethe_nhr_slurm("scientific Stage12A catalog/lineage")
     config = validate_config(config)
+    policy = selected_operating_policy(config)
     repository = Path(repository)
     # Git is local/read-only and completes before process-wide process denial.
     sha = subprocess.check_output(
@@ -494,16 +719,15 @@ def run(config, *, repository):
 
     guard = OfflineGuard()
     old_umask = os.umask(0o077)
-    projection = built = None
-    started = time.monotonic()
+    projection = built = progress = None
+    started = entry_started if policy is not None else time.monotonic()
     out, scratch = Path(config["output_path"]), Path(config["scratch_path"])
     bounds = config["resources"]
     last_disk_check = [0.0]
     parent_identities = {}
 
     def check(force=False):
-        now = time.monotonic()
-        b.require(now - started < bounds["max_duration_seconds"], "S12A_RUNTIME_LIMIT")
+        now = check_duration(started, bounds["max_duration_seconds"])
         if force or now - last_disk_check[0] >= 10:
             last_disk_check[0] = now
             for path, expected in parent_identities.items():
@@ -529,13 +753,19 @@ def run(config, *, repository):
 
     try:
         _STAGE = "AUTHORITY_LOCATION_VALIDATE"
-        for field in (
-            "output_path",
-            "scratch_path",
-            "authorization_record_path",
-            "owner_instruction_record_path",
-        ):
-            parent = Path(config[field]).parent
+        controlled_paths = [
+            config[field]
+            for field in (
+                "output_path",
+                "scratch_path",
+                "authorization_record_path",
+                "owner_instruction_record_path",
+            )
+        ]
+        if policy is not None:
+            controlled_paths.append(policy["decision_record_path"])
+        for raw_path in controlled_paths:
+            parent = Path(raw_path).parent
             while parent.is_relative_to(CONTROLLED_ROOT):
                 info = parent.lstat()
                 b.require(
@@ -568,6 +798,14 @@ def run(config, *, repository):
             authority_record == authorization_record(config),
             "S12A_AUTHORIZATION_SCOPE",
         )
+        if policy is not None:
+            decision_raw = io.read(
+                Path(policy["decision_record_path"]), limit=b.MAX_METADATA
+            )
+            b.require(
+                b.sha(decision_raw).hex() == OPERATING_DECISION_SHA256,
+                "S12A_OPERATING_POLICY",
+            )
         io.private_directory(out.parent)
         io.private_directory(scratch.parent)
         io.reserve(out)
@@ -578,6 +816,8 @@ def run(config, *, repository):
             os.environ.get("SQLITE_TMPDIR") == str(spill), "B2_PRIVATE_SPILL_REQUIRED"
         )
         check(True)
+        if policy is not None:
+            progress = Progress(out / "progress.jsonl", started=started, check=check)
         authority = Authority(config, guard, check)
         roots = {k: Path(v) for k, v in config["accepted_roots"].items()}
         with io.cooperative_io(check):
@@ -591,11 +831,14 @@ def run(config, *, repository):
                 authority=authority,
                 interpretation=INTERPRETATION,
                 interpretation_sha256=b.digest(INTERPRETATION),
+                **({"progress": progress} if progress is not None else {}),
             )
             authority.bind_projection(projection)
             _STAGE = "CATALOG_BUILD"
             pending = out / "building"
             io.reserve(pending)
+            if progress is not None:
+                progress("CATALOG_BUILD_BEGIN")
             built = catalog.build_accepted(
                 pending / "catalog.sqlite",
                 roots["stage11"],
@@ -606,6 +849,8 @@ def run(config, *, repository):
                 scratch=scratch / "stage10",
                 memory_bytes=bounds["duckdb_memory_bytes"],
             )
+            if progress is not None:
+                progress("CATALOG_BUILD_END")
             _STAGE = "CATALOG_VALIDATE"
             counts = built.validate_relations(EXPECTED_COUNTS)
             catalog_sha = built.file_sha256
@@ -642,11 +887,15 @@ def run(config, *, repository):
             os.rename(pending, artifact)
             io.fsync_directory(out)
             _STAGE = "ARTIFACT_REOPEN"
+            if progress is not None:
+                progress("ARTIFACT_REOPEN_BEGIN")
             b.require(
                 reopen_artifact(artifact, config, check=check)
                 == {"catalog_sha256": catalog_sha, "counts": counts},
                 "S12A_REOPEN_MISMATCH",
             )
+            if progress is not None:
+                progress("ARTIFACT_REOPEN_END")
             b.require(
                 catalog.s11.sha256_file(artifact / "catalog.sqlite") == catalog_sha,
                 "B2_CATALOG_CHANGED",
@@ -680,10 +929,18 @@ def run(config, *, repository):
                 "stage10_manifest_sha256": accepted10.MANIFEST_SHA,
                 "stage11_manifest_sha256": catalog.ACCEPTED["manifest_sha256"],
             }
+            if progress is not None:
+                result["operating_policy"] = {
+                    "schema_version": OPERATING_POLICY,
+                    "application_seconds": 43200,
+                    "scheduler_seconds": 44100,
+                    "decision_record_sha256": OPERATING_DECISION_SHA256,
+                }
+                result["progress"] = progress.snapshot()
             io.write(out / "result.json", b.canonical(result))
             return result
     finally:
-        finish((built, projection), guard, old_umask, sys.exc_info()[1])
+        finish((built, projection, progress), guard, old_umask, sys.exc_info()[1])
 
 
 def finish(values, guard, old_umask, primary):
@@ -722,6 +979,12 @@ def safe_failure(error, stage):
         "TypeError",
     }
     codes = {
+        "S12A_OPERATING_POLICY",
+        "S12A_OPERATING_ENTRY",
+        "S12A_PROGRESS_BOUNDARY",
+        "S12A_PROGRESS_WRITE",
+        "S12A_PROGRESS_INCOMPLETE",
+        "S12A_PROGRESS_CHANGED",
         "S12A_CONFIGURATION_BINDING",
         "S12A_ARTIFACT_MEMBERSHIP",
         "S12A_ARTIFACT_BINDING",
@@ -804,6 +1067,7 @@ def main(argv=None):
             "S12A_CONFIGURATION_BINDING",
         )
         config = io.metadata(raw)
+        validate_operating_entry(config, os.environ)
         result = run(config, repository=Path(__file__).resolve().parents[4])
     except BaseException as error:
         print(

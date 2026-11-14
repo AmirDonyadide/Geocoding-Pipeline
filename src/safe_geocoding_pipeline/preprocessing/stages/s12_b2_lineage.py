@@ -54,14 +54,24 @@ class LineageProjection:
         authority,
         interpretation,
         interpretation_sha256,
+        progress=None,
     ):
         authority.require(
             "protected_lineage_input", interpretation_sha256, interpretation
         )
 
         # Existing consume_inputs enforces Goethe/DEVELOPMENT and all accepted identities.
+        pass_number = 0
+
         def reload():
-            return inputs.consume_inputs(stage08_root, stage09_root, stage06_root)
+            nonlocal pass_number
+            if progress is not None:
+                pass_number += 1
+                progress(f"ACCEPTED_INPUT_PASS_{pass_number}_BEGIN")
+            result = inputs.consume_inputs(stage08_root, stage09_root, stage06_root)
+            if progress is not None:
+                progress(f"ACCEPTED_INPUT_PASS_{pass_number}_END")
+            return result
 
         accepted = reload()
         return cls(
@@ -73,6 +83,7 @@ class LineageProjection:
             authority=authority,
             interpretation=interpretation,
             interpretation_sha256=interpretation_sha256,
+            progress=progress,
         )
 
     def __init__(
@@ -86,12 +97,16 @@ class LineageProjection:
         interpretation,
         interpretation_sha256,
         _construction,
+        progress=None,
     ):
         b.require(
             _construction is _PRODUCTION_CONSTRUCTION
             or _construction is _TEST_CONSTRUCTION,
             "B2_LINEAGE_CONSTRUCTION",
         )
+        self.progress = progress
+        if progress is not None:
+            progress("LINEAGE_CTOR_BEGIN")
         self.population_scope = (
             b.DEVELOPMENT if _construction is _PRODUCTION_CONSTRUCTION else b.SYNTHETIC
         )
@@ -155,18 +170,30 @@ class LineageProjection:
             ("objects", "reference_object", "reference_object_id"),
             ("members", "reference_match_member", "match_set_id"),
         ]:
+            if progress is not None:
+                progress("LINEAGE_REFERENCE_" + name.upper() + "_BEGIN")
             self.db.execute(
                 f"create table stage10_{name} as select * from {source} order by {key}"
             )
             self.db.execute(f"create index b2_{name}_key on stage10_{name}({key})")
+            if progress is not None:
+                progress("LINEAGE_REFERENCE_" + name.upper() + "_END")
         self.access = contexts.ReferenceAccess(self.db)
+        if progress is not None:
+            progress("LINEAGE_EVIDENCE_BEGIN")
         self.db.execute(
             "create table b2_evidence as select * from candidate_reference_evidence order by stage06_exact_candidate_id,stable_source_row_id_v1,evidence_id"
         )
         self.db.execute(
             "create index b2_evidence_key on b2_evidence(stage06_exact_candidate_id,stable_source_row_id_v1)"
         )
+        if progress is not None:
+            progress("LINEAGE_EVIDENCE_END")
+            progress("LINEAGE_SOURCE_RELATIONS_BEGIN")
         self.validate_source_relations()
+        if progress is not None:
+            progress("LINEAGE_SOURCE_RELATIONS_END")
+            progress("LINEAGE_OCCURRENCES_BEGIN")
         self.db.execute(
             "create table b2_occurrences as select o.*,s as source,l as lines from stage08_occurrence o join source_candidate_map s using(stable_source_row_id_v1) join stage06_row_map l using(stable_source_row_id_v1)"
         )
@@ -175,7 +202,11 @@ class LineageProjection:
             == self.db.execute("select count(*) from stage08_occurrence").fetchone()[0],
             "B2_LINEAGE_TOTALITY",
         )
+        if progress is not None:
+            progress("LINEAGE_OCCURRENCES_END")
         self.validate()
+        if progress is not None:
+            progress("LINEAGE_CTOR_END")
 
     def validate_source_relations(self):
         """Check source population before any occurrence/query inner join.
@@ -592,6 +623,8 @@ class LineageProjection:
                         }
 
     def rows(self):
+        if self.progress is not None:
+            self.progress("LINEAGE_CONTEXT_PROJECTION_BEGIN")
         for row in contexts.sql_rows(
             self.db,
             "select * from b2_occurrences order by stable_source_row_id_v1,stage08_representation",
@@ -635,6 +668,8 @@ class LineageProjection:
                     shape_bytes({"binding": self.binding_sha256, "occurrence": row})
                 ).hex(),
             }
+        if self.progress is not None:
+            self.progress("LINEAGE_CONTEXT_PROJECTION_END")
 
     def close(self):
         self.db.close()
