@@ -12,6 +12,7 @@ import hashlib
 import os
 from pathlib import Path
 import shutil
+import sqlite3
 import subprocess
 import sys
 import time
@@ -294,6 +295,30 @@ def check_duration(started, maximum):
     now = time.monotonic()
     b.require(now - started < maximum, "S12A_RUNTIME_LIMIT")
     return now
+
+
+def remember_guard_failure(check, first):
+    """Keep at most one initiating guard exception until this run unwinds."""
+
+    def guarded(*args, **kwargs):
+        try:
+            return check(*args, **kwargs)
+        except BaseException as error:
+            if not first:
+                first.append(error.with_traceback(None))
+            raise
+
+    return guarded
+
+
+def restore_sqlite_guard(error, first):
+    """SQLite wraps callback errors; restore only an observed INTERRUPT's guard."""
+    original = first[0] if first else None
+    first.clear()
+    code = getattr(error, "sqlite_errorcode", None)
+    if type(code) is int and code == sqlite3.SQLITE_INTERRUPT and original is not None:
+        raise original.with_traceback(None) from None
+    raise error
 
 
 class Progress:
@@ -725,6 +750,7 @@ def run(config, *, repository):
     bounds = config["resources"]
     last_disk_check = [0.0]
     parent_identities = {}
+    first_guard_failure = []
 
     def check(force=False):
         now = check_duration(started, bounds["max_duration_seconds"])
@@ -750,6 +776,8 @@ def run(config, *, repository):
                     "S12A_FREE_SPACE",
                 )
         guard.assert_active()
+
+    check = remember_guard_failure(check, first_guard_failure)
 
     try:
         _STAGE = "AUTHORITY_LOCATION_VALIDATE"
@@ -939,7 +967,10 @@ def run(config, *, repository):
                 result["progress"] = progress.snapshot()
             io.write(out / "result.json", b.canonical(result))
             return result
+    except sqlite3.OperationalError as error:
+        restore_sqlite_guard(error, first_guard_failure)
     finally:
+        first_guard_failure.clear()
         finish((built, projection, progress), guard, old_umask, sys.exc_info()[1])
 
 
@@ -1037,6 +1068,11 @@ def safe_failure(error, stage):
     }
     # Inspect only a string argument, never exception formatting or traceback.
     argument = error.args[0] if error.args and type(error.args[0]) is str else None
+    sqlite_code = (
+        getattr(error, "sqlite_errorcode", None)
+        if isinstance(error, sqlite3.Error)
+        else None
+    )
     return {
         "schema_version": VERSION,
         "status": "FAILED",
@@ -1045,6 +1081,9 @@ def safe_failure(error, stage):
         if type(error).__name__ in classes
         else "UNCLASSIFIED_ERROR",
         "code": argument if argument in codes else "UPSTREAM_OR_UNCLASSIFIED_FAILURE",
+        "sqlite_errorcode": sqlite_code
+        if type(sqlite_code) is int and 0 <= sqlite_code <= 65535
+        else None,
     }
 
 

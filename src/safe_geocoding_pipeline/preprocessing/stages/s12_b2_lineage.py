@@ -315,7 +315,13 @@ class LineageProjection:
         wanted = s9.normalize(s9.ISO_NORM, code)
         found = None
         for row in contexts.sql_rows(
-            self.db, "select * from stage10_objects where object_kind='ISO_COUNTRY'"
+            self.db,
+            """select * from stage10_objects where object_kind='ISO_COUNTRY' and (
+                fields is null or list_count(fields) <> len(fields) or ? in (
+                    list_extract([f.original_value for f in fields if f.field_name='alpha_2'],-1),
+                    list_extract([f.original_value for f in fields if f.field_name='alpha_3'],-1)
+                ))""",
+            [wanted],
         ):
             fields = {x["field_name"]: x["original_value"] for x in row["fields"]}
             if wanted in (fields.get("alpha_2"), fields.get("alpha_3")):
@@ -330,8 +336,10 @@ class LineageProjection:
 
     def capability(self, country):
         vector = []
+        requests = []
         for question in s9.CATALOG:
             for reference in question.references:
+                ordinal = len(vector)
                 if reference == "NONE":
                     vector.append(
                         [
@@ -349,21 +357,47 @@ class LineageProjection:
                     if question.question_id in ("Q01", "Q14")
                     else country or "UNRESOLVED"
                 )
-                row = contexts.one(
-                    self.db,
-                    "select c.* from stage10_capabilities c join stage10_registry r using(reference_version_id) where r.reference_id=? and c.question_catalog_id=? and c.country_scope=? and c.scope_locator=?",
-                    [reference, question.question_id, scope, "COUNTRY_MATRIX"],
+                requests.append((ordinal, question.question_id, reference, scope))
+                vector.append(None)
+        # One fresh query per call; retain only two scalar result rows, never a
+        # capability-object collection or a cross-context acceptance cache.
+        query = (
+            "select req.ordinal,c.enabled,c.granularity,c.positive_authority,c.negative_authority "
+            "from (values "
+            + ",".join("(?,?,?,?)" for _ in requests)
+            + ") req(ordinal,question_id,reference_id,country_scope) "
+            "join stage10_registry r on r.reference_id=req.reference_id "
+            "join stage10_capabilities c on c.reference_version_id=r.reference_version_id "
+            "and c.question_catalog_id=req.question_id and c.country_scope=req.country_scope "
+            "where c.scope_locator='COUNTRY_MATRIX' order by req.ordinal"
+        )
+        stream = contexts.sql_rows(
+            self.db, query, [value for request in requests for value in request]
+        )
+        try:
+            current = next(stream, None)
+            for ordinal, question, reference, _ in requests:
+                contexts.c.require(
+                    current is not None and current["ordinal"] == ordinal,
+                    "STAGE10_EXACT_KEY_CARDINALITY_INVALID",
                 )
-                vector.append(
-                    [
-                        question.question_id,
-                        reference,
-                        row["enabled"],
-                        row["granularity"],
-                        row["positive_authority"],
-                        row["negative_authority"],
-                    ]
+                row = current
+                current = next(stream, None)
+                contexts.c.require(
+                    current is None or current["ordinal"] != ordinal,
+                    "STAGE10_EXACT_KEY_CARDINALITY_INVALID",
                 )
+                vector[ordinal] = [
+                    question,
+                    reference,
+                    row["enabled"],
+                    row["granularity"],
+                    row["positive_authority"],
+                    row["negative_authority"],
+                ]
+            contexts.c.require(current is None, "STAGE10_EXACT_KEY_CARDINALITY_INVALID")
+        finally:
+            stream.close()
         return vector
 
     def source_channels(self, source, country, candidate_country):
